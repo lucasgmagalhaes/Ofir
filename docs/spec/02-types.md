@@ -49,11 +49,19 @@ a return type return `()`.
 
 `str` is an owned, growable, UTF-8 encoded byte string. String literals have
 type `str` but are stored statically and never allocate unless modified.
+A string literal can also be used wherever `&str` is expected; it is then a
+borrow of static data:
+
+```astra
+fn greet(name: &str) { println("hello, {name}") }
+
+greet("Ana")            // no allocation, no `&` needed
+```
 
 ```astra
 var s = "hello"
 s.push(", world")
-println(s.len())        // 12 (bytes)
+println("{s.len()}")    // 12 (bytes)
 let b: u8 = s[0]        // indexing yields bytes
 ```
 
@@ -162,7 +170,7 @@ fn div_mod(a: int, b: int) (int, int) {
 
 let (q, r) = div_mod(17, 5)
 let pair = (1, "one")
-println(pair.0)
+println("{pair.0}")
 ```
 
 Tuples are Copy when all their elements are Copy. The empty tuple is the

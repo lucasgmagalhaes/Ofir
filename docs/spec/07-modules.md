@@ -46,9 +46,26 @@ The following names are available in every module without imports:
 
 - primitive types, `str`, `List`, `Map`, `Option`, `Result`, `Box`
 - `Some`, `None`, `Ok`, `Err`
-- `print`, `println`, `eprintln`, `panic`, `assert`
+- the built-in functions below
 
-## 7.5 Standard library (bootstrap subset)
+## 7.5 Built-in functions
+
+```astra
+fn print(text: &str)              // standard output
+fn println(text: &str)            // standard output, followed by "\n"
+fn eprint(text: &str)             // standard error
+fn eprintln(text: &str)           // standard error, followed by "\n"
+fn panic(message: &str) !
+fn assert(condition: bool)
+fn assert_eq<T: Eq + Debug>(left: &T, right: &T)
+fn size_of<T>() int
+fn align_of<T>() int
+```
+
+Values are printed through string interpolation: `println("{count}")`.
+There are no variadic functions in Astra.
+
+## 7.6 Standard library (bootstrap subset)
 
 | Module | Contents |
 |--------|----------|

@@ -48,7 +48,7 @@ The runner checks that exactly the annotated errors are produced.
 fn main() {
     let xs = [1, 2, 3]
     let i = 5
-    println(xs[i])
+    println("{xs[i]}")
 }
 ```
 
