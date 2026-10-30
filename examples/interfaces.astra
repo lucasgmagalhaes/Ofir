@@ -1,8 +1,8 @@
 interface Shape {
-    fn (&Self) area() -> float
-    fn (&Self) name() -> str
+    fn (&Self) area() float
+    fn (&Self) name() str
 
-    fn (s: &Self) describe() -> str {
+    fn (s: &Self) describe() str {
         return "{s.name()} with area {s.area():.2}"
     }
 }
@@ -11,15 +11,15 @@ struct Circle: Shape {
     radius: float
 }
 
-fn (c: &Circle) area() -> float { return 3.14159 * c.radius * c.radius }
-fn (c: &Circle) name() -> str { return "circle" }
+fn (c: &Circle) area() float { return 3.14159 * c.radius * c.radius }
+fn (c: &Circle) name() str { return "circle" }
 
 struct Square: Shape {
     side: float
 }
 
-fn (s: &Square) area() -> float { return s.side * s.side }
-fn (s: &Square) name() -> str { return "square" }
+fn (s: &Square) area() float { return s.side * s.side }
+fn (s: &Square) name() str { return "square" }
 
 // Static dispatch: one specialized copy per shape type.
 fn print_area<S: Shape>(shape: &S) {

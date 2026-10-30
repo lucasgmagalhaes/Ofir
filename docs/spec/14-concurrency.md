@@ -18,7 +18,7 @@ import std.thread
 
 fn main() {
     let data = [1, 2, 3]
-    let handle = thread.spawn(move fn() -> int {
+    let handle = thread.spawn(move fn() int {
         var sum = 0
         for x in data { sum += *x }
         return sum

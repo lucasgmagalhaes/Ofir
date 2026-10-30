@@ -4,7 +4,7 @@ enum Shape {
     Empty
 }
 
-fn (s: &Shape) area() -> float {
+fn (s: &Shape) area() float {
     return match s {
         .Circle(r) => 3.14159 * r * r
         .Rect(w, h) => w * h

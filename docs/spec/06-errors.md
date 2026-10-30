@@ -28,7 +28,7 @@ enum Option<T> {
 `Ok`, `Err`, `Some` and `None` are in scope everywhere without a prefix.
 
 ```astra
-fn parse_port(s: &str) -> Result<u16, str> {
+fn parse_port(s: &str) Result<u16, str> {
     let n = parse_int(s)?
     if n < 1 || n > 65535 {
         return Err("port out of range: {n}")

@@ -39,7 +39,7 @@ struct Point {
     y: float
 }
 
-fn (p: &Point) length() -> float {
+fn (p: &Point) length() float {
     return sqrt(p.x * p.x + p.y * p.y)
 }
 
