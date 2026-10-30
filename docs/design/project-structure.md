@@ -203,7 +203,7 @@ tests/
 ├── lex/                      *.at + *.tokens   expected token streams
 ├── parse/                    *.at + *.ast      expected AST dumps
 ├── run/                      *.at + *.out      compile, run, compare stdout
-├── compile_fail/             *.at with `// error[E0123]: message` annotations
+├── compile_fail/             *.at with `// error[E0300]: message` annotations
 ├── panic/                    *.at with `// panic: message` annotations
 ├── borrow/                   ownership and borrow checker cases
 ├── codegen/                  *.at + *.ll       FileCheck-style IR checks

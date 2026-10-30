@@ -1,6 +1,6 @@
 # `std.io`, `std.fs`, `std.os`
 
-## Errors
+## Errors (`std.io`)
 
 ```astra
 pub struct IoError {

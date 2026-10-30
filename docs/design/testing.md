@@ -35,7 +35,7 @@ Expected diagnostics are annotations on the line where they are reported:
 ```astra
 fn main() {
     let x = 1
-    x = 2   // error[E0384]: cannot assign twice to immutable variable `x`
+    x = 2   // error[E0304]: cannot assign twice to immutable variable `x`
 }
 ```
 

@@ -36,7 +36,7 @@ implements a subset of each phase.
 | clang | LLVM IR + runtime | executable | (internal errors only) |
 
 Phases after type checking never report user errors except the borrow
-checker. If any phase reports an error, compilation stops after that
+checker and the instantiation depth limit of monomorphization. If any phase reports an error, compilation stops after that
 phase (the phase itself continues to collect as many errors as possible).
 
 ## 2. Core data structures
@@ -307,7 +307,7 @@ modules) compiled by parallel clang processes **[planned]**.
 ## 13. Diagnostics
 
 ```
-error[E0382]: use of moved value `inv`
+error[E0600]: use of moved value `inv`
   --> examples/ownership.at:27:5
    |
 25 |     discard(inv)
@@ -320,7 +320,7 @@ error[E0382]: use of moved value `inv`
 ```
 
 - Every error has a stable code (`E0001`...) documented in
-  [`docs/errors/`](../errors/README.md), with a longer explanation (`astra explain E0382`).
+  [`docs/errors/`](../errors/README.md), with a longer explanation (`astra explain E0600`).
 - Errors are sorted by position and deduplicated.
 - A machine-readable JSON output (`--message-format=json`) feeds editors
   and the language server.
