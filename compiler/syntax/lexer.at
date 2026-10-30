@@ -43,9 +43,9 @@ pub struct Token {
     pub value: TokenValue
 }
 
-// The lexer does not keep a reference to the source: a struct cannot hold a
-// `&str` in the bootstrap subset (no `ref struct`), so every method receives
-// the source as a parameter. Tokens store spans, not slices.
+// The lexer does not keep the source: a struct cannot hold a reference in the
+// bootstrap subset (no `ref struct`), so every method borrows the source as a
+// parameter. Tokens store spans, not slices.
 struct Lexer {
     file: FileId
     pos: int
@@ -54,7 +54,7 @@ struct Lexer {
     keywords: Map<str, TokenKind>
 }
 
-pub fn tokenize(src: &str, file: FileId, names: &mut Interner, diags: &mut Diagnostics) List<Token> {
+pub fn tokenize(src: str, file: FileId, names: mut Interner, diags: mut Diagnostics) List<Token> {
     var lx = Lexer.new(file)
     var tokens: List<Token> = []
     for {
@@ -111,7 +111,7 @@ fn keywordTable() Map<str, TokenKind> {
 // ---------------------------------------------------------------------------
 // Main loop
 
-fn (lx: &mut Lexer) next(src: &str, names: &mut Interner, diags: &mut Diagnostics) Token {
+fn (lx: mut Lexer) next(src: str, names: mut Interner, diags: mut Diagnostics) Token {
     for lx.pos < src.len() {
         let c = src[lx.pos]
         match c {
@@ -147,14 +147,14 @@ fn (lx: &mut Lexer) next(src: &str, names: &mut Interner, diags: &mut Diagnostic
 // Newlines are tokens except directly inside `(...)` and `[...]`. Inside a
 // `{` block, even one nested in parentheses (a closure passed as an
 // argument), they separate statements again.
-fn (lx: &Lexer) newlinesMatter() bool {
+fn (lx: Lexer) newlinesMatter() bool {
     return match lx.brackets.last() {
         .Some(open) => open == b'{'
         .None => true
     }
 }
 
-fn (lx: &mut Lexer) tokenAt(src: &str, names: &mut Interner, diags: &mut Diagnostics) Token {
+fn (lx: mut Lexer) tokenAt(src: str, names: mut Interner, diags: mut Diagnostics) Token {
     let start = lx.pos
     let c = src[start]
     if c == b'b' && lx.peek(src, 1) == b'\'' {
@@ -176,7 +176,7 @@ fn (lx: &mut Lexer) tokenAt(src: &str, names: &mut Interner, diags: &mut Diagnos
 // ---------------------------------------------------------------------------
 // Helpers
 
-fn (lx: &Lexer) peek(src: &str, offset: int) u8 {
+fn (lx: Lexer) peek(src: str, offset: int) u8 {
     let i = lx.pos + offset
     if i < src.len() {
         return src[i]
@@ -184,15 +184,15 @@ fn (lx: &Lexer) peek(src: &str, offset: int) u8 {
     return 0
 }
 
-fn (lx: &Lexer) spanFrom(start: int) Span {
+fn (lx: Lexer) spanFrom(start: int) Span {
     return Span{file: lx.file, start, end: lx.pos}
 }
 
-fn (lx: &Lexer) token(kind: TokenKind, start: int) Token {
+fn (lx: Lexer) token(kind: TokenKind, start: int) Token {
     return Token{kind, span: lx.spanFrom(start), value: .None}
 }
 
-fn (lx: &Lexer) tokenWith(kind: TokenKind, start: int, value: TokenValue) Token {
+fn (lx: Lexer) tokenWith(kind: TokenKind, start: int, value: move TokenValue) Token {
     return Token{kind, span: lx.spanFrom(start), value}
 }
 
@@ -218,7 +218,7 @@ fn digitValue(c: u8) int {
 // Comments
 
 // Skips a `//` comment. Returns a token for `///` and `//!` doc comments.
-fn (lx: &mut Lexer) lineComment(src: &str) Option<Token> {
+fn (lx: mut Lexer) lineComment(src: str) Option<Token> {
     let start = lx.pos
     let kind: Option<TokenKind> = match (lx.peek(src, 2), lx.peek(src, 3)) {
         (b'/', b'/') => .None             // `////...` is an ordinary comment
@@ -237,7 +237,7 @@ fn (lx: &mut Lexer) lineComment(src: &str) Option<Token> {
 }
 
 // Skips a `/* ... */` comment. Returns true if it contained a newline.
-fn (lx: &mut Lexer) blockComment(src: &str, diags: &mut Diagnostics) bool {
+fn (lx: mut Lexer) blockComment(src: str, diags: mut Diagnostics) bool {
     let start = lx.pos
     lx.pos += 2
     var newline = false
@@ -260,7 +260,7 @@ fn (lx: &mut Lexer) blockComment(src: &str, diags: &mut Diagnostics) bool {
 // ---------------------------------------------------------------------------
 // Words and numbers
 
-fn (lx: &mut Lexer) word(src: &str, names: &mut Interner) Token {
+fn (lx: mut Lexer) word(src: str, names: mut Interner) Token {
     let start = lx.pos
     for lx.pos < src.len() && (isLetter(src[lx.pos]) || isDigit(src[lx.pos])) {
         lx.pos += 1
@@ -272,7 +272,7 @@ fn (lx: &mut Lexer) word(src: &str, names: &mut Interner) Token {
     return lx.tokenWith(.Ident, start, .Name(names.intern(text)))
 }
 
-fn (lx: &mut Lexer) number(src: &str, diags: &mut Diagnostics) Token {
+fn (lx: mut Lexer) number(src: str, diags: mut Diagnostics) Token {
     let start = lx.pos
     let base = match (src[start], lx.peek(src, 1)) {
         (b'0', b'x') => 16
@@ -321,7 +321,7 @@ fn accumulate(value: Option<u64>, base: int, digit: int) Option<u64> {
 }
 
 // `1.5` and `2e10` are floats; `0..10` is a range and `x.0` a tuple field.
-fn (lx: &Lexer) atFractionOrExponent(src: &str) bool {
+fn (lx: Lexer) atFractionOrExponent(src: str) bool {
     let c = lx.peek(src, 0)
     if c == b'.' {
         return isDigit(lx.peek(src, 1))
@@ -333,7 +333,7 @@ fn (lx: &Lexer) atFractionOrExponent(src: &str) bool {
     return false
 }
 
-fn (lx: &mut Lexer) floatRest(src: &str, start: int, diags: &mut Diagnostics) Token {
+fn (lx: mut Lexer) floatRest(src: str, start: int, diags: mut Diagnostics) Token {
     if lx.peek(src, 0) == b'.' {
         lx.pos += 1
         lx.skipDigits(src)
@@ -347,7 +347,7 @@ fn (lx: &mut Lexer) floatRest(src: &str, start: int, diags: &mut Diagnostics) To
         lx.skipDigits(src)
     }
     let text = src[start..lx.pos].replace("_", "")
-    return match float.parse(&text) {
+    return match float.parse(text) {
         .Ok(v) => lx.tokenWith(.Float, start, .Float(v))
         .Err(_) => {
             diags.error("E0005", lx.spanFrom(start), "invalid float literal")
@@ -356,7 +356,7 @@ fn (lx: &mut Lexer) floatRest(src: &str, start: int, diags: &mut Diagnostics) To
     }
 }
 
-fn (lx: &mut Lexer) skipDigits(src: &str) {
+fn (lx: mut Lexer) skipDigits(src: str) {
     for lx.pos < src.len() && (isDigit(src[lx.pos]) || src[lx.pos] == b'_') {
         lx.pos += 1
     }
@@ -369,7 +369,7 @@ fn (lx: &mut Lexer) skipDigits(src: &str) {
 // `opening` is true right after the opening quote and false after the `}`
 // that ends an interpolation; together with the stopping character it decides
 // between Str, StrStart, StrMid and StrEnd.
-fn (lx: &mut Lexer) stringPart(src: &str, start: int, opening: bool, diags: &mut Diagnostics) Token {
+fn (lx: mut Lexer) stringPart(src: str, start: int, opening: bool, diags: mut Diagnostics) Token {
     var text = str.new()
     for {
         if lx.pos >= src.len() || src[lx.pos] == b'\n' {
@@ -392,7 +392,7 @@ fn (lx: &mut Lexer) stringPart(src: &str, start: int, opening: bool, diags: &mut
             continue
         }
         if c == b'\\' {
-            lx.escape(src, &mut text, diags)
+            lx.escape(src, text, diags)
             continue
         }
         // Copy a run of ordinary bytes at once. Runs stop only at ASCII
@@ -409,7 +409,7 @@ fn isStringSpecial(c: u8) bool {
     return c == b'"' || c == b'\\' || c == b'{' || c == b'}' || c == b'\n'
 }
 
-fn (lx: &mut Lexer) escape(src: &str, out: &mut str, diags: &mut Diagnostics) {
+fn (lx: mut Lexer) escape(src: str, out: mut str, diags: mut Diagnostics) {
     let start = lx.pos
     lx.pos += 1                                   // the backslash
     let c = lx.peek(src, 0)
@@ -444,7 +444,7 @@ fn (lx: &mut Lexer) escape(src: &str, out: &mut str, diags: &mut Diagnostics) {
 }
 
 // Reads exactly `count` hex digits; returns -1 if they are missing.
-fn (lx: &mut Lexer) hexDigits(src: &str, count: int) int {
+fn (lx: mut Lexer) hexDigits(src: str, count: int) int {
     var value = 0
     for _ in 0..count {
         let d = digitValue(lx.peek(src, 0))
@@ -458,7 +458,7 @@ fn (lx: &mut Lexer) hexDigits(src: &str, count: int) int {
 }
 
 // Reads `{H...}` after `\u`; returns -1 if malformed.
-fn (lx: &mut Lexer) unicodeEscape(src: &str) int {
+fn (lx: mut Lexer) unicodeEscape(src: str) int {
     if lx.peek(src, 0) != b'{' {
         return -1
     }
@@ -481,7 +481,7 @@ fn (lx: &mut Lexer) unicodeEscape(src: &str) int {
 }
 
 // `b'a'`, `b'\n'`, `b'\xff'`: any byte value, unlike `\x` in strings.
-fn (lx: &mut Lexer) byteLiteral(src: &str, diags: &mut Diagnostics) Token {
+fn (lx: mut Lexer) byteLiteral(src: str, diags: mut Diagnostics) Token {
     let start = lx.pos
     lx.pos += 2                                   // b'
     var value = lx.peek(src, 0) as int
@@ -514,7 +514,7 @@ fn (lx: &mut Lexer) byteLiteral(src: &str, diags: &mut Diagnostics) Token {
 // `>` is always a single token. The parser combines adjacent `>` tokens into
 // `>>`, `>=` and `>>=` where an expression needs them, so that
 // `List<List<int>>` closes two type argument lists.
-fn (lx: &mut Lexer) punct(src: &str, diags: &mut Diagnostics) Token {
+fn (lx: mut Lexer) punct(src: str, diags: mut Diagnostics) Token {
     let start = lx.pos
     let c = src[start]
     lx.pos += 1
@@ -557,7 +557,7 @@ fn (lx: &mut Lexer) punct(src: &str, diags: &mut Diagnostics) Token {
 }
 
 // Consumes `expected` if it is the next byte.
-fn (lx: &mut Lexer) eat(src: &str, expected: u8) bool {
+fn (lx: mut Lexer) eat(src: str, expected: u8) bool {
     if lx.peek(src, 0) == expected {
         lx.pos += 1
         return true
@@ -565,26 +565,26 @@ fn (lx: &mut Lexer) eat(src: &str, expected: u8) bool {
     return false
 }
 
-fn (lx: &mut Lexer) pick(src: &str, expected: u8, long: TokenKind, short: TokenKind) TokenKind {
+fn (lx: mut Lexer) pick(src: str, expected: u8, long: TokenKind, short: TokenKind) TokenKind {
     if lx.eat(src, expected) {
         return long
     }
     return short
 }
 
-fn (lx: &mut Lexer) open(bracket: u8, kind: TokenKind) TokenKind {
+fn (lx: mut Lexer) open(bracket: u8, kind: TokenKind) TokenKind {
     lx.brackets.push(bracket)
     return kind
 }
 
 // Mismatched brackets are reported by the parser; the lexer only keeps its
 // stack balanced.
-fn (lx: &mut Lexer) close(kind: TokenKind) TokenKind {
+fn (lx: mut Lexer) close(kind: TokenKind) TokenKind {
     lx.brackets.pop()
     return kind
 }
 
-fn (lx: &mut Lexer) closesInterpolation() bool {
+fn (lx: mut Lexer) closesInterpolation() bool {
     if let .Some(depth) = lx.interpolations.last() {
         if depth == lx.brackets.len() {
             lx.interpolations.pop()
@@ -597,10 +597,10 @@ fn (lx: &mut Lexer) closesInterpolation() bool {
 // ---------------------------------------------------------------------------
 // Tests
 
-fn expectKinds(src: &str, expected: &[TokenKind]) {
+fn expectKinds(src: str, expected: [TokenKind]) {
     var names = Interner.new()
     var diags = Diagnostics.new()
-    let tokens = tokenize(src, FileId{index: 0}, &mut names, &mut diags)
+    let tokens = tokenize(src, FileId{index: 0}, names, diags)
     assert(!diags.hasErrors())
     assert(tokens.len() == expected.len())
     for i, token in tokens {
@@ -610,21 +610,21 @@ fn expectKinds(src: &str, expected: &[TokenKind]) {
 
 @test
 fn genericsCloseWithSingleGtTokens() {
-    expectKinds("var b: List<List<u8>>", &[
+    expectKinds("var b: List<List<u8>>", [
         .Var, .Ident, .Colon, .Ident, .Lt, .Ident, .Lt, .Ident, .Gt, .Gt, .Eof,
     ])
 }
 
 @test
 fn newlinesAreTokensExceptInParentheses() {
-    expectKinds("f(a,\nb)\nx", &[
+    expectKinds("f(a,\nb)\nx", [
         .Ident, .LParen, .Ident, .Comma, .Ident, .RParen, .Newline, .Ident, .Eof,
     ])
 }
 
 @test
 fn newlinesCountInsideABlockNestedInParentheses() {
-    expectKinds("f(fn() {\na\n})", &[
+    expectKinds("f(fn() {\na\n})", [
         .Ident, .LParen, .Fn, .LParen, .RParen, .LBrace, .Newline,
         .Ident, .Newline, .RBrace, .RParen, .Eof,
     ])
@@ -632,19 +632,19 @@ fn newlinesCountInsideABlockNestedInParentheses() {
 
 @test
 fn interpolationSplitsStrings() {
-    expectKinds("\"a {x} b {f(y)} c\"", &[
+    expectKinds("\"a {x} b {f(y)} c\"", [
         .StrStart, .Ident, .StrMid, .Ident, .LParen, .Ident, .RParen, .StrEnd, .Eof,
     ])
 }
 
 @test
 fn rangesAreNotFloats() {
-    expectKinds("0..10 1.5 x.0", &[
+    expectKinds("0..10 1.5 x.0", [
         .Int, .DotDot, .Int, .Float, .Ident, .Dot, .Int, .Eof,
     ])
 }
 
 @test
 fn contextualKeywordsAreIdentifiers() {
-    expectKinds("type move ref where", &[.Ident, .Ident, .Ident, .Ident, .Eof])
+    expectKinds("type move ref where", [.Ident, .Ident, .Ident, .Ident, .Eof])
 }
