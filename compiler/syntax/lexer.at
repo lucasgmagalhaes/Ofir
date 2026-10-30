@@ -73,11 +73,11 @@ fn Lexer.new(file: FileId) Lexer {
         pos: 0
         brackets: []
         interpolations: []
-        keywords: keyword_table()
+        keywords: keywordTable()
     }
 }
 
-fn keyword_table() Map<str, TokenKind> {
+fn keywordTable() Map<str, TokenKind> {
     var k = Map<str, TokenKind>.new()
     k.insert("as", .As)
     k.insert("break", .Break)
@@ -121,23 +121,23 @@ fn (lx: &mut Lexer) next(src: &str, names: &mut Interner, diags: &mut Diagnostic
             b'\n' => {
                 let start = lx.pos
                 lx.pos += 1
-                if lx.newlines_matter() {
+                if lx.newlinesMatter() {
                     return lx.token(.Newline, start)
                 }
             }
             b'/' if lx.peek(src, 1) == b'/' => {
-                if let .Some(doc) = lx.line_comment(src) {
+                if let .Some(doc) = lx.lineComment(src) {
                     return doc
                 }
             }
             b'/' if lx.peek(src, 1) == b'*' => {
                 let start = lx.pos
-                if lx.block_comment(src, diags) && lx.newlines_matter() {
+                if lx.blockComment(src, diags) && lx.newlinesMatter() {
                     return lx.token(.Newline, start)
                 }
             }
             _ => {
-                return lx.token_at(src, names, diags)
+                return lx.tokenAt(src, names, diags)
             }
         }
     }
@@ -147,28 +147,28 @@ fn (lx: &mut Lexer) next(src: &str, names: &mut Interner, diags: &mut Diagnostic
 // Newlines are tokens except directly inside `(...)` and `[...]`. Inside a
 // `{` block, even one nested in parentheses (a closure passed as an
 // argument), they separate statements again.
-fn (lx: &Lexer) newlines_matter() bool {
+fn (lx: &Lexer) newlinesMatter() bool {
     return match lx.brackets.last() {
         .Some(open) => open == b'{'
         .None => true
     }
 }
 
-fn (lx: &mut Lexer) token_at(src: &str, names: &mut Interner, diags: &mut Diagnostics) Token {
+fn (lx: &mut Lexer) tokenAt(src: &str, names: &mut Interner, diags: &mut Diagnostics) Token {
     let start = lx.pos
     let c = src[start]
     if c == b'b' && lx.peek(src, 1) == b'\'' {
-        return lx.byte_literal(src, diags)
+        return lx.byteLiteral(src, diags)
     }
-    if is_letter(c) {
+    if isLetter(c) {
         return lx.word(src, names)
     }
-    if is_digit(c) {
+    if isDigit(c) {
         return lx.number(src, diags)
     }
     if c == b'"' {
         lx.pos += 1
-        return lx.string_part(src, start, true, diags)
+        return lx.stringPart(src, start, true, diags)
     }
     return lx.punct(src, diags)
 }
@@ -184,28 +184,28 @@ fn (lx: &Lexer) peek(src: &str, offset: int) u8 {
     return 0
 }
 
-fn (lx: &Lexer) span_from(start: int) Span {
+fn (lx: &Lexer) spanFrom(start: int) Span {
     return Span{file: lx.file, start, end: lx.pos}
 }
 
 fn (lx: &Lexer) token(kind: TokenKind, start: int) Token {
-    return Token{kind, span: lx.span_from(start), value: .None}
+    return Token{kind, span: lx.spanFrom(start), value: .None}
 }
 
-fn (lx: &Lexer) token_with(kind: TokenKind, start: int, value: TokenValue) Token {
-    return Token{kind, span: lx.span_from(start), value}
+fn (lx: &Lexer) tokenWith(kind: TokenKind, start: int, value: TokenValue) Token {
+    return Token{kind, span: lx.spanFrom(start), value}
 }
 
-fn is_letter(c: u8) bool {
+fn isLetter(c: u8) bool {
     return c >= b'a' && c <= b'z' || c >= b'A' && c <= b'Z' || c == b'_'
 }
 
-fn is_digit(c: u8) bool {
+fn isDigit(c: u8) bool {
     return c >= b'0' && c <= b'9'
 }
 
 // Value of a digit in any base up to 16, or 99 for any other byte.
-fn digit_value(c: u8) int {
+fn digitValue(c: u8) int {
     return match c {
         b'0'..=b'9' => (c - b'0') as int
         b'a'..=b'f' => (c - b'a') as int + 10
@@ -218,7 +218,7 @@ fn digit_value(c: u8) int {
 // Comments
 
 // Skips a `//` comment. Returns a token for `///` and `//!` doc comments.
-fn (lx: &mut Lexer) line_comment(src: &str) Option<Token> {
+fn (lx: &mut Lexer) lineComment(src: &str) Option<Token> {
     let start = lx.pos
     let kind: Option<TokenKind> = match (lx.peek(src, 2), lx.peek(src, 3)) {
         (b'/', b'/') => .None             // `////...` is an ordinary comment
@@ -230,20 +230,20 @@ fn (lx: &mut Lexer) line_comment(src: &str) Option<Token> {
         lx.pos += 1
     }
     if let .Some(k) = kind {
-        let text = src[start + 3..lx.pos].trim().to_owned()
-        return .Some(lx.token_with(k, start, .Str(text)))
+        let text = src[start + 3..lx.pos].trim().toOwned()
+        return .Some(lx.tokenWith(k, start, .Str(text)))
     }
     return .None
 }
 
 // Skips a `/* ... */` comment. Returns true if it contained a newline.
-fn (lx: &mut Lexer) block_comment(src: &str, diags: &mut Diagnostics) bool {
+fn (lx: &mut Lexer) blockComment(src: &str, diags: &mut Diagnostics) bool {
     let start = lx.pos
     lx.pos += 2
     var newline = false
     for {
         if lx.pos >= src.len() {
-            diags.error("E0003", lx.span_from(start), "unterminated block comment")
+            diags.error("E0003", lx.spanFrom(start), "unterminated block comment")
             return newline
         }
         if src[lx.pos] == b'*' && lx.peek(src, 1) == b'/' {
@@ -262,14 +262,14 @@ fn (lx: &mut Lexer) block_comment(src: &str, diags: &mut Diagnostics) bool {
 
 fn (lx: &mut Lexer) word(src: &str, names: &mut Interner) Token {
     let start = lx.pos
-    for lx.pos < src.len() && (is_letter(src[lx.pos]) || is_digit(src[lx.pos])) {
+    for lx.pos < src.len() && (isLetter(src[lx.pos]) || isDigit(src[lx.pos])) {
         lx.pos += 1
     }
     let text = src[start..lx.pos]
     if let .Some(kind) = lx.keywords.get(text) {
         return lx.token(kind, start)
     }
-    return lx.token_with(.Ident, start, .Name(names.intern(text)))
+    return lx.tokenWith(.Ident, start, .Name(names.intern(text)))
 }
 
 fn (lx: &mut Lexer) number(src: &str, diags: &mut Diagnostics) Token {
@@ -291,7 +291,7 @@ fn (lx: &mut Lexer) number(src: &str, diags: &mut Diagnostics) Token {
             lx.pos += 1
             continue
         }
-        let digit = digit_value(c)
+        let digit = digitValue(c)
         if digit >= base {
             break
         }
@@ -299,44 +299,44 @@ fn (lx: &mut Lexer) number(src: &str, diags: &mut Diagnostics) Token {
         lx.pos += 1
     }
 
-    if base == 10 && lx.at_fraction_or_exponent(src) {
-        return lx.float_rest(src, start, diags)
+    if base == 10 && lx.atFractionOrExponent(src) {
+        return lx.floatRest(src, start, diags)
     }
-    if is_letter(lx.peek(src, 0)) {
-        diags.error("E0001", lx.span_from(lx.pos), "unexpected character after number")
+    if isLetter(lx.peek(src, 0)) {
+        diags.error("E0001", lx.spanFrom(lx.pos), "unexpected character after number")
     }
     return match value {
-        .Some(v) => lx.token_with(.Int, start, .Int(v))
+        .Some(v) => lx.tokenWith(.Int, start, .Int(v))
         .None => {
-            diags.error("E0005", lx.span_from(start), "integer literal is too large")
-            lx.token_with(.Int, start, .Int(0))
+            diags.error("E0005", lx.spanFrom(start), "integer literal is too large")
+            lx.tokenWith(.Int, start, .Int(0))
         }
     }
 }
 
 fn accumulate(value: Option<u64>, base: int, digit: int) Option<u64> {
     let v = value?
-    let shifted = v.checked_mul(base as u64)?
-    return shifted.checked_add(digit as u64)
+    let shifted = v.checkedMul(base as u64)?
+    return shifted.checkedAdd(digit as u64)
 }
 
 // `1.5` and `2e10` are floats; `0..10` is a range and `x.0` a tuple field.
-fn (lx: &Lexer) at_fraction_or_exponent(src: &str) bool {
+fn (lx: &Lexer) atFractionOrExponent(src: &str) bool {
     let c = lx.peek(src, 0)
     if c == b'.' {
-        return is_digit(lx.peek(src, 1))
+        return isDigit(lx.peek(src, 1))
     }
     if c == b'e' || c == b'E' {
         let next = lx.peek(src, 1)
-        return is_digit(next) || (next == b'+' || next == b'-') && is_digit(lx.peek(src, 2))
+        return isDigit(next) || (next == b'+' || next == b'-') && isDigit(lx.peek(src, 2))
     }
     return false
 }
 
-fn (lx: &mut Lexer) float_rest(src: &str, start: int, diags: &mut Diagnostics) Token {
+fn (lx: &mut Lexer) floatRest(src: &str, start: int, diags: &mut Diagnostics) Token {
     if lx.peek(src, 0) == b'.' {
         lx.pos += 1
-        lx.skip_digits(src)
+        lx.skipDigits(src)
     }
     let c = lx.peek(src, 0)
     if c == b'e' || c == b'E' {
@@ -344,20 +344,20 @@ fn (lx: &mut Lexer) float_rest(src: &str, start: int, diags: &mut Diagnostics) T
         if lx.peek(src, 0) == b'+' || lx.peek(src, 0) == b'-' {
             lx.pos += 1
         }
-        lx.skip_digits(src)
+        lx.skipDigits(src)
     }
     let text = src[start..lx.pos].replace("_", "")
     return match float.parse(&text) {
-        .Ok(v) => lx.token_with(.Float, start, .Float(v))
+        .Ok(v) => lx.tokenWith(.Float, start, .Float(v))
         .Err(_) => {
-            diags.error("E0005", lx.span_from(start), "invalid float literal")
-            lx.token_with(.Float, start, .Float(0.0))
+            diags.error("E0005", lx.spanFrom(start), "invalid float literal")
+            lx.tokenWith(.Float, start, .Float(0.0))
         }
     }
 }
 
-fn (lx: &mut Lexer) skip_digits(src: &str) {
-    for lx.pos < src.len() && (is_digit(src[lx.pos]) || src[lx.pos] == b'_') {
+fn (lx: &mut Lexer) skipDigits(src: &str) {
+    for lx.pos < src.len() && (isDigit(src[lx.pos]) || src[lx.pos] == b'_') {
         lx.pos += 1
     }
 }
@@ -369,25 +369,25 @@ fn (lx: &mut Lexer) skip_digits(src: &str) {
 // `opening` is true right after the opening quote and false after the `}`
 // that ends an interpolation; together with the stopping character it decides
 // between Str, StrStart, StrMid and StrEnd.
-fn (lx: &mut Lexer) string_part(src: &str, start: int, opening: bool, diags: &mut Diagnostics) Token {
+fn (lx: &mut Lexer) stringPart(src: &str, start: int, opening: bool, diags: &mut Diagnostics) Token {
     var text = str.new()
     for {
         if lx.pos >= src.len() || src[lx.pos] == b'\n' {
-            diags.error("E0002", lx.span_from(start), "unterminated string literal")
-            return lx.token_with(if opening { .Str } else { .StrEnd }, start, .Str(text))
+            diags.error("E0002", lx.spanFrom(start), "unterminated string literal")
+            return lx.tokenWith(if opening { .Str } else { .StrEnd }, start, .Str(text))
         }
         let c = src[lx.pos]
         if c == b'"' {
             lx.pos += 1
-            return lx.token_with(if opening { .Str } else { .StrEnd }, start, .Str(text))
+            return lx.tokenWith(if opening { .Str } else { .StrEnd }, start, .Str(text))
         }
         if c == b'{' {
             lx.pos += 1
             lx.interpolations.push(lx.brackets.len())
-            return lx.token_with(if opening { .StrStart } else { .StrMid }, start, .Str(text))
+            return lx.tokenWith(if opening { .StrStart } else { .StrMid }, start, .Str(text))
         }
         if c == b'}' {
-            diags.error("E0006", lx.span_from(lx.pos), "unescaped `}` in string literal; write `\}`")
+            diags.error("E0006", lx.spanFrom(lx.pos), "unescaped `}` in string literal; write `\}`")
             lx.pos += 1
             continue
         }
@@ -398,14 +398,14 @@ fn (lx: &mut Lexer) string_part(src: &str, start: int, opening: bool, diags: &mu
         // Copy a run of ordinary bytes at once. Runs stop only at ASCII
         // bytes, so each run of the (valid UTF-8) source is valid UTF-8.
         let run = lx.pos
-        for lx.pos < src.len() && !is_string_special(src[lx.pos]) {
+        for lx.pos < src.len() && !isStringSpecial(src[lx.pos]) {
             lx.pos += 1
         }
         text.push(src[run..lx.pos])
     }
 }
 
-fn is_string_special(c: u8) bool {
+fn isStringSpecial(c: u8) bool {
     return c == b'"' || c == b'\\' || c == b'{' || c == b'}' || c == b'\n'
 }
 
@@ -424,30 +424,30 @@ fn (lx: &mut Lexer) escape(src: &str, out: &mut str, diags: &mut Diagnostics) {
         b'{' => out.push("\{")
         b'}' => out.push("\}")
         b'x' => {
-            let value = lx.hex_digits(src, 2)
+            let value = lx.hexDigits(src, 2)
             if value < 0 || value > 0x7f {
-                diags.error("E0004", lx.span_from(start), "`\\x` escapes in strings must be between \\x00 and \\x7f")
+                diags.error("E0004", lx.spanFrom(start), "`\\x` escapes in strings must be between \\x00 and \\x7f")
             } else {
-                out.push_char(value as u32)
+                out.pushChar(value as u32)
             }
         }
         b'u' => {
-            let value = lx.unicode_escape(src)
+            let value = lx.unicodeEscape(src)
             if value < 0 || value > 0x10ffff || value >= 0xd800 && value <= 0xdfff {
-                diags.error("E0004", lx.span_from(start), "invalid unicode escape")
+                diags.error("E0004", lx.spanFrom(start), "invalid unicode escape")
             } else {
-                out.push_char(value as u32)
+                out.pushChar(value as u32)
             }
         }
-        _ => diags.error("E0004", lx.span_from(start), "invalid escape sequence")
+        _ => diags.error("E0004", lx.spanFrom(start), "invalid escape sequence")
     }
 }
 
 // Reads exactly `count` hex digits; returns -1 if they are missing.
-fn (lx: &mut Lexer) hex_digits(src: &str, count: int) int {
+fn (lx: &mut Lexer) hexDigits(src: &str, count: int) int {
     var value = 0
     for _ in 0..count {
-        let d = digit_value(lx.peek(src, 0))
+        let d = digitValue(lx.peek(src, 0))
         if d >= 16 {
             return -1
         }
@@ -458,18 +458,18 @@ fn (lx: &mut Lexer) hex_digits(src: &str, count: int) int {
 }
 
 // Reads `{H...}` after `\u`; returns -1 if malformed.
-fn (lx: &mut Lexer) unicode_escape(src: &str) int {
+fn (lx: &mut Lexer) unicodeEscape(src: &str) int {
     if lx.peek(src, 0) != b'{' {
         return -1
     }
     lx.pos += 1
     var value = 0
     var digits = 0
-    for digit_value(lx.peek(src, 0)) < 16 {
+    for digitValue(lx.peek(src, 0)) < 16 {
         if digits == 6 {
             return -1
         }
-        value = value * 16 + digit_value(lx.peek(src, 0))
+        value = value * 16 + digitValue(lx.peek(src, 0))
         digits += 1
         lx.pos += 1
     }
@@ -481,7 +481,7 @@ fn (lx: &mut Lexer) unicode_escape(src: &str) int {
 }
 
 // `b'a'`, `b'\n'`, `b'\xff'`: any byte value, unlike `\x` in strings.
-fn (lx: &mut Lexer) byte_literal(src: &str, diags: &mut Diagnostics) Token {
+fn (lx: &mut Lexer) byteLiteral(src: &str, diags: &mut Diagnostics) Token {
     let start = lx.pos
     lx.pos += 2                                   // b'
     var value = lx.peek(src, 0) as int
@@ -496,16 +496,16 @@ fn (lx: &mut Lexer) byte_literal(src: &str, diags: &mut Diagnostics) Token {
             b'0' => 0
             b'\\' => 92
             b'\'' => 39
-            b'x' => lx.hex_digits(src, 2)
+            b'x' => lx.hexDigits(src, 2)
             _ => -1
         }
     }
     if value < 0 || lx.peek(src, 0) != b'\'' {
-        diags.error("E0004", lx.span_from(start), "invalid byte literal")
-        return lx.token_with(.Byte, start, .Byte(0))
+        diags.error("E0004", lx.spanFrom(start), "invalid byte literal")
+        return lx.tokenWith(.Byte, start, .Byte(0))
     }
     lx.pos += 1
-    return lx.token_with(.Byte, start, .Byte(value as u8))
+    return lx.tokenWith(.Byte, start, .Byte(value as u8))
 }
 
 // ---------------------------------------------------------------------------
@@ -525,8 +525,8 @@ fn (lx: &mut Lexer) punct(src: &str, diags: &mut Diagnostics) Token {
         b')' => lx.close(.RParen)
         b']' => lx.close(.RBracket)
         b'}' => {
-            if lx.closes_interpolation() {
-                return lx.string_part(src, start, false, diags)
+            if lx.closesInterpolation() {
+                return lx.stringPart(src, start, false, diags)
             }
             lx.close(.RBrace)
         }
@@ -549,7 +549,7 @@ fn (lx: &mut Lexer) punct(src: &str, diags: &mut Diagnostics) Token {
         b'|' => if lx.eat(src, b'|') { .OrOr } else { lx.pick(src, b'=', .PipeEq, .Pipe) }
         b'<' => if lx.eat(src, b'<') { lx.pick(src, b'=', .ShlEq, .Shl) } else { lx.pick(src, b'=', .Le, .Lt) }
         _ => {
-            diags.error("E0001", lx.span_from(start), "unexpected character")
+            diags.error("E0001", lx.spanFrom(start), "unexpected character")
             .Invalid
         }
     }
@@ -584,7 +584,7 @@ fn (lx: &mut Lexer) close(kind: TokenKind) TokenKind {
     return kind
 }
 
-fn (lx: &mut Lexer) closes_interpolation() bool {
+fn (lx: &mut Lexer) closesInterpolation() bool {
     if let .Some(depth) = lx.interpolations.last() {
         if depth == lx.brackets.len() {
             lx.interpolations.pop()
@@ -597,11 +597,11 @@ fn (lx: &mut Lexer) closes_interpolation() bool {
 // ---------------------------------------------------------------------------
 // Tests
 
-fn expect_kinds(src: &str, expected: &[TokenKind]) {
+fn expectKinds(src: &str, expected: &[TokenKind]) {
     var names = Interner.new()
     var diags = Diagnostics.new()
     let tokens = tokenize(src, FileId{index: 0}, &mut names, &mut diags)
-    assert(!diags.has_errors())
+    assert(!diags.hasErrors())
     assert(tokens.len() == expected.len())
     for i, token in tokens {
         assert(token.kind == expected[i])
@@ -609,42 +609,42 @@ fn expect_kinds(src: &str, expected: &[TokenKind]) {
 }
 
 @test
-fn generics_close_with_single_gt_tokens() {
-    expect_kinds("var b: List<List<u8>>", &[
+fn genericsCloseWithSingleGtTokens() {
+    expectKinds("var b: List<List<u8>>", &[
         .Var, .Ident, .Colon, .Ident, .Lt, .Ident, .Lt, .Ident, .Gt, .Gt, .Eof,
     ])
 }
 
 @test
-fn newlines_are_tokens_except_in_parentheses() {
-    expect_kinds("f(a,\nb)\nx", &[
+fn newlinesAreTokensExceptInParentheses() {
+    expectKinds("f(a,\nb)\nx", &[
         .Ident, .LParen, .Ident, .Comma, .Ident, .RParen, .Newline, .Ident, .Eof,
     ])
 }
 
 @test
-fn newlines_count_inside_a_block_nested_in_parentheses() {
-    expect_kinds("f(fn() {\na\n})", &[
+fn newlinesCountInsideABlockNestedInParentheses() {
+    expectKinds("f(fn() {\na\n})", &[
         .Ident, .LParen, .Fn, .LParen, .RParen, .LBrace, .Newline,
         .Ident, .Newline, .RBrace, .RParen, .Eof,
     ])
 }
 
 @test
-fn interpolation_splits_strings() {
-    expect_kinds("\"a {x} b {f(y)} c\"", &[
+fn interpolationSplitsStrings() {
+    expectKinds("\"a {x} b {f(y)} c\"", &[
         .StrStart, .Ident, .StrMid, .Ident, .LParen, .Ident, .RParen, .StrEnd, .Eof,
     ])
 }
 
 @test
-fn ranges_are_not_floats() {
-    expect_kinds("0..10 1.5 x.0", &[
+fn rangesAreNotFloats() {
+    expectKinds("0..10 1.5 x.0", &[
         .Int, .DotDot, .Int, .Float, .Ident, .Dot, .Int, .Eof,
     ])
 }
 
 @test
-fn contextual_keywords_are_identifiers() {
-    expect_kinds("type move ref where", &[.Ident, .Ident, .Ident, .Ident, .Eof])
+fn contextualKeywordsAreIdentifiers() {
+    expectKinds("type move ref where", &[.Ident, .Ident, .Ident, .Ident, .Eof])
 }

@@ -17,8 +17,8 @@ standard library and in the ownership rules.
 |---|---------|:--------:|------------|
 | F1 | Ignoring every newline inside `(...)` breaks closures passed as arguments (`spawn(move fn() { ... })`): their statements would merge | high | Newlines are ignored only when the innermost open bracket is `(` or `[` (spec 1.3); the lexer keeps a bracket stack |
 | F2 | A `>>` token breaks nested generics: `List<List<int>>` | high | The lexer always emits single `>`; the parser joins adjacent ones (spec 1.6) |
-| F3 | No way to copy a `&str` into an owned `str` | medium | `str.to_owned()` and `[T].to_list()` added to `std` |
-| F4 | Encoding `\u{...}` escapes needs to append a code point | medium | `str.push_char(c: u32)` added; `push_byte`, which could create invalid UTF-8, removed |
+| F3 | No way to copy a `&str` into an owned `str` | medium | `str.toOwned()` and `[T].toList()` added to `std` |
+| F4 | Encoding `\u{...}` escapes needs to append a code point | medium | `str.pushChar(c: u32)` added; `pushByte`, which could create invalid UTF-8, removed |
 | F5 | `lx.interpolations.push(lx.brackets.len())` needs field-precise and two-phase borrows | medium | Borrows are tracked per place; method arguments are evaluated before the `&mut` receiver borrow is active (spec 5.5) |
 | F6 | Comparing token kinds needs `==` on fieldless enums, and `Option<u64>` must be copyable | low | `==` on fieldless enums is in the bootstrap subset; `Option`/`Result`/tuples are Copy when their contents are (spec 2.9) |
 | F7 | `pair.0.1` lexes `0.1` as a float | low | The parser splits the float token in field position, as in Rust |

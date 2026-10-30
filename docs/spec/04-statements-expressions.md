@@ -96,7 +96,7 @@ match code {
 A shorthand for a `match` with one interesting arm:
 
 ```astra
-if let .Some(user) = find_user(id) {
+if let .Some(user) = findUser(id) {
     println("{user.name}")
 } else {
     println("not found")

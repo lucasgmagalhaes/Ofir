@@ -103,7 +103,7 @@ An interface used as a bound is resolved at compile time. Calls are direct
 and can be inlined:
 
 ```astra
-fn total_area<S: Shape>(shapes: &[S]) float {
+fn totalArea<S: Shape>(shapes: &[S]) float {
     var sum = 0.0
     for s in shapes {
         sum += s.area()

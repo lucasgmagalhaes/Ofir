@@ -8,11 +8,11 @@ Astra itself, and so programs can call C libraries.
 
 ```astra
 unsafe {
-    let p = alloc(size_of<int>() * 4) as *mut int
+    let p = alloc(sizeOf<int>() * 4) as *mut int
     *p = 42
 }
 
-unsafe fn copy_bytes(dst: *mut u8, src: *u8, n: uint) { ... }
+unsafe fn copyBytes(dst: *mut u8, src: *u8, n: uint) { ... }
 ```
 
 Inside an `unsafe` block or function, and only there, code may:
@@ -33,7 +33,7 @@ responsibility.
 | Operation | Example |
 |-----------|---------|
 | from reference (safe) | `let p = &x as *int` |
-| null pointer (safe) | `let p: *u8 = null_ptr()` |
+| null pointer (safe) | `let p: *u8 = nullPtr()` |
 | dereference (unsafe) | `*p` |
 | offset (unsafe) | `p.add(3)` |
 | compare (safe) | `p == q` |
@@ -49,8 +49,8 @@ extern "C" {
     fn getenv(name: *u8) *u8
 }
 
-fn c_len(s: &str) uint {
-    let c = s.to_c_string()          // owned, null-terminated copy
+fn cLen(s: &str) uint {
+    let c = s.toCString()          // owned, null-terminated copy
     return unsafe { strlen(c.ptr()) }
 }
 ```

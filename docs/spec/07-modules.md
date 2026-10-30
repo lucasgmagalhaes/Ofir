@@ -58,9 +58,9 @@ fn eprint(text: &str)             // standard error
 fn eprintln(text: &str)           // standard error, followed by "\n"
 fn panic(message: &str) !
 fn assert(condition: bool)
-fn assert_eq<T: Eq + Debug>(left: &T, right: &T)
-fn size_of<T>() int
-fn align_of<T>() int
+fn assertEq<T: Eq + Debug>(left: &T, right: &T)
+fn sizeOf<T>() int
+fn alignOf<T>() int
 ```
 
 Values are printed through string interpolation: `println("{count}")`.

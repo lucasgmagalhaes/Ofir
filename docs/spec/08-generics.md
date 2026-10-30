@@ -89,7 +89,7 @@ type. They can be written explicitly:
 ```astra
 let xs = List<int>.new()
 let n = parse<u16>("8080")?
-let size = size_of<Point>()
+let size = sizeOf<Point>()
 ```
 
 **Disambiguation.** Because comparison operators do not chain (chapter
