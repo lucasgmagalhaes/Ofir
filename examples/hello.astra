@@ -1,0 +1,4 @@
+fn main() {
+    let name = "Astra"
+    println("Hello, {name}!")
+}
