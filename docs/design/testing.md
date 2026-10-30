@@ -69,7 +69,20 @@ fn main() {
 fn add(a: int, b: int) int { return a + b }
 ```
 
-## 3. Runner
+## 3. Compiler interface used by the runner
+
+| Command | Used by |
+|---------|---------|
+| `astra build FILE --emit=tokens` (tokens on stdout) | `lex` |
+| `astra build FILE --emit=ast` (AST on stdout) | `parse` |
+| `astra run FILE` | `run`, `panic` |
+| `astra build FILE --message-format=short -o OUT` | `compile_fail`, `borrow` |
+| `astra build FILE --emit=llvm -o OUT` (writes `OUT.ll`) | `codegen` |
+
+With `--message-format=short`, each diagnostic is one line:
+`file:line:col: error[E0300]: message` (or `warning[W0001]`).
+
+## 4. Runner
 
 `tests/runner/run_tests.py` discovers test files, runs them in parallel and
 prints a summary. It accepts:
@@ -79,7 +92,10 @@ prints a summary. It accepts:
 - `--bless` to rewrite expected `.tokens`, `.ast` and `.out` files after an
   intended change (the diff is then reviewed in the commit).
 
-## 4. Rules
+The runner itself is tested by `tests/runner/selftest/run_selftest.py`,
+which drives it with a fake compiler (`make runner-selftest`).
+
+## 5. Rules
 
 1. Every bug fix comes with a test reproducing the bug.
 2. Every new language feature comes with run tests **and** compile-fail tests
