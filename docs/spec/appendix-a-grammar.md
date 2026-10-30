@@ -94,7 +94,7 @@ Type          = TypePath [ TypeArgs ]
               | "*" [ "mut" ] Type
               | "[" Type [ ";" Expr ] "]"       (* slice element or fixed array *)
               | "(" [ Type { "," Type } [ "," ] ] ")"   (* unit or tuple *)
-              | "fn" "(" [ Type { "," Type } ] ")" [ Type ]
+              | [ "move" | "extern" string_lit ] "fn" "(" [ Type { "," Type } ] ")" [ Type ]
               | "dyn" Bounds
               | Type "?"                        (* Option<Type> *)
               | "!" .

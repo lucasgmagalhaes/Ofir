@@ -27,8 +27,8 @@ fn main() {
 }
 ```
 
-`thread.spawn` takes a closure that captures only by value (chapter 10.3),
-so a thread can never hold a reference into another thread's stack.
+`thread.spawn` takes a `move fn() T` (chapter 10.2), so a thread can never
+hold a reference into another thread's stack.
 
 ## 14.3 Marker interfaces
 
