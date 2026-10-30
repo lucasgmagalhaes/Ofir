@@ -1,0 +1,40 @@
+interface Shape {
+    fn (&Self) area() -> float
+    fn (&Self) name() -> str
+
+    fn (s: &Self) describe() -> str {
+        return "{s.name()} with area {s.area():.2}"
+    }
+}
+
+struct Circle: Shape {
+    radius: float
+}
+
+fn (c: &Circle) area() -> float { return 3.14159 * c.radius * c.radius }
+fn (c: &Circle) name() -> str { return "circle" }
+
+struct Square: Shape {
+    side: float
+}
+
+fn (s: &Square) area() -> float { return s.side * s.side }
+fn (s: &Square) name() -> str { return "square" }
+
+// Static dispatch: one specialized copy per shape type.
+fn print_area<S: Shape>(shape: &S) {
+    println(shape.describe())
+}
+
+fn main() {
+    print_area(&Circle{radius: 1.0})
+
+    // Dynamic dispatch: a list of different shapes.
+    let shapes: List<Box<dyn Shape>> = [
+        Box.new(Circle{radius: 2.0}),
+        Box.new(Square{side: 3.0}),
+    ]
+    for s in shapes {
+        println(s.describe())
+    }
+}
