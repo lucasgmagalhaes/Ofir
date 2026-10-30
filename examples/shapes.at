@@ -2,13 +2,13 @@ enum Shape {
     Circle(radius: float)
     Rect(width: float, height: float)
     Empty
-}
 
-fn (s: Shape) area() float {
-    return match s {
-        .Circle(r) => 3.14159 * r * r
-        .Rect(w, h) => w * h
-        .Empty => 0.0
+    fn area(self) float {
+        return match self {
+            .Circle(r) => 3.14159 * r * r
+            .Rect(w, h) => w * h
+            .Empty => 0.0
+        }
     }
 }
 
