@@ -16,7 +16,7 @@ memory safety and allowing aggressive optimization.
 fn main() {
     let a = "hello"           // a owns the string
     let b = a                 // ownership moves to b
-    println(a)                // error: use of moved value `a`
+    println(&a)               // error: use of moved value `a`
 }
 ```
 
@@ -33,7 +33,7 @@ var v = make_list()
 if flag {
     consume(v)
 }
-println(v.len())   // error: `v` may have been moved
+println("{v.len()}")   // error: `v` may have been moved
 ```
 
 A value that is moved on some paths is considered moved after the branches
@@ -69,13 +69,18 @@ fn reset(xs: &mut List<int>) {            // exclusive borrow
 
 fn main() {
     var nums = [1, 2, 3]
-    println(total(&nums))
+    println("{total(&nums)}")
     reset(&mut nums)
 }
 ```
 
 - `&x` creates a shared reference; `&mut x` an exclusive one. `&mut x`
   requires `x` to be a `var` (or reached through another `&mut`).
+- **Temporaries are borrowed automatically.** A temporary value (the result
+  of a call, an operator or a literal) passed where `&T` is expected is
+  borrowed implicitly and dropped at the end of the statement:
+  `println(user.describe())`. Named variables and fields always need an
+  explicit `&`, so moving and borrowing stay visible.
 - Field access and method calls dereference automatically (`p.x` works when
   `p: &Point`). Explicit dereference `*r` is needed for primitives.
 - `*r` on a reference to a move type may only be used to read a Copy field
@@ -115,7 +120,7 @@ use** (non-lexical borrows):
 ```astra
 var list = [1, 2, 3]
 let r = &list
-println(r.len())       // last use of r: the borrow ends here
+println("{r.len()}")   // last use of r: the borrow ends here
 list.push(4)           // ok
 ```
 
@@ -123,7 +128,7 @@ list.push(4)           // ok
 var list = [1, 2, 3]
 let r = &list
 list.push(4)           // error: `list` is borrowed by `r`
-println(r.len())
+println("{r.len()}")
 ```
 
 The rules apply to arguments of a single call as well:

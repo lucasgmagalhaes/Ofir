@@ -23,7 +23,7 @@ fn main() {
         for x in data { sum += *x }
         return sum
     })
-    println(handle.join())
+    println("{handle.join()}")
 }
 ```
 
@@ -48,7 +48,7 @@ when all its fields are `Send`. `thread.spawn` requires its closure to be
 ```astra
 let (tx, rx) = channel<int>()
 thread.spawn(move fn() { tx.send(42) })
-println(rx.recv().unwrap())
+println("{rx.recv().unwrap()}")
 ```
 
 Synchronization primitives in `std.sync`: `Mutex<T>` (the data lives inside

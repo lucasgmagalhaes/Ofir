@@ -35,7 +35,7 @@ fn add(a: int, b: int) int {
     return a + b
 }
 
-fn log(message: str) {           // returns ()
+fn log(message: &str) {          // returns ()
     println(message)
 }
 ```
