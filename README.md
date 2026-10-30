@@ -40,10 +40,10 @@ collector.
 struct Point {
     x: float
     y: float
-}
 
-fn (p: Point) length() float {
-    return (p.x * p.x + p.y * p.y).sqrt()
+    fn length(self) float {
+        return (self.x * self.x + self.y * self.y).sqrt()
+    }
 }
 
 fn main() {

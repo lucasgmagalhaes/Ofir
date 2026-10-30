@@ -1,15 +1,19 @@
 struct Inventory {
     items: List<str>
-}
 
-// Borrows the inventory to read it (the default).
-fn (inv: Inventory) count() int {
-    return inv.items.len()
-}
+    fn new() Inventory {
+        return Inventory{items: []}
+    }
 
-// Modifies the caller's inventory and takes ownership of the item.
-fn (inv: mut Inventory) add(item: move str) {
-    inv.items.push(item)
+    // Reads the inventory (the default mode of `self`).
+    fn count(self) int {
+        return self.items.len()
+    }
+
+    // Modifies the inventory and takes ownership of the item.
+    fn add(mut self, item: move str) {
+        self.items.push(item)
+    }
 }
 
 // Takes ownership; the inventory is dropped when this function returns.
@@ -18,7 +22,7 @@ fn discard(inv: move Inventory) {
 }
 
 fn main() {
-    var inv = Inventory{items: []}
+    var inv = Inventory.new()
     inv.add("sword")
     inv.add("shield")
     println("items: {inv.count()}")
