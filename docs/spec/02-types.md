@@ -152,6 +152,7 @@ copy struct Vec2 {
 
 All other types (`str`, `List`, `Map`, `Box`, and structs or enums that are
 not marked `copy`) are **move** types. Chapter 5 defines what moving means.
+A Copy type cannot define a `drop` method.
 
 ## 2.10 Type equivalence
 
