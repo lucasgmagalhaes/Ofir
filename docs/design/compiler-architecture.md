@@ -287,7 +287,9 @@ AIR is translated to **textual LLVM IR** (`.ll`), see ADR 0001.
 - String literals are private constant globals.
 - Vtables are constant globals: `{ drop, size, align, type_id, methods... }`.
 
-Generated IR must be deterministic: identical inputs produce byte-identical
+Generated IR must be deterministic (thanks in part to the insertion-ordered,
+unseeded `Map` of spec 2.6, the compiler may iterate maps freely):
+identical inputs produce byte-identical
 `.ll` files (required for the self-hosting check).
 
 ## 12. Linking
