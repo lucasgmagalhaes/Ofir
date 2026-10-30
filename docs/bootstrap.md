@@ -106,7 +106,9 @@ M4, the code in `compiler/` must be written in this subset.
 - tuples
 - `==` and `!=` on integers, floats, `bool`, `str` and fieldless enums
   (derived equality for other types comes with interfaces in stage 1)
-- references `&T`, `&mut T` as parameters and locals; slices `&[T]`, `&str`
+- parameter modes: borrow (default), `mut` and `move`, for parameters and
+  receivers; `for mut` loops; `[T]` and `str` parameters accepting slices
+- explicit references `&T`, `&mut T` as locals; slices `&[T]`, `&str`
 - built-in generics: `List<T>`, `Map<K, V>`, `Option<T>`, `Result<T, E>`,
   `Box<T>`, and the `?` operator (both error types must be equal)
 - user-defined generic functions, structs and enums **without bounds**
@@ -137,7 +139,7 @@ checker is part of milestone M4**: self-hosting is only declared once the
 compiler's own source passes the full ownership and borrowing rules.
 
 Because stage 0 does not check borrows, it must **never** emit `noalias` or
-`readonly` attributes: on a program with aliasing `&mut` references they
+`readonly` attributes: on a program with aliasing `mut` arguments they
 would turn an undetected mistake into undefined behavior. Stage 0 output is
 correct for every program it accepts, only less optimized.
 

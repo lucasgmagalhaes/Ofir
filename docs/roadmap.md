@@ -78,7 +78,7 @@ Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 | 1.10 | Parser: error recovery to next statement | S | several syntax errors reported per file |
 | 1.11 | Types: interned type table with primitive types, `str`, `()` | S | unit tests |
 | 1.12 | Resolver: single module, functions and locals | S | `E0200`/`E0201` reported |
-| 1.13 | Type checker: functions, `let`/`var`, integer literals, calls, `println(&str)`, literal to `&str`, interpolation of `str` and `int` | M | `tests/compile_fail/types_basic*` pass |
+| 1.13 | Type checker: functions, `let`/`var`, integer literals, calls, `println(str)`, literals passed to `str` parameters, interpolation of `str` and `int` | M | `tests/compile_fail/types_basic*` pass |
 | 1.14 | AIR definitions, printer (`--emit=air`) and validator | M | AIR dumps for hello world |
 | 1.15 | Lowering for the skeleton subset | S | AIR validator passes |
 | 1.16 | Codegen: functions, locals, integer arithmetic, calls, string constants; no `noalias` | M | generated `.ll` accepted by clang 17 and the latest clang |
@@ -102,7 +102,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.9 | Interpolation of all primitive types; shortest round-trip float formatting (spec 2.1) | M | `tests/run/strings/float_format*` pass |
 | 2.10 | Structs: declaration, literals, field access and assignment, nested structs, `copy struct` | M | `tests/run/structs/*` pass |
 | 2.11 | Methods and associated functions; auto-referencing of receivers | M | `tests/run/methods/*` pass |
-| 2.12 | References `&T`/`&mut T` as parameters and locals, auto-deref, `*`, implicit reborrow, automatic borrow of temporaries | M | `tests/run/refs/*` pass |
+| 2.12 | Parameter modes (borrow, `mut`, `move`) for parameters and receivers, `for mut`, `[T]`/`str` view parameters; explicit `&T`/`&mut T` locals, auto-deref, `*` | M | `tests/run/modes/*` pass |
 | 2.13 | Tuples and destructuring `let` | S | tests pass |
 | 2.14 | Enums: layout, construction, `.Variant` shorthand | M | tests pass |
 | 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards; Copy bindings through references | L | `examples/shapes.at` runs |

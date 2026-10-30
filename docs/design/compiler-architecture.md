@@ -158,8 +158,8 @@ For `recv.m(args)`:
 1. Look up `m` in the method table of the receiver's type, auto-dereferencing
    through references (`&&T` → `&T` → `T`).
 2. Then in the default methods of interfaces that the type satisfies.
-3. Adjust the receiver to the method's receiver form (`&`, `&mut` or move),
-   recording the adjustment for lowering.
+3. Check the receiver against the method's mode (borrow, `mut`, `move`):
+   a `mut` receiver must be a mutable place, a `move` receiver is moved.
 
 ### Interfaces
 
@@ -228,7 +228,9 @@ Properties:
 | `for x in iter` | loop calling `next()` and switching on `Option` |
 | string interpolation | calls to `Display.format` on a fresh `str` buffer |
 | closures | an environment struct + a function taking it as first parameter |
-| method call | plain call with the adjusted receiver as first argument |
+| method call | plain call with the receiver as first argument |
+| borrowed / `mut` argument | `Ref` (shared or exclusive) of the argument place, or of a temporary holding the value |
+| `move` argument | `Move` of the place (`Copy` for Copy types) |
 
 ## 8. Borrow checker
 
@@ -237,7 +239,8 @@ Runs on generic AIR, once per function, using dataflow analysis over the CFG:
 1. **Initialization and moves** — forward "maybe initialized / maybe moved"
    analysis per place. Reading a place that may be uninitialized or moved is
    an error.
-2. **Borrows** — each `Ref` creates a loan. A loan is live from its creation
+2. **Borrows** — each `Ref` creates a loan, including the implicit ones
+   created for borrowed and `mut` arguments. A loan is live from its creation
    to the last use of the reference (liveness analysis). A write, move or
    conflicting borrow of a place overlapping a live loan is an error.
 3. **Escape rules** — checks the second-class reference rules: references and
