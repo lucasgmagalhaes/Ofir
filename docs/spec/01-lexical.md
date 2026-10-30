@@ -65,12 +65,28 @@ enum variants; `SCREAMING_CASE` for constants.
 
 ## 1.5 Keywords
 
+Reserved keywords cannot be used as identifiers:
+
 ```
 as        break     const     continue  copy      dyn       else
 enum      extern    false     fn        for       if        import
-in        interface let       match     move      mut       pub
-ref       return    Self      struct    true      type      unsafe
-var       where
+in        interface let       match     mut       pub       return
+Self      struct    true      unsafe    var
+```
+
+Contextual keywords are keywords only in one position and remain valid
+identifiers everywhere else, because they are common variable and field
+names:
+
+| Word | Keyword only when |
+|------|-------------------|
+| `type` | it starts an item and is followed by an identifier (`type Id = u32`) |
+| `move` | it is followed by `fn` (`move fn() { }`, `move fn(int) int`) |
+| `ref` | it is followed by `struct` (`ref struct Iter { }`) |
+| `where` | it follows a function signature |
+
+```astra
+let type = token.type      // fine: `type` is an ordinary identifier here
 ```
 
 ## 1.6 Operators and punctuation
