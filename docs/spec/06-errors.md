@@ -47,8 +47,12 @@ fn parse_port(s: &str) Result<u16, str> {
 
 The function's return type must be compatible: `?` on a `Result<T, E>`
 requires the function to return `Result<U, E>`, and `?` on an `Option<T>`
-requires it to return `Option<U>`. Converting between error types is
-explicit with `.map_err(...)`.
+requires it to return `Option<U>`.
+
+If the error types differ, `?` converts the error when the function's error
+type `F` satisfies `From<E>` (`F.from(e)` is called). Otherwise the
+conversion is explicit with `.map_err(...)`. Stage 0 requires both error
+types to be equal.
 
 ## 6.3 Unused results
 
