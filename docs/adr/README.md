@@ -18,6 +18,7 @@ changed by writing a new record that supersedes the old one.
 | [0010](0010-non-escaping-function-parameters.md) | Non-escaping function values by default | Accepted |
 | [0011](0011-ordered-deterministic-map.md) | Insertion-ordered `Map` with deterministic hashing | Accepted |
 | [0012](0012-int-for-lengths-and-indices.md) | `int` for lengths and indices | Accepted |
+| [0013](0013-camel-case-naming.md) | camelCase naming convention | Accepted |
 
 ## Template
 
