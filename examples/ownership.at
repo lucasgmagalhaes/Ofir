@@ -2,18 +2,18 @@ struct Inventory {
     items: List<str>
 }
 
-// Borrows the inventory to read it.
-fn (inv: &Inventory) count() int {
+// Borrows the inventory to read it (the default).
+fn (inv: Inventory) count() int {
     return inv.items.len()
 }
 
-// Borrows the inventory exclusively to modify it.
-fn (inv: &mut Inventory) add(item: str) {
+// Modifies the caller's inventory and takes ownership of the item.
+fn (inv: mut Inventory) add(item: move str) {
     inv.items.push(item)
 }
 
 // Takes ownership; the inventory is dropped when this function returns.
-fn discard(inv: Inventory) {
+fn discard(inv: move Inventory) {
     println("discarding {inv.count()} items")
 }
 
@@ -23,6 +23,6 @@ fn main() {
     inv.add("shield")
     println("items: {inv.count()}")
 
-    discard(inv)
+    discard(inv)            // nothing marks the call: the signature says `move`
     // inv.add("potion")   // error: use of moved value `inv`
 }
