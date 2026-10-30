@@ -8,7 +8,7 @@ implements a subset of each phase.
 
 ```
                 ┌──────────┐   ┌────────┐   ┌──────────┐   ┌────────────┐
- .astra files ─►│  lexer   │──►│ parser │──►│ resolver │──►│type checker│
+    .at files ─►│  lexer   │──►│ parser │──►│ resolver │──►│type checker│
                 └──────────┘   └────────┘   └──────────┘   └─────┬──────┘
                   tokens          AST        symbols, scopes      │ typed AST
                                                                   ▼
@@ -299,7 +299,7 @@ modules) compiled by parallel clang processes **[planned]**.
 
 ```
 error[E0382]: use of moved value `inv`
-  --> examples/ownership.astra:27:5
+  --> examples/ownership.at:27:5
    |
 25 |     discard(inv)
    |             --- value moved here

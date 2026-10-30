@@ -50,7 +50,7 @@ Both compilers share the same architecture, described in
 [design/compiler-architecture.md](design/compiler-architecture.md):
 
 ```
-source (.astra)
+source (.at)
   → lexer            tokens
   → parser           AST
   → resolver         names bound to declarations, modules loaded
@@ -114,7 +114,7 @@ rule when it compiles itself.
 | # | Milestone | Done when |
 |---|-----------|-----------|
 | M0 | Specification draft | `docs/spec` reviewed |
-| M1 | Hello world | stage 0 compiles and runs `examples/hello.astra` |
+| M1 | Hello world | stage 0 compiles and runs `examples/hello.at` |
 | M2 | Bootstrap subset | stage 0 passes every test in `tests/` not marked `requires: stage1` |
 | M3 | Self-hosted front end | stage 1 lexes and parses its own source |
 | M4 | Self-hosted | stage 1 compiles itself and stage2 == stage3 |

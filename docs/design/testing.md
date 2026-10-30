@@ -24,7 +24,7 @@ compiler must pass the same suites.
 ### Run tests
 
 ```
-tests/run/structs/methods.astra
+tests/run/structs/methods.at
 tests/run/structs/methods.out          expected stdout
 ```
 

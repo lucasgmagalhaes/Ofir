@@ -76,7 +76,7 @@ process with exit status 101. Destructors are **not** run on panic.
 
 ```
 panic: index out of bounds: the length is 3 but the index is 5
-  at src/main.astra:12:17
+  at src/main.at:12:17
 ```
 
 Panics are raised by:
