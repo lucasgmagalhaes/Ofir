@@ -29,6 +29,8 @@ A single file can be compiled without a project: `astra run hello.at`.
 | `--emit=llvm` | write the `.ll` file next to the output |
 | `--emit=asm` | write assembly |
 | `--time-passes` | print the time spent in each phase |
+| `--message-format=short` | one line per diagnostic: `file:line:col: error[E0300]: message` |
+| `--message-format=json` | diagnostics as JSON objects **[planned]** |
 
 ## 2. Project layout
 
