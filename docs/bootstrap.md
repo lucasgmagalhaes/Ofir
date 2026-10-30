@@ -21,7 +21,7 @@ stage3  Astra compiler built by stage2   →  must be identical to stage2
 
 ### Stage 0 — bootstrap compiler
 
-- Written in a host language (**decision pending**: C or Rust).
+- Written in **C11** (see [ADR 0003](adr/0003-self-hosting-with-c-bootstrap.md)).
 - Implements only the subset of Astra needed to write the real compiler
   (see below). Error messages can be basic; optimizations come from LLVM.
 - Lives in `bootstrap/`. It is frozen once stage 1 works and is only
@@ -46,7 +46,8 @@ the repository. Building Astra from scratch then needs only `clang`.
 
 ## Compiler pipeline
 
-Both compilers share the same architecture:
+Both compilers share the same architecture, described in
+[design/compiler-architecture.md](design/compiler-architecture.md):
 
 ```
 source (.astra)
@@ -54,15 +55,18 @@ source (.astra)
   → parser           AST
   → resolver         names bound to declarations, modules loaded
   → type checker     typed AST
-  → ownership check  moves, borrows, definite initialization
-  → lowering         AIR: explicit control flow, drops and drop flags
+  → lowering         AIR: control-flow graph
+  → borrow checker   moves, borrows, definite initialization
+  → drops            explicit drops and drop flags
+  → mono             concrete instances of generic code
   → codegen          LLVM IR (textual .ll)
   → clang            optimization, machine code, linking with the runtime
 ```
 
 Generating **textual LLVM IR** instead of linking against the LLVM
 libraries keeps the compiler free of C bindings and easy to self-host. The
-generated code is optimized by exactly the same LLVM passes either way.
+generated code is optimized by exactly the same LLVM passes either way
+(see [ADR 0001](adr/0001-textual-llvm-ir-backend.md)).
 
 ## Runtime
 
@@ -73,22 +77,37 @@ moves to Astra.
 
 ## Bootstrap subset
 
-Features stage 0 must support, in implementation order:
+Stage 0 supports only what the self-hosted compiler needs. Until milestone
+M4, the code in `compiler/` must be written in this subset.
 
-1. Lexer with automatic statement termination
-2. Functions, `let`/`var`, integers, `bool`, arithmetic, `if`, `for`
-3. `str`, `print`/`println`, string interpolation
-4. Structs and methods
-5. Enums with data, `match`, `if let`
-6. `List<T>`, `Map<K, V>`, `Option<T>`, `Result<T, E>`, `Box<T>`, `?`
-7. Moves and drops (the full borrow checker can come later in stage 1)
-8. References `&T` / `&mut T`
-9. Modules and `import`
-10. `extern fn` and the `std.fs`, `std.os`, `std.io` subset
+**Included:**
 
-Stage 0 checks types but **may skip the borrow checker**: programs it
-accepts are still valid Astra, because stage 1 enforces all rules once it
-compiles itself.
+- functions, `let`/`var`, `const`, all integer types, `float`, `bool`
+- arithmetic (checked), comparisons, logic, bitwise operators, `as`
+- `if`, `for` (all forms), `break`, `continue`, `return`
+- `str`, string interpolation (without format specifiers), `print`/`println`
+- structs, methods, associated functions, `copy struct`
+- enums with data, `match` (exhaustiveness checked), `if let`
+- tuples
+- references `&T`, `&mut T` as parameters and locals; slices `&[T]`, `&str`
+- built-in generics: `List<T>`, `Map<K, V>`, `Option<T>`, `Result<T, E>`,
+  `Box<T>`, and the `?` operator
+- moves and automatic drops
+- modules, `import`, `pub`
+- `extern "C"` blocks and `unsafe` blocks
+- `@test` functions
+
+**Excluded** (implemented only in stage 1):
+
+- the borrow checker (stage 0 checks moves, not borrows)
+- user-defined generics, interfaces and `dyn`
+- closures
+- `ref struct` and returning borrows
+- format specifiers, raw strings, attributes other than `@test`
+- good diagnostics: stage 0 reports the first error per function
+
+Programs accepted by stage 0 are still valid Astra: stage 1 enforces every
+rule when it compiles itself.
 
 ## Milestones
 
@@ -99,4 +118,6 @@ compiles itself.
 | M2 | Bootstrap subset | stage 0 compiles all programs in `examples/` |
 | M3 | Self-hosted front end | stage 1 lexes and parses its own source |
 | M4 | Self-hosted | stage 1 compiles itself and stage2 == stage3 |
-| M5 | Full language | borrow checker, diagnostics, generics |
+| M5 | Full language | every chapter of the specification is implemented |
+
+The detailed task list is in [roadmap.md](roadmap.md).
