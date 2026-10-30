@@ -29,5 +29,11 @@ assemble and link it with the runtime.
 - The only external dependency to build Astra programs is clang.
 - Writing and re-parsing text costs some compile time (typically a few
   percent of the time LLVM spends optimizing).
-- The textual IR format changes between LLVM versions; we target LLVM ≥ 15
-  (opaque pointers) and test against the oldest and newest supported versions.
+- The textual IR format changes between LLVM versions (for example, LLVM 21
+  replaced the `nocapture` attribute with `captures(none)`). Mitigations:
+  - a **supported range** of LLVM versions (initially 17 to the latest
+    release), each tested in CI;
+  - the generator uses only long-stable IR constructs and emits
+    version-dependent syntax from a single table keyed by the detected
+    `clang --version`;
+  - opaque pointers only (LLVM ≥ 17 accepts nothing else).
