@@ -162,30 +162,35 @@ Astra lives in `std/`.
 
 ## `std/` — standard library (Astra)
 
+Module paths follow directories (spec 7.1): `std/collections/map.at` is the
+module `std.collections.map`, and a directory's `mod.at` file is the module
+named after the directory (`std/fs/mod.at` is `std.fs`).
+
 ```
 std/
-├── core/                     always available; no allocation required
-│   ├── prelude.at            names imported into every module
-│   ├── option.at
-│   ├── result.at
+├── prelude.at                names imported into every module (spec 7.4)
+├── core/                     no allocation required
+│   ├── option.at             Option<T>
+│   ├── result.at             Result<T, E>
+│   ├── ordering.at           Ordering
 │   ├── interfaces.at         Eq, Ord, Hash, Clone, Display, Debug, Iterator, ...
 │   ├── num.at                integer and float methods
-│   ├── slice.at
-│   ├── mem.at                size_of, swap, replace, raw allocation
+│   ├── slice.at              methods of [T]
 │   └── panic.at
-├── alloc/                    requires a heap
-│   ├── box.at
-│   ├── list.at
-│   ├── map.at
-│   ├── str.at
-│   └── fmt.at                formatting used by interpolation
-├── io/
-├── fs/
-├── os/
-├── math/
-├── testing/                  assert_eq, Bencher, test harness
-├── thread/                   [planned]
-└── sync/                     [planned]
+├── mem/                      std.mem: size_of, swap, replace, take, UnsafeCell, Cell
+├── collections/              std.collections: requires a heap
+│   ├── box.at                Box<T>
+│   ├── list.at               List<T>
+│   └── map.at                Map<K, V>
+├── strings/                  std.strings: str methods and helpers
+├── fmt/                      std.fmt: formatting used by interpolation
+├── io/                       std.io
+├── fs/                       std.fs
+├── os/                       std.os
+├── math/                     std.math
+├── testing/                  std.testing: assert_eq, Bencher, test harness
+├── thread/                   std.thread [planned]
+└── sync/                     std.sync   [planned]
 ```
 
 ## `tests/` — test suites
@@ -240,3 +245,5 @@ examples, tests, bench ──► compiler / bootstrap ──► runtime, std
 - `borrow` analyses AIR (a control-flow graph), not the AST.
 - `codegen` reads only AIR, never the AST.
 - `runtime` must not depend on `std`; `std/core` must not allocate.
+- Types and methods are documented in the [standard library
+  reference](../std/README.md).
