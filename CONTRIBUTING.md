@@ -7,8 +7,8 @@
    `feat/lexer-interpolation`, `fix/parser-recovery`, `docs/spec-closures`.
 3. Make **small commits** following [Conventional Commits](#commit-messages).
 4. Run `make test` locally; open a pull request when it passes.
-5. CI must be green before merging. Pull requests are squash-free: the
-   individual commits are kept, so each one must build and make sense alone.
+5. CI must be green before merging. Pull requests are merged without
+   squashing, so every commit must build and make sense on its own.
 
 ## Commit messages
 
