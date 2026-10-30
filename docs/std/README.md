@@ -22,4 +22,6 @@ required before version 1.0.
   are named explicitly (`unwrap`, `expect`) or documented with **panics**.
 - Methods that allocate say so.
 - `len()` and indices are `int` (spec 2.1).
+- Parameters are borrowed unless marked `mut` or `move` (spec 5.3); methods
+  that store or consume an argument take it with `move`.
 - Errors from the system are values of `IoError` (see [system.md](system.md)).
