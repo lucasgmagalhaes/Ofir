@@ -77,12 +77,17 @@ model.
 | `x: mut T` | **mutable borrow** | read, modify and reassign `x` | a mutable place (a `var`, a field or element of one, or a `mut` parameter) |
 | `x: move T` | **move** | own `x`: store it, return it, drop it | a value, which is moved (or copied, for Copy types) |
 
-The receiver of a method uses the same modes:
+The `self` parameter of a method (chapter 3.6) uses the same modes:
 
 ```astra
-fn (p: Point) length() float { ... }        // borrows p
-fn (p: mut Point) scale(k: float) { ... }   // modifies p
-fn (p: move Point) intoVec2() Vec2 { ... }  // consumes p
+struct Point {
+    x: float
+    y: float
+
+    fn length(self) float { ... }           // borrows the point
+    fn scale(mut self, k: float) { ... }    // modifies it
+    fn intoVec2(move self) Vec2 { ... }     // consumes it
+}
 ```
 
 ### Borrowed parameters
@@ -209,16 +214,15 @@ A borrow lasts from the point where it is created to its **last use**
 A function may return a reference (or a `ref struct`, or an `Option`/`Result`
 containing one) that borrows from **one** parameter:
 
-- from the receiver, if the function is a method with a borrowed or `mut`
-  receiver;
+- from `self`, if the function is a method taking `self` or `mut self`;
 - otherwise from its only borrowed parameter of a non-Copy type.
 
 With no such parameter, or with several candidates, returning a borrow is an
 error.
 
 ```astra
-fn (l: List<T>) first() Option<&T> { ... }
-fn (u: mut User) nameMut() &mut str { ... }
+// in List<T>:  fn first(self) Option<&T> { ... }
+// in User:     fn nameMut(mut self) &mut str { ... }
 
 let f = list.first()     // f borrows `list`
 list.push(4)             // error: `list` is borrowed by `f`
@@ -237,14 +241,15 @@ under the rule above, but not stored in ordinary structs or containers.
 ref struct ListIter<T> {
     list: &List<T>
     index: int
+
+    fn next(mut self) Option<&T> {
+        ...
+    }
 }
 
-fn (l: List<T>) iter() ListIter<T> {
-    return ListIter{list: &l, index: 0}
-}
-
-fn (it: mut ListIter<T>) next() Option<&T> {
-    ...
+// in List<T>:
+fn iter(self) ListIter<T> {
+    return ListIter{list: &self, index: 0}
 }
 ```
 

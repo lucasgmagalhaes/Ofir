@@ -44,27 +44,31 @@ enum Tree<K: Ord, V> {
 
 ## 8.3 Methods on generic types
 
-The receiver's type parameters are in scope in the method:
+The type parameters of a generic type are in scope in all of its methods:
 
 ```astra
-fn Stack<T>.new() Stack<T> {
-    return Stack{items: []}
-}
+struct Stack<T> {
+    items: List<T>
 
-fn (s: mut Stack<T>) push(item: move T) {
-    s.items.push(item)
-}
+    fn new() Stack<T> {
+        return Stack{items: []}
+    }
 
-fn (s: mut Stack<T>) pop() Option<T> {
-    return s.items.pop()
+    fn push(mut self, item: move T) {
+        self.items.push(item)
+    }
+
+    fn pop(mut self) Option<T> {
+        return self.items.pop()
+    }
 }
 ```
 
 Methods may add their own type parameters and bounds:
 
 ```astra
-fn (s: Stack<T>) contains(item: T) bool where T: Eq { ... }
-fn (s: Stack<T>) map<U>(f: fn(T) U) Stack<U> { ... }
+fn contains(self, item: T) bool where T: Eq { ... }
+fn map<U>(self, f: fn(T) U) Stack<U> { ... }
 ```
 
 ## 8.4 `where` clauses
