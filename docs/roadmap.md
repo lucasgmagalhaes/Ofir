@@ -58,7 +58,7 @@ the ADRs.
 | 0.5 | Test runner `tests/runner/run_tests.py`: discovery, `run`, `compile_fail` (stage 0 and stage 1 matching rules), `panic` suites, `// requires:` tags, `--bless`, parallel execution | M | runner self-test passes on fixture files |
 | 0.6 | Script checking that every error code used in tests exists in `docs/errors/README.md` | S | runs in CI |
 | 0.7 | CI workflow: build stage 0 and runtime, run all suites on Linux and macOS with the oldest and newest supported LLVM | S | green pipeline on the main branch |
-| 0.8 | **Paper prototype:** write the stage 1 lexer (`compiler/syntax/lexer.at`, ~500 lines) in the bootstrap subset, without compiling it; record every missing feature or awkward pattern | M | prototype reviewed; spec or subset adjusted (ADR if needed) |
+| 0.8 | **Paper prototype:** write the stage 1 lexer (`compiler/syntax/lexer.at`, ~500 lines) in the bootstrap subset, without compiling it; record every missing feature or awkward pattern | M | done: see [prototype review](design/prototype-review.md) |
 
 ## Phase 1 — Walking skeleton (milestone M1)
 
