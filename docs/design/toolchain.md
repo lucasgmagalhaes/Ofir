@@ -86,7 +86,8 @@ The compiler finds:
   executable, `../lib/astra/std`);
 - the **runtime** in `$ASTRA_HOME/lib/libastra_rt.a`;
 - **clang** through `$ASTRA_CLANG`, otherwise `clang` on the `PATH`.
-  Minimum version: LLVM 15 (opaque pointers).
+  Supported: LLVM 17 to the latest release, each tested in CI (ADR 0001).
+  `astra version` reports the clang in use.
 
 ## 5. Installation layout
 
@@ -115,5 +116,5 @@ make verify        # stage2 compiles compiler/ again; outputs must be identical
 make test          # run all suites in tests/ against the newest stage
 ```
 
-Requirements: a C11 compiler, `make`, clang ≥ 15, and Python 3 for the
-test runner.
+Requirements: a C11 compiler, `make`, clang ≥ 17, and Python 3 for the
+test runner (a development dependency only; users never need Python).
