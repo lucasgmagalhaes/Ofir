@@ -35,7 +35,8 @@ from context).
 
 Indexing `l[i]` and slicing `l[a..b]` are bounds checked (spec 4.9).
 `&List<T>` converts to `&[T]`; slice methods (`len`, `get`, `first`, `last`,
-`contains`, `iter`) are shared.
+`contains`, `iter`) are shared. `fn (s: &[T]) to_list() List<T> where T: Clone`
+copies a slice into a new list (S0 for Copy element types).
 
 ## `Map<K, V>`
 

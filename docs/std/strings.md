@@ -10,7 +10,8 @@ UTF-8 character boundaries.
 | `fn (s: &str) len() int` | length in bytes | ✓ |
 | `fn (s: &str) is_empty() bool` | | ✓ |
 | `fn (s: &mut str) push(t: &str)` | append; may allocate | ✓ |
-| `fn (s: &mut str) push_byte(b: u8)` | **panics** if it would produce invalid UTF-8 | ✓ |
+| `fn (s: &mut str) push_char(c: u32)` | append a Unicode scalar value as UTF-8; **panics** if `c` is not one | ✓ |
+| `fn (s: &str) to_owned() str` | copy a borrowed string into a new owned `str`; allocates | ✓ |
 | `fn (s: &mut str) clear()` | | ✓ |
 | `fn (s: &str) bytes() StrBytes` | iterator over `u8` | ✓ |
 | `fn (s: &str) chars() StrChars` | iterator over Unicode scalar values (`u32`) | |
