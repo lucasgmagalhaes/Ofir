@@ -54,7 +54,7 @@ for i in 0..=10 { }        // 0, 1, ..., 10
 
 for item in list { }       // item: &T  (borrows the list)
 for item in &mut list { }  // item: &mut T
-for i, item in list { }    // with the index (uint)
+for i, item in list { }    // with the index (int)
 
 for key, value in map { }  // key: &K, value: &V, in insertion order
 ```
@@ -139,8 +139,7 @@ fields all support `==`.
 ## 4.9 Indexing
 
 `list[i]`, `array[i]` and `s[i]` (bytes of a string) are bounds checked and
-panic when `i` is out of range. The index type is `uint`; integer literals
-adapt automatically. `list.get(i)` returns `Option<&T>` instead of panicking.
+panic when `i` is out of range. The index type is `int`; a negative index is out of range and panics. `list.get(i)` returns `Option<&T>` instead of panicking.
 
 Slicing (`list[a..b]`) produces a borrowed view and is **[planned]**.
 

@@ -169,7 +169,7 @@ under the rule above.
 ```astra
 ref struct ListIter<T> {
     list: &List<T>
-    index: uint
+    index: int
 }
 
 fn (l: &List<T>) iter() ListIter<T> {
