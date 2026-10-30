@@ -43,7 +43,8 @@ properties stated as **guaranteed** can be relied on.
 | `str` | pointer + length + capacity (24 bytes) |
 | `List<T>` | pointer + length + capacity (24 bytes) |
 | `Map<K, V>` | open-addressing hash table (implementation-defined) |
-| `fn(A) R` | code pointer + environment pointer (16 bytes) |
+| `fn(A) R`, `move fn(A) R` | code pointer + environment pointer (16 bytes) |
+| `extern "C" fn(A) R` | code pointer (8 bytes) |
 
 A `str` built from a literal points to read-only static memory and has
 capacity 0; it is copied to the heap on first modification.

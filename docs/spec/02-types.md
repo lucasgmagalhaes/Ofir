@@ -182,8 +182,9 @@ let hello: &str = s[0..5]
 
 ## 2.13 Function types
 
-`fn(A, B) R` is the type of a function value: a named function or a
-closure (chapter 10).
+`fn(A, B) R` is the type of a borrowed function value: a named function or
+a closure. `move fn(A, B) R` is an owned function value that can be stored
+and returned. See chapter 10.
 
 ```astra
 fn apply(f: fn(int) int, x: int) int {
