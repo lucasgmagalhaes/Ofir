@@ -31,14 +31,45 @@ let c = 3.9 as int      // 3 (truncates toward zero)
 
 `as` between integer types panics if the value does not fit the target
 type. Float-to-integer `as` panics on NaN or out-of-range values.
+Integer-to-float `as` rounds to the nearest representable value.
+
+When a lossy conversion is intended, use the explicit conversion methods,
+which take the target type as a type argument:
+
+| Method | Behavior | `300 as u8` equivalent |
+|--------|----------|------------------------|
+| `x.wrapping_cast<T>()` | keeps the low bits (two's complement) | `44` |
+| `x.saturating_cast<T>()` | clamps to the target range | `255` |
+| `x.checked_cast<T>()` | returns `Option<T>` | `None` |
 
 ### Arithmetic
 
 Integer arithmetic is **checked**: overflow, division by zero and shifts
-by more than the bit width panic. The cost is a single branch that is
+by the bit width or more panic. The cost is a single branch that is
 almost never taken; LLVM's overflow intrinsics make it close to free.
-Explicit wrapping arithmetic is available through methods
-(`a.wrapping_add(b)`, `a.wrapping_mul(b)`, ...).
+Explicit wrapping, saturating and checked arithmetic is available through
+methods (`a.wrapping_add(b)`, `a.saturating_sub(b)`, `a.checked_mul(b)`, ...).
+
+- `/` truncates toward zero; `%` has the sign of the dividend
+  (`-7 / 2 == -3`, `-7 % 2 == -1`). `a.div_floor(b)` and `a.rem_euclid(b)`
+  provide the other conventions.
+- `>>` is arithmetic (sign-extending) on signed types and logical on
+  unsigned types.
+
+### Floats
+
+Floats follow IEEE-754: division by zero yields an infinity, invalid
+operations yield NaN, nothing panics.
+
+- `==` and `<` use IEEE semantics, so `NaN != NaN`. For this reason floats
+  do **not** satisfy the `Eq`, `Ord` and `Hash` interfaces (chapter 9.9):
+  they cannot be `Map` keys, and sorting them uses
+  `list.sort_by(fn(a, b) => a.total_cmp(b))`.
+- Textual form (interpolation, `Display`): the **shortest** decimal that
+  converts back to the same value, always with a `.` or an exponent:
+  `1.0`, `0.1`, `1e+21`, `-0.0`. Special values print as `NaN`, `inf` and
+  `-inf`. Exponent notation is used when the exponent is below -4 or at
+  least 21.
 
 ## 2.2 The unit type
 
