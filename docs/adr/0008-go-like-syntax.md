@@ -1,6 +1,6 @@
 # 0008. Go-like syntax without semicolons
 
-- Status: Accepted; the newline rule is superseded by [0009](0009-parser-driven-newlines.md)
+- Status: Accepted; the newline rule is superseded by [0009](0009-parser-driven-newlines.md) and the method syntax by [0015](0015-methods-inside-types.md)
 - Date: 2026-10-30
 
 ## Context

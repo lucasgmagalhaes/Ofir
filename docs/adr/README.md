@@ -20,6 +20,7 @@ changed by writing a new record that supersedes the old one.
 | [0012](0012-int-for-lengths-and-indices.md) | `int` for lengths and indices | Accepted |
 | [0013](0013-camel-case-naming.md) | camelCase naming convention | Accepted |
 | [0014](0014-parameter-modes.md) | Parameters are borrowed by default (`mut`, `move` modes) | Accepted |
+| [0015](0015-methods-inside-types.md) | Methods are declared inside their type | Accepted |
 
 ## Template
 
