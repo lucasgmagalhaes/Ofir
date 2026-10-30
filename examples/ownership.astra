@@ -1,0 +1,28 @@
+struct Inventory {
+    items: List<str>
+}
+
+// Borrows the inventory to read it.
+fn (inv: &Inventory) count() -> uint {
+    return inv.items.len()
+}
+
+// Borrows the inventory exclusively to modify it.
+fn (inv: &mut Inventory) add(item: str) {
+    inv.items.push(item)
+}
+
+// Takes ownership; the inventory is dropped when this function returns.
+fn discard(inv: Inventory) {
+    println("discarding {inv.count()} items")
+}
+
+fn main() {
+    var inv = Inventory{items: []}
+    inv.add("sword")
+    inv.add("shield")
+    println("items: {inv.count()}")
+
+    discard(inv)
+    // inv.add("potion")   // error: use of moved value `inv`
+}
