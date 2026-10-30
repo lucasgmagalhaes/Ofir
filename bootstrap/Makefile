@@ -3,9 +3,10 @@
 #   make release    optimized build
 #   make test       build and run the C unit tests in tests/
 
-CC    ?= cc
-BUILD ?= ../build/stage0
-MODE  ?= debug
+CC       ?= cc
+BUILD    ?= ../build/stage0
+MODE     ?= debug
+SANITIZE ?= address,undefined   # empty to disable (e.g. clang without compiler-rt)
 
 WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wshadow -Wstrict-prototypes
 CFLAGS   := -std=c11 $(WARNINGS) -Isrc
@@ -14,8 +15,12 @@ ifeq ($(MODE),release)
 CFLAGS  += -O2 -DNDEBUG
 LDFLAGS :=
 else
-CFLAGS  += -O0 -g -fno-omit-frame-pointer -fsanitize=address,undefined
-LDFLAGS := -fsanitize=address,undefined
+CFLAGS  += -O0 -g -fno-omit-frame-pointer
+LDFLAGS :=
+ifneq ($(strip $(SANITIZE)),)
+CFLAGS  += -fsanitize=$(strip $(SANITIZE))
+LDFLAGS += -fsanitize=$(strip $(SANITIZE))
+endif
 endif
 
 SRCS      := $(shell find src -name '*.c' | sort)
