@@ -50,10 +50,11 @@ enum variants; `SCREAMING_CASE` for constants.
 ## 1.5 Keywords
 
 ```
-as        break     const     continue  copy      else      enum
-extern    false     fn        for       if        import    in
-let       match     mut       pub       return    struct    true
-var
+as        break     const     continue  copy      dyn       else
+enum      extern    false     fn        for       if        import
+in        interface let       match     move      mut       pub
+ref       return    Self      struct    true      type      unsafe
+var       where
 ```
 
 ## 1.6 Operators and punctuation
@@ -62,9 +63,12 @@ var
 +    -    *    /    %    &    |    ^    <<   >>   !
 +=   -=   *=   /=   %=   &=   |=   ^=   <<=  >>=
 ==   !=   <    <=   >    >=   &&   ||
-=    .    ..   ..=  ,    :    ->   =>   ?
-(    )    [    ]    {    }
+=    .    ..   ..=  ,    :    ->   =>   ?    @
+(    )    [    ]    {    }    ;
 ```
+
+`;` is used only inside array types and repeat literals (`[u8; 16]`,
+`[0; 16]`); it never terminates statements.
 
 ## 1.7 Literals
 
@@ -107,6 +111,36 @@ Escape sequences: `\n`, `\t`, `\r`, `\0`, `\\`, `\"`, `\{`, `\}`,
 inserts its textual form. The type of `expr` must implement string
 conversion (all primitive types do). A literal brace is written `\{` or `\}`.
 
+**Format specifiers:** `{expr:spec}` controls formatting:
+
+| Spec | Meaning | Example |
+|------|---------|---------|
+| `?` | debug representation (`Debug`) | `{list:?}` → `[1, 2, 3]` |
+| `.N` | N digits after the decimal point | `{pi:.2}` → `3.14` |
+| `N` | minimum width, right aligned | `{n:5}` → `   42` |
+| `<N` | minimum width, left aligned | `{s:<8}` |
+| `0N` | zero padded | `{n:04}` → `0042` |
+| `x` / `X` / `b` | hexadecimal / binary | `{n:x}` → `ff` |
+
+### Raw strings
+
+Raw strings start with `r"` (single line) or `"""` (multi-line). They have no
+escapes and no interpolation. In multi-line strings, the indentation of the
+closing `"""` is removed from every line.
+
+```astra
+let pattern = r"C:\path\{name}"
+let text = """
+    first line
+    second line
+    """
+```
+
 ### Characters
 
 There is no `char` type. A byte literal `b'a'` has type `u8`.
+
+## 1.8 Documentation comments
+
+`///` documents the next declaration and `//!` documents the enclosing
+module (chapter 12.5).
