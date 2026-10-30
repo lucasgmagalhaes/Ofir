@@ -51,13 +51,13 @@ the ADRs.
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 0.1 | Create the directory skeleton of `docs/design/project-structure.md` with a `README.md` per top-level directory | S | directories exist and describe their purpose |
-| 0.2 | Add `LICENSE`, `CONTRIBUTING.md` (Conventional Commits, branches, PRs, ADR process), `CHANGELOG.md`, `.editorconfig`, `.gitignore` | S | files present |
-| 0.3 | Top-level `Makefile` with targets `stage0`, `runtime`, `test`, `clean` (empty implementations allowed) | S | `make` runs without errors |
-| 0.4 | `bootstrap/Makefile`: C11, `-Wall -Wextra -Werror`, debug build with `-fsanitize=address,undefined` | S | an empty `main.c` builds |
-| 0.5 | Test runner `tests/runner/run_tests.py`: discovery, `run`, `compile_fail` (stage 0 and stage 1 matching rules), `panic` suites, `// requires:` tags, `--bless`, parallel execution | M | runner self-test passes on fixture files |
-| 0.6 | Script checking that every error code used in tests exists in `docs/errors/README.md` | S | runs in CI |
-| 0.7 | CI workflow: build stage 0 and runtime, run all suites on Linux and macOS with the oldest and newest supported LLVM | S | green pipeline on the main branch |
+| 0.1 | Create the directory skeleton of `docs/design/project-structure.md` with a `README.md` per top-level directory | S | **done**: directories exist and describe their purpose |
+| 0.2 | Add `LICENSE`, `CONTRIBUTING.md` (Conventional Commits, branches, PRs, ADR process), `CHANGELOG.md`, `.editorconfig`, `.gitignore` | S | **done**: files present |
+| 0.3 | Top-level `Makefile` with targets `stage0`, `runtime`, `test`, `clean` (empty implementations allowed) | S | **done**: `make` runs without errors |
+| 0.4 | `bootstrap/Makefile`: C11, `-Wall -Wextra -Werror`, debug build with `-fsanitize=address,undefined` | S | **done**: an empty `main.c` builds |
+| 0.5 | Test runner `tests/runner/run_tests.py`: discovery, `run`, `compile_fail` (stage 0 and stage 1 matching rules), `panic` suites, `// requires:` tags, `--bless`, parallel execution | M | **done**: runner self-test passes on fixture files |
+| 0.6 | Script checking that every error code used in tests exists in `docs/errors/README.md` | S | **done**: runs in CI |
+| 0.7 | CI workflow: build stage 0 and runtime, run all suites on Linux and macOS with the oldest and newest supported LLVM | S | **done**: green pipeline on the main branch |
 | 0.8 | **Paper prototype:** write the stage 1 lexer (`compiler/syntax/lexer.at`, ~500 lines) in the bootstrap subset, without compiling it; record every missing feature or awkward pattern | M | done: see [prototype review](design/prototype-review.md) |
 
 ## Phase 1 — Walking skeleton (milestone M1)
@@ -216,6 +216,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Start Phase 0: tasks 0.1 to 0.8.
+1. Phase 0 is complete. Start Phase 1 (walking skeleton), beginning with
+   tasks 1.1 to 1.4 (`base/` and `diag/` in stage 0).
 
 See also the [risk register](risks.md).
