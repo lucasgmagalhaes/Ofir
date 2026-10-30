@@ -10,33 +10,31 @@ one indirect call).
 
 ```astra
 interface Shape {
-    fn (Self) area() float
-    fn (Self) name() str
+    fn area(self) float
+    fn name(self) str
 }
 ```
 
 - `Self` is the type satisfying the interface.
-- A method signature in an interface omits the receiver's name. Receiver
-  forms are the parameter modes of chapter 5.3: `Self` (borrowed),
-  `mut Self` and `move Self` (consuming).
-- Associated functions without a receiver are allowed:
-  `fn Self.default() Self`.
+- Methods are written as inside a struct (chapter 3.6): `self`, `mut self`
+  or `move self` as the first parameter.
+- Associated functions without `self` are allowed: `fn default() Self`.
 
 ## 9.2 Satisfying interfaces
 
 ```astra
 struct Circle {
     radius: float
-}
 
-fn (c: Circle) area() float { return 3.14159 * c.radius * c.radius }
-fn (c: Circle) name() str { return "circle" }
+    fn area(self) float { return 3.14159 * self.radius * self.radius }
+    fn name(self) str { return "circle" }
+}
 
 // Circle now satisfies Shape. Nothing else is needed.
 ```
 
-A method satisfies an interface method when the name, receiver form,
-parameter types and return type match exactly.
+A method satisfies an interface method when the name, the mode of `self`,
+the parameter types and the return type match exactly.
 
 ### Explicit assertion
 
@@ -46,6 +44,8 @@ missing, a type can assert that it satisfies an interface:
 ```astra
 struct Circle: Shape + Display {
     radius: float
+
+    ...
 }
 ```
 
@@ -58,11 +58,11 @@ their own:
 
 ```astra
 interface Shape {
-    fn (Self) area() float
-    fn (Self) name() str
+    fn area(self) float
+    fn name(self) str
 
-    fn (s: Self) describe() str {
-        return "{s.name()} with area {s.area()}"
+    fn describe(self) str {
+        return "{self.name()} with area {self.area()}"
     }
 }
 ```
@@ -73,11 +73,11 @@ An interface can include other interfaces:
 
 ```astra
 interface Reader {
-    fn (mut Self) read(buf: mut [u8]) Result<int, IoError>
+    fn read(mut self, buf: mut [u8]) Result<int, IoError>
 }
 
 interface Writer {
-    fn (mut Self) write(data: [u8]) Result<int, IoError>
+    fn write(mut self, data: [u8]) Result<int, IoError>
 }
 
 interface ReadWriter {
@@ -90,11 +90,11 @@ interface ReadWriter {
 
 ```astra
 interface Iterator<T> {
-    fn (mut Self) next() Option<T>
+    fn next(mut self) Option<T>
 }
 
 interface From<T> {
-    fn Self.from(value: move T) Self
+    fn from(value: move T) Self
 }
 ```
 
@@ -153,7 +153,7 @@ pointer is implicit when the expected type is known.
 
 An interface can be used with `dyn` only if every method:
 
-- has a `Self` or `mut Self` receiver (no `move Self`, no associated
+- takes `self` or `mut self` (no `move self`, no associated
   functions);
 - has no type parameters of its own;
 - does not mention `Self` in parameter or return types.
@@ -183,16 +183,16 @@ fields all satisfy them, unless the type defines the method itself.
 
 | Interface | Methods | Used by |
 |-----------|---------|---------|
-| `Eq` | `fn (Self) eq(other: Self) bool` | `==`, `!=` |
-| `Ord` | `fn (Self) cmp(other: Self) Ordering` | `<`, `<=`, `>`, `>=`, sorting |
-| `Hash` | `fn (Self) hash(h: mut Hasher)` | `Map` keys |
-| `Clone` | `fn (Self) clone() Self` | `.clone()` |
-| `Display` | `fn (Self) format(out: mut str)` | string interpolation, `println` |
-| `Debug` | `fn (Self) debug(out: mut str)` | `{x:?}` in interpolation |
-| `Drop` | `fn (mut Self) drop()` | destruction (chapter 5.2) |
-| `Iterator<T>` | `fn (mut Self) next() Option<T>` | `for` loops |
-| `From<T>` | `fn Self.from(value: move T) Self` | error conversion in `?` (chapter 6.2) |
-| `Default` | `fn Self.default() Self` | `..T.default()` in struct literals, `mem.take` |
+| `Eq` | `fn eq(self, other: Self) bool` | `==`, `!=` |
+| `Ord` | `fn cmp(self, other: Self) Ordering` | `<`, `<=`, `>`, `>=`, sorting |
+| `Hash` | `fn hash(self, h: mut Hasher)` | `Map` keys |
+| `Clone` | `fn clone(self) Self` | `.clone()` |
+| `Display` | `fn format(self, out: mut str)` | string interpolation, `println` |
+| `Debug` | `fn debug(self, out: mut str)` | `{x:?}` in interpolation |
+| `Drop` | `fn drop(mut self)` | destruction (chapter 5.2) |
+| `Iterator<T>` | `fn next(mut self) Option<T>` | `for` loops |
+| `From<T>` | `fn from(value: move T) Self` | error conversion in `?` (chapter 6.2) |
+| `Default` | `fn default() Self` | `..T.default()` in struct literals, `mem.take` |
 
 `Display` is **not** derived automatically; a type chooses how it is shown.
 `Debug` is derived for every type.
