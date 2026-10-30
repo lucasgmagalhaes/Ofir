@@ -8,7 +8,7 @@ as fast as hand-written code.
 ## 8.1 Generic functions
 
 ```astra
-fn max<T: Ord>(a: T, b: T) T {
+fn max<T: Ord>(a: move T, b: move T) T {
     if a > b {
         return a
     }
@@ -51,11 +51,11 @@ fn Stack<T>.new() Stack<T> {
     return Stack{items: []}
 }
 
-fn (s: &mut Stack<T>) push(item: T) {
+fn (s: mut Stack<T>) push(item: move T) {
     s.items.push(item)
 }
 
-fn (s: &mut Stack<T>) pop() Option<T> {
+fn (s: mut Stack<T>) pop() Option<T> {
     return s.items.pop()
 }
 ```
@@ -63,8 +63,8 @@ fn (s: &mut Stack<T>) pop() Option<T> {
 Methods may add their own type parameters and bounds:
 
 ```astra
-fn (s: &Stack<T>) contains(item: &T) bool where T: Eq { ... }
-fn (s: &Stack<T>) map<U>(f: fn(&T) U) Stack<U> { ... }
+fn (s: Stack<T>) contains(item: T) bool where T: Eq { ... }
+fn (s: Stack<T>) map<U>(f: fn(T) U) Stack<U> { ... }
 ```
 
 ## 8.4 `where` clauses
@@ -72,7 +72,7 @@ fn (s: &Stack<T>) map<U>(f: fn(&T) U) Stack<U> { ... }
 Bounds may be written after the signature when they are long:
 
 ```astra
-fn merge<K, V>(a: Map<K, V>, b: Map<K, V>) Map<K, V>
+fn merge<K, V>(a: move Map<K, V>, b: move Map<K, V>) Map<K, V>
 where
     K: Eq + Hash,
     V: Clone,

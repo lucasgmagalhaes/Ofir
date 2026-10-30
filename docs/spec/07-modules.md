@@ -38,7 +38,7 @@ pub struct Token {
     line: int          // private field
 }
 
-pub fn tokenize(src: &str) List<Token> { ... }
+pub fn tokenize(src: str) List<Token> { ... }
 ```
 
 ## 7.4 The prelude
@@ -52,13 +52,13 @@ The following names are available in every module without imports:
 ## 7.5 Built-in functions
 
 ```astra
-fn print(text: &str)              // standard output
-fn println(text: &str)            // standard output, followed by "\n"
-fn eprint(text: &str)             // standard error
-fn eprintln(text: &str)           // standard error, followed by "\n"
-fn panic(message: &str) !
+fn print(text: str)              // standard output
+fn println(text: str)            // standard output, followed by "\n"
+fn eprint(text: str)             // standard error
+fn eprintln(text: str)           // standard error, followed by "\n"
+fn panic(message: str) !
 fn assert(condition: bool)
-fn assertEq<T: Eq + Debug>(left: &T, right: &T)
+fn assertEq<T: Eq + Debug>(left: T, right: T)
 fn sizeOf<T>() int
 fn alignOf<T>() int
 ```

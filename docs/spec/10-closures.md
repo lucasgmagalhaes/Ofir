@@ -36,14 +36,17 @@ the expected function type.
   sent across the program. Only named functions and `move` closures convert
   to it. It is a move type; dropping it drops its captured values.
 
+A parameter declared `handler: move fn()` takes ownership of an owned
+function value: `move` is both the parameter mode and part of the type.
+
 Because function-typed parameters are borrowed by default, a function that
 receives a callback can never store it by accident; one that needs to store
 it says so in its signature:
 
 ```astra
-fn each(xs: &List<int>, f: fn(int)) { ... }            // cannot keep `f`
+fn each(xs: List<int>, f: fn(int)) { ... }            // cannot keep `f`
 
-fn onClick(b: &mut Button, handler: move fn()) {      // keeps `handler`
+fn onClick(b: mut Button, handler: move fn()) {      // keeps `handler`
     b.handlers.push(handler)
 }
 ```

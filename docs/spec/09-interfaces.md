@@ -10,14 +10,15 @@ one indirect call).
 
 ```astra
 interface Shape {
-    fn (&Self) area() float
-    fn (&Self) name() str
+    fn (Self) area() float
+    fn (Self) name() str
 }
 ```
 
 - `Self` is the type satisfying the interface.
 - A method signature in an interface omits the receiver's name. Receiver
-  forms are `&Self`, `&mut Self` and `Self` (consuming).
+  forms are the parameter modes of chapter 5.3: `Self` (borrowed),
+  `mut Self` and `move Self` (consuming).
 - Associated functions without a receiver are allowed:
   `fn Self.default() Self`.
 
@@ -28,8 +29,8 @@ struct Circle {
     radius: float
 }
 
-fn (c: &Circle) area() float { return 3.14159 * c.radius * c.radius }
-fn (c: &Circle) name() str { return "circle" }
+fn (c: Circle) area() float { return 3.14159 * c.radius * c.radius }
+fn (c: Circle) name() str { return "circle" }
 
 // Circle now satisfies Shape. Nothing else is needed.
 ```
@@ -57,10 +58,10 @@ their own:
 
 ```astra
 interface Shape {
-    fn (&Self) area() float
-    fn (&Self) name() str
+    fn (Self) area() float
+    fn (Self) name() str
 
-    fn (s: &Self) describe() str {
+    fn (s: Self) describe() str {
         return "{s.name()} with area {s.area()}"
     }
 }
@@ -72,11 +73,11 @@ An interface can include other interfaces:
 
 ```astra
 interface Reader {
-    fn (&mut Self) read(buf: &mut [u8]) Result<int, IoError>
+    fn (mut Self) read(buf: mut [u8]) Result<int, IoError>
 }
 
 interface Writer {
-    fn (&mut Self) write(data: &[u8]) Result<int, IoError>
+    fn (mut Self) write(data: [u8]) Result<int, IoError>
 }
 
 interface ReadWriter {
@@ -89,11 +90,11 @@ interface ReadWriter {
 
 ```astra
 interface Iterator<T> {
-    fn (&mut Self) next() Option<T>
+    fn (mut Self) next() Option<T>
 }
 
 interface From<T> {
-    fn Self.from(value: T) Self
+    fn Self.from(value: move T) Self
 }
 ```
 
@@ -103,7 +104,7 @@ An interface used as a bound is resolved at compile time. Calls are direct
 and can be inlined:
 
 ```astra
-fn totalArea<S: Shape>(shapes: &[S]) float {
+fn totalArea<S: Shape>(shapes: [S]) float {
     var sum = 0.0
     for s in shapes {
         sum += s.area()
@@ -115,13 +116,22 @@ fn totalArea<S: Shape>(shapes: &[S]) float {
 ## 9.7 Dynamic dispatch with `dyn`
 
 `dyn Interface` is a type whose concrete type is known only at runtime.
-It is unsized, so it is always used behind a pointer:
+It is unsized, so it is used as a parameter type or behind a pointer:
 
-| Type | Meaning |
-|------|---------|
-| `&dyn Shape` | borrowed, read-only |
-| `&mut dyn Shape` | borrowed, exclusive |
-| `Box<dyn Shape>` | owned |
+| Use | Meaning |
+|-----|---------|
+| `s: dyn Shape` (parameter) | borrows any value whose type satisfies `Shape` |
+| `s: mut dyn Shape` (parameter) | borrows it mutably |
+| `Box<dyn Shape>` | owned, e.g. in a list of different shapes |
+| `&dyn Shape` | explicit reference (chapter 5.6) |
+
+```astra
+fn draw(s: dyn Shape) {
+    println(s.describe())
+}
+
+draw(Circle{radius: 1.0})
+```
 
 ```astra
 let shapes: List<Box<dyn Shape>> = [
@@ -143,7 +153,7 @@ pointer is implicit when the expected type is known.
 
 An interface can be used with `dyn` only if every method:
 
-- has a `&Self` or `&mut Self` receiver (no consuming `Self`, no associated
+- has a `Self` or `mut Self` receiver (no `move Self`, no associated
   functions);
 - has no type parameters of its own;
 - does not mention `Self` in parameter or return types.
@@ -157,7 +167,7 @@ The concrete type behind a `dyn` value can be tested with `match`:
 
 ```astra
 match shape {
-    c: &Circle => println("circle of radius {c.radius}")
+    c: Circle => println("circle of radius {c.radius}")
     _ => println("another shape")
 }
 ```
@@ -173,15 +183,15 @@ fields all satisfy them, unless the type defines the method itself.
 
 | Interface | Methods | Used by |
 |-----------|---------|---------|
-| `Eq` | `fn (&Self) eq(other: &Self) bool` | `==`, `!=` |
-| `Ord` | `fn (&Self) cmp(other: &Self) Ordering` | `<`, `<=`, `>`, `>=`, sorting |
-| `Hash` | `fn (&Self) hash(h: &mut Hasher)` | `Map` keys |
-| `Clone` | `fn (&Self) clone() Self` | `.clone()` |
-| `Display` | `fn (&Self) format(out: &mut str)` | string interpolation, `println` |
-| `Debug` | `fn (&Self) debug(out: &mut str)` | `{x:?}` in interpolation |
-| `Drop` | `fn (&mut Self) drop()` | destruction (chapter 5.2) |
-| `Iterator<T>` | `fn (&mut Self) next() Option<T>` | `for` loops |
-| `From<T>` | `fn Self.from(value: T) Self` | error conversion in `?` (chapter 6.2) |
+| `Eq` | `fn (Self) eq(other: Self) bool` | `==`, `!=` |
+| `Ord` | `fn (Self) cmp(other: Self) Ordering` | `<`, `<=`, `>`, `>=`, sorting |
+| `Hash` | `fn (Self) hash(h: mut Hasher)` | `Map` keys |
+| `Clone` | `fn (Self) clone() Self` | `.clone()` |
+| `Display` | `fn (Self) format(out: mut str)` | string interpolation, `println` |
+| `Debug` | `fn (Self) debug(out: mut str)` | `{x:?}` in interpolation |
+| `Drop` | `fn (mut Self) drop()` | destruction (chapter 5.2) |
+| `Iterator<T>` | `fn (mut Self) next() Option<T>` | `for` loops |
+| `From<T>` | `fn Self.from(value: move T) Self` | error conversion in `?` (chapter 6.2) |
 | `Default` | `fn Self.default() Self` | `..T.default()` in struct literals, `mem.take` |
 
 `Display` is **not** derived automatically; a type chooses how it is shown.
