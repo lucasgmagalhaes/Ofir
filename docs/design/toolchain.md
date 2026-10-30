@@ -6,7 +6,7 @@ A single executable provides every tool:
 
 | Command | Description |
 |---------|-------------|
-| `astra new <name>` | create a project with `astra.toml` and `src/main.astra` |
+| `astra new <name>` | create a project with `astra.toml` and `src/main.at` |
 | `astra build [--release]` | compile the project to an executable |
 | `astra run [--release] [-- args]` | build and run |
 | `astra check` | run every phase up to the borrow checker, no code generation |
@@ -17,7 +17,7 @@ A single executable provides every tool:
 | `astra explain <code>` | describe an error code |
 | `astra version` | print version and LLVM/clang versions in use |
 
-A single file can be compiled without a project: `astra run hello.astra`.
+A single file can be compiled without a project: `astra run hello.at`.
 
 ### Debug flags (for compiler developers)
 
@@ -36,9 +36,9 @@ A single file can be compiled without a project: `astra run hello.astra`.
 my_app/
 ├── astra.toml
 ├── src/
-│   ├── main.astra          root module of an executable
+│   ├── main.at             root module of an executable
 │   └── net/
-│       └── http.astra      module net.http
+│       └── http.at         module net.http
 └── build/                  generated, ignored by git
     ├── debug/
     └── release/
@@ -54,7 +54,7 @@ edition = "2027"
 
 [build]
 kind = "exe"            # "exe" or "lib"
-root = "src/main.astra"
+root = "src/main.at"
 
 [dependencies]          # [planned] package manager
 ```

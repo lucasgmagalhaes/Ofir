@@ -2,8 +2,8 @@
 
 ## 7.1 Files and modules
 
-- Every `.astra` file is a module. The module name is the file name.
-- A directory groups modules into a package: `src/parser/lexer.astra` is the
+- Every `.at` file is a module. The module name is the file name.
+- A directory groups modules into a package: `src/parser/lexer.at` is the
   module `parser.lexer`.
 - A program is built from a root file containing `fn main()`.
 

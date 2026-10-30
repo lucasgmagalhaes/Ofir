@@ -2,7 +2,7 @@
 
 ## 1.1 Source files
 
-Source files are UTF-8 encoded text with the extension `.astra`.
+Source files are UTF-8 encoded text with the extension `.at`.
 
 ## 1.2 Comments
 

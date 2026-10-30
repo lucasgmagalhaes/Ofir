@@ -48,7 +48,7 @@ Phase 6  Ecosystem              formatter, LSP, packages, docs        → v1.0
 
 ## Phase 1 — Walking skeleton (milestone M1)
 
-Goal: `astra run examples/hello.astra` prints `Hello, Astra!`.
+Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
@@ -81,7 +81,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.2 | Checked arithmetic (`llvm.*.with.overflow`), division by zero, shifts | S | `tests/panic/overflow*` pass |
 | 2.3 | Comparison, logic (short-circuit), bitwise operators | S | `tests/run/operators/*` pass |
 | 2.4 | `if`/`else` as statement and expression | S | `tests/run/control/if*` pass |
-| 2.5 | `for` (infinite, condition, ranges), `break`, `continue` | S | `examples/fibonacci.astra` runs |
+| 2.5 | `for` (infinite, condition, ranges), `break`, `continue` | S | `examples/fibonacci.at` runs |
 | 2.6 | Missing-return analysis, `!` type, `panic`, `assert` | S | `tests/compile_fail/missing_return*` pass |
 | 2.7 | `const` declarations with compile-time evaluation | S | tests pass |
 | 2.8 | `str`: literals, `+`, `==`, comparison, `len`, indexing, `push` | M | `tests/run/strings/*` pass |
@@ -91,7 +91,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.12 | References `&T`/`&mut T` as parameters and locals, auto-deref, `*` | M | `tests/run/refs/*` pass |
 | 2.13 | Tuples and destructuring `let` | S | tests pass |
 | 2.14 | Enums: layout, construction, `.Variant` shorthand | M | tests pass |
-| 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards | L | `examples/shapes.astra` runs |
+| 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards | L | `examples/shapes.at` runs |
 | 2.16 | Exhaustiveness checking (usefulness algorithm) | M | `tests/compile_fail/match_*` pass |
 | 2.17 | `if let` | S | tests pass |
 | 2.18 | `Box<T>` and recursive enums | M | expression tree test program runs |
@@ -110,7 +110,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 3.4 | Modules: multiple files, `import`, aliases, `pub`, module-qualified names | L | multi-file tests pass |
 | 3.5 | Prelude and standard library loading from `std/` | M | `Option`/`Result` helpers live in `std/core` |
 | 3.6 | `extern "C"` blocks, `unsafe` blocks, raw pointers | M | calling `strlen` works |
-| 3.7 | `std.io` (stdout, stderr, buffered writer), `std.fs` (read/write files) | M | `examples/word_count.astra` runs |
+| 3.7 | `std.io` (stdout, stderr, buffered writer), `std.fs` (read/write files) | M | `examples/word_count.at` runs |
 | 3.8 | `std.os`: args, env, exit, spawn process and wait | M | a test program runs `clang --version` |
 | 3.9 | `std.str` helpers: split, trim, find, starts_with, parse integers | M | tests pass |
 | 3.10 | `@test` functions and `astra test` | M | `std` tests run in CI |

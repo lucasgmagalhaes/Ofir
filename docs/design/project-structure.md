@@ -85,59 +85,59 @@ mirrors the structure of stage 1 so that porting is mechanical.
 
 ```
 compiler/
-├── main.astra                command line entry point
+├── main.at                   command line entry point
 ├── driver/
-│   ├── cli.astra             argument parsing, subcommands
-│   ├── session.astra         compilation options, target, paths
-│   ├── pipeline.astra        runs the phases in order
-│   └── toolchain.astra       locating and invoking clang / linker
+│   ├── cli.at                argument parsing, subcommands
+│   ├── session.at            compilation options, target, paths
+│   ├── pipeline.at           runs the phases in order
+│   └── toolchain.at          locating and invoking clang / linker
 ├── base/
-│   ├── arena.astra
-│   ├── intern.astra
-│   ├── span.astra            source positions, file table
-│   └── index_vec.astra       typed indices (NodeId, TypeId, ...)
+│   ├── arena.at
+│   ├── intern.at
+│   ├── span.at               source positions, file table
+│   └── index_vec.at          typed indices (NodeId, TypeId, ...)
 ├── diag/
-│   ├── diagnostic.astra      error/warning/note model
-│   ├── render.astra          terminal rendering with source excerpts
-│   └── codes.astra           stable error codes (E0001, ...)
+│   ├── diagnostic.at         error/warning/note model
+│   ├── render.at             terminal rendering with source excerpts
+│   └── codes.at              stable error codes (E0001, ...)
 ├── syntax/
-│   ├── token.astra
-│   ├── lexer.astra
-│   ├── ast.astra
-│   ├── parser.astra
-│   └── printer.astra         AST pretty printer (shared with formatter)
+│   ├── token.at
+│   ├── lexer.at
+│   ├── ast.at
+│   ├── parser.at
+│   └── printer.at            AST pretty printer (shared with formatter)
 ├── sema/
-│   ├── types.astra
-│   ├── scope.astra
-│   ├── resolve.astra
-│   ├── check_items.astra     declarations, signatures
-│   ├── check_exprs.astra     expressions and statements
-│   ├── infer.astra           type inference (unification)
-│   ├── interfaces.astra      interface satisfaction, vtables
-│   ├── generics.astra        bounds checking, instantiation
-│   ├── patterns.astra        pattern typing and exhaustiveness
-│   └── consts.astra          compile-time evaluation
+│   ├── types.at
+│   ├── scope.at
+│   ├── resolve.at
+│   ├── check_items.at        declarations, signatures
+│   ├── check_exprs.at        expressions and statements
+│   ├── infer.at              type inference (unification)
+│   ├── interfaces.at         interface satisfaction, vtables
+│   ├── generics.at           bounds checking, instantiation
+│   ├── patterns.at           pattern typing and exhaustiveness
+│   └── consts.at             compile-time evaluation
 ├── borrow/
-│   ├── moves.astra           move and initialization analysis
-│   ├── borrows.astra         borrow checking (non-lexical)
-│   └── escape.astra          second-class reference rules
+│   ├── moves.at              move and initialization analysis
+│   ├── borrows.at            borrow checking (non-lexical)
+│   └── escape.at             second-class reference rules
 ├── air/
-│   ├── air.astra
-│   ├── lower.astra
-│   ├── drops.astra           drop elaboration
-│   ├── mono.astra            monomorphization
-│   ├── validate.astra        AIR invariants checker
-│   └── printer.astra
+│   ├── air.at
+│   ├── lower.at
+│   ├── drops.at              drop elaboration
+│   ├── mono.at               monomorphization
+│   ├── validate.at           AIR invariants checker
+│   └── printer.at
 ├── opt/                      Astra-level passes before LLVM [planned]
-│   └── inline_small.astra
+│   └── inline_small.at
 └── codegen/
     ├── llvm/
-    │   ├── emit.astra        AIR → LLVM IR text
-    │   ├── types.astra       Astra types → LLVM types
-    │   ├── abi.astra         calling convention, C ABI
-    │   ├── intrinsics.astra  overflow checks, memcpy, ...
-    │   └── debuginfo.astra   DWARF metadata [planned]
-    └── layout.astra          size, alignment, field offsets, niches
+    │   ├── emit.at           AIR → LLVM IR text
+    │   ├── types.at          Astra types → LLVM types
+    │   ├── abi.at            calling convention, C ABI
+    │   ├── intrinsics.at  overflow checks, memcpy, ...
+    │   └── debuginfo.at   DWARF metadata [planned]
+    └── layout.at             size, alignment, field offsets, niches
 ```
 
 ## `runtime/` — C runtime
@@ -165,20 +165,20 @@ Astra lives in `std/`.
 ```
 std/
 ├── core/                     always available; no allocation required
-│   ├── prelude.astra         names imported into every module
-│   ├── option.astra
-│   ├── result.astra
-│   ├── interfaces.astra      Eq, Ord, Hash, Clone, Display, Debug, Iterator, ...
-│   ├── num.astra             integer and float methods
-│   ├── slice.astra
-│   ├── mem.astra             size_of, swap, replace, raw allocation
-│   └── panic.astra
+│   ├── prelude.at            names imported into every module
+│   ├── option.at
+│   ├── result.at
+│   ├── interfaces.at         Eq, Ord, Hash, Clone, Display, Debug, Iterator, ...
+│   ├── num.at                integer and float methods
+│   ├── slice.at
+│   ├── mem.at                size_of, swap, replace, raw allocation
+│   └── panic.at
 ├── alloc/                    requires a heap
-│   ├── box.astra
-│   ├── list.astra
-│   ├── map.astra
-│   ├── str.astra
-│   └── fmt.astra             formatting used by interpolation
+│   ├── box.at
+│   ├── list.at
+│   ├── map.at
+│   ├── str.at
+│   └── fmt.at                formatting used by interpolation
 ├── io/
 ├── fs/
 ├── os/
@@ -195,13 +195,13 @@ tests/
 ├── README.md                 how to write and run tests
 ├── runner/
 │   └── run_tests.py          test driver (developer dependency only)
-├── lex/                      *.astra + *.tokens   expected token streams
-├── parse/                    *.astra + *.ast      expected AST dumps
-├── run/                      *.astra + *.out      compile, run, compare stdout
-├── compile_fail/             *.astra with `// error[E0123]: message` annotations
-├── panic/                    *.astra with `// panic: message` annotations
+├── lex/                      *.at + *.tokens   expected token streams
+├── parse/                    *.at + *.ast      expected AST dumps
+├── run/                      *.at + *.out      compile, run, compare stdout
+├── compile_fail/             *.at with `// error[E0123]: message` annotations
+├── panic/                    *.at with `// panic: message` annotations
 ├── borrow/                   ownership and borrow checker cases
-├── codegen/                  *.astra + *.ll       FileCheck-style IR checks
+├── codegen/                  *.at + *.ll       FileCheck-style IR checks
 └── selfhost/                 stage2 == stage3 verification
 ```
 
