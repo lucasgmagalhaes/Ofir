@@ -70,10 +70,10 @@ generated code is optimized by exactly the same LLVM passes either way
 
 ## Runtime
 
-A small C file (`runtime/runtime.c`) provides what LLVM IR cannot express
+A small C library (`runtime/`) provides what LLVM IR cannot express
 portably: memory allocation, process entry, panics and system calls. It is
-linked into every program. It will shrink over time as the standard library
-moves to Astra.
+linked into every program and will shrink over time as the standard library
+moves to Astra. See [design/runtime.md](design/runtime.md).
 
 ## Bootstrap subset
 
@@ -115,7 +115,7 @@ rule when it compiles itself.
 |---|-----------|-----------|
 | M0 | Specification draft | `docs/spec` reviewed |
 | M1 | Hello world | stage 0 compiles and runs `examples/hello.astra` |
-| M2 | Bootstrap subset | stage 0 compiles all programs in `examples/` |
+| M2 | Bootstrap subset | stage 0 passes every test in `tests/` not marked `requires: stage1` |
 | M3 | Self-hosted front end | stage 1 lexes and parses its own source |
 | M4 | Self-hosted | stage 1 compiles itself and stage2 == stage3 |
 | M5 | Full language | every chapter of the specification is implemented |
