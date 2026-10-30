@@ -95,7 +95,7 @@ Reserved keywords cannot be used as identifiers:
 as        break     const     continue  copy      dyn       else
 enum      extern    false     fn        for       if        import
 in        interface let       match     mut       pub       return
-Self      struct    true      unsafe    var
+self      Self      struct    true      unsafe    var
 ```
 
 Contextual keywords are keywords only in one position and remain valid

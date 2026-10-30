@@ -36,16 +36,16 @@ AttrCond      = Expr .                       (* restricted to @cfg conditions *)
 ## A.2 Functions
 
 ```ebnf
-FnDecl        = [ "unsafe" ] [ "extern" string_lit ] "fn" FnName
+FnDecl        = [ "unsafe" ] [ "extern" string_lit ] "fn" identifier
                 [ TypeParams ] "(" [ Params ] ")" [ Type ]
                 [ WhereClause ] Block .
 
-FnName        = Receiver identifier             (* method *)
-              | TypePath [ TypeArgs ] "." identifier   (* associated function *)
-              | identifier .                     (* free function *)
-
-Receiver      = "(" identifier ":" ReceiverType ")" .
-ReceiverType  = [ Mode ] TypePath [ TypeArgs ] .
+MethodDecl    = { Attribute } [ "pub" ] [ "unsafe" ] "fn" identifier
+                [ TypeParams ] "(" [ MethodParams ] ")" [ Type ]
+                [ WhereClause ] Block .
+MethodParams  = SelfParam [ "," [ Params ] ]       (* method *)
+              | Params .                           (* associated function *)
+SelfParam     = [ Mode ] "self" .
 
 Params        = Param { "," Param } [ "," ] .
 Param         = identifier ":" [ Mode ] Type .
@@ -63,22 +63,20 @@ WherePred     = Type ":" Bounds .
 
 ```ebnf
 StructDecl    = [ "copy" | "ref" ] "struct" identifier [ TypeParams ]
-                [ ":" Bounds ] "{" { FieldDecl } "}" .
+                [ ":" Bounds ] "{" { FieldDecl } { MethodDecl } "}" .
 FieldDecl     = { Attribute } [ "pub" ] identifier ":" Type ( "," | NL ) .
 
 EnumDecl      = [ "copy" ] "enum" identifier [ TypeParams ]
-                [ ":" Bounds ] "{" { Variant } "}" .
+                [ ":" Bounds ] "{" { Variant } { MethodDecl } "}" .
 Variant       = identifier [ "(" VariantField { "," VariantField } [ "," ] ")" ]
                 [ "=" int_lit ] ( "," | NL ) .
 VariantField  = [ identifier ":" ] Type .
 
 InterfaceDecl = "interface" identifier [ TypeParams ] "{" { IfaceMember } "}" .
 IfaceMember   = TypeRef NL                                 (* embedding *)
-              | "fn" IfaceRecv identifier [ TypeParams ]
-                "(" [ Params ] ")" [ Type ] [ WhereClause ]
-                ( Block | NL ) .
-IfaceRecv     = "(" [ identifier ":" ] [ Mode ] "Self" ")"
-              | "Self" "." .
+              | "fn" identifier [ TypeParams ]
+                "(" [ MethodParams ] ")" [ Type ] [ WhereClause ]
+                ( Block | NL ) .                           (* default body optional *)
 
 ConstDecl     = "const" identifier [ ":" Type ] "=" Expr NL .
 GlobalDecl    = "var" identifier ":" Type "=" Expr NL .
