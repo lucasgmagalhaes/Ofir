@@ -38,11 +38,26 @@ stage3  Astra compiler built by stage2   →  must be identical to stage2
 Stage 2 and stage 3 must produce byte-identical output. This proves the
 compiler compiles itself correctly and is checked in CI.
 
-### Retiring stage 0 **[planned]**
+### After M4: the bootstrap chain
 
-Once the self-hosted compiler is stable, stage 0 can be replaced by a
-**seed**: the LLVM IR that the compiler generates for itself, checked into
-the repository. Building Astra from scratch then needs only `clang`.
+Once self-hosted, the compiler may start using language features that
+stage 0 does not support. To keep the project buildable from scratch, a
+feature may be used in `compiler/` only **after it has shipped in a tagged
+release**, so release *N* is always compilable by release *N − 1*.
+
+Each release publishes a **seed**: the LLVM IR that the release compiler
+generates for itself (`astra-<version>-<target>.ll`), attached to the
+release, with its SHA-256 checksum recorded in `seed/SEEDS.md`. There are
+two ways to build the current compiler:
+
+1. **Fast path (normal):** download the seed of the previous release, compile
+   it with clang, and use that compiler to build the current sources.
+2. **Auditable path:** stage 0 → the first self-hosted release → every
+   following release in order. It requires only a C compiler and clang and
+   proves that no seed hides anything ("trusting trust"). CI runs it on a
+   schedule, not on every commit.
+
+Stage 0 stays in the repository, frozen, as the root of the auditable path.
 
 ## Compiler pipeline
 
