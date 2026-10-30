@@ -155,9 +155,11 @@ let text = """
     """
 ```
 
-### Characters
+### Characters and bytes
 
-There is no `char` type. A byte literal `b'a'` has type `u8`.
+There is no `char` type. A byte literal `b'a'` has type `u8`; a byte string
+literal `b"GET \x00"` has type `&[u8]` and accepts any `\xHH` escape.
+Unicode scalar values are `u32` (see `str.chars()` in the standard library).
 
 ## 1.8 Documentation comments
 

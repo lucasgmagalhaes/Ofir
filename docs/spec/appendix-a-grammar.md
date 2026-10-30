@@ -13,10 +13,12 @@ A terminator before `}` may be omitted.
 
 ```ebnf
 File          = [ ModuleDoc ] { Import } { Item } EOF .
+ModuleDoc     = inner_doc_comment { inner_doc_comment } .   (* `//!` lines *)
 Import        = "import" ModulePath [ "as" identifier ] NL .
 ModulePath    = identifier { "." identifier } .
 
-Item          = { Attribute } [ "pub" ] ItemKind .
+Item          = [ DocComment ] { Attribute } [ "pub" ] ItemKind .
+DocComment    = doc_comment { doc_comment } .               (* `///` lines *)
 ItemKind      = FnDecl
               | StructDecl
               | EnumDecl
@@ -186,7 +188,8 @@ Closure       = [ "move" ] "fn" "(" [ ClosureParam { "," ClosureParam } ] ")"
                 [ Type ] ( Block | "=>" Expr ) .
 ClosureParam  = identifier [ ":" Type ] .
 
-Literal       = int_lit | float_lit | string_lit | byte_lit
+Literal       = int_lit | float_lit | string_lit | raw_string_lit
+              | byte_lit | byte_string_lit
               | "true" | "false" .
 ```
 
@@ -211,3 +214,14 @@ PatternAtom   = "_"
 PatternList   = Pattern { "," Pattern } [ "," ] .
 FieldPat      = identifier [ ":" Pattern ] .
 ```
+
+## A.8 Rules not expressed by the grammar
+
+- `var x` must have a type, a value, or both (`var x: int`, `var x = 0`).
+- A `let` pattern must be irrefutable (it cannot fail to match).
+- `Variant = int_lit` (explicit discriminant) is allowed only in enums with
+  no payloads; values must be distinct. With `@repr(C)`, they define the C
+  enum values.
+- Attributes are only valid on the items listed in chapter 12.1.
+- Contextual keywords (chapter 1.5) are keywords only in the positions
+  shown in this grammar.
