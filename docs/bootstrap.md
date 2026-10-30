@@ -91,7 +91,14 @@ M4, the code in `compiler/` must be written in this subset.
 - tuples
 - references `&T`, `&mut T` as parameters and locals; slices `&[T]`, `&str`
 - built-in generics: `List<T>`, `Map<K, V>`, `Option<T>`, `Result<T, E>`,
-  `Box<T>`, and the `?` operator
+  `Box<T>`, and the `?` operator (both error types must be equal)
+- user-defined generic functions, structs and enums **without bounds**
+  (monomorphized; enough for typed index vectors and other containers)
+- `list.sort()` for lists of integers, `str`, and tuples of those
+- built-in methods that return borrows, special-cased by the compiler:
+  `List.get`, `get_mut`, `first`, `last`, `Map.get`, `get_mut`, and the
+  iterators `str.split`, `split_whitespace`, `lines`, `bytes`, which may be
+  bound locally or used directly in `for` loops
 - moves and automatic drops
 - modules, `import`, `pub`
 - `extern "C"` blocks and `unsafe` blocks
@@ -100,14 +107,22 @@ M4, the code in `compiler/` must be written in this subset.
 **Excluded** (implemented only in stage 1):
 
 - the borrow checker (stage 0 checks moves, not borrows)
-- user-defined generics, interfaces and `dyn`
-- closures
-- `ref struct` and returning borrows
+- generic bounds, `where` clauses, interfaces and `dyn`
+- closures and function values
+- `ref struct` and user functions returning borrows
+- error conversion in `?`
 - format specifiers, raw strings, attributes other than `@test`
 - good diagnostics: stage 0 reports the first error per function
 
 Programs accepted by stage 0 are still valid Astra: stage 1 enforces every
-rule when it compiles itself.
+rule when it compiles itself. To make this true, **the stage 1 borrow
+checker is part of milestone M4**: self-hosting is only declared once the
+compiler's own source passes the full ownership and borrowing rules.
+
+Because stage 0 does not check borrows, it must **never** emit `noalias` or
+`readonly` attributes: on a program with aliasing `&mut` references they
+would turn an undetected mistake into undefined behavior. Stage 0 output is
+correct for every program it accepts, only less optimized.
 
 ## Milestones
 
@@ -117,7 +132,7 @@ rule when it compiles itself.
 | M1 | Hello world | stage 0 compiles and runs `examples/hello.at` |
 | M2 | Bootstrap subset | stage 0 passes every test in `tests/` not marked `requires: stage1` |
 | M3 | Self-hosted front end | stage 1 lexes and parses its own source |
-| M4 | Self-hosted | stage 1 compiles itself and stage2 == stage3 |
+| M4 | Self-hosted | stage 1, with its borrow checker enabled, compiles itself and stage2 == stage3 |
 | M5 | Full language | every chapter of the specification is implemented |
 
 The detailed task list is in [roadmap.md](roadmap.md).

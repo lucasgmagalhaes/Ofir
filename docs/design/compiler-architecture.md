@@ -277,7 +277,9 @@ AIR is translated to **textual LLVM IR** (`.ll`), see ADR 0001.
 - Integer overflow checks use `llvm.sadd.with.overflow.*` and friends;
   the panic branch calls a `cold noreturn` runtime function.
 - `&mut T` parameters are emitted with `noalias`; `&T` parameters with
-  `noalias readonly` when the type has no interior mutability.
+  `noalias readonly` when the type has no interior mutability. These
+  attributes are only sound because the borrow checker has run: **stage 0,
+  which has no borrow checker, never emits them**.
 - Internal functions use `fastcc` and `internal` linkage, so LLVM can inline
   and specialize freely; `pub extern "C"` functions use the C ABI.
 - Enum layout, niches and struct field reordering are computed once by
