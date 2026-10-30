@@ -72,11 +72,11 @@ An interface can include other interfaces:
 
 ```astra
 interface Reader {
-    fn (&mut Self) read(buf: &mut [u8]) Result<uint, IoError>
+    fn (&mut Self) read(buf: &mut [u8]) Result<int, IoError>
 }
 
 interface Writer {
-    fn (&mut Self) write(data: &[u8]) Result<uint, IoError>
+    fn (&mut Self) write(data: &[u8]) Result<int, IoError>
 }
 
 interface ReadWriter {

@@ -113,7 +113,7 @@ list really contains `a < b, c > (d)`, parenthesize the comparison.
 ## 8.7 Const generics **[planned]**
 
 ```astra
-struct Matrix<const R: uint, const C: uint> {
+struct Matrix<const R: int, const C: int> {
     cells: [float; R * C]
 }
 ```

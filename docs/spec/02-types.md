@@ -11,10 +11,14 @@ fields are always annotated.
 | `i8`, `i16`, `i32`, `i64` | signed integers |
 | `u8`, `u16`, `u32`, `u64` | unsigned integers |
 | `int` | alias for `i64` |
-| `uint` | alias for `u64` (used for sizes and indices) |
+| `uint` | alias for `u64` (bit manipulation, hashing, C interop) |
 | `f32`, `f64` | IEEE-754 floats |
 | `float` | alias for `f64` |
 | `bool` | `true` or `false` |
+
+**Lengths and indices are `int`**, as in Go: `len()` returns `int` and
+indexing takes an `int`. A negative index is simply out of range and panics.
+This avoids conversions between signed and unsigned values in everyday code.
 
 There are no implicit numeric conversions. Conversions are explicit with
 `as`:

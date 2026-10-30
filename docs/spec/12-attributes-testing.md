@@ -70,7 +70,7 @@ per iteration.
 
 ```astra
 @cfg(os == "linux")
-fn page_size() uint { return 4096 }
+fn page_size() int { return 4096 }
 
 @cfg(debug)
 fn trace(msg: &str) { eprintln(msg) }
