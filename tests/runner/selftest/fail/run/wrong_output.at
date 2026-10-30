@@ -1,0 +1,2 @@
+// fake-stdout: goodbye
+fn main() {}

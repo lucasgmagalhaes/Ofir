@@ -1,0 +1,10 @@
+// fake-diag: 5 E0304 cannot assign twice to immutable variable `x`
+// fake-diag: 9 E0300 mismatched types: expected int, found str
+fn first() {
+    let x = 1
+    x = 2   // error[E0304]: cannot assign twice
+}
+
+fn second() {
+    let y: int = "text"   // error[E0300]: mismatched types
+}

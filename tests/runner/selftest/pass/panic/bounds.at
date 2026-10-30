@@ -1,0 +1,3 @@
+// panic: index out of bounds: the length is 3 but the index is 5
+// fake-panic: index out of bounds: the length is 3 but the index is 5
+fn main() {}

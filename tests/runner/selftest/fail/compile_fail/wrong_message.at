@@ -1,0 +1,4 @@
+// fake-diag: 3 E0300 mismatched types: expected int, found bool
+fn main() {
+    let a: int = "x"   // error[E0300]: expected int, found str
+}

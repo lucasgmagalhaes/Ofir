@@ -1,0 +1,3 @@
+// fake-diag: 2 E0300 mismatched types
+// fake-diag: 3 E0200 cannot find name `y`
+fn main() { }   // error[E0300]: mismatched types
