@@ -139,7 +139,7 @@ through the prelude. User-defined generics are described in chapter 8.
 ```astra
 let xs: List<int> = [1, 2, 3]
 var ages = Map<str, int>.new()
-let first: Option<int> = xs.first()
+let first: Option<&int> = xs.first()   // borrows xs (chapter 5.6)
 ```
 
 `T?` is shorthand for `Option<T>`.
