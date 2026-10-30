@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / LLVM ${{ matrix.llvm }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+        # Oldest and newest supported LLVM versions (ADR 0001).
+        # Bump the newest one when a new LLVM release is published.
+        llvm: ["17", "21"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          sudo bash llvm.sh ${{ matrix.llvm }}
+          echo "ASTRA_CLANG=clang-${{ matrix.llvm }}" >> "$GITHUB_ENV"
+
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm@${{ matrix.llvm }}
+          echo "ASTRA_CLANG=$(brew --prefix llvm@${{ matrix.llvm }})/bin/clang" >> "$GITHUB_ENV"
+
+      - name: Show toolchain
+        run: |
+          cc --version
+          "$ASTRA_CLANG" --version
+          python3 --version
+
+      - name: Build and test
+        run: make test
