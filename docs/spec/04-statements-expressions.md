@@ -142,7 +142,7 @@ fields all support `==`.
 `list[i]`, `array[i]` and `s[i]` (bytes of a string) are bounds checked and
 panic when `i` is out of range. The index type is `int`; a negative index is out of range and panics. `list.get(i)` returns `Option<&T>` instead of panicking.
 
-Slicing (`list[a..b]`) produces a borrowed view and is **[planned]**.
+Slicing (`list[a..b]`, `s[a..b]`) produces a borrowed view (chapter 2.12).
 
 ## 4.10 Order of evaluation
 

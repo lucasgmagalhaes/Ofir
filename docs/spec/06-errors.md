@@ -67,7 +67,7 @@ let _ = write_file(path, data) // explicitly ignored
 | `r.expect("msg")` | the value, or panic with `msg` |
 | `r.unwrap_or(default)` | the value, or `default` |
 | `r.is_ok()` / `o.is_some()` | `bool` |
-| `r.map_err(f)` | convert the error **[planned: needs closures]** |
+| `r.map_err(f)` | convert the error (stage 1: needs closures) |
 
 ## 6.5 Panics
 
