@@ -320,7 +320,7 @@ error[E0382]: use of moved value `inv`
 ```
 
 - Every error has a stable code (`E0001`...) documented in
-  `docs/errors/` **[planned]**, with a longer explanation (`astra explain E0382`).
+  [`docs/errors/`](../errors/README.md), with a longer explanation (`astra explain E0382`).
 - Errors are sorted by position and deduplicated.
 - A machine-readable JSON output (`--message-format=json`) feeds editors
   and the language server.
