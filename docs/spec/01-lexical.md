@@ -121,7 +121,10 @@ where a float is expected (`let x: float = 1`).
 ```
 
 Escape sequences: `\n`, `\t`, `\r`, `\0`, `\\`, `\"`, `\{`, `\}`,
-`\xHH` (a byte) and `\u{HHHHHH}` (a Unicode scalar value).
+`\xHH` (an ASCII character, `\x00` to `\x7F`) and `\u{HHHHHH}` (a Unicode
+scalar value). Escapes cannot produce invalid UTF-8, so every `str` is valid
+UTF-8. Arbitrary bytes belong in byte strings, `b"\xff\x00"`, of type
+`&[u8]`.
 
 **Interpolation:** `{expr}` inside a string literal evaluates `expr` and
 inserts its textual form. The type of `expr` must implement string
