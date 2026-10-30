@@ -15,6 +15,17 @@ This specification describes the Astra language. Sections marked
 5. [Ownership and borrowing](05-ownership.md)
 6. [Error handling](06-errors.md)
 7. [Modules](07-modules.md)
+8. [Generics](08-generics.md)
+9. [Interfaces](09-interfaces.md)
+10. [Closures](10-closures.md)
+11. [Unsafe code and FFI](11-unsafe-ffi.md)
+12. [Attributes, testing and documentation](12-attributes-testing.md)
+13. [Memory layout and ABI](13-memory-layout.md)
+14. [Concurrency](14-concurrency.md) **[planned]**
+
+Appendices:
+
+- A. [Grammar](appendix-a-grammar.md)
 
 ## Design principles
 
