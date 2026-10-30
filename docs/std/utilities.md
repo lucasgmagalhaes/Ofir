@@ -23,7 +23,7 @@ floats. Most operations are methods on the float types (core.md).
 |------|-------------|
 | `assertEq(left, right)` | in the prelude (spec 7.5) |
 | `fn assertNe<T: Eq + Debug>(left: T, right: T)` | |
-| `struct Bencher` with `fn (b: mut Bencher) run(f: fn())` | used by `@bench` |
+| `struct Bencher` with `fn run(mut self, f: fn())` | used by `@bench` |
 
 ## `std.fmt`
 

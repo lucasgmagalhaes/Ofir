@@ -10,16 +10,16 @@ enum Option<T> { Some(value: T)  None }
 
 | Method | Description | S0 |
 |--------|-------------|:--:|
-| `fn (o: Option<T>) isSome() bool` | | ✓ |
-| `fn (o: Option<T>) isNone() bool` | | ✓ |
-| `fn (o: move Option<T>) unwrap() T` | **panics** on `None` | ✓ |
-| `fn (o: move Option<T>) expect(msg: str) T` | **panics** with `msg` on `None` | ✓ |
-| `fn (o: move Option<T>) unwrapOr(default: move T) T` | | ✓ |
-| `fn (o: Option<T>) asRef() Option<&T>` | borrow the content | ✓ |
-| `fn (o: mut Option<T>) take() Option<T>` | leaves `None` behind | ✓ |
-| `fn (o: move Option<T>) okOr<E>(err: move E) Result<T, E>` | | ✓ |
-| `fn (o: move Option<T>) map<U>(f: fn(move T) U) Option<U>` | | |
-| `fn (o: move Option<T>) unwrapOrElse(f: fn() T) T` | | |
+| `fn isSome(self) bool` | | ✓ |
+| `fn isNone(self) bool` | | ✓ |
+| `fn unwrap(move self) T` | **panics** on `None` | ✓ |
+| `fn expect(move self, msg: str) T` | **panics** with `msg` on `None` | ✓ |
+| `fn unwrapOr(move self, default: move T) T` | | ✓ |
+| `fn asRef(self) Option<&T>` | borrow the content | ✓ |
+| `fn take(mut self) Option<T>` | leaves `None` behind | ✓ |
+| `fn okOr<E>(move self, err: move E) Result<T, E>` | | ✓ |
+| `fn map<U>(move self, f: fn(move T) U) Option<U>` | | |
+| `fn unwrapOrElse(move self, f: fn() T) T` | | |
 
 ## `Result<T, E>`
 
@@ -29,14 +29,14 @@ enum Result<T, E> { Ok(value: T)  Err(error: E) }
 
 | Method | Description | S0 |
 |--------|-------------|:--:|
-| `fn (r: Result<T, E>) isOk() bool` | | ✓ |
-| `fn (r: Result<T, E>) isErr() bool` | | ✓ |
-| `fn (r: move Result<T, E>) unwrap() T` | **panics** on `Err` (requires `E: Debug`) | ✓ |
-| `fn (r: move Result<T, E>) expect(msg: str) T` | **panics** with `msg` | ✓ |
-| `fn (r: move Result<T, E>) unwrapOr(default: move T) T` | | ✓ |
-| `fn (r: move Result<T, E>) ok() Option<T>` | | ✓ |
-| `fn (r: move Result<T, E>) mapErr<F>(f: fn(move E) F) Result<T, F>` | | |
-| `fn (r: move Result<T, E>) map<U>(f: fn(move T) U) Result<U, E>` | | |
+| `fn isOk(self) bool` | | ✓ |
+| `fn isErr(self) bool` | | ✓ |
+| `fn unwrap(move self) T` | **panics** on `Err` (requires `E: Debug`) | ✓ |
+| `fn expect(move self, msg: str) T` | **panics** with `msg` | ✓ |
+| `fn unwrapOr(move self, default: move T) T` | | ✓ |
+| `fn ok(move self) Option<T>` | | ✓ |
+| `fn mapErr<F>(move self, f: fn(move E) F) Result<T, F>` | | |
+| `fn map<U>(move self, f: fn(move T) U) Result<U, E>` | | |
 
 **Error conversion in `?`** (stage 1): if the function returns
 `Result<_, F>` and `F` satisfies `From<E>`, `?` converts the error with
@@ -59,13 +59,16 @@ and `Sync`.
 
 ```astra
 interface Hash {
-    fn (Self) hash(h: mut Hasher)
+    fn hash(self, h: mut Hasher)
 }
 
-struct Hasher { ... }                   // deterministic (spec 2.6)
-fn (h: mut Hasher) write(bytes: [u8])
-fn (h: mut Hasher) writeInt(v: int)
-fn (h: Hasher) finish() u64
+pub struct Hasher {                     // deterministic (spec 2.6)
+    ...
+
+    pub fn write(mut self, bytes: [u8])
+    pub fn writeInt(mut self, v: int)
+    pub fn finish(self) u64
+}
 ```
 
 ## Integer methods
