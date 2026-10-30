@@ -11,7 +11,8 @@ The language should feel as light as Go while supporting richer features
 ## Decision
 
 - Statements are terminated by newlines using Go's insertion rule.
-- `fn`, `let`/`var`, `->` for return types, `{}` blocks with mandatory braces
+- `fn`, `let`/`var`, return types written right after the parameters
+  (`fn name() str`) as in Go, `{}` blocks with mandatory braces
   and no parentheses around conditions.
 - One loop keyword (`for`); `if` and `match` are expressions.
 - Methods are declared with a receiver before the name, as in Go.

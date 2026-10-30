@@ -1,7 +1,7 @@
 import std.fs
 import std.os
 
-fn count_words(text: &str) -> Map<str, int> {
+fn count_words(text: &str) Map<str, int> {
     var counts = Map<str, int>.new()
     for word in text.split_whitespace() {
         let key = word.to_lower()
@@ -14,7 +14,7 @@ fn count_words(text: &str) -> Map<str, int> {
     return counts
 }
 
-fn main() -> Result<(), str> {
+fn main() Result<(), str> {
     let args = os.args()
     if args.len() < 2 {
         return Err("usage: word_count <file>")

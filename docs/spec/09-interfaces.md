@@ -10,8 +10,8 @@ one indirect call).
 
 ```astra
 interface Shape {
-    fn (&Self) area() -> float
-    fn (&Self) name() -> str
+    fn (&Self) area() float
+    fn (&Self) name() str
 }
 ```
 
@@ -19,7 +19,7 @@ interface Shape {
 - A method signature in an interface omits the receiver's name. Receiver
   forms are `&Self`, `&mut Self` and `Self` (consuming).
 - Associated functions without a receiver are allowed:
-  `fn Self.default() -> Self`.
+  `fn Self.default() Self`.
 
 ## 9.2 Satisfying interfaces
 
@@ -28,8 +28,8 @@ struct Circle {
     radius: float
 }
 
-fn (c: &Circle) area() -> float { return 3.14159 * c.radius * c.radius }
-fn (c: &Circle) name() -> str { return "circle" }
+fn (c: &Circle) area() float { return 3.14159 * c.radius * c.radius }
+fn (c: &Circle) name() str { return "circle" }
 
 // Circle now satisfies Shape. Nothing else is needed.
 ```
@@ -57,10 +57,10 @@ their own:
 
 ```astra
 interface Shape {
-    fn (&Self) area() -> float
-    fn (&Self) name() -> str
+    fn (&Self) area() float
+    fn (&Self) name() str
 
-    fn (s: &Self) describe() -> str {
+    fn (s: &Self) describe() str {
         return "{s.name()} with area {s.area()}"
     }
 }
@@ -72,11 +72,11 @@ An interface can include other interfaces:
 
 ```astra
 interface Reader {
-    fn (&mut Self) read(buf: &mut [u8]) -> Result<uint, IoError>
+    fn (&mut Self) read(buf: &mut [u8]) Result<uint, IoError>
 }
 
 interface Writer {
-    fn (&mut Self) write(data: &[u8]) -> Result<uint, IoError>
+    fn (&mut Self) write(data: &[u8]) Result<uint, IoError>
 }
 
 interface ReadWriter {
@@ -89,11 +89,11 @@ interface ReadWriter {
 
 ```astra
 interface Iterator<T> {
-    fn (&mut Self) next() -> Option<T>
+    fn (&mut Self) next() Option<T>
 }
 
 interface From<T> {
-    fn Self.from(value: T) -> Self
+    fn Self.from(value: T) Self
 }
 ```
 
@@ -103,7 +103,7 @@ An interface used as a bound is resolved at compile time. Calls are direct
 and can be inlined:
 
 ```astra
-fn total_area<S: Shape>(shapes: &[S]) -> float {
+fn total_area<S: Shape>(shapes: &[S]) float {
     var sum = 0.0
     for s in shapes {
         sum += s.area()
@@ -173,15 +173,15 @@ fields all satisfy them, unless the type defines the method itself.
 
 | Interface | Methods | Used by |
 |-----------|---------|---------|
-| `Eq` | `fn (&Self) eq(other: &Self) -> bool` | `==`, `!=` |
-| `Ord` | `fn (&Self) cmp(other: &Self) -> Ordering` | `<`, `<=`, `>`, `>=`, sorting |
+| `Eq` | `fn (&Self) eq(other: &Self) bool` | `==`, `!=` |
+| `Ord` | `fn (&Self) cmp(other: &Self) Ordering` | `<`, `<=`, `>`, `>=`, sorting |
 | `Hash` | `fn (&Self) hash(h: &mut Hasher)` | `Map` keys |
-| `Clone` | `fn (&Self) clone() -> Self` | `.clone()` |
+| `Clone` | `fn (&Self) clone() Self` | `.clone()` |
 | `Display` | `fn (&Self) format(out: &mut str)` | string interpolation, `println` |
 | `Debug` | `fn (&Self) debug(out: &mut str)` | `{x:?}` in interpolation |
 | `Drop` | `fn (&mut Self) drop()` | destruction (chapter 5.2) |
-| `Iterator<T>` | `fn (&mut Self) next() -> Option<T>` | `for` loops |
-| `Default` | `fn Self.default() -> Self` | `..default()` in literals |
+| `Iterator<T>` | `fn (&mut Self) next() Option<T>` | `for` loops |
+| `Default` | `fn Self.default() Self` | `..default()` in literals |
 
 `Display` is **not** derived automatically; a type chooses how it is shown.
 `Debug` is derived for every type.

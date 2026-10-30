@@ -37,7 +37,7 @@ pub struct Token {
     line: int          // private field
 }
 
-pub fn tokenize(src: &str) -> List<Token> { ... }
+pub fn tokenize(src: &str) List<Token> { ... }
 ```
 
 ## 7.4 The prelude

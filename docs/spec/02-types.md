@@ -145,7 +145,7 @@ types.
 A tuple groups a fixed number of values of possibly different types.
 
 ```astra
-fn div_mod(a: int, b: int) -> (int, int) {
+fn div_mod(a: int, b: int) (int, int) {
     return (a / b, a % b)
 }
 
@@ -182,15 +182,15 @@ let hello: &str = s[0..5]
 
 ## 2.13 Function types
 
-`fn(A, B) -> R` is the type of a function value: a named function or a
+`fn(A, B) R` is the type of a function value: a named function or a
 closure (chapter 10).
 
 ```astra
-fn apply(f: fn(int) -> int, x: int) -> int {
+fn apply(f: fn(int) int, x: int) int {
     return f(x)
 }
 
-fn double(x: int) -> int { return x * 2 }
+fn double(x: int) int { return x * 2 }
 
 let y = apply(double, 21)
 ```

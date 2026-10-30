@@ -33,7 +33,7 @@ AttrCond      = Expr .                       (* restricted to @cfg conditions *)
 
 ```ebnf
 FnDecl        = [ "unsafe" ] [ "extern" string_lit ] "fn" FnName
-                [ TypeParams ] "(" [ Params ] ")" [ "->" Type ]
+                [ TypeParams ] "(" [ Params ] ")" [ Type ]
                 [ WhereClause ] Block .
 
 FnName        = Receiver identifier             (* method *)
@@ -70,7 +70,7 @@ VariantField  = [ identifier ":" ] Type .
 InterfaceDecl = "interface" identifier [ TypeParams ] "{" { IfaceMember } "}" .
 IfaceMember   = TypeRef NL                                 (* embedding *)
               | "fn" IfaceRecv identifier [ TypeParams ]
-                "(" [ Params ] ")" [ "->" Type ] [ WhereClause ]
+                "(" [ Params ] ")" [ Type ] [ WhereClause ]
                 ( Block | NL ) .
 IfaceRecv     = "(" [ identifier ":" ] [ "&" [ "mut" ] ] "Self" ")"
               | "Self" "." .
@@ -80,7 +80,7 @@ GlobalDecl    = "var" identifier ":" Type "=" Expr NL .
 TypeAlias     = "type" identifier [ TypeParams ] "=" Type NL .
 
 ExternBlock   = "extern" string_lit "{" { { Attribute } FnSignature NL } "}" .
-FnSignature   = "fn" identifier "(" [ Params ] ")" [ "->" Type ] .
+FnSignature   = "fn" identifier "(" [ Params ] ")" [ Type ] .
 ```
 
 ## A.4 Types
@@ -92,7 +92,7 @@ Type          = TypePath [ TypeArgs ]
               | "*" [ "mut" ] Type
               | "[" Type [ ";" Expr ] "]"       (* slice element or fixed array *)
               | "(" [ Type { "," Type } [ "," ] ] ")"   (* unit or tuple *)
-              | "fn" "(" [ Type { "," Type } ] ")" [ "->" Type ]
+              | "fn" "(" [ Type { "," Type } ] ")" [ Type ]
               | "dyn" Bounds
               | Type "?"                        (* Option<Type> *)
               | "!" .
@@ -181,7 +181,7 @@ MatchExpr     = "match" Expr "{" { MatchArm } "}" .
 MatchArm      = Pattern [ "if" Expr ] "=>" ( Expr | Block ) ( "," | NL ) .
 
 Closure       = [ "move" ] "fn" "(" [ ClosureParam { "," ClosureParam } ] ")"
-                [ "->" Type ] ( Block | "=>" Expr ) .
+                [ Type ] ( Block | "=>" Expr ) .
 ClosureParam  = identifier [ ":" Type ] .
 
 Literal       = int_lit | float_lit | string_lit | byte_lit

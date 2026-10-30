@@ -57,7 +57,7 @@ fn main() {
 ```astra
 // CHECK: define internal fastcc i64 @_A4test3add
 // CHECK-NOT: call
-fn add(a: int, b: int) -> int { return a + b }
+fn add(a: int, b: int) int { return a + b }
 ```
 
 ## 3. Runner

@@ -31,7 +31,7 @@ literals, other constants and arithmetic operators.
 ## 3.3 Functions
 
 ```astra
-fn add(a: int, b: int) -> int {
+fn add(a: int, b: int) int {
     return a + b
 }
 
@@ -41,11 +41,13 @@ fn log(message: str) {           // returns ()
 ```
 
 ```ebnf
-FnDecl = [ "pub" ] "fn" [ Receiver ] identifier "(" [ Params ] ")" [ "->" Type ] Block .
+FnDecl = [ "pub" ] "fn" [ Receiver ] identifier "(" [ Params ] ")" [ Type ] Block .
 Params = Param { "," Param } [ "," ] .
 Param  = identifier ":" Type .
 ```
 
+- The return type follows the parameter list directly, as in Go:
+  `fn name() str`. A function with no return type returns `()`.
 - Parameters are immutable bindings. To mutate a parameter locally, rebind
   it: `var n = n`.
 - A function with a non-`()` return type must `return` on every path; the
@@ -100,10 +102,10 @@ When the expected type is known, the enum name can be omitted:
 A method is a function with a receiver, written before its name as in Go:
 
 ```astra
-fn (p: &Point) length() -> float { ... }        // reads p
+fn (p: &Point) length() float { ... }        // reads p
 fn (p: &mut Point) scale(k: float) { ... }      // modifies p
-fn (p: Point) into_vec2() -> Vec2 { ... }      // consumes p
-fn Point.origin() -> Point { ... }              // associated function (no receiver)
+fn (p: Point) into_vec2() Vec2 { ... }      // consumes p
+fn Point.origin() Point { ... }              // associated function (no receiver)
 ```
 
 The receiver form defines how the value is passed (see chapter 5). At a call
@@ -135,7 +137,7 @@ Functions implemented in C (libc or the Astra runtime) are declared in an
 
 ```astra
 extern "C" {
-    fn write(fd: i32, buf: *u8, len: uint) -> int
+    fn write(fd: i32, buf: *u8, len: uint) int
 }
 ```
 

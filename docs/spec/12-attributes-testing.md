@@ -6,7 +6,7 @@ Attributes attach metadata to a declaration. They start with `@`:
 
 ```astra
 @inline
-fn square(x: int) -> int { return x * x }
+fn square(x: int) int { return x * x }
 
 @repr(C)
 struct Header {
@@ -37,7 +37,7 @@ Tests live next to the code they test. A test is a function marked `@test`
 with no parameters, returning `()` or `Result<(), E>`:
 
 ```astra
-fn add(a: int, b: int) -> int {
+fn add(a: int, b: int) int {
     return a + b
 }
 
@@ -70,7 +70,7 @@ per iteration.
 
 ```astra
 @cfg(os == "linux")
-fn page_size() -> uint { return 4096 }
+fn page_size() uint { return 4096 }
 
 @cfg(debug)
 fn trace(msg: &str) { eprintln(msg) }
@@ -92,5 +92,5 @@ compiled and run by `astra test` as doc tests.
 /// ```astra
 /// assert(max(1, 2) == 2)
 /// ```
-pub fn max<T: Ord>(a: T, b: T) -> T { ... }
+pub fn max<T: Ord>(a: T, b: T) T { ... }
 ```

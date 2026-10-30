@@ -3,7 +3,7 @@ struct Inventory {
 }
 
 // Borrows the inventory to read it.
-fn (inv: &Inventory) count() -> uint {
+fn (inv: &Inventory) count() uint {
     return inv.items.len()
 }
 

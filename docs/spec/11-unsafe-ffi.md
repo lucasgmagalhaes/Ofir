@@ -45,11 +45,11 @@ checker.
 
 ```astra
 extern "C" {
-    fn strlen(s: *u8) -> uint
-    fn getenv(name: *u8) -> *u8
+    fn strlen(s: *u8) uint
+    fn getenv(name: *u8) *u8
 }
 
-fn c_len(s: &str) -> uint {
+fn c_len(s: &str) uint {
     let c = s.to_c_string()          // owned, null-terminated copy
     return unsafe { strlen(c.ptr()) }
 }
@@ -65,7 +65,7 @@ fn c_len(s: &str) -> uint {
 
 ```astra
 @export("astra_add")
-extern "C" fn add(a: i32, b: i32) -> i32 {
+extern "C" fn add(a: i32, b: i32) i32 {
     return a + b
 }
 ```

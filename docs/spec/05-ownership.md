@@ -57,7 +57,7 @@ model.
 ## 5.3 References
 
 ```astra
-fn total(xs: &List<int>) -> int {         // shared borrow
+fn total(xs: &List<int>) int {         // shared borrow
     var sum = 0
     for x in xs { sum += *x }
     return sum
@@ -144,8 +144,8 @@ A function may return a reference (or a `ref struct`, below) if it has
 borrows from that parameter:
 
 ```astra
-fn (l: &List<T>) first() -> Option<&T> { ... }
-fn (u: &mut User) name_mut() -> &mut str { ... }
+fn (l: &List<T>) first() Option<&T> { ... }
+fn (u: &mut User) name_mut() &mut str { ... }
 
 let f = list.first()     // f borrows `list`
 list.push(4)             // error: `list` is borrowed by `f`
@@ -172,11 +172,11 @@ ref struct ListIter<T> {
     index: uint
 }
 
-fn (l: &List<T>) iter() -> ListIter<T> {
+fn (l: &List<T>) iter() ListIter<T> {
     return ListIter{list: l, index: 0}
 }
 
-fn (it: &mut ListIter<T>) next() -> Option<&T> {
+fn (it: &mut ListIter<T>) next() Option<&T> {
     ...
 }
 ```
