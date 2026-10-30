@@ -80,13 +80,12 @@ a return type return `()`.
 
 `str` is an owned, growable, UTF-8 encoded byte string. String literals have
 type `str` but are stored statically and never allocate unless modified.
-A string literal can also be used wherever `&str` is expected; it is then a
-borrow of static data:
+Passing a literal to a borrowed `str` parameter borrows the static data:
 
 ```astra
-fn greet(name: &str) { println("hello, {name}") }
+fn greet(name: str) { println("hello, {name}") }
 
-greet("Ana")            // no allocation, no `&` needed
+greet("Ana")            // no allocation
 ```
 
 ```astra
@@ -162,8 +161,12 @@ let grid: [u8; 4] = [0, 0, 0, 0]
 ## 2.8 References
 
 `&T` is a shared (read-only) reference and `&mut T` is an exclusive
-(mutable) reference. References never own the value they point to. Their
-rules are described in chapter 5.
+(mutable) reference. References never own the value they point to.
+
+Most code never writes these types: parameters are borrowed by default and
+`mut`/`move` express the other cases (chapter 5.3). Explicit references are
+for local borrows, functions that return a borrow and `ref struct` types
+(chapter 5.6).
 
 ## 2.9 Copy and move types
 
@@ -232,6 +235,9 @@ let hello: &str = s[0..5]
 - Slicing is bounds checked. Slicing a `str` panics if a bound is not on a
   UTF-8 character boundary.
 - Slices are references, so they follow the rules of chapter 5.
+- As **parameter types**, `[T]` and `str` accept lists, arrays, slices and
+  strings without writing `&`: `fn sum(xs: [int])` can be called as
+  `sum(list)` or `sum(list[2..5])` (chapter 5.3).
 
 ## 2.13 Function types
 
@@ -285,7 +291,8 @@ Most types have a size known at compile time. Three kinds of types do not:
 - `[T]` (a sequence of unknown length),
 - the text behind a `&str`.
 
-Unsized types can only be used behind a pointer: `&`, `&mut`, `*`, `*mut`
-or `Box`. Such pointers are fat (chapter 13.4). Generic type parameters are
+Unsized types can only be used as the type of a borrowed or `mut`
+parameter (`xs: [int]`, `s: dyn Shape`), or behind a pointer: `&`, `&mut`,
+`*`, `*mut` or `Box`. Such pointers are fat (chapter 13.4). Generic type parameters are
 always sized; `&T`, `&mut T`, `Box<T>` and raw pointers are the built-in
 types that also accept an unsized `T`.

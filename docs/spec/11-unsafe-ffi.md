@@ -49,7 +49,7 @@ extern "C" {
     fn getenv(name: *u8) *u8
 }
 
-fn cLen(s: &str) uint {
+fn cLen(s: str) uint {
     let c = s.toCString()          // owned, null-terminated copy
     return unsafe { strlen(c.ptr()) }
 }

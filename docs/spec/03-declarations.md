@@ -35,7 +35,7 @@ fn add(a: int, b: int) int {
     return a + b
 }
 
-fn log(message: &str) {          // returns ()
+fn log(message: str) {          // returns ()
     println(message)
 }
 ```
@@ -48,8 +48,14 @@ Param  = identifier ":" Type .
 
 - The return type follows the parameter list directly, as in Go:
   `fn name() str`. A function with no return type returns `()`.
-- Parameters are immutable bindings. To mutate a parameter locally, rebind
-  it: `var n = n`.
+- Parameters are borrowed by default; `mut` and `move` change how they are
+  passed (chapter 5.3). The caller never marks the mode:
+
+  ```astra
+  fn rename(user: mut User, name: move str) { user.name = name }
+
+  rename(ana, "Ana Maria")
+  ```
 - A function with a non-`()` return type must `return` on every path; the
   compiler rejects functions where control can reach the end of the body.
 - The order of declarations in a file does not matter.
@@ -103,9 +109,9 @@ When the expected type is known, the enum name can be omitted:
 A method is a function with a receiver, written before its name as in Go:
 
 ```astra
-fn (p: &Point) length() float { ... }        // reads p
-fn (p: &mut Point) scale(k: float) { ... }      // modifies p
-fn (p: Point) intoVec2() Vec2 { ... }      // consumes p
+fn (p: Point) length() float { ... }        // reads p
+fn (p: mut Point) scale(k: float) { ... }      // modifies p
+fn (p: move Point) intoVec2() Vec2 { ... } // consumes p
 fn Point.origin() Point { ... }              // associated function (no receiver)
 ```
 
@@ -114,8 +120,8 @@ site, the compiler borrows automatically:
 
 ```astra
 var p = Point.origin()
-p.scale(2.0)       // same as Point.scale(&mut p, 2.0)
-let l = p.length() // same as Point.length(&p)
+p.scale(2.0)       // same as Point.scale(p, 2.0)
+let l = p.length() // same as Point.length(p)
 ```
 
 Methods can only be declared in the module that declares the type.
@@ -126,7 +132,7 @@ A type may define a `drop` method, called automatically when a value of that
 type goes out of scope (chapter 5):
 
 ```astra
-fn (f: &mut File) drop() {
+fn (f: mut File) drop() {
     close(f.fd)
 }
 ```

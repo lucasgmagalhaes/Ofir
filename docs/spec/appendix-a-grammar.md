@@ -45,10 +45,11 @@ FnName        = Receiver identifier             (* method *)
               | identifier .                     (* free function *)
 
 Receiver      = "(" identifier ":" ReceiverType ")" .
-ReceiverType  = [ "&" [ "mut" ] ] TypePath [ TypeArgs ] .
+ReceiverType  = [ Mode ] TypePath [ TypeArgs ] .
 
 Params        = Param { "," Param } [ "," ] .
-Param         = identifier ":" Type .
+Param         = identifier ":" [ Mode ] Type .
+Mode          = "mut" | "move" .                   (* chapter 5.3; default: borrow *)
 
 TypeParams    = "<" TypeParam { "," TypeParam } [ "," ] ">" .
 TypeParam     = identifier [ ":" Bounds ] .
@@ -76,7 +77,7 @@ IfaceMember   = TypeRef NL                                 (* embedding *)
               | "fn" IfaceRecv identifier [ TypeParams ]
                 "(" [ Params ] ")" [ Type ] [ WhereClause ]
                 ( Block | NL ) .
-IfaceRecv     = "(" [ identifier ":" ] [ "&" [ "mut" ] ] "Self" ")"
+IfaceRecv     = "(" [ identifier ":" ] [ Mode ] "Self" ")"
               | "Self" "." .
 
 ConstDecl     = "const" identifier [ ":" Type ] "=" Expr NL .
@@ -96,12 +97,13 @@ Type          = TypePath [ TypeArgs ]
               | "*" [ "mut" ] Type
               | "[" Type [ ";" Expr ] "]"       (* slice element or fixed array *)
               | "(" [ Type { "," Type } [ "," ] ] ")"   (* unit or tuple *)
-              | [ "move" | "extern" string_lit ] "fn" "(" [ Type { "," Type } ] ")" [ Type ]
+              | [ "move" | "extern" string_lit ] "fn" "(" [ ParamType { "," ParamType } ] ")" [ Type ]
               | "dyn" Bounds
               | Type "?"                        (* Option<Type> *)
               | "!" .
 
 TypePath      = identifier { "." identifier } .
+ParamType     = [ Mode ] Type .                     (* `fn(mut List<int>)` *)
 TypeArgs      = "<" Type { "," Type } [ "," ] ">" .
 ```
 
@@ -129,7 +131,7 @@ AssignOp      = "=" | "+=" | "-=" | "*=" | "/=" | "%="
               | "&=" | "|=" | "^=" | "<<=" | ">>=" .
 ForStmt       = "for" [ ForHeader ] Block .
 ForHeader     = Expr                                       (* condition *)
-              | identifier [ "," identifier ] "in" Expr .  (* iteration *)
+              | [ "mut" ] identifier [ "," identifier ] "in" Expr .  (* iteration *)
 ReturnStmt    = "return" [ Expr ] .
 ExprStmt      = Expr .
 ```
@@ -186,7 +188,7 @@ MatchArm      = Pattern [ "if" Expr ] "=>" ( Expr | Block ) ( "," | NL ) .
 
 Closure       = [ "move" ] "fn" "(" [ ClosureParam { "," ClosureParam } ] ")"
                 [ Type ] ( Block | "=>" Expr ) .
-ClosureParam  = identifier [ ":" Type ] .
+ClosureParam  = identifier [ ":" [ Mode ] Type ] .
 
 Literal       = int_lit | float_lit | string_lit | raw_string_lit
               | byte_lit | byte_string_lit
@@ -223,5 +225,8 @@ FieldPat      = identifier [ ":" Pattern ] .
   no payloads; values must be distinct. With `@repr(C)`, they define the C
   enum values.
 - Attributes are only valid on the items listed in chapter 12.1.
+- In a parameter `f: move fn(A) R`, `move` is read as the parameter mode.
+  A parameter whose type is the owned function type is always taken in
+  `move` mode, so this is the only spelling and has a single meaning.
 - Contextual keywords (chapter 1.5) are keywords only in the positions
   shown in this grammar.

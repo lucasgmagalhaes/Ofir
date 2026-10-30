@@ -105,7 +105,7 @@ names:
 | Word | Keyword only when |
 |------|-------------------|
 | `type` | it starts an item and is followed by an identifier (`type Id = u32`) |
-| `move` | it is followed by `fn` (`move fn() { }`, `move fn(int) int`) |
+| `move` | it is followed by `fn`, or starts a parameter mode (`x: move T`) |
 | `ref` | it is followed by `struct` (`ref struct Iter { }`) |
 | `where` | it follows a function signature |
 

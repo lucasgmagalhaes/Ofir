@@ -56,8 +56,18 @@ capacity 0; it is copied to the heap on first modification.
 - `extern "C"` functions use the C ABI of the target. **Guaranteed.**
 - Large values passed by value may be passed by hidden pointer; this is
   invisible to the program because moved-from values cannot be observed.
-- `&mut T` parameters are marked `noalias`; `&T` parameters to types
-  without interior mutability are marked `noalias readonly`.
+- **Parameter modes** (chapter 5.3) are lowered as follows:
+
+  | Mode | Passed as |
+  |------|-----------|
+  | borrow, Copy type up to 16 bytes | by value, in registers |
+  | borrow, other types | pointer, `noalias readonly` (unless the type has interior mutability) |
+  | borrow, `[T]` / `str` / `dyn I` | fat pointer: data pointer + length or vtable |
+  | `mut` | pointer, `noalias` |
+  | `move` | by value; large values by hidden pointer to a caller-owned copy |
+
+- `&mut T` values are `noalias`; `&T` values to types without interior
+  mutability are `noalias readonly`.
 
 ## 13.6 Program startup and shutdown
 

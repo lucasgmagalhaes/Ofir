@@ -58,7 +58,7 @@ fn addWorks() {
 
 ```astra
 @bench
-fn benchSort(b: &mut Bencher) {
+fn benchSort(b: mut Bencher) {
     var data = randomList(10_000)
     b.run(fn() => data.sort())
 }
@@ -74,7 +74,7 @@ per iteration.
 fn pageSize() int { return 4096 }
 
 @cfg(debug)
-fn trace(msg: &str) { eprintln(msg) }
+fn trace(msg: str) { eprintln(msg) }
 ```
 
 Available conditions: `os` (`"linux"`, `"macos"`, `"windows"`), `arch`
@@ -93,7 +93,7 @@ compiled and run by `astra test` as doc tests.
 /// ```astra
 /// assert(max(1, 2) == 2)
 /// ```
-pub fn max<T: Ord>(a: T, b: T) T { ... }
+pub fn max<T: Ord>(a: move T, b: move T) T { ... }
 ```
 
 ## 12.6 Warnings

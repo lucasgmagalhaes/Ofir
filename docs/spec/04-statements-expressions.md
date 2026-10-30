@@ -15,8 +15,9 @@ user.age = 31
 items[0] = 5
 ```
 
-The left side must be a mutable place: a `var` binding, a field or element
-of a mutable place, or a place reached through a `&mut` reference.
+The left side must be a mutable place: a `var` binding, a `mut` parameter,
+a field or element of a mutable place, or a place reached through a `&mut`
+reference.
 Assignment is a statement, not an expression.
 
 ## 4.3 `if`
@@ -52,11 +53,11 @@ for n < 100 {              // while-style
 for i in 0..10 { }         // 0, 1, ..., 9
 for i in 0..=10 { }        // 0, 1, ..., 10
 
-for item in list { }       // borrows the list; item: T if T is Copy, else &T
-for item in &mut list { }  // item: &mut T
+for item in list { }       // borrows each element (Copy elements are copied)
+for mut item in list { }   // borrows each element mutably; `list` must be mutable
 for i, item in list { }    // with the index (int)
 
-for key, value in map { }  // key: &K, value: &V, in insertion order
+for key, value in map { }  // borrows keys and values, in insertion order
 ```
 
 `break` and `continue` apply to the innermost loop. Labeled loops are
@@ -87,9 +88,9 @@ match code {
 - `match` **must be exhaustive**; a missing case is a compile error that
   lists the missing patterns.
 - Matching an owned value moves its fields into the bindings.
-- Matching through a reference binds Copy fields by value and other fields
-  by reference: matching a `&Shape` gives `r: float` for `.Circle(r)`, but
-  `name: &str` for a `str` field.
+- Matching a place the function does not own (a borrowed parameter, a field
+  or element of one) borrows the matched parts instead; Copy parts are
+  copied. See chapter 5.5.
 
 ## 4.6 `if let`
 
