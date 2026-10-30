@@ -15,15 +15,31 @@ Block comments do not nest.
 
 ## 1.3 Statement termination
 
-Astra has no semicolons. As in Go, a newline terminates a statement when the
-last token on the line is one of:
+Astra has no semicolons. The rule is:
 
-- an identifier or a literal
-- one of the keywords `return`, `break`, `continue`, `true`, `false`
-- one of `)`, `]`, `}`, `?`
+> A newline ends a statement **wherever the statement could end**.
+> Anywhere else, the newline is ignored and the statement continues on the
+> next line.
 
-Newlines inside `(...)` and `[...]` never terminate a statement, so long
-argument lists and array literals can span several lines:
+The lexer emits a newline token at the end of each line; the parser treats
+it as a terminator only where the grammar allows the current statement to
+end, and skips it otherwise. (Unlike Go's token-based rule, this works with
+`<...>` generics: `var buffer: List<u8>` at the end of a line is complete,
+while `a >` at the end of a line clearly continues.)
+
+```astra
+var buffer: List<u8>          // complete: the newline ends the statement
+let ok = width > 0 &&
+    height > 0                // `&&` needs an operand: the newline is ignored
+let total = price
+    + tax                     // error: `price` was complete, `+ tax` is a new statement
+```
+
+To split a long expression, end the line with the operator, a `,`, or an
+opening bracket.
+
+Newlines inside `(...)` and `[...]` are always ignored, so long argument
+lists and array literals can span several lines:
 
 ```astra
 let total = add(

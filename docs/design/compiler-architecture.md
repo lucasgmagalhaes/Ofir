@@ -89,7 +89,8 @@ needs no fine-grained memory management, which keeps stage 0 simple and fast.
 ## 3. Lexer
 
 - Hand written, single pass over bytes, no backtracking.
-- Inserts statement terminators (`NL`) following chapter 1.3 of the spec.
+- Emits a newline token at the end of each line outside `(...)` and `[...]`.
+  It does not decide whether the newline ends a statement; the parser does.
 - String interpolation is split into tokens:
   `"a {x} b"` → `StrStart("a ")`, tokens of `x`, `StrMid(" b")`... `StrEnd`.
   The lexer keeps a small stack of brace depths to know when `}` closes an
@@ -101,6 +102,10 @@ needs no fine-grained memory management, which keeps stage 0 simple and fast.
 
 - Recursive descent for items and statements, Pratt (precedence climbing)
   for expressions, matching the precedence table of spec chapter 4.8.
+- Newlines (spec 1.3): the parser consumes a newline as a terminator only at
+  points where the current statement may end. Every grammar position that
+  requires more tokens (after a binary operator, `,`, `=`, `=>`, an opening
+  bracket, ...) calls `skip_newlines()` first.
 - Struct-literal restriction (`if x == P{...}`) is handled with a
   "no struct literal" flag, as in Go.
 - Generic disambiguation (`f<T>(x)` vs comparisons) uses bounded

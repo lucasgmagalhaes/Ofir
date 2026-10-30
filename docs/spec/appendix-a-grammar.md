@@ -3,9 +3,11 @@
 This is the complete syntactic grammar of Astra in EBNF. Lexical tokens
 (identifiers, literals, keywords, operators) are defined in chapter 1.
 
-`NL` is the statement terminator inserted by the lexer at the end of a line
-(chapter 1.3). Where the grammar allows `NL`, any number of consecutive
-terminators may appear. A terminator before `}` may be omitted.
+`NL` is the newline token emitted by the lexer at the end of each line
+outside `(...)` and `[...]`. Following chapter 1.3, the parser accepts `NL`
+only where it appears in this grammar and silently skips it everywhere else.
+Where the grammar allows `NL`, any number of consecutive newlines may appear.
+A terminator before `}` may be omitted.
 
 ## A.1 Files and items
 
