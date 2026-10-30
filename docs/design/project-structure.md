@@ -21,10 +21,13 @@ astra/
 │
 ├── docs/
 │   ├── spec/                 language specification (normative)
+│   ├── std/                  standard library reference (normative)
+│   ├── errors/               error code registry and explanations
 │   ├── design/               architecture and design documents
 │   ├── adr/                  architecture decision records
-│   ├── bootstrap.md          self-hosting plan
-│   └── roadmap.md            implementation roadmap
+│   ├── bootstrap.md          self-hosting plan and bootstrap chain
+│   ├── roadmap.md            implementation roadmap
+│   └── risks.md              risk register
 │
 ├── bootstrap/                stage 0 compiler, written in C
 ├── compiler/                 stage 1 compiler, written in Astra
@@ -33,6 +36,7 @@ astra/
 ├── tests/                    language and compiler test suites
 ├── examples/                 example programs
 ├── bench/                    performance benchmarks
+├── seed/                     SEEDS.md: checksums of released compiler seeds
 └── tools/                    developer scripts and auxiliary tools
 ```
 

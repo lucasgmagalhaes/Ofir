@@ -27,6 +27,9 @@ Appendices:
 
 - A. [Grammar](appendix-a-grammar.md)
 
+Related: the [standard library reference](../std/README.md) and the
+[error code registry](../errors/README.md).
+
 ## Design principles
 
 1. **One obvious way.** Prefer a single, simple construct over several
