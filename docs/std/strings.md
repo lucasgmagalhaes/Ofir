@@ -36,4 +36,4 @@ Iterating a `str` directly (`for b in s`) yields bytes (`u8`); use
 |----------|-------------|:--:|
 | `fn join(parts: &[&str], sep: &str) str` | | ✓ |
 | `fn from_utf8(bytes: List<u8>) Result<str, Utf8Error>` | validates | ✓ |
-| `struct Builder` with `push`, `push_byte`, `finish() str` | efficient incremental construction | ✓ |
+| `struct Builder` with `push`, `push_char`, `finish() str` | efficient incremental construction | ✓ |
