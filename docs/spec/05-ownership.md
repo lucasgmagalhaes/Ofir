@@ -207,7 +207,24 @@ written.
 - Small structs passed as `&T` may be passed by value when it is cheaper;
   the semantics are the same because shared references are read-only.
 
-## 5.8 Shared ownership **[planned]**
+## 5.8 Interior mutability
+
+Some types must allow mutation through a shared reference: counters shared
+by several owners, caches, locks. They are built on one primitive,
+`UnsafeCell<T>` in `std.mem`, the only way to obtain a `*mut T` from a `&T`
+without undefined behavior. Safe wrappers in the standard library:
+
+| Type | Use |
+|------|-----|
+| `Cell<T>` (T Copy) | `get` / `set` a value through `&Cell<T>` |
+| `Mutex<T>`, `RwLock<T>`, atomics | shared mutation across threads (chapter 14) |
+
+A type **has interior mutability** if it contains an `UnsafeCell` directly or
+through its fields. The compiler never marks `&T` as `readonly` for such
+types (chapter 13.5). `RefCell` (borrow checking at runtime) is
+intentionally not provided.
+
+## 5.9 Shared ownership **[planned]**
 
 For graphs and other structures with shared ownership, the standard library
 will provide `Rc<T>` (reference counted) and arena allocators. These are
