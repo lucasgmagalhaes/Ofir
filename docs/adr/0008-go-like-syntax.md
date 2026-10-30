@@ -1,6 +1,6 @@
 # 0008. Go-like syntax without semicolons
 
-- Status: Accepted
+- Status: Accepted; the newline rule is superseded by [0009](0009-parser-driven-newlines.md)
 - Date: 2026-10-30
 
 ## Context

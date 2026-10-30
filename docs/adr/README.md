@@ -13,7 +13,11 @@ changed by writing a new record that supersedes the old one.
 | [0005](0005-checked-arithmetic.md) | Integer arithmetic is checked in every build profile | Accepted |
 | [0006](0006-errors-as-values.md) | Errors as values (`Result`, `?`), panics abort | Accepted |
 | [0007](0007-monomorphized-generics.md) | Generics implemented by monomorphization | Accepted |
-| [0008](0008-go-like-syntax.md) | Go-like syntax without semicolons | Accepted |
+| [0008](0008-go-like-syntax.md) | Go-like syntax without semicolons | Accepted (termination rule superseded by 0009) |
+| [0009](0009-parser-driven-newlines.md) | Parser-driven statement termination | Accepted |
+| [0010](0010-non-escaping-function-parameters.md) | Non-escaping function values by default | Accepted |
+| [0011](0011-ordered-deterministic-map.md) | Insertion-ordered `Map` with deterministic hashing | Accepted |
+| [0012](0012-int-for-lengths-and-indices.md) | `int` for lengths and indices | Accepted |
 
 ## Template
 
