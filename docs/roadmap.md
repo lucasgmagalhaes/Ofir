@@ -91,7 +91,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 2.1 | All integer types, `float`, `bool`; `as` conversions with checks; `wrapping_cast`/`saturating_cast`/`checked_cast` | M | `tests/run/numbers/*` and `tests/panic/cast*` pass |
+| 2.1 | All integer types, `float`, `bool`; `as` conversions with checks; `wrappingCast`/`saturatingCast`/`checkedCast` | M | `tests/run/numbers/*` and `tests/panic/cast*` pass |
 | 2.2 | Checked arithmetic (`llvm.*.with.overflow`), division semantics, shifts | S | `tests/panic/overflow*` pass |
 | 2.3 | Comparison, logic (short-circuit), bitwise operators | S | `tests/run/operators/*` pass |
 | 2.4 | `if`/`else` as statement and expression | S | `tests/run/control/if*` pass |
@@ -111,7 +111,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.18 | Generic functions, structs and enums **without bounds**; monomorphization and mangling | L | `tests/run/generics_basic/*` pass |
 | 2.19 | `Box<T>` and recursive enums | M | expression tree test program runs |
 | 2.20 | `List<T>` (std/collections.md S0 entries): literals, bounds checks, `for` over lists with Copy loop variables, `sort` | L | `tests/run/list/*`, `tests/panic/bounds*` pass |
-| 2.21 | Slices `&[T]` and `&str`, range indexing, built-in borrow-returning methods (`get`, `first`, `last`, `get_mut`) | M | tests pass |
+| 2.21 | Slices `&[T]` and `&str`, range indexing, built-in borrow-returning methods (`get`, `first`, `last`, `getMut`) | M | tests pass |
 | 2.22 | `Option<T>`, `Result<T, E>`, `?` (equal error types), `unwrap`, `expect`, unused-`Result` error | M | `tests/run/errors/*` pass |
 | 2.23 | `Map<K, V>`: insertion order, deterministic hashing of integers, `str` and tuples | L | `tests/run/map/*` pass |
 | 2.24 | Warnings: unused variables, unused imports, unreachable code; `--deny-warnings` | S | `tests/compile_fail/warn_*` pass |
@@ -126,7 +126,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 3.4 | Modules: multiple files, `mod.at`, `import`, aliases, `pub`, module-qualified names | L | multi-file tests pass |
 | 3.5 | Prelude and standard library loading from `std/` | M | `Option`/`Result` helpers live in `std/core` |
 | 3.6 | `extern "C"` blocks, `unsafe` blocks, raw pointers | M | calling `strlen` works |
-| 3.7 | `std.strings` and `str` S0 methods, including the borrowing iterators `split`, `split_whitespace`, `lines`, `bytes` | M | `tests/run/strings/*` pass |
+| 3.7 | `std.strings` and `str` S0 methods, including the borrowing iterators `split`, `splitWhitespace`, `lines`, `bytes` | M | `tests/run/strings/*` pass |
 | 3.8 | `std.io` and `std.fs` S0 entries, `IoError` | M | `examples/word_count.at` runs |
 | 3.9 | `std.os` S0 entries: args, env, exit, `run` | M | a test program runs `clang --version` |
 | 3.10 | Runtime: stack overflow detection | S | `tests/panic/stack_overflow*` pass |

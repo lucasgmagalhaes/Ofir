@@ -22,12 +22,12 @@ fn (s: &Square) area() float { return s.side * s.side }
 fn (s: &Square) name() str { return "square" }
 
 // Static dispatch: one specialized copy per shape type.
-fn print_area<S: Shape>(shape: &S) {
+fn printArea<S: Shape>(shape: &S) {
     println(shape.describe())
 }
 
 fn main() {
-    print_area(&Circle{radius: 1.0})
+    printArea(&Circle{radius: 1.0})
 
     // Dynamic dispatch: a list of different shapes.
     let shapes: List<Box<dyn Shape>> = [

@@ -26,14 +26,14 @@ fn main() {
 - Copy types (chapter 2.9) are copied instead of moved.
 - To duplicate a move type explicitly, call `.clone()`.
 - A value can only be moved out of a place the function owns entirely.
-  `let x = list[i]` or `let n = user_ref.name` with a move type is an error;
-  use `list.remove(i)`, `list.swap_remove(i)`, `mem.replace(&mut list[i], v)`,
+  `let x = list[i]` or `let n = userRef.name` with a move type is an error;
+  use `list.remove(i)`, `list.swapRemove(i)`, `mem.replace(&mut list[i], v)`,
   `mem.take(&mut opt)` or `.clone()` instead.
 
 ### Partial and conditional moves
 
 ```astra
-var v = make_list()
+var v = makeList()
 if flag {
     consume(v)
 }
@@ -173,7 +173,7 @@ borrows from that parameter:
 
 ```astra
 fn (l: &List<T>) first() Option<&T> { ... }
-fn (u: &mut User) name_mut() &mut str { ... }
+fn (u: &mut User) nameMut() &mut str { ... }
 
 let f = list.first()     // f borrows `list`
 list.push(4)             // error: `list` is borrowed by `f`

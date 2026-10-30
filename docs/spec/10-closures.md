@@ -31,7 +31,7 @@ the expected function type.
 - `fn(A) R` behaves like a reference (chapter 5.4): it can be called, bound
   locally and passed as an argument, but **not stored in a struct or
   container, and not returned**. Every function and every closure converts
-  to it. This is the type of callbacks: `map`, `filter`, `sort_by`, `each`.
+  to it. This is the type of callbacks: `map`, `filter`, `sortBy`, `each`.
 - `move fn(A) R` owns its captured values. It can be stored, returned and
   sent across the program. Only named functions and `move` closures convert
   to it. It is a move type; dropping it drops its captured values.
@@ -43,7 +43,7 @@ it says so in its signature:
 ```astra
 fn each(xs: &List<int>, f: fn(int)) { ... }            // cannot keep `f`
 
-fn on_click(b: &mut Button, handler: move fn()) {      // keeps `handler`
+fn onClick(b: &mut Button, handler: move fn()) {      // keeps `handler`
     b.handlers.push(handler)
 }
 ```
@@ -75,7 +75,7 @@ are copied, other values are moved into the closure. Captured values are
 call belongs in a struct with methods.
 
 ```astra
-fn make_greeter(name: str) move fn() str {
+fn makeGreeter(name: str) move fn() str {
     return move fn() str => "hello, {name}"
 }
 ```

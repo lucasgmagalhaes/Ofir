@@ -38,9 +38,9 @@ which take the target type as a type argument:
 
 | Method | Behavior | `300 as u8` equivalent |
 |--------|----------|------------------------|
-| `x.wrapping_cast<T>()` | keeps the low bits (two's complement) | `44` |
-| `x.saturating_cast<T>()` | clamps to the target range | `255` |
-| `x.checked_cast<T>()` | returns `Option<T>` | `None` |
+| `x.wrappingCast<T>()` | keeps the low bits (two's complement) | `44` |
+| `x.saturatingCast<T>()` | clamps to the target range | `255` |
+| `x.checkedCast<T>()` | returns `Option<T>` | `None` |
 
 ### Arithmetic
 
@@ -48,10 +48,10 @@ Integer arithmetic is **checked**: overflow, division by zero and shifts
 by the bit width or more panic. The cost is a single branch that is
 almost never taken; LLVM's overflow intrinsics make it close to free.
 Explicit wrapping, saturating and checked arithmetic is available through
-methods (`a.wrapping_add(b)`, `a.saturating_sub(b)`, `a.checked_mul(b)`, ...).
+methods (`a.wrappingAdd(b)`, `a.saturatingSub(b)`, `a.checkedMul(b)`, ...).
 
 - `/` truncates toward zero; `%` has the sign of the dividend
-  (`-7 / 2 == -3`, `-7 % 2 == -1`). `a.div_floor(b)` and `a.rem_euclid(b)`
+  (`-7 / 2 == -3`, `-7 % 2 == -1`). `a.divFloor(b)` and `a.remEuclid(b)`
   provide the other conventions.
 - `>>` is arithmetic (sign-extending) on signed types and logical on
   unsigned types.
@@ -64,7 +64,7 @@ operations yield NaN, nothing panics.
 - `==` and `<` use IEEE semantics, so `NaN != NaN`. For this reason floats
   do **not** satisfy the `Eq`, `Ord` and `Hash` interfaces (chapter 9.9):
   they cannot be `Map` keys, and sorting them uses
-  `list.sort_by(fn(a, b) => a.total_cmp(b))`.
+  `list.sortBy(fn(a, b) => a.totalCmp(b))`.
 - Textual form (interpolation, `Display`): the **shortest** decimal that
   converts back to the same value, always with a `.` or an exponent:
   `1.0`, `0.1`, `1e+21`, `-0.0`. Special values print as `NaN`, `inf` and
@@ -149,7 +149,7 @@ their keys were first inserted (removing a key forgets its position). The
 default hasher is deterministic: it uses no random seed, so a program's
 output never depends on hash values and repeated runs behave identically.
 A seeded, DoS-resistant hasher for maps filled from untrusted input is
-**[planned]** (`Map.with_hasher(...)`).
+**[planned]** (`Map.withHasher(...)`).
 
 ## 2.7 Fixed-size arrays
 
@@ -198,11 +198,11 @@ types.
 A tuple groups a fixed number of values of possibly different types.
 
 ```astra
-fn div_mod(a: int, b: int) (int, int) {
+fn divMod(a: int, b: int) (int, int) {
     return (a / b, a % b)
 }
 
-let (q, r) = div_mod(17, 5)
+let (q, r) = divMod(17, 5)
 let pair = (1, "one")
 println("{pair.0}")
 ```

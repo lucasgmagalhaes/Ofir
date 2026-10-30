@@ -113,8 +113,8 @@ M4, the code in `compiler/` must be written in this subset.
   (monomorphized; enough for typed index vectors and other containers)
 - `list.sort()` for lists of integers, `str`, and tuples of those
 - built-in methods that return borrows, special-cased by the compiler:
-  `List.get`, `get_mut`, `first`, `last`, `Map.get`, `get_mut`, and the
-  iterators `str.split`, `split_whitespace`, `lines`, `bytes`, which may be
+  `List.get`, `getMut`, `first`, `last`, `Map.get`, `getMut`, and the
+  iterators `str.split`, `splitWhitespace`, `lines`, `bytes`, which may be
   bound locally or used directly in `for` loops
 - moves and automatic drops
 - modules, `import`, `pub`

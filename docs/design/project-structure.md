@@ -181,7 +181,7 @@ std/
 │   ├── num.at                integer and float methods
 │   ├── slice.at              methods of [T]
 │   └── panic.at
-├── mem/                      std.mem: size_of, swap, replace, take, UnsafeCell, Cell
+├── mem/                      std.mem: sizeOf, swap, replace, take, UnsafeCell, Cell
 ├── collections/              std.collections: requires a heap
 │   ├── box.at                Box<T>
 │   ├── list.at               List<T>
@@ -192,7 +192,7 @@ std/
 ├── fs/                       std.fs
 ├── os/                       std.os
 ├── math/                     std.math
-├── testing/                  std.testing: assert_eq, Bencher, test harness
+├── testing/                  std.testing: assertEq, Bencher, test harness
 ├── thread/                   std.thread [planned]
 └── sync/                     std.sync   [planned]
 ```

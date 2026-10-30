@@ -105,7 +105,7 @@ A method is a function with a receiver, written before its name as in Go:
 ```astra
 fn (p: &Point) length() float { ... }        // reads p
 fn (p: &mut Point) scale(k: float) { ... }      // modifies p
-fn (p: Point) into_vec2() Vec2 { ... }      // consumes p
+fn (p: Point) intoVec2() Vec2 { ... }      // consumes p
 fn Point.origin() Point { ... }              // associated function (no receiver)
 ```
 

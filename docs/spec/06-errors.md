@@ -28,8 +28,8 @@ enum Option<T> {
 `Ok`, `Err`, `Some` and `None` are in scope everywhere without a prefix.
 
 ```astra
-fn parse_port(s: &str) Result<u16, str> {
-    let n = parse_int(s)?
+fn parsePort(s: &str) Result<u16, str> {
+    let n = parseInt(s)?
     if n < 1 || n > 65535 {
         return Err("port out of range: {n}")
     }
@@ -51,7 +51,7 @@ requires it to return `Option<U>`.
 
 If the error types differ, `?` converts the error when the function's error
 type `F` satisfies `From<E>` (`F.from(e)` is called). Otherwise the
-conversion is explicit with `.map_err(...)`. Stage 0 requires both error
+conversion is explicit with `.mapErr(...)`. Stage 0 requires both error
 types to be equal.
 
 ## 6.3 Unused results
@@ -59,8 +59,8 @@ types to be equal.
 Ignoring a value of type `Result` is a compile error:
 
 ```astra
-write_file(path, data)        // error: unused Result
-let _ = write_file(path, data) // explicitly ignored
+writeFile(path, data)        // error: unused Result
+let _ = writeFile(path, data) // explicitly ignored
 ```
 
 ## 6.4 Helper methods
@@ -69,9 +69,9 @@ let _ = write_file(path, data) // explicitly ignored
 |--------|----------|
 | `r.unwrap()` | the value, or panic with the error |
 | `r.expect("msg")` | the value, or panic with `msg` |
-| `r.unwrap_or(default)` | the value, or `default` |
-| `r.is_ok()` / `o.is_some()` | `bool` |
-| `r.map_err(f)` | convert the error (stage 1: needs closures) |
+| `r.unwrapOr(default)` | the value, or `default` |
+| `r.isOk()` / `o.isSome()` | `bool` |
+| `r.mapErr(f)` | convert the error (stage 1: needs closures) |
 
 ## 6.5 Panics
 

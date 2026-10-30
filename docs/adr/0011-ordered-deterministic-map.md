@@ -21,4 +21,4 @@ open-addressing index table.
   can print maps directly.
 - Iteration is faster (contiguous entries); removal costs slightly more.
 - Maps filled with untrusted keys are exposed to hash-flooding; a seeded
-  hasher (`Map.with_hasher`) is planned for that use case.
+  hasher (`Map.withHasher`) is planned for that use case.
