@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 runtime unit test check-codes clean
+.PHONY: all stage0 runtime unit runner-selftest test check-codes clean
 
 all: stage0 runtime
 
@@ -17,10 +17,13 @@ runtime:
 unit:
 	$(MAKE) -C bootstrap test BUILD=$(abspath $(BUILD))/stage0
 
+runner-selftest:
+	$(PYTHON) tests/runner/selftest/run_selftest.py
+
 check-codes:
 	$(PYTHON) tools/check_error_codes.py
 
-test: stage0 runtime unit check-codes
+test: stage0 runtime unit runner-selftest check-codes
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/astra
 
 clean:
