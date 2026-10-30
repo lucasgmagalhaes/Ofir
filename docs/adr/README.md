@@ -7,7 +7,7 @@ changed by writing a new record that supersedes the old one.
 | # | Decision | Status |
 |---|----------|--------|
 | [0001](0001-textual-llvm-ir-backend.md) | Generate textual LLVM IR and compile it with clang | Accepted |
-| [0002](0002-ownership-with-second-class-references.md) | Ownership with second-class references, no lifetime annotations | Accepted |
+| [0002](0002-ownership-with-second-class-references.md) | Ownership with second-class references, no lifetime annotations | Accepted (refined by 0014) |
 | [0003](0003-self-hosting-with-c-bootstrap.md) | Self-hosted compiler bootstrapped from a C compiler | Accepted |
 | [0004](0004-implicit-interfaces.md) | Implicit (structural) interfaces with static and dynamic dispatch | Accepted |
 | [0005](0005-checked-arithmetic.md) | Integer arithmetic is checked in every build profile | Accepted |
@@ -19,6 +19,7 @@ changed by writing a new record that supersedes the old one.
 | [0011](0011-ordered-deterministic-map.md) | Insertion-ordered `Map` with deterministic hashing | Accepted |
 | [0012](0012-int-for-lengths-and-indices.md) | `int` for lengths and indices | Accepted |
 | [0013](0013-camel-case-naming.md) | camelCase naming convention | Accepted |
+| [0014](0014-parameter-modes.md) | Parameters are borrowed by default (`mut`, `move` modes) | Accepted |
 
 ## Template
 

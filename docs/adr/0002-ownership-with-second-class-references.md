@@ -1,6 +1,6 @@
 # 0002. Ownership with second-class references
 
-- Status: Accepted
+- Status: Accepted; the surface syntax is refined by [0014](0014-parameter-modes.md)
 - Date: 2026-10-30
 
 ## Context
