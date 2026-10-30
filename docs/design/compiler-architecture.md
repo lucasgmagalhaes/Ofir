@@ -155,11 +155,12 @@ practice and error messages local.
 
 For `recv.m(args)`:
 
-1. Look up `m` in the method table of the receiver's type, auto-dereferencing
+1. Look up `m` in the method table of the type of `recv`, auto-dereferencing
    through references (`&&T` → `&T` → `T`).
 2. Then in the default methods of interfaces that the type satisfies.
-3. Check the receiver against the method's mode (borrow, `mut`, `move`):
-   a `mut` receiver must be a mutable place, a `move` receiver is moved.
+3. Check `recv` against the mode of the method's `self` (borrow, `mut`,
+   `move`): for `mut self` it must be a mutable place, for `move self` it is
+   moved.
 
 ### Interfaces
 
@@ -228,7 +229,7 @@ Properties:
 | `for x in iter` | loop calling `next()` and switching on `Option` |
 | string interpolation | calls to `Display.format` on a fresh `str` buffer |
 | closures | an environment struct + a function taking it as first parameter |
-| method call | plain call with the receiver as first argument |
+| method call | plain call with `recv` as the `self` argument |
 | borrowed / `mut` argument | `Ref` (shared or exclusive) of the argument place, or of a temporary holding the value |
 | `move` argument | `Move` of the place (`Copy` for Copy types) |
 
