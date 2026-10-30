@@ -94,21 +94,10 @@ A reference may **not**:
 
 - be stored in a struct or enum field;
 - be stored in a `List`, `Map`, `Option`, `Box` or any other container;
-- be returned from a function.
+- be returned from a function, except as described in 5.6.
 
 Because a reference can never outlive the call or block that created it,
 no lifetime annotations are ever needed.
-
-**Exception for built-in methods.** A few built-in methods return a
-reference derived from their receiver, such as `list.get(i) -> Option<&T>`
-and `map.get(key) -> Option<&V>`. Their result borrows from the receiver
-and is subject to the same restrictions: it can be matched on or bound
-locally, but not stored or returned.
-
-> Allowing user functions to return references derived from a single
-> reference parameter (e.g. `fn (l: &List<T>) first() -> &T`) is
-> **[planned]**, using the same rule: the result borrows from that
-> parameter.
 
 ## 5.5 Borrowing rules
 
@@ -143,7 +132,59 @@ The rules apply to arguments of a single call as well:
 swap(&mut a, &mut a)   // error: `a` is borrowed mutably twice
 ```
 
-## 5.6 Why this is fast
+## 5.6 Returning borrows and `ref struct`
+
+Two controlled exceptions make the model practical for accessors and
+iterators, still without lifetime annotations.
+
+### Returning a borrow
+
+A function may return a reference (or a `ref struct`, below) if it has
+**exactly one** reference parameter, counting the receiver. The result
+borrows from that parameter:
+
+```astra
+fn (l: &List<T>) first() -> Option<&T> { ... }
+fn (u: &mut User) name_mut() -> &mut str { ... }
+
+let f = list.first()     // f borrows `list`
+list.push(4)             // error: `list` is borrowed by `f`
+```
+
+With zero or several reference parameters, returning a borrow is an error.
+The caller treats the result like any other local reference: it can be used
+and passed down, but not stored or returned further (unless the caller is
+itself a function following this rule).
+
+`Option<&T>` and `Result<&T, E>` are allowed as return types under this
+rule; they are the only containers that may hold a reference, and only as a
+return value or a local binding.
+
+### `ref struct`
+
+A struct declared with `ref` may contain references. It is itself
+second-class: it follows every restriction of 5.4 and can be returned only
+under the rule above.
+
+```astra
+ref struct ListIter<T> {
+    list: &List<T>
+    index: uint
+}
+
+fn (l: &List<T>) iter() -> ListIter<T> {
+    return ListIter{list: l, index: 0}
+}
+
+fn (it: &mut ListIter<T>) next() -> Option<&T> {
+    ...
+}
+```
+
+This is how iterators, string splitters and parsers over borrowed text are
+written.
+
+## 5.7 Why this is fast
 
 - No garbage collector and no reference counting: allocation and release
   points are known at compile time.
@@ -153,7 +194,7 @@ swap(&mut a, &mut a)   // error: `a` is borrowed mutably twice
 - Small structs passed as `&T` may be passed by value when it is cheaper;
   the semantics are the same because shared references are read-only.
 
-## 5.7 Shared ownership **[planned]**
+## 5.8 Shared ownership **[planned]**
 
 For graphs and other structures with shared ownership, the standard library
 will provide `Rc<T>` (reference counted) and arena allocators. These are
