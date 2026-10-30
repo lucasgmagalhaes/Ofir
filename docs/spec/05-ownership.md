@@ -2,13 +2,24 @@
 
 Astra manages memory without a garbage collector. Every value has exactly one
 **owner**; when the owner goes out of scope, the value is destroyed and its
-memory is released. References let code use a value without owning it.
+memory is released.
 
-The model is deliberately simpler than Rust's: **references are
-second-class**. They can be passed to functions and used locally, but they
-cannot be stored in structs, collections, or returned from functions.
-This removes the need for lifetime annotations entirely, while keeping
-memory safety and allowing aggressive optimization.
+Most code never deals with references explicitly. **Parameters are borrowed
+by default**: a function reads its arguments without taking ownership and
+without the caller writing `&`. Two keywords in the signature cover the other
+cases: `mut` (the function modifies the argument) and `move` (the function
+takes ownership). Call sites look the same in all three cases.
+
+```astra
+fn total(xs: List<int>) int { ... }            // reads xs
+fn reset(xs: mut List<int>) { xs.clear() }      // modifies the caller's list
+fn keep(xs: move List<int>) { ... }             // takes ownership
+
+var nums = [1, 2, 3]
+println("{total(nums)}")
+reset(nums)
+keep(nums)                                      // nums is moved here
+```
 
 ## 5.1 Ownership
 
@@ -16,28 +27,28 @@ memory safety and allowing aggressive optimization.
 fn main() {
     let a = "hello"           // a owns the string
     let b = a                 // ownership moves to b
-    println(&a)               // error: use of moved value `a`
+    println(a)                // error: use of moved value `a`
 }
 ```
 
-- Assigning a move type, passing it by value, or returning it **moves** it.
-  The source can no longer be used (unless it is a `var` that is assigned a
-  new value).
+- Assigning a move type to a variable or field, passing it to a `move`
+  parameter, or returning it **moves** it. The source can no longer be used
+  (unless it is a `var` that is assigned a new value).
 - Copy types (chapter 2.9) are copied instead of moved.
 - To duplicate a move type explicitly, call `.clone()`.
 - A value can only be moved out of a place the function owns entirely.
-  `let x = list[i]` or `let n = userRef.name` with a move type is an error;
-  use `list.remove(i)`, `list.swapRemove(i)`, `mem.replace(&mut list[i], v)`,
-  `mem.take(&mut opt)` or `.clone()` instead.
+  `let x = list[i]`, or moving a field out of a borrowed parameter, is an
+  error; use `list.remove(i)`, `list.swapRemove(i)`, `mem.replace(list[i], v)`,
+  `mem.take(opt)` or `.clone()` instead.
 
 ### Partial and conditional moves
 
 ```astra
 var v = makeList()
 if flag {
-    consume(v)
+    consume(v)          // fn consume(xs: move List<int>)
 }
-println("{v.len()}")   // error: `v` may have been moved
+println("{v.len()}")    // error: `v` may have been moved
 ```
 
 A value that is moved on some paths is considered moved after the branches
@@ -58,87 +69,130 @@ If a value is moved on some paths only, the compiler inserts a hidden drop
 flag so it is dropped exactly once. This is the only runtime cost of the
 model.
 
-## 5.3 References
+## 5.3 Parameter modes
+
+| Declaration | Mode | The function may | The caller passes |
+|-------------|------|------------------|-------------------|
+| `x: T` | **borrow** (default) | read `x` | any expression; it keeps ownership |
+| `x: mut T` | **mutable borrow** | read, modify and reassign `x` | a mutable place (a `var`, a field or element of one, or a `mut` parameter) |
+| `x: move T` | **move** | own `x`: store it, return it, drop it | a value, which is moved (or copied, for Copy types) |
+
+The receiver of a method uses the same modes:
 
 ```astra
-fn total(xs: &List<int>) int {         // shared borrow
-    var sum = 0
-    for x in xs { sum += x }
-    return sum
-}
-
-fn reset(xs: &mut List<int>) {            // exclusive borrow
-    xs.clear()
-}
-
-fn main() {
-    var nums = [1, 2, 3]
-    println("{total(&nums)}")
-    reset(&mut nums)
-}
+fn (p: Point) length() float { ... }        // borrows p
+fn (p: mut Point) scale(k: float) { ... }   // modifies p
+fn (p: move Point) intoVec2() Vec2 { ... }  // consumes p
 ```
 
-- `&x` creates a shared reference; `&mut x` an exclusive one. `&mut x`
-  requires `x` to be a `var` (or reached through another `&mut`).
-- **Temporaries are borrowed automatically.** A temporary value (the result
-  of a call, an operator or a literal) passed where `&T` is expected is
-  borrowed implicitly and dropped at the end of the statement:
-  `println(user.describe())`. Named variables and fields always need an
-  explicit `&`, so moving and borrowing stay visible.
-- **Implicit reborrowing.** Passing a `&mut T` variable where a `&mut T` is
-  expected does not move the reference: it is reborrowed for the duration of
-  the call and can be used again afterwards. The same applies to method
-  calls through a `&mut` receiver.
-- Field access and method calls dereference automatically (`p.x` works when
-  `p: &Point`). Explicit dereference `*r` is needed for primitives.
-- `*r` on a reference to a move type may only be used to read a Copy field
-  or to call a method; it cannot move the value out.
+### Borrowed parameters
 
-## 5.4 Where references may appear
+- A borrowed parameter is read-only: assigning to it, mutating it, or moving
+  out of it is an error. To work on a local copy, write `var x = x.clone()`
+  (or `var n = n` for Copy types).
+- Any expression can be passed: a variable, a field, a literal or the result
+  of a call. A temporary lives until the end of the statement, so
+  `println(user.describe())` needs nothing special.
+- The compiler chooses how to pass the argument: small Copy values in
+  registers, everything else by pointer. Since the callee cannot modify it,
+  the choice is invisible to the program.
 
-References are **second-class values**. A reference may appear only as:
+### Mutable parameters
 
-1. a function or method parameter;
-2. a local binding (`let r = &list`);
-3. a loop variable or pattern binding;
-4. a temporary inside an expression.
+- The caller's place must be mutable: passing a `let` binding or a borrowed
+  parameter to a `mut` parameter is an error. Nothing is written at the call
+  site: `reset(nums)`.
+- Assigning a new value to the whole parameter (`x = T{...}`) replaces the
+  caller's value; the old value is dropped.
+- Moving out of a `mut` parameter is allowed only if a new value is assigned
+  before the function returns (or `mem.replace`/`mem.take` is used).
 
-A reference may **not**:
+### Moved parameters
 
-- be stored in a struct or enum field;
-- be stored in a `List`, `Map`, `Option`, `Box` or any other container;
-- be returned from a function, except as described in 5.6.
+- The callee owns the value: it can store it in a struct or collection,
+  return it, or let it be dropped at the end of the function.
+- Inside the function, a `move` parameter is an immutable binding; rebind it
+  with `var x = x` to modify it.
+- If a function tries to store a borrowed parameter, the error suggests the
+  fix: *"declare `item: move str`, or call `item.clone()`"*.
 
-Because a reference can never outlive the call or block that created it,
-no lifetime annotations are ever needed.
+### Borrowed views of sequences and text
 
-## 5.5 Borrowing rules
+As borrowed or `mut` parameter types, `[T]` and `str` accept any contiguous
+sequence or text:
 
-At any point in a function, for each value:
+```astra
+fn sum(xs: [int]) int { ... }       // accepts List<int>, [int; N] and slices
+fn shout(s: str) str { ... }        // accepts str values, literals and slices
 
-- there may be **any number of shared references**, **or**
-- **exactly one exclusive reference**,
+sum(numbers[0..10])
+shout("hello")
+```
+
+A borrowed `dyn I` parameter accepts any value whose type satisfies `I`
+(chapter 9.7): `fn draw(s: dyn Shape)`.
+
+## 5.4 Borrowing rules
+
+While a call runs, its borrowed arguments are **borrows** of the caller's
+places: shared borrows for the default mode and exclusive borrows for `mut`.
+For each value, at any point:
+
+- there may be **any number of shared borrows**, **or**
+- **exactly one exclusive borrow**,
 
 but never both. While a value is borrowed, it cannot be moved, and while it
 is exclusively borrowed it cannot be read or written through its owner.
+
+```astra
+fn append(dst: mut List<int>, src: List<int>) { ... }
+
+append(a, b)       // ok
+append(a, a)       // error: `a` is borrowed mutably and shared at the same time
+```
 
 **Borrows are tracked per place**, not per variable: distinct fields of a
 struct (and distinct elements of a tuple) can be borrowed independently.
 Indexing (`list[i]`) borrows the whole collection.
 
 ```astra
-let n = lx.brackets.len()          // borrows lx.brackets
-lx.interpolations.push(n)          // borrows lx.interpolations mutably: ok
-lx.interpolations.push(lx.brackets.len())   // also ok, see below
+lx.interpolations.push(lx.brackets.len())   // ok: two different fields of lx
 ```
 
-**Two-phase borrows.** In a method call with a `&mut` receiver, the
-arguments are evaluated before the exclusive borrow of the receiver becomes
-active, so they may read other parts of the same value, or even the
-receiver itself: `list.push(list.len())` is accepted.
+**Two-phase borrows.** In a call, the arguments are evaluated before an
+exclusive borrow of the receiver or of a `mut` argument becomes active, so
+`list.push(list.len())` is accepted.
 
-A borrow lasts from the point where the reference is created to its **last
-use** (non-lexical borrows):
+Because `mut` arguments never alias anything else, the compiler tells LLVM
+they are `noalias`, enabling optimizations that C compilers cannot perform
+safely.
+
+## 5.5 Borrowed bindings
+
+The same borrow modes apply to other bindings that refer to an existing
+value instead of owning it:
+
+| Binding | Mode |
+|---------|------|
+| `for x in list` | borrows each element (Copy elements are copied) |
+| `for mut x in list` | borrows each element mutably; `list` must be a mutable place |
+| `match` / `if let` on a place that is not owned (a borrowed parameter, a field of one, an element) | bindings borrow the matched parts (Copy parts are copied) |
+| `match` on an owned value | bindings take ownership of the parts |
+
+```astra
+for mut item in cart.items {
+    item.price = item.price * 90 / 100
+}
+```
+
+## 5.6 Explicit references (advanced)
+
+The types `&T` and `&mut T` still exist for the cases parameter modes do not
+cover. They are **second-class**: a reference may be bound to a local
+(`let r = &list`), returned from a function under the rule below, or stored
+in a `ref struct`, but never stored in an ordinary struct, enum or
+container. Because a reference can never outlive the call or block that
+created it, no lifetime annotations are ever needed.
 
 ```astra
 var list = [1, 2, 3]
@@ -147,52 +201,37 @@ println("{r.len()}")   // last use of r: the borrow ends here
 list.push(4)           // ok
 ```
 
-```astra
-var list = [1, 2, 3]
-let r = &list
-list.push(4)           // error: `list` is borrowed by `r`
-println("{r.len()}")
-```
-
-The rules apply to arguments of a single call as well:
-
-```astra
-swap(&mut a, &mut a)   // error: `a` is borrowed mutably twice
-```
-
-## 5.6 Returning borrows and `ref struct`
-
-Two controlled exceptions make the model practical for accessors and
-iterators, still without lifetime annotations.
+A borrow lasts from the point where it is created to its **last use**
+(non-lexical borrows).
 
 ### Returning a borrow
 
-A function may return a reference (or a `ref struct`, below) if it has
-**exactly one** reference parameter, counting the receiver. The result
-borrows from that parameter:
+A function may return a reference (or a `ref struct`, or an `Option`/`Result`
+containing one) that borrows from **one** parameter:
+
+- from the receiver, if the function is a method with a borrowed or `mut`
+  receiver;
+- otherwise from its only borrowed parameter of a non-Copy type.
+
+With no such parameter, or with several candidates, returning a borrow is an
+error.
 
 ```astra
-fn (l: &List<T>) first() Option<&T> { ... }
-fn (u: &mut User) nameMut() &mut str { ... }
+fn (l: List<T>) first() Option<&T> { ... }
+fn (u: mut User) nameMut() &mut str { ... }
 
 let f = list.first()     // f borrows `list`
 list.push(4)             // error: `list` is borrowed by `f`
 ```
 
-With zero or several reference parameters, returning a borrow is an error.
-The caller treats the result like any other local reference: it can be used
-and passed down, but not stored or returned further (unless the caller is
-itself a function following this rule).
-
-`Option<&T>` and `Result<&T, E>` are allowed as return types under this
-rule; they are the only containers that may hold a reference, and only as a
-return value or a local binding.
+The caller treats the result like any other local reference: it can be used,
+passed to functions, and returned further only under the same rule.
 
 ### `ref struct`
 
 A struct declared with `ref` may contain references. It is itself
-second-class: it follows every restriction of 5.4 and can be returned only
-under the rule above.
+second-class: it can be bound locally, passed as an argument and returned
+under the rule above, but not stored in ordinary structs or containers.
 
 ```astra
 ref struct ListIter<T> {
@@ -200,11 +239,11 @@ ref struct ListIter<T> {
     index: int
 }
 
-fn (l: &List<T>) iter() ListIter<T> {
-    return ListIter{list: l, index: 0}
+fn (l: List<T>) iter() ListIter<T> {
+    return ListIter{list: &l, index: 0}
 }
 
-fn (it: &mut ListIter<T>) next() Option<&T> {
+fn (it: mut ListIter<T>) next() Option<&T> {
     ...
 }
 ```
@@ -216,27 +255,28 @@ written.
 
 - No garbage collector and no reference counting: allocation and release
   points are known at compile time.
-- Since two `&mut` references can never alias, the compiler marks them
-  `noalias` for LLVM, enabling optimizations that C compilers cannot
-  perform safely.
-- Small structs passed as `&T` may be passed by value when it is cheaper;
-  the semantics are the same because shared references are read-only.
+- Borrowed parameters are passed by pointer or by value as the compiler sees
+  fit, never copied deeply.
+- `mut` parameters and `&mut` references never alias, so they are marked
+  `noalias` for LLVM; borrowed parameters of types without interior
+  mutability are `noalias readonly`.
 
 ## 5.8 Interior mutability
 
-Some types must allow mutation through a shared reference: counters shared
-by several owners, caches, locks. They are built on one primitive,
-`UnsafeCell<T>` in `std.mem`, the only way to obtain a `*mut T` from a `&T`
-without undefined behavior. Safe wrappers in the standard library:
+Some types must allow mutation through a shared borrow: counters shared by
+several owners, caches, locks. They are built on one primitive,
+`UnsafeCell<T>` in `std.mem`, the only way to obtain a `*mut T` from a
+shared borrow without undefined behavior. Safe wrappers in the standard
+library:
 
 | Type | Use |
 |------|-----|
-| `Cell<T>` (T Copy) | `get` / `set` a value through `&Cell<T>` |
+| `Cell<T>` (T Copy) | `get` / `set` a value through a shared borrow |
 | `Mutex<T>`, `RwLock<T>`, atomics | shared mutation across threads (chapter 14) |
 
 A type **has interior mutability** if it contains an `UnsafeCell` directly or
-through its fields. The compiler never marks `&T` as `readonly` for such
-types (chapter 13.5). `RefCell` (borrow checking at runtime) is
+through its fields. The compiler never marks borrows of such types as
+`readonly` (chapter 13.5). `RefCell` (borrow checking at runtime) is
 intentionally not provided.
 
 ## 5.9 Shared ownership **[planned]**
