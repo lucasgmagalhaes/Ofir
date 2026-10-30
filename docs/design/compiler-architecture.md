@@ -219,7 +219,7 @@ Properties:
 | `xs[i]` | `Len` + `Assert(i < len)` + `Index` projection |
 | `x?` | `Discriminant` + `Switch`; the error arm assigns the return place and jumps to the return block |
 | `match` | decision tree of `Switch` on discriminants and literals |
-| `for x in list` | index loop with `Len`, `Index` and a borrowed element |
+| `for x in list` | index loop with `Len` and `Index`; the element is copied (Copy types) or borrowed |
 | `for x in iter` | loop calling `next()` and switching on `Option` |
 | string interpolation | calls to `Display.format` on a fresh `str` buffer |
 | closures | an environment struct + a function taking it as first parameter |
