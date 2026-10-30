@@ -53,4 +53,16 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0701 | cannot borrow `x` as mutable because it is also borrowed as shared | stage 1 |
 | E0702 | a reference cannot be stored or returned here | stage 1 |
 
-New codes are added to this table in the same commit as the diagnostic.
+### Warnings
+
+| Code | Message | Since |
+|------|---------|-------|
+| W0001 | unused variable `x` | stage 0 |
+| W0002 | unused import | stage 0 |
+| W0003 | unused private item | stage 1 |
+| W0004 | unreachable code | stage 0 |
+| W0005 | variable does not need to be `var` | stage 1 |
+| W0006 | use of deprecated item | stage 1 |
+| W0007 | name does not follow the naming convention | stage 1 |
+
+New codes are added to these tables in the same commit as the diagnostic.
