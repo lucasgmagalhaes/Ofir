@@ -51,3 +51,7 @@ fn main() {
     println("length = {p.length()}")
 }
 ```
+
+## License
+
+Astra is distributed under the [MIT License](LICENSE).

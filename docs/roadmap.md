@@ -40,7 +40,7 @@ Phase 6  Towards 1.0            concurrency, tools, packages, docs       → v1.
 
 | Decision | Blocks | Status |
 |----------|--------|--------|
-| License (MIT, Apache-2.0, or both) | 0.2 | **open: owner's decision** |
+| License | 0.2 | decided: **MIT** |
 
 Everything else needed for Phases 0–3 is decided in the specification and
 the ADRs.
@@ -216,7 +216,6 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Choose the license.
-2. Start Phase 0: tasks 0.1 to 0.8.
+1. Start Phase 0: tasks 0.1 to 0.8.
 
 See also the [risk register](risks.md).
