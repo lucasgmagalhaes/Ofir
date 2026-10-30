@@ -165,7 +165,7 @@ lx.interpolations.push(lx.brackets.len())   // ok: two different fields of lx
 ```
 
 **Two-phase borrows.** In a call, the arguments are evaluated before an
-exclusive borrow of the receiver or of a `mut` argument becomes active, so
+exclusive borrow of `mut self` or of a `mut` argument becomes active, so
 `list.push(list.len())` is accepted.
 
 Because `mut` arguments never alias anything else, the compiler tells LLVM

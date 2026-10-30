@@ -101,8 +101,8 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.8 | `str`: literals, `+`, `+=`, `==`, comparison, `len`, byte indexing, `push` | M | `tests/run/strings/*` pass |
 | 2.9 | Interpolation of all primitive types; shortest round-trip float formatting (spec 2.1) | M | `tests/run/strings/float_format*` pass |
 | 2.10 | Structs: declaration, literals, field access and assignment, nested structs, `copy struct` | M | `tests/run/structs/*` pass |
-| 2.11 | Methods and associated functions; auto-referencing of receivers | M | `tests/run/methods/*` pass |
-| 2.12 | Parameter modes (borrow, `mut`, `move`) for parameters and receivers, `for mut`, `[T]`/`str` view parameters; explicit `&T`/`&mut T` locals, auto-deref, `*` | M | `tests/run/modes/*` pass |
+| 2.11 | Methods and associated functions declared inside structs and enums, `self` | M | `tests/run/methods/*` pass |
+| 2.12 | Parameter modes (borrow, `mut`, `move`) for parameters and `self`, `for mut`, `[T]`/`str` view parameters; explicit `&T`/`&mut T` locals, auto-deref, `*` | M | `tests/run/modes/*` pass |
 | 2.13 | Tuples and destructuring `let` | S | tests pass |
 | 2.14 | Enums: layout, construction, `.Variant` shorthand | M | tests pass |
 | 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards; Copy bindings through references | L | `examples/shapes.at` runs |

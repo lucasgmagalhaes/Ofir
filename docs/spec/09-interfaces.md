@@ -208,6 +208,6 @@ call that the reader cannot predict.
 
 ## 9.10 Coherence
 
-Methods can only be declared in the module that declares the type (chapter
-3.6). As a consequence, whether a type satisfies an interface never depends
+Methods are declared inside the body of their type (chapter 3.6), so a
+type's methods are all known where the type is declared. As a consequence, whether a type satisfies an interface never depends
 on which modules are imported.

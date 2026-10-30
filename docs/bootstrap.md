@@ -101,13 +101,14 @@ M4, the code in `compiler/` must be written in this subset.
 - arithmetic (checked), comparisons, logic, bitwise operators, `as`
 - `if`, `for` (all forms), `break`, `continue`, `return`
 - `str`, string interpolation (without format specifiers), `print`/`println`
-- structs, methods, associated functions, `copy struct`
+- structs and enums with methods and associated functions declared in
+  their body, `copy struct`
 - enums with data, `match` (exhaustiveness checked), `if let`
 - tuples
 - `==` and `!=` on integers, floats, `bool`, `str` and fieldless enums
   (derived equality for other types comes with interfaces in stage 1)
 - parameter modes: borrow (default), `mut` and `move`, for parameters and
-  receivers; `for mut` loops; `[T]` and `str` parameters accepting slices
+  `self`; `for mut` loops; `[T]` and `str` parameters accepting slices
 - explicit references `&T`, `&mut T` as locals; slices `&[T]`, `&str`
 - built-in generics: `List<T>`, `Map<K, V>`, `Option<T>`, `Result<T, E>`,
   `Box<T>`, and the `?` operator (both error types must be equal)

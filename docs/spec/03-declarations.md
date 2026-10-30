@@ -41,7 +41,7 @@ fn log(message: str) {          // returns ()
 ```
 
 ```ebnf
-FnDecl = [ "pub" ] "fn" [ Receiver ] identifier "(" [ Params ] ")" [ Type ] Block .
+FnDecl = [ "pub" ] "fn" identifier "(" [ Params ] ")" [ Type ] Block .
 Params = Param { "," Param } [ "," ] .
 Param  = identifier ":" Type .
 ```
