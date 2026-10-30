@@ -57,8 +57,9 @@ Param  = identifier ":" Type .
 ### Entry point
 
 Every program has exactly one `fn main()` in its root module. It takes no
-parameters and returns `()` or `Result<(), E>`. If `main` returns an `Err`,
-the error is printed and the process exits with status 1. Command line
+parameters and returns `()` or `Result<(), E>` where `E` satisfies
+`Display`. If `main` returns an `Err`, the error is printed to standard error
+as `error: <message>` and the process exits with status 1. Command line
 arguments are available through `std.os.args()`.
 
 ## 3.4 Structs
