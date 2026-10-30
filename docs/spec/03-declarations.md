@@ -106,25 +106,69 @@ When the expected type is known, the enum name can be omitted:
 
 ## 3.6 Methods
 
-A method is a function with a receiver, written before its name as in Go:
+Methods are declared **inside** the body of the struct or enum they belong
+to, after its fields or variants. A method takes `self` as its first
+parameter; the mode of `self` (chapter 5.3) says how the value is used:
 
 ```astra
-fn (p: Point) length() float { ... }        // reads p
-fn (p: mut Point) scale(k: float) { ... }      // modifies p
-fn (p: move Point) intoVec2() Vec2 { ... } // consumes p
-fn Point.origin() Point { ... }              // associated function (no receiver)
-```
+pub struct Point {
+    pub x: float
+    pub y: float
 
-The receiver form defines how the value is passed (see chapter 5). At a call
-site, the compiler borrows automatically:
+    pub fn origin() Point {                 // no `self`: associated function
+        return Point{x: 0.0, y: 0.0}
+    }
+
+    pub fn length(self) float {             // reads the point
+        return (self.x * self.x + self.y * self.y).sqrt()
+    }
+
+    pub fn scale(mut self, k: float) {      // modifies the point
+        self.x *= k
+        self.y *= k
+    }
+
+    pub fn intoVec2(move self) Vec2 {       // consumes the point
+        return Vec2{x: self.x, y: self.y}
+    }
+}
+```
 
 ```astra
 var p = Point.origin()
-p.scale(2.0)       // same as Point.scale(p, 2.0)
-let l = p.length() // same as Point.length(p)
+p.scale(2.0)
+let l = p.length()
 ```
 
-Methods can only be declared in the module that declares the type.
+- Inside a method, fields and other methods are always reached through
+  `self` (`self.x`, `self.length()`); there is no implicit `this`.
+  Associated functions are called through the type name, or `Self` inside
+  the type (`Self.origin()`).
+- `self` has the type of the enclosing struct or enum, `Self`.
+- `pub` on a method makes it visible to other modules; methods are private
+  by default, like everything else.
+- The type parameters of a generic type are in scope in all its methods
+  (chapter 8.3).
+- All the methods of a type are declared in its body, so they always live in
+  the type's module.
+- By convention fields come first, then associated functions, then methods;
+  the formatter enforces this order.
+
+Enums declare methods after their variants:
+
+```astra
+enum Shape {
+    Circle(radius: float)
+    Rect(width: float, height: float)
+
+    fn area(self) float {
+        return match self {
+            .Circle(r) => 3.14159 * r * r
+            .Rect(w, h) => w * h
+        }
+    }
+}
+```
 
 ## 3.7 Destructors
 
@@ -132,8 +176,12 @@ A type may define a `drop` method, called automatically when a value of that
 type goes out of scope (chapter 5):
 
 ```astra
-fn (f: mut File) drop() {
-    close(f.fd)
+struct File {
+    fd: i32
+
+    fn drop(mut self) {
+        close(self.fd)
+    }
 }
 ```
 
