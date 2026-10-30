@@ -39,7 +39,16 @@ fn main() {
 }
 ```
 
-The runner checks that exactly the annotated errors are produced.
+The runner checks that exactly the annotated errors are produced, matching
+the **code and line** strictly and the message as a substring.
+
+Stage 0 reports only the first error per function and has terser messages.
+When testing stage 0, the runner therefore checks only that the **first**
+annotated error of each function is reported with the right code and line,
+and ignores messages. Tests that need several errors in one function or
+exact messages are tagged `// requires: stage1`.
+
+Error codes come from the registry in [`docs/errors`](../errors/README.md).
 
 ### Panic tests
 

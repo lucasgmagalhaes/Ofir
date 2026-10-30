@@ -1,0 +1,55 @@
+# Error code registry
+
+Every diagnostic produced by an Astra compiler has a stable code. Codes are
+never reused or renumbered; a retired code is marked as such. Both compiler
+stages use the same codes, so the `tests/compile_fail` suite works with
+either.
+
+Each code gets its own file, `EXXXX.md`, with a short explanation, an
+example that triggers it and how to fix it. `astra explain EXXXX` prints
+that file.
+
+## Ranges
+
+| Range | Phase |
+|-------|-------|
+| `E0001`–`E0099` | lexer |
+| `E0100`–`E0199` | parser |
+| `E0200`–`E0299` | names, modules and visibility |
+| `E0300`–`E0499` | types, methods, generics and interfaces |
+| `E0500`–`E0599` | patterns and `match` |
+| `E0600`–`E0699` | moves and initialization |
+| `E0700`–`E0799` | borrows and reference escape |
+| `E0800`–`E0899` | constants, attributes, FFI and `unsafe` |
+| `E0900`–`E0999` | driver, files and toolchain |
+
+Warnings use the same scheme with a `W` prefix (`W0001`, ...).
+
+## Codes
+
+| Code | Message | Since |
+|------|---------|-------|
+| E0001 | unexpected character | stage 0 |
+| E0002 | unterminated string literal | stage 0 |
+| E0003 | unterminated block comment | stage 0 |
+| E0004 | invalid escape sequence | stage 0 |
+| E0005 | integer literal too large | stage 0 |
+| E0100 | expected X, found Y | stage 0 |
+| E0200 | cannot find name `x` in this scope | stage 0 |
+| E0201 | `x` is defined more than once | stage 0 |
+| E0202 | `x` is private | stage 0 |
+| E0300 | mismatched types: expected X, found Y | stage 0 |
+| E0301 | no method `m` on type `T` | stage 0 |
+| E0302 | wrong number of arguments | stage 0 |
+| E0303 | function may reach its end without returning a value | stage 0 |
+| E0304 | cannot assign twice to immutable variable `x` | stage 0 |
+| E0305 | unused `Result` that must be used | stage 0 |
+| E0500 | non-exhaustive `match`: missing patterns | stage 0 |
+| E0600 | use of moved value `x` | stage 0 |
+| E0601 | use of possibly uninitialized variable `x` | stage 0 |
+| E0602 | cannot move out of a borrowed or indexed place | stage 0 |
+| E0700 | cannot borrow `x` as mutable more than once | stage 1 |
+| E0701 | cannot borrow `x` as mutable because it is also borrowed as shared | stage 1 |
+| E0702 | a reference cannot be stored or returned here | stage 1 |
+
+New codes are added to this table in the same commit as the diagnostic.
