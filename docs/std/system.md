@@ -22,8 +22,8 @@ pub copy enum IoErrorKind {
 |------|-------------|:--:|
 | `fn stdout() Stdout`, `fn stderr() Stderr` | handles to the runtime-buffered streams | ✓ |
 | `fn stdin() Stdin` | | ✓ |
-| `fn (s: mut Stdin) readLine(buf: mut str) Result<int, IoError>` | returns bytes read, `0` at end of input | ✓ |
-| `fn (s: mut Stdin) readToString() Result<str, IoError>` | | ✓ |
+| `fn readLine(mut self, buf: mut str) Result<int, IoError>` | returns bytes read, `0` at end of input | ✓ |
+| `fn readToString(mut self) Result<str, IoError>` | | ✓ |
 | `interface Reader`, `interface Writer` | spec 9.4 | |
 | `struct BufWriter<W>` | buffered writer over any `Writer` | |
 | `fn flush() Result<(), IoError>` | flush standard output | ✓ |
