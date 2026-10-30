@@ -43,23 +43,23 @@ fn add(a: int, b: int) int {
 }
 
 @test
-fn add_works() {
+fn addWorks() {
     assert(add(2, 2) == 4)
-    assert_eq(add(-1, 1), 0)
+    assertEq(add(-1, 1), 0)
 }
 ```
 
 - `astra test` compiles the project with all `@test` functions and runs
   each one in a separate process, so a panic fails only that test.
 - Tests are excluded from normal builds.
-- `assert_eq(a, b)` prints both values (using `Debug`) when they differ.
+- `assertEq(a, b)` prints both values (using `Debug`) when they differ.
 
 ## 12.3 Benchmarks
 
 ```astra
 @bench
-fn bench_sort(b: &mut Bencher) {
-    var data = random_list(10_000)
+fn benchSort(b: &mut Bencher) {
+    var data = randomList(10_000)
     b.run(fn() => data.sort())
 }
 ```
@@ -71,7 +71,7 @@ per iteration.
 
 ```astra
 @cfg(os == "linux")
-fn page_size() int { return 4096 }
+fn pageSize() int { return 4096 }
 
 @cfg(debug)
 fn trace(msg: &str) { eprintln(msg) }
@@ -109,6 +109,7 @@ meaningful:
 | unreachable code | statements after `return` |
 | unused `mut` / `var` | a `var` that is never reassigned or mutated |
 | deprecated item | uses of `@deprecated` items |
+| naming convention | `fn read_file()`, `struct token` (chapter 1.4) |
 
 - `--deny-warnings` turns every warning into an error; CI uses it.
 - `@allow(unused)` on an item silences a warning category for that item.
