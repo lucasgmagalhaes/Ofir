@@ -50,9 +50,9 @@ enum variants; `SCREAMING_CASE` for constants.
 ## 1.5 Keywords
 
 ```
-as        break     const     continue  else      enum      extern
-false     fn        for       if        import    in        let
-match     mut       pub       return    self      struct    true
+as        break     const     continue  copy      else      enum
+extern    false     fn        for       if        import    in
+let       match     mut       pub       return    struct    true
 var
 ```
 
