@@ -25,6 +25,10 @@ fn main() {
   new value).
 - Copy types (chapter 2.9) are copied instead of moved.
 - To duplicate a move type explicitly, call `.clone()`.
+- A value can only be moved out of a place the function owns entirely.
+  `let x = list[i]` or `let n = user_ref.name` with a move type is an error;
+  use `list.remove(i)`, `list.swap_remove(i)`, `mem.replace(&mut list[i], v)`,
+  `mem.take(&mut opt)` or `.clone()` instead.
 
 ### Partial and conditional moves
 
@@ -59,7 +63,7 @@ model.
 ```astra
 fn total(xs: &List<int>) int {         // shared borrow
     var sum = 0
-    for x in xs { sum += *x }
+    for x in xs { sum += x }
     return sum
 }
 
@@ -81,6 +85,10 @@ fn main() {
   borrowed implicitly and dropped at the end of the statement:
   `println(user.describe())`. Named variables and fields always need an
   explicit `&`, so moving and borrowing stay visible.
+- **Implicit reborrowing.** Passing a `&mut T` variable where a `&mut T` is
+  expected does not move the reference: it is reborrowed for the duration of
+  the call and can be used again afterwards. The same applies to method
+  calls through a `&mut` receiver.
 - Field access and method calls dereference automatically (`p.x` works when
   `p: &Point`). Explicit dereference `*r` is needed for primitives.
 - `*r` on a reference to a move type may only be used to read a Copy field

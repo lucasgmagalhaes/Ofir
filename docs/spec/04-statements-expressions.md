@@ -52,7 +52,7 @@ for n < 100 {              // while-style
 for i in 0..10 { }         // 0, 1, ..., 9
 for i in 0..=10 { }        // 0, 1, ..., 10
 
-for item in list { }       // item: &T  (borrows the list)
+for item in list { }       // borrows the list; item: T if T is Copy, else &T
 for item in &mut list { }  // item: &mut T
 for i, item in list { }    // with the index (int)
 
@@ -132,7 +132,8 @@ Bitwise operators sit at the same level as the matching arithmetic
 operators, as in Go, so `a & mask == 0` means `(a & mask) == 0`.
 
 Arithmetic and comparison operators require both operands to have the same
-type. `+` also concatenates `str` values (allocating a new string).
+type. On `str`, `a + b` reads both operands without consuming them and
+returns a new `str`; `s += t` appends `t` to `s` in place.
 `==` and `!=` work on primitives, `str`, and on structs and enums whose
 fields all support `==`.
 
