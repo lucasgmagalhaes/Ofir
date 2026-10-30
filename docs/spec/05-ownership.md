@@ -122,6 +122,21 @@ At any point in a function, for each value:
 but never both. While a value is borrowed, it cannot be moved, and while it
 is exclusively borrowed it cannot be read or written through its owner.
 
+**Borrows are tracked per place**, not per variable: distinct fields of a
+struct (and distinct elements of a tuple) can be borrowed independently.
+Indexing (`list[i]`) borrows the whole collection.
+
+```astra
+let n = lx.brackets.len()          // borrows lx.brackets
+lx.interpolations.push(n)          // borrows lx.interpolations mutably: ok
+lx.interpolations.push(lx.brackets.len())   // also ok, see below
+```
+
+**Two-phase borrows.** In a method call with a `&mut` receiver, the
+arguments are evaluated before the exclusive borrow of the receiver becomes
+active, so they may read other parts of the same value, or even the
+receiver itself: `list.push(list.len())` is accepted.
+
 A borrow lasts from the point where the reference is created to its **last
 use** (non-lexical borrows):
 
