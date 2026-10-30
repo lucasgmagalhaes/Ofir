@@ -130,13 +130,13 @@ fn (f: &mut File) drop() {
 
 ## 3.8 External functions
 
-Functions implemented in C (libc or the Astra runtime) are declared with
-`extern`:
+Functions implemented in C (libc or the Astra runtime) are declared in an
+`extern "C"` block and can only be called from `unsafe` code:
 
 ```astra
-extern fn write(fd: i32, buf: &u8, len: uint) -> int
+extern "C" {
+    fn write(fd: i32, buf: *u8, len: uint) -> int
+}
 ```
 
-Calling an `extern` function is allowed only from modules marked as
-`unsafe` in the standard library during the bootstrap phase. A general
-`unsafe` mechanism for user code is **[planned]**.
+See chapter 11 for the full rules.
