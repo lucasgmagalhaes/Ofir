@@ -28,6 +28,7 @@ struct Header {
 | `@test` | functions | a test (12.2) |
 | `@bench` | functions | a benchmark (12.3) |
 | `@cfg(cond)` | any | conditional compilation (12.4) |
+| `@allow(category)` | any | silence a warning category (12.6) |
 
 Unknown attributes are compile errors.
 
@@ -94,3 +95,21 @@ compiled and run by `astra test` as doc tests.
 /// ```
 pub fn max<T: Ord>(a: T, b: T) T { ... }
 ```
+
+## 12.6 Warnings
+
+Errors stop compilation; warnings do not. Astra keeps warnings few and
+meaningful:
+
+| Warning | Example |
+|---------|---------|
+| unused variable | `let x = 1` never read (prefix with `_` to silence) |
+| unused import | `import std.fs` never used |
+| unused private function, type or constant | |
+| unreachable code | statements after `return` |
+| unused `mut` / `var` | a `var` that is never reassigned or mutated |
+| deprecated item | uses of `@deprecated` items |
+
+- `--deny-warnings` turns every warning into an error; CI uses it.
+- `@allow(unused)` on an item silences a warning category for that item.
+- Ignoring a `Result` is an **error**, not a warning (chapter 6.3).
