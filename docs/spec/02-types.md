@@ -243,3 +243,16 @@ let n = match input {
 
 `*T` and `*mut T` are unchecked pointers, usable only in `unsafe` code
 (chapter 11).
+
+## 2.17 Sized and unsized types
+
+Most types have a size known at compile time. Three kinds of types do not:
+
+- `dyn I` (the size depends on the concrete type),
+- `[T]` (a sequence of unknown length),
+- the text behind a `&str`.
+
+Unsized types can only be used behind a pointer: `&`, `&mut`, `*`, `*mut`
+or `Box`. Such pointers are fat (chapter 13.4). Generic type parameters are
+always sized; `&T`, `&mut T`, `Box<T>` and raw pointers are the built-in
+types that also accept an unsized `T`.
