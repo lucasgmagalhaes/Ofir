@@ -112,7 +112,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 3.6 | `extern "C"` blocks, `unsafe` blocks, raw pointers | M | calling `strlen` works |
 | 3.7 | `std.io` (stdout, stderr, buffered writer), `std.fs` (read/write files) | M | `examples/word_count.at` runs |
 | 3.8 | `std.os`: args, env, exit, spawn process and wait | M | a test program runs `clang --version` |
-| 3.9 | `std.str` helpers: split, trim, find, starts_with, parse integers | M | tests pass |
+| 3.9 | `std.strings` helpers: split, trim, find, starts_with, parse integers | M | tests pass |
 | 3.10 | `@test` functions and `astra test` | M | `std` tests run in CI |
 | 3.11 | Freeze review: run all suites under ASan/UBSan, fix leaks and crashes | M | **M2: stage 0 complete** |
 

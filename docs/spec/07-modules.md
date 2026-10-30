@@ -4,7 +4,8 @@
 
 - Every `.at` file is a module. The module name is the file name.
 - A directory groups modules into a package: `src/parser/lexer.at` is the
-  module `parser.lexer`.
+  module `parser.lexer`. A file named `mod.at` inside a directory is the
+  module named after the directory itself (`src/parser/mod.at` is `parser`).
 - A program is built from a root file containing `fn main()`.
 
 ## 7.2 Imports
@@ -23,7 +24,7 @@ import parser.ast as ast
   root file) and to the standard library.
 - Circular imports are allowed; declarations in a module can reference each
   other in any order.
-- Unused imports are a compile error.
+- An unused import produces a warning (chapter 12.6).
 
 ## 7.3 Visibility
 
@@ -72,8 +73,9 @@ There are no variadic functions in Astra.
 | `std.io` | stdin/stdout/stderr, buffered readers and writers |
 | `std.fs` | read and write files, directories |
 | `std.os` | command line arguments, environment, exit, run processes |
-| `std.str` | string helpers: split, trim, find, parse numbers |
-| `std.math` | `sqrt`, `pow`, `floor`, trigonometric functions |
+| `std.strings` | string helpers: split, trim, find, parse numbers (named so it does not shadow the `str` type) |
+| `std.math` | constants and functions such as `math.PI`, `math.hypot`; float methods like `x.sqrt()` live on the type |
+| `std.mem` | `swap`, `replace`, `take`, `UnsafeCell`, `Cell` |
 
 These are the modules the self-hosted compiler needs. The rest of the
 standard library is **[planned]**.
