@@ -42,7 +42,7 @@ properties stated as **guaranteed** can be relied on.
 | `&dyn I`, `Box<dyn I>` | data pointer + vtable pointer (16 bytes) |
 | `str` | pointer + length + capacity (24 bytes) |
 | `List<T>` | pointer + length + capacity (24 bytes) |
-| `Map<K, V>` | open-addressing hash table (implementation-defined) |
+| `Map<K, V>` | dense entry list in insertion order + open-addressing index table |
 | `fn(A) R`, `move fn(A) R` | code pointer + environment pointer (16 bytes) |
 | `extern "C" fn(A) R` | code pointer (8 bytes) |
 

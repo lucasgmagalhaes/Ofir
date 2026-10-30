@@ -88,7 +88,7 @@ through the prelude. User-defined generics are described in chapter 8.
 | Type | Description |
 |------|-------------|
 | `List<T>` | owned, growable, contiguous array |
-| `Map<K, V>` | owned hash map |
+| `Map<K, V>` | owned hash map that iterates in insertion order |
 | `Option<T>` | `Some(T)` or `None` |
 | `Result<T, E>` | `Ok(T)` or `Err(E)` |
 | `Box<T>` | owned heap allocation (needed for recursive types) |
@@ -100,6 +100,13 @@ let first: Option<int> = xs.first()
 ```
 
 `T?` is shorthand for `Option<T>`.
+
+**Map ordering and hashing.** Iterating a `Map` visits entries in the order
+their keys were first inserted (removing a key forgets its position). The
+default hasher is deterministic: it uses no random seed, so a program's
+output never depends on hash values and repeated runs behave identically.
+A seeded, DoS-resistant hasher for maps filled from untrusted input is
+**[planned]** (`Map.with_hasher(...)`).
 
 ## 2.7 Fixed-size arrays
 

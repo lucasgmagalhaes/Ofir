@@ -56,7 +56,7 @@ for item in list { }       // item: &T  (borrows the list)
 for item in &mut list { }  // item: &mut T
 for i, item in list { }    // with the index (uint)
 
-for key, value in map { }  // key: &K, value: &V
+for key, value in map { }  // key: &K, value: &V, in insertion order
 ```
 
 `break` and `continue` apply to the innermost loop. Labeled loops are
