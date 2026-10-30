@@ -3,8 +3,8 @@
 This is the complete syntactic grammar of Astra in EBNF. Lexical tokens
 (identifiers, literals, keywords, operators) are defined in chapter 1.
 
-`NL` is the newline token emitted by the lexer at the end of each line
-outside `(...)` and `[...]`. Following chapter 1.3, the parser accepts `NL`
+`NL` is the newline token emitted by the lexer at the end of each line,
+except when the innermost open bracket is `(` or `[`. Following chapter 1.3, the parser accepts `NL`
 only where it appears in this grammar and silently skips it everywhere else.
 Where the grammar allows `NL`, any number of consecutive newlines may appear.
 A terminator before `}` may be omitted.
