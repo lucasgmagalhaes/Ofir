@@ -104,6 +104,8 @@ M4, the code in `compiler/` must be written in this subset.
 - structs, methods, associated functions, `copy struct`
 - enums with data, `match` (exhaustiveness checked), `if let`
 - tuples
+- `==` and `!=` on integers, floats, `bool`, `str` and fieldless enums
+  (derived equality for other types comes with interfaces in stage 1)
 - references `&T`, `&mut T` as parameters and locals; slices `&[T]`, `&str`
 - built-in generics: `List<T>`, `Map<K, V>`, `Option<T>`, `Result<T, E>`,
   `Box<T>`, and the `?` operator (both error types must be equal)

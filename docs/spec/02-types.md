@@ -173,6 +173,8 @@ A type is **Copy** if a bitwise copy is a complete, independent copy:
 - shared references `&T`
 - fixed arrays `[T; N]` whose element type is Copy
 - structs and enums declared with `copy` whose fields are all Copy
+- `Option<T>` and `Result<T, E>` when their type arguments are Copy, and
+  tuples whose elements are all Copy
 
 ```astra
 copy struct Vec2 {
