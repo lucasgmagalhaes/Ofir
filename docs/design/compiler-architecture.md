@@ -89,8 +89,13 @@ needs no fine-grained memory management, which keeps stage 0 simple and fast.
 ## 3. Lexer
 
 - Hand written, single pass over bytes, no backtracking.
-- Emits a newline token at the end of each line outside `(...)` and `[...]`.
-  It does not decide whether the newline ends a statement; the parser does.
+- Emits a newline token at the end of each line unless the innermost open
+  bracket is `(` or `[` (it keeps a stack of open brackets). It does not
+  decide whether the newline ends a statement; the parser does.
+- Emits `>` as a single token; the parser joins adjacent `>` tokens (no
+  space between them) into `>>`, `>=` and `>>=` in expression contexts.
+  Likewise, a float token such as `0.1` after a `.` in field position
+  (`pair.0.1`) is split by the parser into two tuple field accesses.
 - String interpolation is split into tokens:
   `"a {x} b"` → `StrStart("a ")`, tokens of `x`, `StrMid(" b")`... `StrEnd`.
   The lexer keeps a small stack of brace depths to know when `}` closes an

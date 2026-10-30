@@ -38,14 +38,26 @@ let total = price
 To split a long expression, end the line with the operator, a `,`, or an
 opening bracket.
 
-Newlines inside `(...)` and `[...]` are always ignored, so long argument
-lists and array literals can span several lines:
+Newlines directly inside `(...)` and `[...]` are always ignored, so long
+argument lists and array literals can span several lines:
 
 ```astra
 let total = add(
     first,
     second,
 )
+```
+
+"Directly" means that the innermost open bracket is `(` or `[`. Inside a
+`{ }` block the newline rule applies again, even when the block itself is
+inside parentheses, so a closure passed as an argument has normal
+statements:
+
+```astra
+thread.spawn(move fn() {
+    let x = compute()       // the newline ends this statement
+    send(x)
+})
 ```
 
 A consequence: an opening `{` must be on the same line as the construct it
@@ -98,6 +110,10 @@ let type = token.type      // fine: `type` is an ordinary identifier here
 =    .    ..   ..=  ,    :    =>   ?    @
 (    )    [    ]    {    }    ;
 ```
+
+The lexer never combines `>` with a following character: `>>`, `>=` and
+`>>=` are recognized by the parser from adjacent `>` tokens with no space
+between them. This lets `List<List<int>>` close two type argument lists.
 
 `;` is used only inside array types and repeat literals (`[u8; 16]`,
 `[0; 16]`); it never terminates statements.
