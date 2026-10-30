@@ -71,9 +71,21 @@ letter     = "a"…"z" | "A"…"Z" | "_" .
 digit      = "0"…"9" .
 ```
 
-Conventions (enforced by the formatter, not the compiler):
-`snake_case` for functions, variables and modules; `PascalCase` for types and
-enum variants; `SCREAMING_CASE` for constants.
+### Naming conventions
+
+| Kind | Convention | Example |
+|------|------------|---------|
+| functions, methods, variables, parameters, fields | `camelCase` | `readToString`, `lineCount` |
+| types, interfaces, enum variants, type parameters | `PascalCase` | `TokenKind`, `IoError`, `.NotFound`, `T` |
+| constants | `SCREAMING_CASE` | `MAX_USERS` |
+| modules and file names | lowercase `snake_case` | `std.collections`, `word_count.at` |
+
+Acronyms are written as words: `parseUrl`, `HttpClient`, `IoError` (not
+`parseURL`, `HTTPClient`). Module and file names stay lowercase so that they
+behave the same on case-insensitive file systems.
+
+The conventions are checked by a warning (chapter 12.6), not by the grammar.
+Names declared in `extern "C"` blocks are exempt, since they must match C.
 
 ## 1.5 Keywords
 
