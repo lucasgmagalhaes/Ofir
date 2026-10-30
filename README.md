@@ -11,6 +11,8 @@ collector.
 | Document | Content |
 |----------|---------|
 | [Specification](docs/spec/README.md) | the language, chapter by chapter, with the full grammar |
+| [Standard library](docs/std/README.md) | API reference of `std` |
+| [Error codes](docs/errors/README.md) | registry of compiler diagnostics |
 | [Compiler architecture](docs/design/compiler-architecture.md) | phases, AIR, code generation |
 | [Project structure](docs/design/project-structure.md) | where every part of the code lives |
 | [Toolchain](docs/design/toolchain.md) | the `astra` command and build process |
@@ -19,6 +21,7 @@ collector.
 | [Decisions](docs/adr/README.md) | architecture decision records |
 | [Bootstrap](docs/bootstrap.md) | the path to a self-hosted compiler |
 | [Roadmap](docs/roadmap.md) | ordered implementation tasks |
+| [Risks](docs/risks.md) | risk register and mitigations |
 
 ## Goals
 
