@@ -86,9 +86,10 @@ match code {
 - A guard may follow a pattern: `.Some(n) if n > 0 => ...`
 - `match` **must be exhaustive**; a missing case is a compile error that
   lists the missing patterns.
-- Matching on a borrowed value binds by reference: matching `&Shape`
-  gives `r: &float`. Matching an owned value moves its fields into the
-  bindings.
+- Matching an owned value moves its fields into the bindings.
+- Matching through a reference binds Copy fields by value and other fields
+  by reference: matching a `&Shape` gives `r: float` for `.Circle(r)`, but
+  `name: &str` for a `str` field.
 
 ## 4.6 `if let`
 
