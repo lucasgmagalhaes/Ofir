@@ -181,6 +181,7 @@ fields all satisfy them, unless the type defines the method itself.
 | `Debug` | `fn (&Self) debug(out: &mut str)` | `{x:?}` in interpolation |
 | `Drop` | `fn (&mut Self) drop()` | destruction (chapter 5.2) |
 | `Iterator<T>` | `fn (&mut Self) next() Option<T>` | `for` loops |
+| `From<T>` | `fn Self.from(value: T) Self` | error conversion in `?` (chapter 6.2) |
 | `Default` | `fn Self.default() Self` | `..T.default()` in struct literals, `mem.take` |
 
 `Display` is **not** derived automatically; a type chooses how it is shown.
