@@ -38,7 +38,7 @@ release:
 
 $(BUILD)/astra: $(OBJS)
 	@mkdir -p $(dir $@)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^ -lm
 
 $(BUILD)/obj/$(MODE)/%.o: src/%.c
 	@mkdir -p $(dir $@)
@@ -46,7 +46,7 @@ $(BUILD)/obj/$(MODE)/%.o: src/%.c
 
 $(BUILD)/tests/%: tests/%.c $(LIB_OBJS)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lm
 
 test: $(TESTS)
 	@for t in $(TESTS); do echo "unit: $$t"; $$t || exit 1; done

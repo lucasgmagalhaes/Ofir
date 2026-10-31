@@ -1,0 +1,14 @@
+const SMALL: u8 = 200
+const OVER = SMALL + 100            // error[E0802]: integer overflow in a constant
+const ZERO = 0
+const DIVIDE = 10 / ZERO            // error[E0802]: division by zero in a constant
+const SHIFT = 1 << 64               // error[E0802]: shift amount out of range in a constant
+const CAST = 300 as u8              // error[E0802]: value out of range for the target type of `as`
+const CALL = SMALL + helper()       // error[E0801]: a constant may only use literals, constants and operators
+const NEG = -(-9223372036854775807 - 1)   // error[E0802]: integer overflow in a constant
+
+fn helper() u8 {
+    return 1
+}
+
+fn main() {}

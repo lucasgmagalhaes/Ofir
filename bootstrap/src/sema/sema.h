@@ -33,6 +33,7 @@ typedef struct {
     bool in_prelude;
     bool typed;          // `type` is set (signatures, constants)
     bool checking;       // a constant whose type is being computed (cycle guard)
+    const struct ConstValue *value;   // a constant's value, NULL if it could not be computed
 } Def;
 
 typedef struct {

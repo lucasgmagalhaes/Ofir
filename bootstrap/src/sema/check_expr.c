@@ -278,6 +278,9 @@ TypeId check_const(Checker *c, Def *def) {
     TypeId type = annotation ? resolve_type(c, annotation) : NO_TYPE;
     TypeId found = annotation ? coerce(c, value, type) : check_expr(c, value, NO_TYPE);
     def->type = annotation ? type : found;
+    if (def->kind == DEF_CONST) {
+        def->value = const_eval(c, value);   // while `checking` is set: catches cycles
+    }
     def->checking = false;
     def->typed = true;
     return def->type;
