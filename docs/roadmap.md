@@ -76,15 +76,15 @@ Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 | 1.8 | Parser: items (`fn`, `struct`, `enum`, `const`, `import`), types, statements, parser-driven newline handling (spec 1.3) | M | **done**: `tests/parse` cases pass, including `tests/parse/generics_and_newlines` |
 | 1.9 | Parser: expressions with precedence, struct literal restriction, generic disambiguation, patterns | M | **done**: `tests/parse` cases pass |
 | 1.10 | Parser: error recovery to next statement | S | **done**: several syntax errors reported per file (`tests/compile_fail/parser/recovery`) |
-| 1.11 | Types: interned type table with primitive types, `str`, `()` | S | unit tests |
-| 1.12 | Resolver: single module, functions and locals | S | `E0200`/`E0201` reported |
-| 1.13 | Type checker: functions, `let`/`var`, integer literals, calls, `println(str)`, literals passed to `str` parameters, interpolation of `str` and `int` | M | `tests/compile_fail/types_basic*` pass |
+| 1.11 | Types: interned type table with primitive types, `str`, `()` | S | **done**: unit tests (`bootstrap/tests/test_types.c`) |
+| 1.12 | Resolver: single module, functions and locals | S | **done**: `E0200`/`E0201` reported (`tests/compile_fail/names`) |
+| 1.13 | Type checker: functions, `let`/`var`, integer literals, calls, `println(str)`, literals passed to `str` parameters, interpolation of `str` and `int` | M | **done**: `tests/compile_fail/types/*` pass, also in stage 1 mode |
 | 1.14 | AIR definitions, printer (`--emit=air`) and validator | M | AIR dumps for hello world |
 | 1.15 | Lowering for the skeleton subset | S | AIR validator passes |
 | 1.16 | Codegen: functions, locals, integer arithmetic, calls, string constants; no `noalias` | M | generated `.ll` accepted by clang 17 and the latest clang |
 | 1.17 | Runtime: entry point, stdout buffer, `astra_write`, panic functions, allocator | S | runtime builds with `-Werror` |
 | 1.17a | **done**: Benchmark harness: `bench/run_bench.py`, `--time-passes`, `--stop-after`, CI regression gate | S | `make bench` and `make bench-compare` work |
-| 1.17b | Benchmarks for each new phase (`parse-100k`, `check-100k`, `build-100k`) added with the phase | S | each phase has a benchmark |
+| 1.17b | Benchmarks for each new phase (`parse-100k`, `check-100k`, `build-100k`) added with the phase | S | parse and check done; `build-100k` comes with codegen |
 | 1.18 | Driver: `astra build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **M1: hello world runs**; binary size measured |
 
 ## Phase 2 — Stage 0 core language
@@ -231,7 +231,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Phase 1 in progress: the lexer and the parser are done (tasks 1.1 to 1.10);
-   next are the type table, name resolution and the type checker (1.11 to 1.13).
+1. Phase 1 in progress: the front end is done (tasks 1.1 to 1.13); next are
+   AIR, lowering, codegen, the runtime and the driver (1.14 to 1.18) for M1.
 
 See also the [risk register](risks.md).

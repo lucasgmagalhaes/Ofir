@@ -134,6 +134,17 @@ Two passes over each module:
 Scopes form a chain: block → function → module → prelude. Methods are
 collected per type in a `MethodTable` keyed by `(DefId of type, Symbol)`.
 
+Types and values share one namespace, as in Go: `struct Point` and
+`fn Point` in one module conflict (E0201). A module declaration may hide a
+prelude name. The parameters and the top level of a function body are one
+scope, so `fn f(x: int) { let x = 1 }` is an error, while a nested block may
+shadow `x`.
+
+Stage 0 indexes its tables by symbol id: the module table maps each symbol
+to a `DefId`, and locals use a binding stack (each declaration saves the
+binding it hides, leaving a block restores them), so a lookup is one array
+access.
+
 ## 6. Type checker
 
 ### Strategy
