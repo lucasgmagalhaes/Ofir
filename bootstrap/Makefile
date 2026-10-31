@@ -9,7 +9,7 @@ MODE     ?= debug
 SANITIZE ?= address,undefined   # empty to disable (e.g. clang without compiler-rt)
 
 WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wshadow -Wstrict-prototypes
-CFLAGS   := -std=c11 $(WARNINGS) -Isrc
+CFLAGS   := -std=c11 $(WARNINGS) -Isrc -Itests
 
 ifeq ($(MODE),release)
 CFLAGS  += -O2 -DNDEBUG
