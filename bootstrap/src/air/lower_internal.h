@@ -71,4 +71,10 @@ Operand lower_cast(Lowerer *l, Operand value, TypeId to, Span span);
 Operand lower_interpolation(Lowerer *l, Expr *e);
 void lower_print(Lowerer *l, Expr *arg, bool newline);
 
+// lower_method.c
+Operand lower_method_call(Lowerer *l, Expr *call);
+Operand lower_field(Lowerer *l, Expr *e);
+Operand lower_index(Lowerer *l, Expr *e);
+void lower_panic_assert(Lowerer *l, Expr *call, Builtin builtin);
+
 #endif

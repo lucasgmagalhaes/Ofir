@@ -44,7 +44,13 @@ static const char *const OP_NAMES[] = {
 
 static const char *const PANIC_NAMES[] = {
     [PANIC_OVERFLOW] = "overflow", [PANIC_DIV_ZERO] = "div_zero",
-    [PANIC_SHIFT] = "shift", [PANIC_CAST] = "cast",
+    [PANIC_SHIFT] = "shift", [PANIC_CAST] = "cast", [PANIC_BOUNDS] = "bounds",
+    [PANIC_ASSERT] = "assert",
+};
+
+static const char *const FLOAT_FN_NAMES[] = {
+    [FF_SQRT] = "sqrt", [FF_FABS] = "fabs", [FF_FLOOR] = "floor", [FF_CEIL] = "ceil",
+    [FF_MINNUM] = "minnum", [FF_MAXNUM] = "maxnum",
 };
 
 // check-sizes: table
@@ -60,8 +66,35 @@ static void operand(AirPrinter *p, Operand o) {
     }
 }
 
+static void operands(AirPrinter *p, const char *name, Operand a, const Operand *b) {
+    fprintf(p->out, "%s ", name);
+    operand(p, a);
+    if (b) {
+        fputs(", ", p->out);
+        operand(p, *b);
+    }
+}
+
+// check-sizes: table
 static void rvalue(AirPrinter *p, const Rvalue *rv) {
     switch (rv->kind) {
+    case RV_SELECT:
+        operands(p, "select", rv->cond, NULL);
+        fputs(" ? ", p->out);
+        operand(p, rv->a);
+        fputs(" : ", p->out);
+        operand(p, rv->b);
+        return;
+    case RV_STR_LEN: operands(p, "str_len", rv->a, NULL); return;
+    case RV_STR_BYTE: operands(p, "str_byte", rv->a, &rv->b); return;
+    case RV_FLOAT_FN:
+        operands(p, FLOAT_FN_NAMES[rv->fn], rv->a,
+                 rv->fn == FF_MINNUM || rv->fn == FF_MAXNUM ? &rv->b : NULL);
+        return;
+    case RV_SATURATE:
+        operands(p, "saturate", rv->a, NULL);
+        fprintf(p->out, " to %s", type_str(p, rv->to));
+        return;
     case RV_USE: operand(p, rv->a); return;
     case RV_UNARY: fprintf(p->out, "%s ", OP_NAMES[rv->op]); operand(p, rv->a); return;
     case RV_CAST: case RV_CAST_FAILS:
@@ -120,6 +153,7 @@ static void terminator(AirPrinter *p, const Terminator *t) {
         fprintf(p->out, ", %s -> bb%u", PANIC_NAMES[t->panic], t->target.id);
         break;
     case TERM_RETURN: fputs("return", p->out); break;
+    case TERM_PANIC: operands(p, "panic", t->cond, NULL); break;
     case TERM_UNREACHABLE: fputs("unreachable", p->out); break;
     }
     fputc('\n', p->out);

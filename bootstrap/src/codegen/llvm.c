@@ -110,7 +110,18 @@ static const char RUNTIME_DECLS[] =
     "declare void @astra_panic_overflow(ptr) noreturn cold nounwind\n"
     "declare void @astra_panic_div_zero(ptr) noreturn cold nounwind\n"
     "declare void @astra_panic_shift(ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_cast(ptr) noreturn cold nounwind\n";
+    "declare void @astra_panic_cast(ptr) noreturn cold nounwind\n"
+    "declare void @astra_panic_bounds(i64, i64, ptr) noreturn cold nounwind\n"
+    "declare void @astra_panic_assert(ptr) noreturn cold nounwind\n"
+    "declare void @astra_panic_str(ptr, ptr) noreturn cold nounwind\n"
+    "declare void @astra_str_clear(ptr) nounwind\n"
+    "declare zeroext i1 @astra_str_starts_with(ptr, ptr) nounwind\n"
+    "declare zeroext i1 @astra_str_ends_with(ptr, ptr) nounwind\n"
+    "declare zeroext i1 @astra_str_contains(ptr, ptr) nounwind\n"
+    "declare void @astra_str_repeat(ptr, ptr, i64) nounwind\n"
+    "declare void @astra_str_to_lower(ptr, ptr) nounwind\n"
+    "declare void @astra_str_to_upper(ptr, ptr) nounwind\n"
+    "declare void @astra_str_to_owned(ptr, ptr) nounwind\n";
 
 static void overflow_decls(Gen *g) {
     static const char *const OPS[] = {"add", "sub", "mul"};
@@ -149,6 +160,7 @@ void llvm_end(Gen *g) {
     const SourceFile *source = source_file(&g->sema->session->sources, g->sema->module->file);
     out_str(&g->out, RUNTIME_DECLS);
     overflow_decls(g);
+    gen_float_decls(g);
     out_fmt(&g->out, "\n@.file = private unnamed_addr constant [%zu x i8] c\"%s\\00\"\n",
             source->path.len + 1, g->path.buf);
     out_write(&g->out, g->globals.buf, g->globals.len);

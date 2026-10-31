@@ -23,27 +23,68 @@ static void either(Gen *g, const char *low, const char *high, Value *result) {
     }
 }
 
-// Integer to integer: compare with the target bounds that the source type
-// can exceed.
-static void int_fails(Gen *g, Value a, const Ty *from, const Ty *to, Value *result) {
+// The target bounds that a value of the source type can exceed.
+typedef struct {
+    bool below, above;   // whether the minimum / maximum must be checked
+    int64_t min;
+    uint64_t max;
+} Bounds;
+
+static Bounds bounds(const Ty *from, const Ty *to) {
     uint32_t s = INT_BITS[from->data], t = INT_BITS[to->data];
+    Bounds b = {.below = is_signed(from) && (!is_signed(to) || t < s)};
+    b.above = is_signed(from) ? (is_signed(to) ? t < s : t + 1 < s)
+                              : (is_signed(to) ? t <= s : t < s);
+    b.min = is_signed(to) ? -(int64_t)(1ull << (t - 1)) : 0;
+    b.max = is_signed(to) ? (1ull << (t - 1)) - 1 : t == 64 ? UINT64_MAX : (1ull << t) - 1;
+    return b;
+}
+
+// Integer to integer: compare with the target bounds the source can exceed.
+static void int_fails(Gen *g, Value a, const Ty *from, const Ty *to, Value *result) {
+    Bounds b = bounds(from, to);
     char low[16] = "", high[16] = "";
-    bool below = is_signed(from) && (!is_signed(to) || t < s);
-    if (below) {   // the target minimum: 0 or -2^(t-1)
+    if (b.below) {
         next_temp(g, low);
-        int64_t min = is_signed(to) ? -(int64_t)(1ull << (t - 1)) : 0;
-        out_fmt(&g->out, "  %s = icmp slt %s %s, %" PRId64 "\n", low, a.type, a.text, min);
+        out_fmt(&g->out, "  %s = icmp slt %s %s, %" PRId64 "\n", low, a.type, a.text, b.min);
     }
-    bool above = is_signed(from) ? (is_signed(to) ? t < s : t + 1 < s)
-                                 : (is_signed(to) ? t <= s : t < s);
-    if (above) {
+    if (b.above) {
         next_temp(g, high);
-        uint64_t max = is_signed(to) ? (1ull << (t - 1)) - 1 : t == 64 ? UINT64_MAX
-                                                                      : (1ull << t) - 1;
         out_fmt(&g->out, "  %s = icmp %s %s %s, %" PRIu64 "\n", high,
-                is_signed(from) ? "sgt" : "ugt", a.type, a.text, max);
+                is_signed(from) ? "sgt" : "ugt", a.type, a.text, b.max);
     }
     either(g, low, high, result);
+}
+
+// `x.saturatingCast<T>()`: clamp in the source type, then convert.
+void gen_saturate(Gen *g, const Rvalue *rv, Value *result) {
+    Value a = gen_operand(g, rv->a);
+    const Ty *from = type_get(g->types, rv->a.type), *to = type_get(g->types, rv->to);
+    Bounds b = bounds(from, to);
+    char value[160], test[16];
+    fmt_into(value, sizeof value, "%s", a.text);
+    if (b.below) {
+        next_temp(g, test);
+        out_fmt(&g->out, "  %s = icmp slt %s %s, %" PRId64 "\n", test, a.type, value, b.min);
+        char clamped[16];
+        next_temp(g, clamped);
+        out_fmt(&g->out, "  %s = select i1 %s, %s %" PRId64 ", %s %s\n", clamped, test, a.type,
+                b.min, a.type, value);
+        fmt_into(value, sizeof value, "%s", clamped);
+    }
+    if (b.above) {
+        next_temp(g, test);
+        out_fmt(&g->out, "  %s = icmp %s %s %s, %" PRIu64 "\n", test,
+                is_signed(from) ? "sgt" : "ugt", a.type, value, b.max);
+        char clamped[16];
+        next_temp(g, clamped);
+        out_fmt(&g->out, "  %s = select i1 %s, %s %" PRIu64 ", %s %s\n", clamped, test, a.type,
+                b.max, a.type, value);
+        fmt_into(value, sizeof value, "%s", clamped);
+    }
+    Value clamped = {.type = a.type};
+    fmt_into(clamped.text, sizeof clamped.text, "%s", value);
+    gen_cast_value(g, rv->a.type, rv->to, clamped, result);
 }
 
 static void float_bound(char *out, double bound) {
