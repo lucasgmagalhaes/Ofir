@@ -31,6 +31,21 @@ typedef struct {
     bool is_tuple, is_copy;
 } StructInfo;
 
+// The variants of an enum, computed by the checker (sema/enums.c).
+typedef struct {
+    Symbol name;
+    uint32_t count;      // payload fields
+    Symbol *field_names; // 0 for an unnamed field
+    TypeId *types;
+    int64_t discriminant;
+} VariantInfo;
+
+typedef struct {
+    uint32_t count;
+    VariantInfo *variants;
+    bool has_payload;    // some variant has fields
+} EnumInfo;
+
 typedef struct {
     DefKind kind;
     Symbol name;
@@ -44,6 +59,7 @@ typedef struct {
     bool checking;       // a constant whose type is being computed (cycle guard)
     const struct ConstValue *value;   // a constant's value, NULL if it could not be computed
     StructInfo *fields;  // structs, once computed
+    EnumInfo *variants;  // enums, once computed
 } Def;
 
 typedef struct {

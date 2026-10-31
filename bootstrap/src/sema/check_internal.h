@@ -65,6 +65,23 @@ TypeId check_struct_field(Checker *c, Expr *e, TypeId base);
 TypeId check_tuple_field(Checker *c, Expr *e);
 TypeId check_constructor(Checker *c, Expr *call, DefId id);
 TypeId check_struct_literal(Checker *c, Expr *e);
+void check_not_recursive(Checker *c, TypeId type, Span span);
+
+// enums.c
+EnumInfo *enum_variants(Checker *c, DefId id);   // NULL for generic enums
+EnumInfo *enum_of(Checker *c, TypeId type, DefId *id);
+int64_t variant_index(const EnumInfo *info, Symbol name);
+TypeId check_variant_shorthand(Checker *c, Expr *e, TypeId expected);
+bool check_qualified_variant(Checker *c, Expr *e, DefId id, Symbol name, TypeId *out);
+
+// check_match.c
+TypeId check_match(Checker *c, Expr *e, TypeId expected, bool as_value);
+
+// check_pattern.c
+// Checks `p` against a value of `type` and gives its bindings their types.
+void check_pattern(Checker *c, Pattern *p, TypeId type);
+// Whether `p` matches every value of its type (`let` needs such a pattern).
+bool pattern_irrefutable(Checker *c, const Pattern *p);
 
 // check_stmt.c
 TypeId check_block(Checker *c, Block *block, TypeId expected, bool as_value);
