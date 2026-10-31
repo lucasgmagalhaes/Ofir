@@ -36,7 +36,7 @@ static ArenaChunk *new_chunk(ArenaChunk *prev, size_t min_size) {
     return chunk;
 }
 
-void *arena_alloc(Arena *arena, size_t size, size_t align) {
+void *arena_alloc_uninit(Arena *arena, size_t size, size_t align) {
     ArenaChunk *chunk = arena->head;
     size_t offset = 0;
     if (chunk) {
@@ -52,12 +52,17 @@ void *arena_alloc(Arena *arena, size_t size, size_t align) {
     void *ptr = chunk->data + offset;
     chunk->used = offset + size;
     arena->total += size;
+    return ptr;
+}
+
+void *arena_alloc(Arena *arena, size_t size, size_t align) {
+    void *ptr = arena_alloc_uninit(arena, size, align);
     memset(ptr, 0, size);
     return ptr;
 }
 
 char *arena_strndup(Arena *arena, const char *src, size_t len) {
-    char *dst = arena_alloc(arena, len + 1, 1);
+    char *dst = arena_alloc_uninit(arena, len + 1, 1);
     memcpy(dst, src, len);
     dst[len] = '\0';
     return dst;
