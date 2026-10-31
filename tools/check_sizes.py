@@ -61,6 +61,24 @@ def count_params(signature: str) -> int:
     return params
 
 
+def scan_body(lines: list[str], i: int) -> tuple[str, int, int]:
+    """From a signature line, returns the signature text, the index after the
+    closing brace and the deepest block level (the function body is 0)."""
+    signature, depth, deepest, opened = "", 0, 0, False
+    while i < len(lines):
+        code = strip_literals(lines[i])
+        if not opened:
+            signature += code
+        for ch in code:
+            depth += (ch == "{") - (ch == "}")
+            deepest = max(deepest, depth - 1)
+        opened = opened or "{" in code
+        i += 1
+        if opened and depth <= 0:
+            break
+    return signature, i, deepest
+
+
 def braced_functions(lines: list[str], is_start) -> list[Function]:
     """Functions delimited by braces (C and Astra)."""
     functions = []
@@ -70,31 +88,15 @@ def braced_functions(lines: list[str], is_start) -> list[Function]:
         if not name:
             i += 1
             continue
-        start, signature, depth, j = i, "", 0, i
-        opened = False
-        deepest = 0
-        while j < len(lines):
-            code = strip_literals(lines[j])
-            if not opened:
-                signature += code
-            for ch in code:
-                if ch == "{":
-                    depth += 1
-                    deepest = max(deepest, depth - 1)   # the function body is level 0
-                elif ch == "}":
-                    depth -= 1
-            opened = opened or "{" in code
-            j += 1
-            if opened and depth <= 0:
-                break
+        start = i
+        signature, i, deepest = scan_body(lines, i)
         table = start > 0 and "check-sizes: table" in lines[start - 1]
         params = count_params(signature)
         if re.search(r"\(\s*(mut |move )?self\b", signature):
             params -= 1
         if re.search(r"\(\s*void\s*\)", signature):
             params = 0
-        functions.append(Function(name, start + 1, j - start, deepest, params, table))
-        i = j
+        functions.append(Function(name, start + 1, i - start, deepest, params, table))
     return functions
 
 
