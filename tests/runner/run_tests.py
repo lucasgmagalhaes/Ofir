@@ -71,7 +71,8 @@ def run_process(cmd: list[str], cwd: Path | None = None) -> subprocess.Completed
             cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT_SECONDS
         )
     except subprocess.TimeoutExpired as exc:
-        return subprocess.CompletedProcess(cmd, -1, exc.stdout or "", f"timeout after {TIMEOUT_SECONDS}s")
+        message = f"timeout after {TIMEOUT_SECONDS}s"
+        return subprocess.CompletedProcess(cmd, -1, exc.stdout or "", message)
 
 
 def compiler_cmd(cfg: Config, *args: str) -> list[str]:
@@ -83,7 +84,8 @@ def compiler_cmd(cfg: Config, *args: str) -> list[str]:
 
 
 def describe(proc: subprocess.CompletedProcess) -> str:
-    return f"exit status {proc.returncode}\n--- stdout ---\n{proc.stdout}--- stderr ---\n{proc.stderr}"
+    return (f"exit status {proc.returncode}\n"
+            f"--- stdout ---\n{proc.stdout}--- stderr ---\n{proc.stderr}")
 
 
 def compare_output(cfg: Config, path: Path, actual: str, expected_suffix: str) -> Result:
@@ -265,7 +267,8 @@ def discover(tests_dir: Path, filters: list[str]) -> list[tuple[str, Path]]:
 def main(argv: list[str]) -> int:
     root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("filters", nargs="*", help="run only tests whose path contains one of these")
+    parser.add_argument("filters", nargs="*",
+                        help="run only tests whose path contains one of these")
     parser.add_argument("--compiler", default=str(root / "build" / "stage0" / "astra"))
     parser.add_argument("--stage", type=int, choices=[0, 1],
                         help="compiler stage (default: 0 if the path contains 'stage0')")

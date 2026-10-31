@@ -32,7 +32,8 @@ def unknown_codes(known: set) -> list[str]:
 
 def main() -> int:
     registered = ROW_RE.findall(REGISTRY.read_text())
-    problems = [f"{code} is registered {n} times" for code, n in Counter(registered).items() if n > 1]
+    problems = [f"{code} is registered {n} times"
+                for code, n in Counter(registered).items() if n > 1]
     known = set(registered)
     problems += unknown_codes(known)
     for problem in problems:
