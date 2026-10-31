@@ -160,9 +160,10 @@ static void header(Gen *g, const AirBody *body) {
     out_char(&g->out, '(');
     bool first = true;
     for (uint32_t i = 1; i <= body->param_count; i++) {
-        TypeId type = body->locals.data[i].type;
-        if (llvm_has_value(type)) {
-            out_fmt(&g->out, "%s%s %%p%u", first ? "" : ", ", llvm_type(g, type), i);
+        const AirLocal *local = &body->locals.data[i];
+        if (local->by_ref || llvm_has_value(local->type)) {
+            const char *type = local->by_ref ? "ptr" : llvm_type(g, local->type);
+            out_fmt(&g->out, "%s%s %%p%u", first ? "" : ", ", type, i);
             first = false;
         }
     }
@@ -174,15 +175,17 @@ void gen_body(Gen *g, const AirBody *body) {
     g->temp = 0;
     header(g, body);
     for (size_t i = 0; i < body->locals.len; i++) {
-        TypeId type = body->locals.data[i].type;
-        if (llvm_has_value(type)) {
-            out_fmt(&g->out, "  %%l%zu = alloca %s\n", i, llvm_type(g, type));
+        const AirLocal *local = &body->locals.data[i];
+        if (local->by_ref || llvm_has_value(local->type)) {
+            const char *type = local->by_ref ? "ptr" : llvm_type(g, local->type);
+            out_fmt(&g->out, "  %%l%zu = alloca %s\n", i, type);
         }
     }
     for (uint32_t i = 1; i <= body->param_count; i++) {
-        TypeId type = body->locals.data[i].type;
-        if (llvm_has_value(type)) {
-            out_fmt(&g->out, "  store %s %%p%u, ptr %%l%u\n", llvm_type(g, type), i, i);
+        const AirLocal *local = &body->locals.data[i];
+        if (local->by_ref || llvm_has_value(local->type)) {
+            const char *type = local->by_ref ? "ptr" : llvm_type(g, local->type);
+            out_fmt(&g->out, "  store %s %%p%u, ptr %%l%u\n", type, i, i);
         }
     }
     out_str(&g->out, "  br label %bb0\n");

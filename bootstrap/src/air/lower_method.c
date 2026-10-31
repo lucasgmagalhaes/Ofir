@@ -172,6 +172,10 @@ static Operand str_method(Lowerer *l, BuiltinMethod m, Expr *base, Operand self,
 
 Operand lower_method_call(Lowerer *l, Expr *call) {
     Expr *field = call->as.call.callee;
+    if (field->as.field.res.kind == RES_DEF) {   // a method declared in a struct
+        FnDecl *fn = sema_def(l->sema, (DefId){field->as.field.res.index})->fn;
+        return emit_user_call(l, call, fn, fn->has_self ? field->as.field.base : NULL);
+    }
     BuiltinMethod m = (BuiltinMethod)field->as.field.res.index;
     if (m == BM_STR_NEW) {
         return (Operand){.kind = OPERAND_STR, .type = type_id(TID_STR), .as.str = SV("")};

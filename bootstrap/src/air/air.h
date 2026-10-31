@@ -32,9 +32,12 @@ typedef enum {
 } OperandKind;
 
 // The field path of a place: positions of struct fields from the local.
+// With `deref`, the local holds the address of the value (a `mut`
+// parameter): the path starts from that address.
 typedef struct {
     const uint32_t *fields;
     uint32_t len;
+    bool deref;
 } FieldPath;
 
 typedef struct {
@@ -149,6 +152,7 @@ typedef struct {
     TypeId type;
     Symbol name;      // 0 for temporaries
     Span span;
+    bool by_ref;      // a `mut` parameter: holds the address of a `type` value
 } AirLocal;
 
 // Local 0 is the return value; locals 1..param_count are the parameters.

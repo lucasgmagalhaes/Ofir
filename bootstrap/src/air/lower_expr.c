@@ -37,7 +37,7 @@ static Operand def_value(Lowerer *l, Expr *e, Def *def) {
 static Operand name(Lowerer *l, Expr *e) {
     Res res = e->as.ident.res;
     if (res.kind == RES_LOCAL) {
-        return op_copy(air_local_of((LocalId){res.index}), e->type);
+        return place_operand(lower_place(l, e), OPERAND_COPY, e->type);
     }
     return def_value(l, e, sema_def(l->sema, (DefId){res.index}));
 }
@@ -60,15 +60,36 @@ static Operand call(Lowerer *l, Expr *e) {
         }
         return op_unit();
     }
+    return emit_user_call(l, e, def->fn, NULL);
+}
+
+// An argument: the address of the place for a `mut` parameter, else the
+// value.
+static Operand argument(Lowerer *l, Expr *arg, bool by_ref, const Expr *next) {
+    if (by_ref) {
+        return place_operand(lower_place(l, arg), OPERAND_ADDR, arg->type);
+    }
+    Operand value = lower_expr(l, arg);
+    return next ? settle(l, value, next) : value;
+}
+
+// A call of a user function or method; the receiver of a method is the
+// first argument.
+Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver) {
+    ArgList args = e->as.call.args;
+    uint32_t first = receiver ? 1 : 0;
     AirStmt s = {.kind = AIR_CALL};
-    s.as.call.fn = (DefId){callee->as.ident.res.index};
-    s.as.call.arg_count = args.len;
-    s.as.call.args = ARENA_ARRAY(&l->sema->session->arena, Operand, args.len + 1);
+    s.as.call.fn = fn->def;
+    s.as.call.arg_count = args.len + first;
+    s.as.call.args = ARENA_ARRAY(&l->sema->session->arena, Operand, args.len + first + 1);
+    if (receiver) {
+        const Expr *next = args.len ? args.items[0].value : NULL;
+        s.as.call.args[0] = argument(l, receiver, fn->self_mode == MODE_MUT, next);
+    }
     for (uint32_t i = 0; i < args.len; i++) {
-        s.as.call.args[i] = lower_expr(l, args.items[i].value);
-        if (i + 1 < args.len) {
-            s.as.call.args[i] = settle(l, s.as.call.args[i], args.items[i + 1].value);
-        }
+        const Expr *next = i + 1 < args.len ? args.items[i + 1].value : NULL;
+        bool by_ref = i < fn->params.len && fn->params.items[i].mode == MODE_MUT;
+        s.as.call.args[first + i] = argument(l, args.items[i].value, by_ref, next);
     }
     Operand result = op_unit();
     if (type_is_value(e->type)) {

@@ -57,7 +57,8 @@ static const char *const FLOAT_FN_NAMES[] = {
 static void operand(AirPrinter *p, Operand o) {
     switch (o.kind) {
     case OPERAND_COPY: case OPERAND_ADDR:
-        fprintf(p->out, "%s_%u", o.kind == OPERAND_ADDR ? "&" : "", o.as.local.id);
+        fprintf(p->out, "%s%s_%u", o.kind == OPERAND_ADDR ? "&" : "", o.path.deref ? "*" : "",
+                o.as.local.id);
         for (uint32_t i = 0; i < o.path.len; i++) {
             fprintf(p->out, ".%u", o.path.fields[i]);
         }

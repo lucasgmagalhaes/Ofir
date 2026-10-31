@@ -36,13 +36,15 @@ Place lower_place(Lowerer *l, Expr *e) {
     uint32_t len = 0;
     Expr *root = collect_path(e, fields, &len);
     LocalId local;
+    bool deref = false;
     if ((root->kind == EXPR_IDENT || root->kind == EXPR_SELF) &&
         root->as.ident.res.kind == RES_LOCAL) {
         local = air_local_of((LocalId){root->as.ident.res.index});
+        deref = l->body->locals.data[local.id].by_ref;
     } else {
         local = to_local(l, lower_expr(l, root));
     }
-    return (Place){.local = local, .path = {.fields = fields, .len = len}};
+    return (Place){.local = local, .path = {.fields = fields, .len = len, .deref = deref}};
 }
 
 Operand place_operand(Place place, OperandKind kind, TypeId type) {
@@ -67,6 +69,14 @@ static uint32_t field_position(const StructInfo *info, Symbol name) {
     return 0;   // the checker reported unknown fields
 }
 
+// Field `f` of the `..base` struct.
+static Operand base_field(Lowerer *l, LocalId base, uint32_t f, TypeId type) {
+    uint32_t *field = ARENA_NEW(&l->sema->session->arena, uint32_t);
+    *field = f;
+    Place place = {.local = base, .path = {.fields = field, .len = 1}};
+    return place_operand(place, OPERAND_COPY, type);
+}
+
 // Fields are evaluated in source order; omitted ones take their default or
 // come from the `..base` struct.
 Operand lower_struct_literal(Lowerer *l, Expr *e) {
@@ -89,16 +99,9 @@ Operand lower_struct_literal(Lowerer *l, Expr *e) {
         base = to_local(l, lower_expr(l, e->as.struct_.base));
     }
     for (uint32_t f = 0; f < info->count; f++) {
-        if (given[f]) {
-            continue;
-        }
-        if (e->as.struct_.base) {
-            uint32_t *field = ARENA_NEW(&l->sema->session->arena, uint32_t);
-            *field = f;
-            Place place = {.local = base, .path = {.fields = field, .len = 1}};
-            items[f] = place_operand(place, OPERAND_COPY, info->types[f]);
-        } else {
-            items[f] = lower_expr(l, info->defaults[f]);   // evaluated at each use
+        if (!given[f]) {
+            items[f] = e->as.struct_.base ? base_field(l, base, f, info->types[f])
+                                          : lower_expr(l, info->defaults[f]);   // at each use
         }
     }
     return aggregate(l, e->type, items, info->count);

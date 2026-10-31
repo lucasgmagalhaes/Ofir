@@ -88,13 +88,19 @@ void function_name(Gen *g, Out *out, DefId def, bool is_main) {
 }
 
 void place_address(Gen *g, LocalId local, FieldPath path, char text[16]) {
+    char base[16];
+    fmt_into(base, sizeof base, "%%l%u", local.id);
+    if (path.deref) {   // the local holds the address of the value
+        next_temp(g, base);
+        out_fmt(&g->out, "  %s = load ptr, ptr %%l%u\n", base, local.id);
+    }
     if (path.len == 0) {
-        fmt_into(text, 16, "%%l%u", local.id);
+        memcpy(text, base, 16);
         return;
     }
     next_temp(g, text);
-    out_fmt(&g->out, "  %s = getelementptr inbounds %s, ptr %%l%u, i32 0", text,
-            llvm_type(g, g->body->locals.data[local.id].type), local.id);
+    out_fmt(&g->out, "  %s = getelementptr inbounds %s, ptr %s, i32 0", text,
+            llvm_type(g, g->body->locals.data[local.id].type), base);
     for (uint32_t i = 0; i < path.len; i++) {
         out_fmt(&g->out, ", i32 %u", path.fields[i]);
     }
