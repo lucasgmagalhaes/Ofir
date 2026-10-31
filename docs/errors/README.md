@@ -48,6 +48,12 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0306 | unknown, duplicate or misplaced named argument | stage 1 |
 | E0307 | the `else` block of `let ... else` must not fall through | stage 0 |
 | E0308 | missing value for a field or parameter without a default | stage 0 |
+| E0309 | `break` or `continue` outside of a loop | stage 0 |
+| E0310 | expected a value, found type `T` (or a type, found value `x`) | stage 0 |
+| E0311 | expression of type `T` is not a function | stage 0 |
+| E0312 | integer literal out of range for `T` | stage 0 |
+| E0313 | operator cannot be applied to type `T` | stage 0 |
+| E0314 | a value of type `T` cannot be interpolated into a string | stage 0 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
 | E0601 | use of possibly uninitialized variable `x` | stage 0 |
@@ -55,6 +61,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0700 | cannot borrow `x` as mutable more than once | stage 1 |
 | E0701 | cannot borrow `x` as mutable because it is also borrowed as shared | stage 1 |
 | E0702 | a reference cannot be stored or returned here | stage 1 |
+| E0800 | the constant `x` depends on itself | stage 0 |
 | E0900 | cannot read source file | stage 0 |
 | E0901 | X is not supported yet (a feature this compiler version does not implement) | stage 0 |
 

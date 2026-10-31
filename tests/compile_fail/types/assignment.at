@@ -1,0 +1,32 @@
+const LIMIT = 10
+
+fn immutable() {
+    let x = 1
+    x = 2                   // error[E0304]: cannot assign twice to immutable variable `x`
+}
+
+fn compound() {
+    let total = 0
+    total += 1              // error[E0304]: cannot assign twice to immutable variable `total`
+}
+
+fn parameter(n: int) {
+    n = 3                   // error[E0304]: cannot assign twice to immutable variable `n`
+}
+
+fn constant() {
+    LIMIT = 1               // error[E0304]: cannot assign to `LIMIT`
+}
+
+fn wrongType() {
+    var name = "a"
+    name = 1                // error[E0300]: mismatched types: expected str, found int
+}
+
+// Accepted.
+fn mutable(count: mut int) {
+    var x = 1
+    x = 2
+    x += 3
+    count = 4
+}

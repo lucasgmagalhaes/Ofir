@@ -1,0 +1,46 @@
+fn noReturn() int {   // error[E0303]: function may reach its end without returning a value
+    let x = 1
+}
+
+fn oneBranch(flag: bool) int {   // error[E0303]: function may reach its end without returning a value
+    if flag {
+        return 1
+    }
+}
+
+fn loopWithBreak() int {   // error[E0303]: function may reach its end without returning a value
+    for {
+        break
+    }
+}
+
+fn outside() {
+    break       // error[E0309]: `break` outside of a loop
+}
+
+fn outsideContinue() {
+    continue    // error[E0309]: `continue` outside of a loop
+}
+
+// Accepted: every path returns or never finishes.
+fn bothBranches(flag: bool) int {
+    if flag {
+        return 1
+    } else {
+        return 2
+    }
+}
+
+fn forever() int {
+    for {
+    }
+}
+
+fn nested(n: int) int {
+    for i in 0..n {
+        if i == 3 {
+            break
+        }
+    }
+    return n
+}

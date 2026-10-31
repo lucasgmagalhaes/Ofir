@@ -31,6 +31,8 @@ typedef struct {
     TypeId type;         // primitive: the type; function: its signature (set by the checker)
     Builtin builtin;
     bool in_prelude;
+    bool typed;          // `type` is set (signatures, constants)
+    bool checking;       // a constant whose type is being computed (cycle guard)
 } Def;
 
 typedef struct {
