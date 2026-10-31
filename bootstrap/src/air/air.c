@@ -41,14 +41,10 @@ void air_terminate(AirBody *body, BlockId block, Terminator term) {
     air_block(body, block)->term = term;
 }
 
-void air_program_free(AirProgram *program) {
-    for (size_t i = 0; i < program->bodies.len; i++) {
-        AirBody *body = &program->bodies.data[i];
-        for (size_t b = 0; b < body->blocks.len; b++) {
-            VEC_FREE(body->blocks.data[b].stmts);
-        }
-        VEC_FREE(body->blocks);
-        VEC_FREE(body->locals);
+void air_body_free(AirBody *body) {
+    for (size_t b = 0; b < body->blocks.len; b++) {
+        VEC_FREE(body->blocks.data[b].stmts);
     }
-    VEC_FREE(program->bodies);
+    VEC_FREE(body->blocks);
+    VEC_FREE(body->locals);
 }

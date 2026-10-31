@@ -148,10 +148,8 @@ static void body(AirPrinter *p, const AirBody *b) {
     fputs("}\n\n", p->out);
 }
 
-void air_print(const AirProgram *program, const Sema *sema, FILE *out) {
+void air_print_body(const AirBody *b, const Sema *sema, FILE *out) {
     AirPrinter p = {.sema = sema, .names = &sema->session->names, .out = out};
-    for (size_t i = 0; i < program->bodies.len; i++) {
-        body(&p, &program->bodies.data[i]);
-    }
+    body(&p, b);
     strbuf_free(&p.buf);
 }

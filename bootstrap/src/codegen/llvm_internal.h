@@ -11,7 +11,7 @@
 #include "codegen/llvm.h"
 #include "codegen/out.h"
 
-typedef struct {
+struct Gen {
     Sema *sema;
     const TypeTable *types;
     Out out;
@@ -20,7 +20,8 @@ typedef struct {
     uint64_t overflow_used[2][3][4];   // [signed][add, sub, mul][i8, i16, i32, i64]
     const AirBody *body;     // the function being generated
     uint32_t temp;           // next %t number in this function
-} Gen;
+    Out path;                // the escaped source path
+};
 
 // A generated value: its LLVM type and its text (`%t3`, `42`, `true`, ...).
 typedef struct {

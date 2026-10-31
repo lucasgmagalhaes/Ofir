@@ -67,16 +67,14 @@ static bool block_ok(Validator *v, size_t index) {
     return true;
 }
 
-bool air_validate(const AirProgram *program, char *error, size_t size) {
-    for (size_t i = 0; i < program->bodies.len; i++) {
-        Validator v = {.body = &program->bodies.data[i], .error = error, .size = size};
-        if (v.body->locals.len < 1 + v.body->param_count || v.body->blocks.len == 0) {
-            return fail(&v, 0, "missing return local, parameters or entry block");
-        }
-        for (size_t b = 0; b < v.body->blocks.len; b++) {
-            if (!block_ok(&v, b)) {
-                return false;
-            }
+bool air_validate_body(const AirBody *body, char *error, size_t size) {
+    Validator v = {.body = body, .error = error, .size = size};
+    if (body->locals.len < 1 + body->param_count || body->blocks.len == 0) {
+        return fail(&v, 0, "missing return local, parameters or entry block");
+    }
+    for (size_t b = 0; b < body->blocks.len; b++) {
+        if (!block_ok(&v, b)) {
+            return false;
         }
     }
     return true;

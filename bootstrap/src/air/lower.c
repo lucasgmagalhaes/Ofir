@@ -66,7 +66,7 @@ LocalId to_local(Lowerer *l, Operand operand) {
     return emit_temp(l, operand.type, (Rvalue){.kind = RV_USE, .a = operand});
 }
 
-static void lower_fn(Lowerer *l, FnDecl *fn, AirProgram *out) {
+static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
     Def *def = sema_def(l->sema, fn->def);
     const Ty *sig = type_get(l->types, def->type);
     AirBody body = {.def = fn->def, .name = fn->name};
@@ -83,10 +83,11 @@ static void lower_fn(Lowerer *l, FnDecl *fn, AirProgram *out) {
     // Falling off the end returns (); other functions were checked to return.
     TermKind end = sig->inner.id == TID_UNIT ? TERM_RETURN : TERM_UNREACHABLE;
     air_terminate(&body, l->block, (Terminator){.kind = end});
-    VEC_PUSH(out->bodies, body);
+    sink(context, &body);
+    air_body_free(&body);
 }
 
-void lower_module(Sema *sema, AirProgram *out) {
+void lower_module(Sema *sema, BodySink sink, void *context) {
     Lowerer l = {.sema = sema, .types = &sema->types};
     DefId main_fn = scope_module(&sema->scope, intern(&sema->session->names, SV("main")));
     Def *main_def = main_fn.id ? sema_def(sema, main_fn) : NULL;
@@ -102,7 +103,7 @@ void lower_module(Sema *sema, AirProgram *out) {
         bool has_methods = (item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT ||
                             item->kind == ITEM_ENUM);
         if (item->kind == ITEM_FN && item->as.fn->body) {
-            lower_fn(&l, item->as.fn, out);
+            lower_fn(&l, item->as.fn, sink, context);
         } else if (has_methods || item->kind == ITEM_GLOBAL || item->kind == ITEM_EXTERN) {
             diag_error(&sema->session->diags, "E0901", item->span,
                        "compiling this declaration is not supported yet");
