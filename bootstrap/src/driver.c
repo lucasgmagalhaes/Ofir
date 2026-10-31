@@ -56,7 +56,7 @@ static Next run_lexer(Session *session, const Options *opts, FileId file, TokenL
 }
 
 static Next run_parser(Session *session, const Options *opts, FileId file,
-                       const TokenList *tokens, Timer *timer) {
+                       TokenList *tokens, Timer *timer) {
     timer_start(timer);
     Module *module = parse(session, file, tokens);
     char detail[64];
