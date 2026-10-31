@@ -14,7 +14,7 @@ copy struct Bad {
 }
 
 struct Loop {
-    next: Loop        // error[E0318]: a struct cannot contain itself by value; use Box<T> or a collection
+    next: Loop        // error[E0318]: a type cannot contain itself by value; use Box<T> or a collection
 }
 
 fn missing() {
