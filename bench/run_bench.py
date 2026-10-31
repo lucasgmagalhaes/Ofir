@@ -30,6 +30,8 @@ INPUTS = ROOT / "build" / "bench"
 BENCHMARKS = {
     "lex-10k": (10_000, ["--stop-after=lex"]),
     "lex-100k": (100_000, ["--stop-after=lex"]),
+    "parse-10k": (10_000, ["--stop-after=parse"]),
+    "parse-100k": (100_000, ["--stop-after=parse"]),
 }
 
 
