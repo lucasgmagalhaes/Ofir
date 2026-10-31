@@ -1,9 +1,10 @@
 // Loading the modules of a program (spec 7.1 and 7.2): the root file, then
 // every module it imports, transitively. `import a.b` is the file
 // `<root dir>/a/b.at` or `<root dir>/a/b/mod.at`; `import std.x` is in the
-// standard library. When `a.b` names a declaration rather than a module
-// (`import std.collections.Map`), its module `a` is loaded. Imports that
-// match no file are reported by the resolver (E0204).
+// standard library, and `std.core` (the prelude) is always loaded. When
+// `a.b` names a declaration rather than a module (`import
+// std.collections.Map`), its module `a` is loaded. Imports that match no
+// file are reported by the resolver (E0204).
 
 #include "driver_internal.h"
 
@@ -110,6 +111,10 @@ Program load_program(Pipeline *p, Module *root) {
     static const char *const STD[] = {"../../std", "../lib/astra/std"};
     ld.has_std = find_installed(p->opts->argv0, "ASTRA_STD", STD, ARRAY_LEN(STD), ld.std_dir);
     VEC_PUSH(ld.modules, ((ProgramModule){.module = root, .name = root_name(&ld, p->opts->input)}));
+    char core[PATH_SIZE];
+    if (module_file(&ld, SV("std.core"), core)) {   // the prelude, in every program
+        load(&ld, SV("std.core"), core);
+    }
     for (size_t m = 0; m < ld.modules.len; m++) {   // grows while it is walked
         ItemList items = ld.modules.data[m].module->items;
         for (uint32_t i = 0; i < items.len; i++) {

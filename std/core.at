@@ -1,0 +1,34 @@
+//! The prelude: every module sees the public declarations of `std.core`
+//! without an import (spec 7.4, docs/std/core.md).
+
+/// The result of comparing two values.
+pub copy enum Ordering {
+    Less
+    Equal
+    Greater
+
+    pub fn isLt(self) bool {
+        return self == .Less
+    }
+
+    pub fn isEq(self) bool {
+        return self == .Equal
+    }
+
+    pub fn isGt(self) bool {
+        return self == .Greater
+    }
+
+    pub fn reverse(self) Ordering {
+        return match self {
+            .Less => .Greater
+            .Equal => .Equal
+            .Greater => .Less
+        }
+    }
+
+    /// Lexicographic comparison: `self`, or `other` when `self` is `Equal`.
+    pub fn then(self, other: Ordering) Ordering {
+        return if self == .Equal { other } else { self }
+    }
+}
