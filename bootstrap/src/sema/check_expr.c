@@ -183,6 +183,14 @@ static TypeId builtin_call(Checker *c, Expr *call, Builtin builtin) {
     return check_args(c, call, &sig);
 }
 
+static TypeId check_fn_call(Checker *c, Expr *e, const Def *def, const Ty *sig) {
+    TypeId ret = check_args(c, e, sig);
+    if (def->kind == DEF_FN) {
+        check_mut_args(c, def->fn, e);
+    }
+    return ret;
+}
+
 static TypeId call(Checker *c, Expr *e) {
     Expr *callee = e->as.call.callee;
     if (callee->kind == EXPR_FIELD) {
@@ -204,6 +212,9 @@ static TypeId call(Checker *c, Expr *e) {
     }
     callee->type = type;
     const Ty *sig = type_get(c->types, type);
+    if (sig->kind == TY_FN && callee->kind == EXPR_IDENT && callee->as.ident.res.kind == RES_DEF) {
+        return check_fn_call(c, e, sema_def(c->sema, (DefId){callee->as.ident.res.index}), sig);
+    }
     if (sig->kind != TY_FN) {
         if (sig->kind != TY_ERROR) {
             check_error(c, "E0311", callee->span, "expression of type `%s` is not a function",
@@ -237,7 +248,8 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_BLOCK: case EXPR_UNSAFE: return check_block(c, e->as.block, expected, true);
     case EXPR_TUPLE:
         return e->as.elems.len == 0 ? type_id(TID_UNIT) : unsupported(c, e->span, "tuples are");
-    case EXPR_SELF_TYPE: case EXPR_GENERIC: return unsupported(c, e->span, "generic types are");
+    case EXPR_SELF_TYPE: return type_id(TID_ERROR);   // replaced by the resolver
+    case EXPR_GENERIC: return unsupported(c, e->span, "generic types are");
     case EXPR_RANGE: return unsupported(c, e->span, "ranges outside of `for` are");
     case EXPR_INDEX: return check_index(c, e);
     case EXPR_FIELD: return check_field(c, e);
