@@ -123,6 +123,37 @@ def parse_diagnostics(output: str) -> list[Diagnostic]:
     return diagnostics
 
 
+def unexpected_diagnostics(reported, annotations) -> list[str]:
+    """Every reported diagnostic must be annotated (both stages)."""
+    annotated = {(d.line, d.code) for _, d in annotations}
+    return [f"unexpected {d.severity}[{d.code}] at line {d.line}: {d.message}"
+            for d in reported if (d.line, d.code) not in annotated]
+
+
+def missing_stage0(reported, annotations) -> list[str]:
+    """Stage 0 reports only the first error of each function and its messages
+    are terse: require the first annotation of each function."""
+    reported_keys = {(d.line, d.code) for d in reported}
+    firsts: dict[int, Diagnostic] = {}
+    for fn_line, d in annotations:
+        firsts.setdefault(fn_line, d)
+    return [f"missing {d.severity}[{d.code}] at line {d.line}"
+            for d in firsts.values() if (d.line, d.code) not in reported_keys]
+
+
+def missing_stage1(reported, annotations) -> list[str]:
+    """Stage 1 must report every annotation, with a matching message."""
+    problems = []
+    for _, d in annotations:
+        matches = [r for r in reported if (r.line, r.code) == (d.line, d.code)]
+        if not matches:
+            problems.append(f"missing {d.severity}[{d.code}] at line {d.line}: {d.message}")
+        elif d.message and not any(d.message in r.message for r in matches):
+            problems.append(f"message mismatch at line {d.line}: expected '{d.message}', "
+                            f"got '{matches[0].message}'")
+    return problems
+
+
 def check_diagnostics(cfg: Config, path: Path, source: str) -> Result:
     annotations = parse_annotations(source)
     proc = run_process(compiler_cmd(cfg, "build", str(path), "--message-format=short",
@@ -135,33 +166,8 @@ def check_diagnostics(cfg: Config, path: Path, source: str) -> Result:
     if not expects_error and proc.returncode != 0:
         return Result(path, "fail", "expected compilation to succeed\n" + describe(proc))
 
-    reported_keys = {(d.line, d.code) for d in reported}
-    annotated_keys = {(d.line, d.code) for _, d in annotations}
-    problems = []
-
-    # Every reported diagnostic must be annotated (both stages).
-    for d in reported:
-        if (d.line, d.code) not in annotated_keys:
-            problems.append(f"unexpected {d.severity}[{d.code}] at line {d.line}: {d.message}")
-
-    if cfg.stage == 0:
-        # Stage 0 reports only the first error of each function and its
-        # messages are terse: require the first annotation of each function.
-        firsts: dict[int, Diagnostic] = {}
-        for fn_line, d in annotations:
-            firsts.setdefault(fn_line, d)
-        for d in firsts.values():
-            if (d.line, d.code) not in reported_keys:
-                problems.append(f"missing {d.severity}[{d.code}] at line {d.line}")
-    else:
-        for _, d in annotations:
-            matches = [r for r in reported if (r.line, r.code) == (d.line, d.code)]
-            if not matches:
-                problems.append(f"missing {d.severity}[{d.code}] at line {d.line}: {d.message}")
-            elif d.message and not any(d.message in r.message for r in matches):
-                problems.append(f"message mismatch at line {d.line}: expected '{d.message}', "
-                                f"got '{matches[0].message}'")
-
+    missing = missing_stage0 if cfg.stage == 0 else missing_stage1
+    problems = unexpected_diagnostics(reported, annotations) + missing(reported, annotations)
     if problems:
         return Result(path, "fail", "\n".join(problems))
     return Result(path, "pass")
