@@ -36,3 +36,19 @@ COLD _Noreturn void astra_panic_shift(const AstraLoc *loc) {
 COLD _Noreturn void astra_panic_cast(const AstraLoc *loc) {
     panic_text("value out of range for the target type of `as`", loc);
 }
+
+COLD _Noreturn void astra_panic_bounds(int64_t index, int64_t len, const AstraLoc *loc) {
+    char msg[96];
+    int n = snprintf(msg, sizeof msg,
+                     "index out of bounds: the length is %lld but the index is %lld",
+                     (long long)len, (long long)index);
+    astra_panic((const uint8_t *)msg, n, loc);
+}
+
+COLD _Noreturn void astra_panic_assert(const AstraLoc *loc) {
+    panic_text("assertion failed", loc);
+}
+
+COLD _Noreturn void astra_panic_str(const AstraStr *msg, const AstraLoc *loc) {
+    astra_panic(msg->ptr, msg->len, loc);
+}
