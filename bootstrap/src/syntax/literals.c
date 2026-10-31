@@ -240,7 +240,8 @@ static TokenKind scan_string_text(Lexer *lx, uint32_t start, bool opening, StrBu
             return opening ? TOK_STR_START : TOK_STR_MID;
         }
         if (c == '}') {
-            error(lx, "E0006", span_at(lx, lx->pos), "unescaped `}` in string literal; write `\\}`");
+            error(lx, "E0006", span_at(lx, lx->pos),
+                  "unescaped `}` in string literal; write `\\}`");
             lx->pos++;
         } else if (c == '\\') {
             escape(lx, text);
