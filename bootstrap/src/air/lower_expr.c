@@ -1,6 +1,7 @@
 // Lowering of expressions to operands.
 
 #include "air/lower_internal.h"
+#include "sema/const_eval.h"
 
 bool type_is_value(TypeId type) {
     return type.id != TID_UNIT && type.id != TID_NEVER && type.id != TID_ERROR;
@@ -14,9 +15,19 @@ static Operand int_literal(Lowerer *l, Expr *e) {
     return op_int(e->as.int_value, e->type);
 }
 
+static Operand const_operand(const ConstValue *v, TypeId type) {
+    switch (v->kind) {
+    case CV_INT: return op_int(v->bits, type);
+    case CV_FLOAT: return (Operand){.kind = OPERAND_FLOAT, .type = type, .as.float_value = v->f};
+    case CV_BOOL: return op_bool(v->b);
+    case CV_STR: return (Operand){.kind = OPERAND_STR, .type = type, .as.str = v->s};
+    }
+    return op_unit();
+}
+
 static Operand def_value(Lowerer *l, Expr *e, Def *def) {
-    if (def->kind == DEF_CONST) {   // a constant is its value, inlined at each use
-        return lower_expr(l, def->item->as.const_.value);
+    if (def->kind == DEF_CONST) {   // evaluated by the checker (sema/const_eval.c)
+        return const_operand(def->value, e->type);
     }
     diag_error(&l->sema->session->diags, "E0901", e->span,
                "global variables are not supported yet");

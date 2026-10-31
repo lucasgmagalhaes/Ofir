@@ -42,6 +42,9 @@ TypeId coerce(Checker *c, Expr *e, TypeId expected);
 TypeId check_const(Checker *c, Def *def);   // the type of a constant or global
 TypeId check_args(Checker *c, Expr *call, const Ty *sig);
 
+// const_eval.c: the value of a constant's initializer, or NULL after an error
+struct ConstValue *const_eval(Checker *c, const Expr *e);
+
 // check_method.c: methods, fields and indexing
 TypeId check_method_call(Checker *c, Expr *call);
 TypeId check_field(Checker *c, Expr *e);
