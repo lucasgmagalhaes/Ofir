@@ -77,7 +77,7 @@ static Next link_program(const Options *opts, const char *ll, const char *exe) {
     const char *clang = getenv("ASTRA_CLANG");
     // The module has no target triple: clang uses its default target.
     char *argv[] = {(char *)(clang && clang[0] ? clang : "clang"), opts->release ? "-O2" : "-O0",
-                    "-Wno-override-module", (char *)ll, runtime, "-o", (char *)exe, NULL};
+                    "-Wno-override-module", (char *)ll, runtime, "-lm", "-o", (char *)exe, NULL};
     if (spawn_wait(argv) != 0) {
         fprintf(stderr, "error[E0902]: clang failed to compile the generated code\n");
         return STOP_FAIL;

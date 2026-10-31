@@ -65,3 +65,33 @@ void sema_free(Sema *sema) {
     scope_free(&sema->scope);
 }
 
+
+const Attribute *find_attribute(const Sema *sema, AttributeList attributes, const char *name) {
+    for (uint32_t i = 0; i < attributes.len; i++) {
+        if (sv_eq(symbol_name(&sema->session->names, attributes.items[i].name),
+                  sv_from_cstr(name))) {
+            return &attributes.items[i];
+        }
+    }
+    return NULL;
+}
+
+Def *lang_def(Sema *sema, TypeId type) {
+    if (type.id >= TID_BUILTIN_COUNT || sema->lang[type.id].id == 0) {
+        return NULL;
+    }
+    return sema_def(sema, sema->lang[type.id]);
+}
+
+TypeId owner_type(Sema *sema, const Item *owner) {
+    for (uint32_t t = 0; t < TID_BUILTIN_COUNT; t++) {
+        if (sema->lang[t].id && sema_def(sema, sema->lang[t])->item == owner) {
+            return type_id(t);
+        }
+    }
+    DefId id = scope_module_in(&sema->scope, sema->current, owner->name);
+    for (uint32_t m = 0; id.id == 0 && m < sema->program.len; m++) {
+        id = scope_module_in(&sema->scope, m, owner->name);
+    }
+    return type_intern(&sema->types, (Ty){.kind = TY_ADT, .data = id.id});
+}

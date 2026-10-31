@@ -5,6 +5,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 static DefId add_def(Sema *sema, Def def) {
     VEC_PUSH(sema->defs, def);
@@ -73,7 +74,40 @@ static void check_members(Resolver *r, const Item *item) {
     }
 }
 
+// `@lang("str") struct str { ... }` in std: the body of a primitive type.
+// It declares no name; the primitive gets its fields and methods.
+static bool collect_lang(Resolver *r, const Item *item) {
+    const Attribute *attr = find_attribute(r->sema, item->attributes, "lang");
+    if (!attr) {
+        return false;
+    }
+    StrView module = r->sema->program.items[r->sema->current].name;
+    bool in_std = module.len >= 3 && memcmp(module.ptr, "std", 3) == 0;
+    const Expr *arg = attr->args.len == 1 ? attr->args.items[0] : NULL;
+    DefId primitive = arg && arg->kind == EXPR_STR
+                          ? scope_module(&r->sema->scope, intern(&r->sema->session->names,
+                                                                 arg->as.str))
+                          : (DefId){0};
+    const Def *prim = primitive.id ? sema_def(r->sema, primitive) : NULL;
+    if (!in_std || !prim || prim->kind != DEF_PRIMITIVE || r->sema->lang[prim->type.id].id) {
+        resolve_error(r, "E0805", attr->span, in_std ? "`@lang` needs the name of a primitive "
+                      "type, declared once: `@lang(\"str\")`" : "`@lang` is reserved to the "
+                      "standard library");
+        return true;
+    }
+    TypeId type = prim->type;   // `prim` points into `defs`, which the push may move
+    VEC_PUSH(r->sema->defs, ((Def){.kind = DEF_STRUCT, .name = item->name, .span = item->span,
+                                   .item = item, .is_pub = true, .lang = true,
+                                   .type = type, .module = r->sema->current}));
+    r->sema->lang[type.id] = (DefId){(uint32_t)r->sema->defs.len - 1};
+    check_members(r, item);
+    return true;
+}
+
 static void collect_item(Resolver *r, const Item *item) {
+    if ((item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT) && collect_lang(r, item)) {
+        return;
+    }
     switch (item->kind) {
     case ITEM_FN:
         declare_fn(r, item, item->as.fn, true);

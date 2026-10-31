@@ -75,7 +75,8 @@ StructInfo *struct_fields(Checker *c, DefId id) {
     info->is_copy = item->as.struct_.is_copy;
     uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
-    c->self_type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
+    TypeId adt = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
+    c->self_type = def->lang ? def->type : adt;
     def->checking = true;
     fill_fields(c, def, info);
     def->checking = false;
@@ -85,11 +86,16 @@ StructInfo *struct_fields(Checker *c, DefId id) {
     return info;
 }
 
-// The struct definition of a type, or NULL.
+// The struct definition of a type (a `@lang` declaration for a primitive),
+// or NULL.
 static const Def *struct_def(Checker *c, TypeId type, DefId *id) {
     const Ty *ty = type_get(c->types, type);
     if (ty->kind != TY_ADT) {
-        return NULL;
+        Def *lang = lang_def(c->sema, type);
+        if (lang) {
+            *id = c->sema->lang[type.id];
+        }
+        return lang;
     }
     *id = (DefId){ty->data};
     const Def *def = sema_def(c->sema, *id);
@@ -208,4 +214,21 @@ TypeId check_struct_literal(Checker *c, Expr *e) {
         }
     }
     return type;
+}
+
+// The fields of `@lang("str")` must be the layout the compiler and the
+// runtime use: `{ptr: *u8, len: int, cap: int}`.
+void check_lang_layout(Checker *c, const Def *lang, TypeId type) {
+    const StructInfo *info = lang->fields;
+    if (type.id == TID_STR) {
+        TypeId bytes = type_intern(c->types, (Ty){.kind = TY_PTR, .inner = type_id(TID_U8)});
+        bool ok = info && info->count == 3 && type_eq(info->types[0], bytes) &&
+                  info->types[1].id == TID_INT && info->types[2].id == TID_INT;
+        if (!ok) {
+            check_error(c, "E0806", lang->span,
+                        "`@lang(\"str\")` must declare `ptr: *u8`, `len: int`, `cap: int`");
+        }
+    } else if (info && info->count > 0) {
+        check_error(c, "E0806", lang->span, "a `@lang` numeric type declares no fields");
+    }
 }

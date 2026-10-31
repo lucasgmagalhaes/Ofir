@@ -75,6 +75,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0802 | integer overflow, division by zero, invalid shift or cast in a constant | stage 0 |
 | E0803 | this operation requires an `unsafe` block or function | stage 0 |
 | E0804 | type `T` has no C layout and cannot cross the C boundary | stage 0 |
+| E0805 | invalid `@lang` declaration (reserved to the standard library) | stage 0 |
+| E0806 | a `@lang` declaration does not have the layout of its primitive type | stage 0 |
 | E0900 | cannot read source file | stage 0 |
 | E0901 | X is not supported yet (a feature this compiler version does not implement) | stage 0 |
 | E0902 | the toolchain failed: clang or the runtime library is missing, or clang reported an error | stage 0 |
