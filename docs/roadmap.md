@@ -83,7 +83,9 @@ Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 | 1.15 | Lowering for the skeleton subset | S | AIR validator passes |
 | 1.16 | Codegen: functions, locals, integer arithmetic, calls, string constants; no `noalias` | M | generated `.ll` accepted by clang 17 and the latest clang |
 | 1.17 | Runtime: entry point, stdout buffer, `astra_write`, panic functions, allocator | S | runtime builds with `-Werror` |
-| 1.18 | Driver: `astra build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **M1: hello world runs** |
+| 1.17a | **done**: Benchmark harness: `bench/run_bench.py`, `--time-passes`, `--stop-after`, CI regression gate | S | `make bench` and `make bench-compare` work |
+| 1.17b | Benchmarks for each new phase (`parse-100k`, `check-100k`, `build-100k`) added with the phase | S | each phase has a benchmark |
+| 1.18 | Driver: `astra build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **M1: hello world runs**; binary size measured |
 
 ## Phase 2 — Stage 0 core language
 
@@ -131,6 +133,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 3.9 | `std.os` S0 entries: args, env, exit, `run` | M | a test program runs `clang --version` |
 | 3.10 | Runtime: stack overflow detection | S | `tests/panic/stack_overflow*` pass |
 | 3.11 | `@test` functions and `astra test` | M | `std` tests run in CI |
+| 3.11a | First generated-code benchmarks (`fib`, `nbody`, `binary_trees`) against C | M | ratio to C recorded in `bench/HISTORY.md` |
 | 3.12 | Freeze review: all suites under ASan/UBSan, fix leaks and crashes | M | **M2: stage 0 complete** → release 0.1 |
 
 ## Phase 4 — Self-hosting (milestones M3 and M4)
@@ -178,7 +181,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.12 | Diagnostics: notes and help messages, `astra explain`, JSON output; an explanation file for every registry code | M | every error code has `docs/errors/EXXXX.md` |
 | 5.13 | Debug info (DWARF) | M | stepping through code in `lldb` works |
 | 5.14 | Optimization: `noalias`/`readonly` (stage 1 only), niche layouts, field reordering, AIR check elimination | M | benchmarks within 10% of C |
-| 5.15 | Benchmark suite with C/Rust/Go baselines in CI | M | results published per release |
+| 5.15 | Generated-code benchmark suite with C/Rust/Go baselines (started at M2 with the first programs) | M | results in `bench/HISTORY.md` per release |
 
 **M5** is reached when every chapter of the specification not marked
 **[planned]** is implemented and tested → release 0.5.
