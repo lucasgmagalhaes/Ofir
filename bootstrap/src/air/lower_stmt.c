@@ -13,6 +13,11 @@ static void lower_let(Lowerer *l, Stmt *s) {
     Pattern *pattern = s->as.let.pattern;
     if (pattern->kind == PAT_BINDING) {
         assign_operand(l, air_local_of(pattern->as.binding.local), value);
+    } else if (pattern->kind != PAT_WILDCARD && value.kind != OPERAND_UNIT) {
+        // A destructuring `let`: its pattern always matches (checked).
+        BlockId never = air_new_block(l->body);
+        lower_pattern(l, pattern, (Place){.local = to_local(l, value)}, never);
+        air_terminate(l->body, never, (Terminator){.kind = TERM_UNREACHABLE});
     }
 }
 

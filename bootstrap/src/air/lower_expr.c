@@ -177,7 +177,14 @@ Operand lower_expr(Lowerer *l, Expr *e) {
     case EXPR_CAST: return lower_cast(l, lower_expr(l, e->as.cast.value), e->type, e->span);
     case EXPR_CALL: return call(l, e);
     case EXPR_FIELD:
+        if (e->as.field.res.kind == RES_VARIANT) {   // `Shape.Empty`
+            return build_variant(l, e->type, e->as.field.res.index, (ArgList){0});
+        }
         return e->as.field.res.kind == RES_FIELD ? lower_field_read(l, e) : lower_field(l, e);
+    case EXPR_VARIANT:
+        return build_variant(l, e->type, e->as.variant.index, e->as.variant.args);
+    case EXPR_TUPLE: return lower_tuple(l, e);
+    case EXPR_MATCH: return lower_match(l, e);
     case EXPR_TUPLE_FIELD: return lower_field_read(l, e);
     case EXPR_STRUCT: return lower_struct_literal(l, e);
     case EXPR_INDEX: return lower_index(l, e);

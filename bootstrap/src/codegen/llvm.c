@@ -6,45 +6,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-// A struct is a named LLVM type, `%"Point"`, defined at its first use.
-static const char *struct_type(Gen *g, uint32_t def) {
-    if (def >= g->adt_count) {
-        size_t count = g->sema->defs.len;
-        g->adt_types = xrealloc(g->adt_types, count * sizeof(char *));
-        for (size_t i = g->adt_count; i < count; i++) {
-            g->adt_types[i] = NULL;
-        }
-        g->adt_count = count;
-    }
-    if (g->adt_types[def]) {
-        return g->adt_types[def];
-    }
-    StrView name = def_name(g, (DefId){def});
-    char *text = ARENA_ARRAY(&g->sema->session->arena, char, name.len + 16);
-    Out out;
-    out_to_array(&out, text, name.len + 16);
-    out_str(&out, "%\"");
-    out_write(&out, name.ptr, name.len);
-    out_fmt(&out, ".%u\"", def);   // the DefId keeps types of the same name apart
-    g->adt_types[def] = text;
-    const StructInfo *info = sema_def(g->sema, (DefId){def})->fields;
-    for (uint32_t i = 0; info && i < info->count; i++) {
-        llvm_type(g, info->types[i]);   // define the field types first: no interleaving
-    }
-    out_fmt(&g->type_defs, "%s = type { ", text);
-    for (uint32_t i = 0; info && i < info->count; i++) {
-        const char *field = llvm_type(g, info->types[i]);
-        out_fmt(&g->type_defs, "%s%s", i ? ", " : "", strcmp(field, "void") ? field : "{}");
-    }
-    out_str(&g->type_defs, " }\n");
-    return text;
-}
-
 // check-sizes: table
 const char *llvm_type(Gen *g, TypeId type) {
     const Ty *ty = type_get(g->types, type);
     switch (ty->kind) {
-    case TY_ADT: return struct_type(g, ty->data);
+    case TY_ADT: return adt_type(g, ty->data);
+    case TY_TUPLE: return tuple_type(g, ty);
+    case TY_REF: case TY_PTR: return "ptr";
     case TY_BOOL: return "i1";
     case TY_INT:
         switch (ty->data) {
@@ -85,26 +53,6 @@ void function_name(Gen *g, Out *out, DefId def, bool is_main) {
     StrView name = def_name(g, def);
     out_write(out, name.ptr, name.len);
     out_char(out, '"');
-}
-
-void place_address(Gen *g, LocalId local, FieldPath path, char text[16]) {
-    char base[16];
-    fmt_into(base, sizeof base, "%%l%u", local.id);
-    if (path.deref) {   // the local holds the address of the value
-        next_temp(g, base);
-        out_fmt(&g->out, "  %s = load ptr, ptr %%l%u\n", base, local.id);
-    }
-    if (path.len == 0) {
-        memcpy(text, base, 16);
-        return;
-    }
-    next_temp(g, text);
-    out_fmt(&g->out, "  %s = getelementptr inbounds %s, ptr %s, i32 0", text,
-            llvm_type(g, g->body->locals.data[local.id].type), base);
-    for (uint32_t i = 0; i < path.len; i++) {
-        out_fmt(&g->out, ", i32 %u", path.fields[i]);
-    }
-    out_char(&g->out, '\n');
 }
 
 // "%t<N>", written by hand: this is the most frequent formatting.
@@ -215,8 +163,9 @@ Gen *llvm_begin(Sema *sema, FILE *file) {
     // Every struct is known after type checking. The definitions come first:
     // LLVM needs a type's size when a function allocates it.
     for (size_t i = 1; i < sema->defs.len; i++) {
-        if (sema->defs.data[i].kind == DEF_STRUCT && sema->defs.data[i].fields) {
-            struct_type(g, (uint32_t)i);
+        const Def *def = &sema->defs.data[i];
+        if ((def->kind == DEF_STRUCT && def->fields) || (def->kind == DEF_ENUM && def->variants)) {
+            adt_type(g, (uint32_t)i);
         }
     }
     out_write(&g->out, g->type_defs.buf, g->type_defs.len);

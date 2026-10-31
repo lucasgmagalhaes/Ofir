@@ -83,6 +83,15 @@ Operand lower_field(Lowerer *l, Expr *e);
 Operand lower_index(Lowerer *l, Expr *e);
 void lower_panic_assert(Lowerer *l, Expr *call, Builtin builtin);
 
+// lower_pattern.c
+Operand build_variant(Lowerer *l, TypeId type, uint32_t index, ArgList args);
+Operand enum_equality(Lowerer *l, Op op, Operand a, Operand b);
+Operand lower_tuple(Lowerer *l, Expr *e);
+// Tests `p` against the value at `place`: jumps to `fail` if it does not
+// match, else continues in the current block with the bindings assigned.
+void lower_pattern(Lowerer *l, Pattern *p, Place place, BlockId fail);
+Operand lower_match(Lowerer *l, Expr *e);
+
 // lower_struct.c
 Place lower_place(Lowerer *l, Expr *e);
 Operand place_operand(Place place, OperandKind kind, TypeId type);

@@ -84,6 +84,9 @@ Operand lower_binary_op(Lowerer *l, Arith x) {
     if (ty->kind == TY_STR) {
         return str_op(l, x.op, x.a, x.b);
     }
+    if (ty->kind == TY_ADT) {   // == and != on enums without payloads
+        return enum_equality(l, x.op, x.a, x.b);
+    }
     if (x.op >= OP_EQ && x.op <= OP_GE) {
         return compare(l, x.op, x.a, x.b);
     }
