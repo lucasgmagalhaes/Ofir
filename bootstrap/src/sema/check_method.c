@@ -107,14 +107,25 @@ static Receiver receiver_of(const Ty *ty, bool *ok) {
     return ty->kind == TY_STR ? RECV_STR : ty->kind == TY_INT ? RECV_INT : RECV_FLOAT;
 }
 
+// `Point.new()` or `Shape.Circle(1.0)`.
+static TypeId call_on_type(Checker *c, Expr *call, DefId owner) {
+    Expr *field = call->as.call.callee;
+    field->as.field.base->type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
+    TypeId variant;
+    if (sema_def(c->sema, owner)->kind == DEF_ENUM &&
+        check_qualified_variant(c, call, owner, field->as.field.name, &variant)) {
+        return variant;
+    }
+    return check_user_method(c, call, owner, true);
+}
+
 TypeId check_method_call(Checker *c, Expr *call) {
     Expr *field = call->as.call.callee;
     Expr *base = field->as.field.base;
     Symbol name = field->as.field.name;
     DefId owner;
-    if (type_name_of(c, base, &owner)) {   // `Point.new()`
-        base->type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
-        return check_user_method(c, call, owner, true);
+    if (type_name_of(c, base, &owner)) {
+        return call_on_type(c, call, owner);
     }
     const Def *type_name_def = primitive_name(c, base);
     Receiver receiver = RECV_STR_TYPE;
@@ -149,6 +160,19 @@ TypeId check_method_call(Checker *c, Expr *call) {
 
 // `p.x` on a struct, or `i32.MAX`, `float.NAN`, ... on a primitive type.
 TypeId check_field(Checker *c, Expr *e) {
+    DefId owner;
+    if (type_name_of(c, e->as.field.base, &owner)) {   // `Shape.Empty`
+        TypeId variant;
+        e->as.field.base->type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
+        if (sema_def(c->sema, owner)->kind == DEF_ENUM &&
+            check_qualified_variant(c, e, owner, e->as.field.name, &variant)) {
+            return variant;
+        }
+        check_error(c, "E0320", e->span, "no variant `" SV_FMT "` in `%s`",
+                    SV_ARG(name_of(c, e->as.field.name)),
+                    type_name(c, e->as.field.base->type));
+        return type_id(TID_ERROR);
+    }
     const Def *primitive = primitive_name(c, e->as.field.base);
     if (!primitive) {
         return check_struct_field(c, e, check_expr(c, e->as.field.base, NO_TYPE));

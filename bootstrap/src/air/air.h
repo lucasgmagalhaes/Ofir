@@ -31,6 +31,10 @@ typedef enum {
     OPERAND_UNIT,
 } OperandKind;
 
+// A step of a field path that views an enum's payload as variant `v`: the
+// next step is a field of that variant. Step 0 of an enum is its tag.
+#define PATH_VARIANT 0x80000000u
+
 // The field path of a place: positions of struct fields from the local.
 // With `deref`, the local holds the address of the value (a `mut`
 // parameter): the path starts from that address.

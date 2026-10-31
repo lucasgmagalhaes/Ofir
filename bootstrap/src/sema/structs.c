@@ -16,22 +16,25 @@ static bool is_copy_type(Checker *c, TypeId type) {
     return ty->kind != TY_STR;   // the primitive types except str
 }
 
-// A field of struct type that is still being laid out contains itself.
-static void check_not_recursive(Checker *c, TypeId type, Span span) {
+// A field of a struct or enum type that is still being laid out contains
+// itself. Tuples are looked into.
+void check_not_recursive(Checker *c, TypeId type, Span span) {
     const Ty *ty = type_get(c->types, type);
+    for (uint32_t i = 0; ty->kind == TY_TUPLE && i < ty->arg_count; i++) {
+        check_not_recursive(c, ty->args[i], span);
+    }
     if (ty->kind != TY_ADT) {
         return;
     }
     Def *inner = sema_def(c->sema, (DefId){ty->data});
-    if (inner->kind != DEF_STRUCT) {
-        return;
-    }
     if (inner->checking) {
         check_error(c, "E0318", span,
-                    "a struct cannot contain itself by value; use Box<T> or a collection");
-        return;
+                    "a type cannot contain itself by value; use Box<T> or a collection");
+    } else if (inner->kind == DEF_STRUCT) {
+        struct_fields(c, (DefId){ty->data});
+    } else if (inner->kind == DEF_ENUM) {
+        enum_variants(c, (DefId){ty->data});
     }
-    struct_fields(c, (DefId){ty->data});
 }
 
 static void fill_fields(Checker *c, Def *def, StructInfo *info) {
@@ -118,6 +121,10 @@ TypeId check_struct_field(Checker *c, Expr *e, TypeId base) {
 
 TypeId check_tuple_field(Checker *c, Expr *e) {
     TypeId base = check_expr(c, e->as.tuple_field.base, NO_TYPE);
+    const Ty *ty = type_get(c->types, base);
+    if (ty->kind == TY_TUPLE && e->as.tuple_field.index < ty->arg_count) {
+        return ty->args[e->as.tuple_field.index];
+    }
     DefId id;
     const Def *def = struct_def(c, base, &id);
     StructInfo *info = def ? struct_fields(c, id) : NULL;

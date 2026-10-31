@@ -1,0 +1,48 @@
+enum Shape {
+    Circle(radius: float)
+    Rect(width: float, height: float)
+    Empty
+
+    fn area(self) float {
+        return match self {
+            .Circle(r) => 3.14159 * r * r
+            .Rect(w, h) => w * h
+            .Empty => 0.0
+        }
+    }
+}
+
+copy enum Color {
+    Red = 1, Green = 2
+    Blue = 4
+}
+
+fn describe(n: int) str {
+    return match n {
+        0 => "zero"
+        1 | 2 | 3 => "small"
+        4..=9 => "digit"
+        x if x < 0 => "negative"
+        _ => "big"
+    }
+}
+
+fn main() {
+    let shapes = (Shape.Circle(1.0), Shape.Rect(2.0, 3.0), Shape.Empty)
+    println("{shapes.0.area()} {shapes.1.area()} {shapes.2.area()}")
+    let (a, b, _) = shapes
+    println("{b.area()}")
+    let c: Color = .Green
+    println("{c == .Green} {c != Color.Red}")
+    for n in -1..12 {
+        print("{describe(n)} ")
+    }
+    println("")
+    let s: Shape = .Rect(1.0, 1.0)
+    match s {
+        .Circle(r) => println("circle {r}")
+        .Rect(w, h) if w == h => println("square {w}")
+        .Rect(_, _) => println("rect")
+        _ => println("other")
+    }
+}

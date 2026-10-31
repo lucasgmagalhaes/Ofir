@@ -38,6 +38,7 @@ typedef enum {
     RES_DEF,        // index: a DefId
     RES_BUILTIN,    // index: a BuiltinMethod (sema/builtins.h)
     RES_FIELD,      // index: the position of a struct field
+    RES_VARIANT,    // index: the position of an enum variant
     RES_ERROR,      // an error was reported
 } ResKind;
 
@@ -108,11 +109,13 @@ typedef struct {
 struct Pattern {
     PatternKind kind;
     Span span;
+    TypeId type;        // the type of the matched value, set by the checker
     union {
         struct { Symbol name; bool mutable; LocalId local; } binding;
         Expr *literal;
         struct { Expr *lo; Expr *hi; bool inclusive; } range;
-        struct { SymbolList path; Symbol name; PatternList args; bool has_args; } variant;
+        struct { SymbolList path; Symbol name; PatternList args; bool has_args;
+                 uint32_t index; } variant;   // index: set by the checker
         PatternList tuple;
         struct { SymbolList path; List(FieldPattern) fields; bool rest; } struct_;
         struct { SymbolList path; PatternList args; } tuple_struct;
@@ -204,7 +207,7 @@ struct Expr {
         struct { Expr *type; List(FieldInit) fields; Expr *base; } struct_;
         ExprList elems;                                          // array, tuple
         struct { Expr *value; Expr *count; } repeat;
-        struct { Symbol name; ArgList args; bool has_args; } variant;
+        struct { Symbol name; ArgList args; bool has_args; uint32_t index; } variant;
         struct { Pattern *let_pattern; Expr *cond; Block *then; Expr *else_; } if_;
         struct { Expr *scrutinee; List(MatchArm) arms; } match;
         Block *block;                                            // block, unsafe
