@@ -1,0 +1,42 @@
+extern "C" {
+    fn strlen(s: *u8) u64
+    fn puts(s: str) i32        // error[E0804]: type `str` has no C layout and cannot cross the C boundary
+}
+
+unsafe fn risky() int {
+    return 1
+}
+
+fn outsideCall() {
+    let n = risky()            // error[E0803]: calling an `unsafe` or `extern` function requires an `unsafe` block or function
+}
+
+fn outsideDeref(p: *u8) {
+    let b = *p                 // error[E0803]: dereferencing a raw pointer requires an `unsafe` block or function
+}
+
+fn outsideAdd(p: *u8) {
+    let q = p.add(1)           // error[E0803]: offsetting a raw pointer requires an `unsafe` block or function
+}
+
+fn outsideCast(n: u64) {
+    let p = n as *u8           // error[E0803]: converting a raw pointer requires an `unsafe` block or function
+}
+
+fn readOnly(p: *u8) {
+    unsafe {
+        *p = 1                 // error[E0315]: this value cannot be modified: it is reached through a `*T`, not a `*mut T`
+    }
+}
+
+fn notPointer(n: int) {
+    unsafe {
+        let x = *n             // error[E0313]: type `int` cannot be dereferenced
+    }
+}
+
+// Accepted: unsafe functions may do all of it.
+unsafe fn allowed(p: *mut u8) u64 {
+    *p = 0
+    return strlen(p) + risky() as u64
+}

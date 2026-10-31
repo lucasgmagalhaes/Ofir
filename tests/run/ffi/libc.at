@@ -1,0 +1,34 @@
+extern "C" {
+    fn strlen(s: *u8) u64
+    fn malloc(size: u64) *mut u8
+    fn free(p: *mut u8)
+    fn abs(n: i32) i32
+}
+
+struct Pair {
+    a: int
+    b: int
+}
+
+extern "C" fn twice(n: i32) i32 {
+    return n * 2
+}
+
+fn main() {
+    unsafe {
+        let p = malloc(16)
+        *p = 72
+        *p.add(1) = 105
+        *p.add(2) = 0
+        println("{strlen(p)} {*p} {*p.add(1)}")
+        let pairs = malloc(32) as *mut Pair
+        *pairs = Pair{a: 1, b: 2}
+        (*pairs).b += 40
+        let second = pairs.add(1)
+        (*second).a = 7
+        println("{(*pairs).a} {(*pairs).b} {(*second).a} {pairs == pairs} {p as u64 != 0}")
+        free(p)
+        free(pairs as *mut u8)
+        println("{abs(-5)} {twice(21)}")
+    }
+}
