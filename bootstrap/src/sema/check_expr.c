@@ -194,6 +194,10 @@ static TypeId call(Checker *c, Expr *e) {
         if (def->kind == DEF_BUILTIN) {
             return builtin_call(c, e, def->builtin);
         }
+        if (def->kind == DEF_STRUCT) {
+            callee->type = type_id(TID_UNIT);
+            return check_constructor(c, e, (DefId){callee->as.ident.res.index});
+        }
         type = def->kind == DEF_FN ? fn_signature(c, def->fn) : def_value(c, def, callee->span);
     } else {
         type = check_expr(c, callee, NO_TYPE);
@@ -237,9 +241,9 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_RANGE: return unsupported(c, e->span, "ranges outside of `for` are");
     case EXPR_INDEX: return check_index(c, e);
     case EXPR_FIELD: return check_field(c, e);
-    case EXPR_TUPLE_FIELD: return unsupported(c, e->span, "tuples are");
+    case EXPR_TUPLE_FIELD: return check_tuple_field(c, e);
     case EXPR_TRY: return unsupported(c, e->span, "the `?` operator is");
-    case EXPR_STRUCT: return unsupported(c, e->span, "struct literals are");
+    case EXPR_STRUCT: return check_struct_literal(c, e);
     case EXPR_ARRAY: case EXPR_ARRAY_REPEAT: return unsupported(c, e->span, "arrays are");
     case EXPR_VARIANT: return unsupported(c, e->span, "enum variants are");
     case EXPR_MATCH: return unsupported(c, e->span, "`match` is");

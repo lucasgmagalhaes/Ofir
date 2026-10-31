@@ -43,8 +43,13 @@ static TypeId var_stmt(Checker *c, Stmt *s) {
 
 // The left side of `=` must be a mutable place (spec 4.2).
 static void check_place(Checker *c, Expr *target) {
-    if (target->kind != EXPR_IDENT && target->kind != EXPR_SELF) {
-        unsupported(c, target->span, "assigning to fields and elements is");
+    Expr *root = place_root(target);
+    if (root && root != target) {   // a field: the variable must be mutable
+        require_mutable(c, target);
+        return;
+    }
+    if (!root) {
+        unsupported(c, target->span, "assigning to elements is");
         return;
     }
     Res res = target->as.ident.res;
