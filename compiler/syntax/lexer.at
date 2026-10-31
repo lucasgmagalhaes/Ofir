@@ -22,7 +22,7 @@ pub copy enum TokenKind {
 
     // punctuation; `>` is never combined here (see `punct`)
     LParen, RParen, LBrace, RBrace, LBracket, RBracket
-    Comma, Colon, Semicolon, Dot, DotDot, DotDotEq, FatArrow, Question, At
+    Comma, Colon, Semicolon, Dot, DotDot, DotDotEq, FatArrow, Question, QuestionQuestion, At
     Plus, Minus, Star, Slash, Percent, Amp, Pipe, Caret, Shl, Bang
     Eq, EqEq, Ne, Lt, Le, Gt, AndAnd, OrOr
     PlusEq, MinusEq, StarEq, SlashEq, PercentEq, AmpEq, PipeEq, CaretEq, ShlEq
@@ -460,7 +460,7 @@ struct Lexer {
             b',' => .Comma
             b':' => .Colon
             b';' => .Semicolon
-            b'?' => .Question
+            b'?' => self.pick(src, b'?', .QuestionQuestion, .Question)
             b'@' => .At
             b'>' => .Gt
             b'.' => if self.eat(src, b'.') { self.pick(src, b'=', .DotDotEq, .DotDot) } else { .Dot }
