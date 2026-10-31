@@ -1,0 +1,39 @@
+name: Performance
+
+# Compares the compiler's performance with the base branch on every pull
+# request, and records it for every commit on main (docs/design/performance.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # the base revision is needed for the comparison
+
+      - name: Install valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+      - name: Compare with the base branch
+        if: github.event_name == 'pull_request'
+        # Instruction counts are deterministic, so the gate is reliable on
+        # shared runners; wall times are reported for information only.
+        run: tools/bench_compare.sh origin/${{ github.base_ref }}
+
+      - name: Measure
+        if: github.event_name == 'push'
+        run: |
+          make -C bootstrap release BUILD=$PWD/build/release
+          python3 bench/run_bench.py --json build/bench-results.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-results-${{ github.sha }}
+          path: build/bench-results.json
