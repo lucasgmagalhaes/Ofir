@@ -1,0 +1,18 @@
+// One error per statement: the parser resynchronizes at the next line.
+fn first() {
+    let = 1   // error[E0100]: expected a pattern
+    let ok = 2
+}
+
+fn second() {
+    var        // error[E0100]: expected a variable name after `var`
+}
+
+struct Point {
+    x: int
+    y int   // error[E0100]: expected `:` and the field type
+}
+
+fn third() {
+    return 1 +
+}   // error[E0100]: expected an expression

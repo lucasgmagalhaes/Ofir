@@ -1,0 +1,188 @@
+module
+  fn expressions
+    body
+      let a
+        binary -
+          binary +
+            lit 1
+            binary *
+              lit 2
+              lit 3
+          binary %
+            binary /
+              lit 4
+              lit 5
+            lit 6
+      let b
+        binary *
+          binary +
+            lit 1
+            lit 2
+          lit 3
+      let c
+        binary ^
+          binary |
+            binary <<
+              ident x
+              lit 2
+            binary &
+              binary >>
+                ident y
+                lit 1
+              ident mask
+          ident bits
+      let d
+        binary ||
+          binary &&
+            binary <
+              ident a
+              ident b
+            binary >=
+              ident c
+              ident d
+          unary !
+            ident e
+      let e
+        cast
+          cast
+            unary -
+              ident x
+            to i64
+          to f64
+      let f
+        binary ??
+          ident first
+          binary ??
+            ident second
+            lit 0
+      let g
+        range ..
+          lit 0
+          lit 10
+      let h
+        range ..=
+          lit 0
+          ident n
+      let i
+        range _..
+          ident end
+      let j
+        range .._
+          ident start
+      let k
+        binary +
+          binary +
+            unary *
+              ident ptr
+            unary &
+              ident value
+          unary &mut
+            ident other
+      let l
+        tuple_field 0
+          try
+            call
+              field method
+                field field
+                  index
+                    ident items
+                    binary +
+                      ident i
+                      lit 1
+              lit 1
+              arg two
+                lit 2
+      let m
+        tuple_field 1
+          tuple_field 0
+            ident pair
+      let n
+        call
+          field new
+            generic List<int>
+      let o
+        struct
+          generic Map<str, List<int>>
+      let p
+        array
+          lit 1
+          lit 2
+          lit 3
+      let q
+        repeat
+          lit 0
+          lit 16
+      let r
+        tuple
+          lit 1
+          str "two"
+          lit 3.5
+      let s
+        tuple
+          ident single
+      let t
+        variant .Circle()
+          lit 1.0
+      let u
+        variant .Empty
+      let v
+        struct
+          ident Point
+          field x
+            lit 1.0
+          field y
+            lit 2.0
+          base
+            ident origin
+      let w
+        interp
+          str "sum = "
+          binary +
+            ident a
+            ident b
+          str ", name = "
+          ident name
+      let x
+        binary +
+          binary +
+            binary +
+              binary +
+                lit b97
+                lit 255
+              lit 10
+            lit 1000000
+          lit 1.5e+03
+      let y
+        binary !=
+          lit true
+          lit false
+      let z
+        binary >
+          ident a
+          ident b
+      let shifted
+        binary >>
+          ident value
+          lit 3
+      let total
+        binary +
+          binary +
+            ident a
+            ident b
+          ident c
+      let call
+        call
+          ident f
+          lit 1
+          lit 2
+      let block
+        block
+          let inner
+            lit 1
+          binary +
+            ident inner
+            lit 1
+      let unsafeRead
+        unsafe
+          unary *
+            ident ptr

@@ -1,0 +1,118 @@
+module
+  fn control
+    param n: int
+    returns int
+    body
+      if
+        binary <
+          ident n
+          lit 0
+        then
+          return
+            unary -
+              lit 1
+        else
+          if
+            binary ==
+              ident n
+              lit 0
+            then
+              return
+                lit 0
+            else
+              call
+                ident println
+                str "positive"
+      let kind
+        if
+          binary ==
+            binary %
+              ident n
+              lit 2
+            lit 0
+          then
+            str "even"
+          else
+            str "odd"
+      if
+        let .Some(value)
+        call
+          ident lookup
+          ident n
+        then
+          call
+            ident println
+            interp
+              ident value
+      if
+        binary ==
+          ident point
+          struct
+            ident Point
+            field x
+              lit 0
+            field y
+              lit 0
+        then
+          return
+            lit 0
+      let size
+        match
+          ident shape
+          arm .Circle(r)
+            binary *
+              ident r
+              ident r
+          arm .Rect(w, h)
+            guard
+              binary >
+                ident w
+                ident h
+            binary *
+              ident w
+              ident h
+          arm .Rect(w, h)
+            block
+              let area
+                binary *
+                  ident w
+                  ident h
+              ident area
+          arm _
+            lit 0
+      match
+        ident n
+        arm 0 | 1
+          call
+            ident println
+            str "small"
+        arm 2..=9
+          call
+            ident println
+            str "digit"
+        arm -5..0
+          call
+            ident println
+            str "negative"
+        arm Point{x, y: 0, ..}
+          call
+            ident println
+            str "on the axis"
+        arm Pair(a, _)
+          call
+            ident println
+            str "pair"
+        arm Shape.Circle(r)
+          call
+            ident println
+            str "circle"
+        arm (a, b)
+          call
+            ident println
+            str "tuple"
+        arm mut other
+          call
+            ident println
+            str "other"
+      return
+        ident size

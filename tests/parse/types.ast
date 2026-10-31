@@ -1,0 +1,15 @@
+module
+  fn types
+    param a: int
+    param b: &mut List<str>
+    param c: [u8; 4]
+    param d: ()
+    param e: (int,)
+    param f: (int, str)
+    param g: fn(mut List<int>, int) bool
+    param h: move fn() int
+    param i: Map<str, List<int>>
+    param j: Option<Map<str, int>>?
+    param k: *u8
+    param l: std.io.File
+    body

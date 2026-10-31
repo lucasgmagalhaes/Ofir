@@ -1,0 +1,131 @@
+module
+  doc "Items: every declaration form of the stage 0 subset."
+  import std.io
+  import std.collections.Map
+    as Dict
+  fn add pub
+    attr inline
+    param a: int
+    param b: int
+      default
+        lit 1
+    returns int
+    body
+      return
+        binary +
+          ident a
+          ident b
+  fn raw unsafe
+    param p: *mut u8
+    param data: &[u8]
+    body
+  fn identity
+    type_params T
+    param value: move T
+    returns T
+    body
+      return
+        ident value
+  struct Point pub
+    field pub x: float
+      lit 0.0
+    field y: float
+    field z: float
+    fn new pub
+      param x: float
+      param y: float
+      returns Point
+      body
+        return
+          struct
+            ident Point
+            field x
+            field y
+              ident y
+            field z
+              lit 0.0
+    fn norm
+      self
+      returns float
+      body
+        return
+          field x
+            self
+    fn scale
+      mut self
+      param by: float
+      body
+        assign *=
+          field x
+            self
+          ident by
+    fn into
+      move self
+      returns (float, float)
+      body
+        return
+          tuple
+            field x
+              self
+            field y
+              self
+  tuple_struct Meters copy
+    field float
+  tuple_struct Pair
+    type_params A, B
+    field pub A
+    field B
+    fn first
+      self
+      returns &A
+      body
+        return
+          unary &
+            tuple_field 0
+              self
+  struct Node ref
+    field next: Node?
+  enum Color copy
+    attr repr(C)
+    variant Red
+      lit 1
+    variant Green
+      lit 2
+    variant Blue
+      lit 4
+  enum Tree
+    type_params T
+    variant Leaf
+    variant Branch(left: Tree<T>, T, right: Tree<T>)
+    fn isLeaf
+      self
+      returns bool
+      body
+        return
+          lit false
+  const MAX_SIZE
+    type int
+    binary <<
+      lit 1
+      lit 16
+  const NAME
+    str "astra"
+  global counter
+    type u64
+    lit 0
+  type Grid
+    type_params T
+    = List<List<T>>
+  extern "C"
+    fn malloc
+      param size: usize
+      returns *mut u8
+    fn abort
+      attr cold
+      returns !
+  fn callback extern
+    param code: i32
+    returns i32
+    body
+      return
+        ident code
