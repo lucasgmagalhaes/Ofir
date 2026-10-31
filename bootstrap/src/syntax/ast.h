@@ -139,6 +139,8 @@ typedef struct {
     Expr *value;
 } Arg;
 
+typedef List(Arg) ArgList;
+
 typedef struct {
     Symbol name;
     Expr *value;        // NULL for the shorthand `x`
@@ -166,7 +168,7 @@ struct Expr {
         struct { Op op; Expr *lhs; Expr *rhs; } binary;
         struct { Expr *value; TypeExpr *type; } cast;
         struct { Expr *lo; Expr *hi; bool inclusive; } range;    // lo, hi may be NULL
-        struct { Expr *callee; List(Arg) args; } call;
+        struct { Expr *callee; ArgList args; } call;
         struct { Expr *base; Expr *index; } index;
         struct { Expr *base; Symbol name; } field;
         struct { Expr *base; uint32_t index; } tuple_field;
@@ -174,7 +176,7 @@ struct Expr {
         struct { Expr *type; List(FieldInit) fields; Expr *base; } struct_;
         ExprList elems;                                          // array, tuple
         struct { Expr *value; Expr *count; } repeat;
-        struct { Symbol name; List(Arg) args; bool has_args; } variant;
+        struct { Symbol name; ArgList args; bool has_args; } variant;
         struct { Pattern *let_pattern; Expr *cond; Block *then; Expr *else_; } if_;
         struct { Expr *scrutinee; List(MatchArm) arms; } match;
         Block *block;                                            // block, unsafe
