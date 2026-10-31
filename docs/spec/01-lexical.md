@@ -108,6 +108,7 @@ names:
 | `move` | it is followed by `fn`, or starts a parameter mode (`x: move T`) |
 | `ref` | it is followed by `struct` (`ref struct Iter { }`) |
 | `where` | it follows a function signature |
+| `comptime` | it starts a declaration, block, `for`, `if` or expression (chapter 15) |
 
 ```astra
 let type = token.type      // fine: `type` is an ordinary identifier here
