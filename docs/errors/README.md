@@ -55,6 +55,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0312 | integer literal out of range for `T` | stage 0 |
 | E0313 | operator cannot be applied to type `T` | stage 0 |
 | E0314 | a value of type `T` cannot be interpolated into a string | stage 0 |
+| E0315 | this value cannot be modified: declare it with `var` (or take it as `mut`) | stage 0 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
 | E0601 | use of possibly uninitialized variable `x` | stage 0 |

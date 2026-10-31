@@ -11,7 +11,7 @@
 
 typedef enum {
     DEF_FN,
-    DEF_BUILTIN,     // print, println
+    DEF_BUILTIN,     // print, println, panic, assert
     DEF_PRIMITIVE,   // int, str, ...: `type` holds the type
     DEF_STRUCT,
     DEF_ENUM,
@@ -20,7 +20,7 @@ typedef enum {
     DEF_TYPE_ALIAS,
 } DefKind;
 
-typedef enum { BUILTIN_PRINT, BUILTIN_PRINTLN } Builtin;
+typedef enum { BUILTIN_PRINT, BUILTIN_PRINTLN, BUILTIN_PANIC, BUILTIN_ASSERT } Builtin;
 
 typedef struct {
     DefKind kind;

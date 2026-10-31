@@ -40,6 +40,14 @@ bool types_compatible(TypeId found, TypeId expected);
 TypeId check_expr(Checker *c, Expr *e, TypeId expected);
 TypeId coerce(Checker *c, Expr *e, TypeId expected);
 TypeId check_const(Checker *c, Def *def);   // the type of a constant or global
+TypeId check_args(Checker *c, Expr *call, const Ty *sig);
+
+// check_method.c: methods, fields and indexing
+TypeId check_method_call(Checker *c, Expr *call);
+TypeId check_field(Checker *c, Expr *e);
+TypeId check_index(Checker *c, Expr *e);
+// Reports E0315 unless `e` is a place that may be modified.
+void require_mutable(Checker *c, Expr *e);
 
 // check_stmt.c
 TypeId check_block(Checker *c, Block *block, TypeId expected, bool as_value);

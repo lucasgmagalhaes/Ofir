@@ -160,7 +160,7 @@ static TypeId cast(Checker *c, Expr *e) {
 // ---------------------------------------------------------------------------
 // Calls
 
-static TypeId check_args(Checker *c, Expr *call, const Ty *sig) {
+TypeId check_args(Checker *c, Expr *call, const Ty *sig) {
     ArgList args = call->as.call.args;
     if (args.len != sig->arg_count) {
         check_error(c, "E0302", call->span,
@@ -175,23 +175,24 @@ static TypeId check_args(Checker *c, Expr *call, const Ty *sig) {
     return sig->inner;
 }
 
-static TypeId builtin_call(Checker *c, Expr *call) {
-    // print(str) and println(str)
-    TypeId param = type_id(TID_STR);
-    Ty sig = {.kind = TY_FN, .inner = type_id(TID_UNIT), .arg_count = 1, .args = &param};
+// print(str), println(str), panic(str) ! and assert(bool).
+static TypeId builtin_call(Checker *c, Expr *call, Builtin builtin) {
+    TypeId param = type_id(builtin == BUILTIN_ASSERT ? TID_BOOL : TID_STR);
+    TypeId ret = type_id(builtin == BUILTIN_PANIC ? TID_NEVER : TID_UNIT);
+    Ty sig = {.kind = TY_FN, .inner = ret, .arg_count = 1, .args = &param};
     return check_args(c, call, &sig);
 }
 
 static TypeId call(Checker *c, Expr *e) {
     Expr *callee = e->as.call.callee;
     if (callee->kind == EXPR_FIELD) {
-        return unsupported(c, callee->span, "method calls are");
+        return check_method_call(c, e);
     }
     TypeId type;
     if (callee->kind == EXPR_IDENT && callee->as.ident.res.kind == RES_DEF) {
         Def *def = sema_def(c->sema, (DefId){callee->as.ident.res.index});
         if (def->kind == DEF_BUILTIN) {
-            return builtin_call(c, e);
+            return builtin_call(c, e, def->builtin);
         }
         type = def->kind == DEF_FN ? fn_signature(c, def->fn) : def_value(c, def, callee->span);
     } else {
@@ -234,8 +235,9 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
         return e->as.elems.len == 0 ? type_id(TID_UNIT) : unsupported(c, e->span, "tuples are");
     case EXPR_SELF_TYPE: case EXPR_GENERIC: return unsupported(c, e->span, "generic types are");
     case EXPR_RANGE: return unsupported(c, e->span, "ranges outside of `for` are");
-    case EXPR_INDEX: return unsupported(c, e->span, "indexing is");
-    case EXPR_FIELD: case EXPR_TUPLE_FIELD: return unsupported(c, e->span, "fields are");
+    case EXPR_INDEX: return check_index(c, e);
+    case EXPR_FIELD: return check_field(c, e);
+    case EXPR_TUPLE_FIELD: return unsupported(c, e->span, "tuples are");
     case EXPR_TRY: return unsupported(c, e->span, "the `?` operator is");
     case EXPR_STRUCT: return unsupported(c, e->span, "struct literals are");
     case EXPR_ARRAY: case EXPR_ARRAY_REPEAT: return unsupported(c, e->span, "arrays are");
