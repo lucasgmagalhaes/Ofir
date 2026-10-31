@@ -1,0 +1,5 @@
+// panic: integer overflow
+fn main() {
+    let x: u8 = 2
+    println("{x.pow(8)}")
+}

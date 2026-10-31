@@ -10,6 +10,7 @@ typedef struct {
     Symbol self_name;      // `self`, declared as local 0 of methods
     Symbol wildcard;       // `_`
     Vec(Local) locals;     // locals of the function being resolved
+    const Item *owner;     // the struct or enum whose methods are resolved, or NULL
 } Resolver;
 
 void resolve_error(Resolver *r, const char *code, Span span, const char *format, ...)

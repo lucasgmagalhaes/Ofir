@@ -18,9 +18,13 @@ struct Gen {
     Out globals;             // string literals and locations, written at the end
     uint32_t str_count, loc_count;
     uint64_t overflow_used[2][3][4];   // [signed][add, sub, mul][i8, i16, i32, i64]
+    bool float_fn_used[FF_COUNT][2];   // [function][f32, f64]
     const AirBody *body;     // the function being generated
     uint32_t temp;           // next %t number in this function
     Out path;                // the escaped source path
+    Out type_defs;           // struct type definitions, written at the end
+    const char **adt_types;  // the LLVM name of each struct, by DefId (NULL until used)
+    size_t adt_count;
 };
 
 // A generated value: its LLVM type and its text (`%t3`, `42`, `true`, ...).
@@ -37,6 +41,9 @@ void function_name(Gen *g, Out *out, DefId def, bool is_main);
 // A fresh temporary name, written into `text`.
 void next_temp(Gen *g, char text[16]);
 
+// The address of a place: `%l<N>` itself, or a getelementptr to the field.
+void place_address(Gen *g, LocalId local, FieldPath path, char text[16]);
+
 uint32_t string_global(Gen *g, StrView text);   // the N of @.str.N
 uint32_t location_global(Gen *g, Span span);     // the N of @.loc.N
 
@@ -47,5 +54,9 @@ void gen_body(Gen *g, const AirBody *body);
 Value gen_operand(Gen *g, Operand o);
 void gen_rvalue(Gen *g, const Rvalue *rv, TypeId dest_type, Value *result);
 void gen_cast_fails(Gen *g, const Rvalue *rv, Value *result);
+void gen_saturate(Gen *g, const Rvalue *rv, Value *result);
+void gen_cast_value(Gen *g, TypeId from, TypeId to, Value a, Value *result);
+void gen_misc(Gen *g, const Rvalue *rv, Value *result);   // select, str, float functions
+void gen_float_decls(Gen *g);
 
 #endif

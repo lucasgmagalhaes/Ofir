@@ -1,0 +1,59 @@
+struct Point {
+    x: int
+    y: int = 0
+}
+
+copy struct Wrapper(int)
+
+struct Named {
+    name: str
+}
+
+copy struct Bad {
+    label: str        // error[E0317]: a `copy struct` can only have fields of Copy types, not `str`
+}
+
+struct Loop {
+    next: Loop        // error[E0318]: a struct cannot contain itself by value; use Box<T> or a collection
+}
+
+fn missing() {
+    let p = Point{y: 1}        // error[E0308]: missing field `x` in `Point`
+}
+
+fn unknown() {
+    let p = Point{x: 1, z: 2}  // error[E0316]: no field `z` on this struct
+}
+
+fn twice() {
+    let p = Point{x: 1, x: 2}  // error[E0201]: field `x` is given twice
+}
+
+fn wrongType() {
+    let p = Point{x: "one"}    // error[E0300]: mismatched types: expected int, found str
+}
+
+fn access(p: Point) {
+    let z = p.z                // error[E0316]: no field `z` on type `Point`
+}
+
+fn tupleAccess(w: Wrapper) {
+    let a = w.1                // error[E0316]: no field `1` on type `Wrapper`
+}
+
+fn constructor() {
+    let n = Named("x")         // error[E0310]: expected a value, found type `Named`; build a struct with `Name{field: value}`
+}
+
+fn tupleArity() {
+    let w = Wrapper(1, 2)      // error[E0302]: wrong number of arguments: expected 1, found 2
+}
+
+fn immutableField() {
+    let p = Point{x: 1}
+    p.x = 2                    // error[E0315]: this value cannot be modified: declare it with `var`
+}
+
+fn notInteger() {
+    let n: int = Wrapper(3)    // error[E0300]: mismatched types: expected int, found Wrapper
+}

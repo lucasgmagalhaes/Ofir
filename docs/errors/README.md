@@ -55,6 +55,10 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0312 | integer literal out of range for `T` | stage 0 |
 | E0313 | operator cannot be applied to type `T` | stage 0 |
 | E0314 | a value of type `T` cannot be interpolated into a string | stage 0 |
+| E0315 | this value cannot be modified: declare it with `var` (or take it as `mut`) | stage 0 |
+| E0316 | no field `f` on type `T` | stage 0 |
+| E0317 | a `copy struct` can only have fields of Copy types | stage 0 |
+| E0318 | a struct cannot contain itself by value | stage 0 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
 | E0601 | use of possibly uninitialized variable `x` | stage 0 |
@@ -63,6 +67,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0701 | cannot borrow `x` as mutable because it is also borrowed as shared | stage 1 |
 | E0702 | a reference cannot be stored or returned here | stage 1 |
 | E0800 | the constant `x` depends on itself | stage 0 |
+| E0801 | a constant may only use literals, constants and operators | stage 0 |
+| E0802 | integer overflow, division by zero, invalid shift or cast in a constant | stage 0 |
 | E0900 | cannot read source file | stage 0 |
 | E0901 | X is not supported yet (a feature this compiler version does not implement) | stage 0 |
 | E0902 | the toolchain failed: clang or the runtime library is missing, or clang reported an error | stage 0 |

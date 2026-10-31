@@ -88,3 +88,70 @@ int32_t astra_str_cmp(const AstraStr *a, const AstraStr *b) {
     }
     return a->len < b->len ? -1 : a->len > b->len;
 }
+
+void astra_str_clear(AstraStr *s) {
+    if (s->cap == 0) {   // a literal: nothing to keep
+        *s = (AstraStr){0};
+    } else {
+        s->len = 0;
+    }
+}
+
+bool astra_str_starts_with(const AstraStr *s, const AstraStr *prefix) {
+    return prefix->len <= s->len &&
+           (prefix->len == 0 || memcmp(s->ptr, prefix->ptr, (size_t)prefix->len) == 0);
+}
+
+bool astra_str_ends_with(const AstraStr *s, const AstraStr *suffix) {
+    return suffix->len <= s->len &&
+           (suffix->len == 0 ||
+            memcmp(s->ptr + s->len - suffix->len, suffix->ptr, (size_t)suffix->len) == 0);
+}
+
+bool astra_str_contains(const AstraStr *s, const AstraStr *part) {
+    if (part->len == 0) {
+        return true;
+    }
+    for (int64_t i = 0; i + part->len <= s->len; i++) {
+        if (s->ptr[i] == part->ptr[0] && memcmp(s->ptr + i, part->ptr, (size_t)part->len) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void astra_str_repeat(AstraStr *out, const AstraStr *s, int64_t n) {
+    AstraStr result = {0};
+    if (n > 0 && s->len > 0) {
+        reserve(&result, s->len * n);
+    }
+    for (int64_t i = 0; i < n; i++) {
+        astra_str_push_bytes(&result, s->ptr, s->len);
+    }
+    *out = result;
+}
+
+static void map_ascii(AstraStr *out, const AstraStr *s, uint8_t from, uint8_t to) {
+    AstraStr result = {0};
+    astra_str_push_bytes(&result, s->ptr, s->len);
+    for (int64_t i = 0; i < result.len; i++) {
+        if (result.ptr[i] >= from && result.ptr[i] <= to) {
+            result.ptr[i] ^= 0x20;   // flips the ASCII case bit
+        }
+    }
+    *out = result;
+}
+
+void astra_str_to_lower(AstraStr *out, const AstraStr *s) {
+    map_ascii(out, s, 'A', 'Z');
+}
+
+void astra_str_to_upper(AstraStr *out, const AstraStr *s) {
+    map_ascii(out, s, 'a', 'z');
+}
+
+void astra_str_to_owned(AstraStr *out, const AstraStr *s) {
+    AstraStr result = {0};
+    astra_str_push_bytes(&result, s->ptr, s->len);
+    *out = result;
+}

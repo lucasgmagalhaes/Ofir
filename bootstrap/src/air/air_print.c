@@ -44,14 +44,25 @@ static const char *const OP_NAMES[] = {
 
 static const char *const PANIC_NAMES[] = {
     [PANIC_OVERFLOW] = "overflow", [PANIC_DIV_ZERO] = "div_zero",
-    [PANIC_SHIFT] = "shift", [PANIC_CAST] = "cast",
+    [PANIC_SHIFT] = "shift", [PANIC_CAST] = "cast", [PANIC_BOUNDS] = "bounds",
+    [PANIC_ASSERT] = "assert",
+};
+
+static const char *const FLOAT_FN_NAMES[] = {
+    [FF_SQRT] = "sqrt", [FF_FABS] = "fabs", [FF_FLOOR] = "floor", [FF_CEIL] = "ceil",
+    [FF_MINNUM] = "minnum", [FF_MAXNUM] = "maxnum",
 };
 
 // check-sizes: table
 static void operand(AirPrinter *p, Operand o) {
     switch (o.kind) {
-    case OPERAND_COPY: fprintf(p->out, "_%u", o.as.local.id); break;
-    case OPERAND_ADDR: fprintf(p->out, "&_%u", o.as.local.id); break;
+    case OPERAND_COPY: case OPERAND_ADDR:
+        fprintf(p->out, "%s%s_%u", o.kind == OPERAND_ADDR ? "&" : "", o.path.deref ? "*" : "",
+                o.as.local.id);
+        for (uint32_t i = 0; i < o.path.len; i++) {
+            fprintf(p->out, ".%u", o.path.fields[i]);
+        }
+        break;
     case OPERAND_INT: fprintf(p->out, "%" PRIu64 "_%s", o.as.int_value, type_str(p, o.type)); break;
     case OPERAND_FLOAT: fprintf(p->out, "%g_%s", o.as.float_value, type_str(p, o.type)); break;
     case OPERAND_BOOL: fprintf(p->out, "%s", o.as.bool_value ? "true" : "false"); break;
@@ -60,8 +71,43 @@ static void operand(AirPrinter *p, Operand o) {
     }
 }
 
+static void operands(AirPrinter *p, const char *name, Operand a, const Operand *b) {
+    fprintf(p->out, "%s ", name);
+    operand(p, a);
+    if (b) {
+        fputs(", ", p->out);
+        operand(p, *b);
+    }
+}
+
+// check-sizes: table
 static void rvalue(AirPrinter *p, const Rvalue *rv) {
     switch (rv->kind) {
+    case RV_SELECT:
+        operands(p, "select", rv->cond, NULL);
+        fputs(" ? ", p->out);
+        operand(p, rv->a);
+        fputs(" : ", p->out);
+        operand(p, rv->b);
+        return;
+    case RV_STR_LEN: operands(p, "str_len", rv->a, NULL); return;
+    case RV_AGGREGATE:
+        fputs("{", p->out);
+        for (uint32_t i = 0; i < rv->count; i++) {
+            fputs(i ? ", " : "", p->out);
+            operand(p, rv->items[i]);
+        }
+        fputs("}", p->out);
+        return;
+    case RV_STR_BYTE: operands(p, "str_byte", rv->a, &rv->b); return;
+    case RV_FLOAT_FN:
+        operands(p, FLOAT_FN_NAMES[rv->fn], rv->a,
+                 rv->fn == FF_MINNUM || rv->fn == FF_MAXNUM ? &rv->b : NULL);
+        return;
+    case RV_SATURATE:
+        operands(p, "saturate", rv->a, NULL);
+        fprintf(p->out, " to %s", type_str(p, rv->to));
+        return;
     case RV_USE: operand(p, rv->a); return;
     case RV_UNARY: fprintf(p->out, "%s ", OP_NAMES[rv->op]); operand(p, rv->a); return;
     case RV_CAST: case RV_CAST_FAILS:
@@ -84,7 +130,11 @@ static void rvalue(AirPrinter *p, const Rvalue *rv) {
 static void statement(AirPrinter *p, const AirStmt *s) {
     fputs("    ", p->out);
     if (s->has_dest) {
-        fprintf(p->out, "_%u = ", s->dest.id);
+        fprintf(p->out, "_%u", s->dest.id);
+        for (uint32_t i = 0; i < s->dest_path.len; i++) {
+            fprintf(p->out, ".%u", s->dest_path.fields[i]);
+        }
+        fputs(" = ", p->out);
     }
     if (s->kind == AIR_ASSIGN) {
         rvalue(p, &s->as.rvalue);
@@ -120,6 +170,7 @@ static void terminator(AirPrinter *p, const Terminator *t) {
         fprintf(p->out, ", %s -> bb%u", PANIC_NAMES[t->panic], t->target.id);
         break;
     case TERM_RETURN: fputs("return", p->out); break;
+    case TERM_PANIC: operands(p, "panic", t->cond, NULL); break;
     case TERM_UNREACHABLE: fputs("unreachable", p->out); break;
     }
     fputc('\n', p->out);
