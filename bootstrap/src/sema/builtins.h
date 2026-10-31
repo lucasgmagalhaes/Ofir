@@ -19,6 +19,8 @@ typedef enum {
     BM_WRAPPING_CAST, BM_SATURATING_CAST,
     // floats
     BM_SQRT, BM_FABS, BM_FLOOR, BM_CEIL, BM_FMIN, BM_FMAX, BM_IS_NAN,
+    // raw pointers
+    BM_PTR_ADD,
     BM_COUNT,
 } BuiltinMethod;
 
@@ -30,7 +32,7 @@ typedef enum {
     BT_TARGET,    // the type argument: x.wrappingCast<T>() returns T
 } BuiltinType;
 
-typedef enum { RECV_STR, RECV_INT, RECV_FLOAT, RECV_STR_TYPE } Receiver;
+typedef enum { RECV_STR, RECV_INT, RECV_FLOAT, RECV_STR_TYPE, RECV_PTR } Receiver;
 
 typedef struct {
     const char *name;

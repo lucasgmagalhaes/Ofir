@@ -18,6 +18,7 @@ typedef struct {
     TypeId self_type;        // the type declaring the method, or TID_ERROR
     TypeId *local_types;     // indexed by LocalId
     Vec(bool) loops;         // per open loop: whether a `break` leaves it
+    uint32_t unsafe_depth;   // > 0 inside an `unsafe` block or function
 } Checker;
 
 #define NO_TYPE type_id(TID_ERROR)   // "no expected type" for check_expr
@@ -45,6 +46,7 @@ TypeId check_expr(Checker *c, Expr *e, TypeId expected);
 TypeId coerce(Checker *c, Expr *e, TypeId expected);
 TypeId check_const(Checker *c, Def *def);   // the type of a constant or global
 TypeId check_args(Checker *c, Expr *call, const Ty *sig);
+TypeId check_unsafe_block(Checker *c, Expr *e, TypeId expected, bool as_value);
 
 // const_eval.c: the value of a constant's initializer, or NULL after an error
 struct ConstValue *const_eval(Checker *c, const Expr *e);
@@ -57,6 +59,13 @@ TypeId check_index(Checker *c, Expr *e);
 void require_mutable(Checker *c, Expr *e);
 // The variable at the root of a place: `p` in `p.pos.x`, or NULL.
 Expr *place_root(Expr *e);
+
+// check_unsafe.c
+void require_unsafe(Checker *c, Span span, const char *what);   // E0803
+TypeId check_deref(Checker *c, Expr *e, TypeId expected);
+bool pointer_cast(Checker *c, TypeId from, TypeId to, Span span);
+void check_c_signature(Checker *c, FnDecl *fn);                  // E0804
+bool is_unsafe_fn(const Def *def);
 
 // check_user_method.c
 bool type_name_of(Checker *c, const Expr *e, DefId *out);

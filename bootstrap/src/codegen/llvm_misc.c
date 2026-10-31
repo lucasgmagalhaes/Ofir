@@ -56,6 +56,14 @@ static void aggregate(Gen *g, const Rvalue *rv, Value *result) {
 
 void gen_misc(Gen *g, const Rvalue *rv, Value *result) {
     switch (rv->kind) {
+    case RV_PTR_ADD: {
+        Value p = gen_operand(g, rv->a), n = gen_operand(g, rv->b);
+        const Ty *ptr = type_get(g->types, rv->a.type);
+        next_temp(g, result->text);
+        out_fmt(&g->out, "  %s = getelementptr %s, ptr %s, i64 %s\n", result->text,
+                llvm_type(g, ptr->inner), p.text, n.text);
+        break;
+    }
     case RV_AGGREGATE: aggregate(g, rv, result); break;
     case RV_SELECT: {
         Value c = gen_operand(g, rv->cond), a = gen_operand(g, rv->a), b = gen_operand(g, rv->b);

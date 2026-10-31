@@ -24,7 +24,8 @@ Expr *place_root(Expr *e) {
         } else if (e->kind == EXPR_TUPLE_FIELD) {
             e = e->as.tuple_field.base;
         } else {
-            return e->kind == EXPR_IDENT || e->kind == EXPR_SELF ? e : NULL;
+            bool deref = e->kind == EXPR_UNARY && e->as.unary.op == OP_DEREF;
+            return e->kind == EXPR_IDENT || e->kind == EXPR_SELF || deref ? e : NULL;
         }
     }
 }
@@ -38,6 +39,15 @@ void require_mutable(Checker *c, Expr *place) {
         return;
     }
     bool ok = false;
+    if (e->kind == EXPR_UNARY) {   // `*p`: writable through a `*mut T`
+        const Ty *ptr = type_get(c->types, e->as.unary.operand->type);
+        ok = (ptr->kind == TY_PTR && ptr->data) || e->type.id == TID_ERROR;
+        if (!ok) {
+            check_error(c, "E0315", e->span, "this value cannot be modified: it is reached "
+                        "through a `*T`, not a `*mut T`");
+        }
+        return;
+    }
     if ((e->kind == EXPR_IDENT || e->kind == EXPR_SELF) && e->as.ident.res.kind == RES_LOCAL) {
         ok = c->fn->locals.items[e->as.ident.res.index].mutable;
     } else if (e->kind == EXPR_IDENT && e->as.ident.res.kind == RES_DEF) {
@@ -90,6 +100,9 @@ static TypeId call_builtin(Checker *c, Expr *call, const BuiltinInfo *info, Type
     if (info->self_mode == MODE_MUT) {
         require_mutable(c, field->as.field.base);
     }
+    if (info->receiver == RECV_PTR) {   // pointer arithmetic (spec 11.2)
+        require_unsafe(c, call->span, "offsetting a raw pointer");
+    }
     TypeId target = type_argument(c, field, info);
     TypeId params[2];
     uint32_t count = 0;
@@ -103,8 +116,11 @@ static TypeId call_builtin(Checker *c, Expr *call, const BuiltinInfo *info, Type
 }
 
 static Receiver receiver_of(const Ty *ty, bool *ok) {
-    *ok = ty->kind == TY_STR || ty->kind == TY_INT || ty->kind == TY_FLOAT;
-    return ty->kind == TY_STR ? RECV_STR : ty->kind == TY_INT ? RECV_INT : RECV_FLOAT;
+    *ok = ty->kind == TY_STR || ty->kind == TY_INT || ty->kind == TY_FLOAT || ty->kind == TY_PTR;
+    return ty->kind == TY_STR   ? RECV_STR
+           : ty->kind == TY_INT ? RECV_INT
+           : ty->kind == TY_PTR ? RECV_PTR
+                                : RECV_FLOAT;
 }
 
 // `Point.new()` or `Shape.Circle(1.0)`.

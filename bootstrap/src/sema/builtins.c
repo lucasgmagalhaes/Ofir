@@ -33,6 +33,7 @@ static const BuiltinInfo TABLE[] = {
     {"min", RECV_FLOAT, BM_FMIN, MODE_BORROW, {BT_SELF, BT_NONE}, BT_SELF, false},
     {"max", RECV_FLOAT, BM_FMAX, MODE_BORROW, {BT_SELF, BT_NONE}, BT_SELF, false},
     {"isNan", RECV_FLOAT, BM_IS_NAN, MODE_BORROW, {BT_NONE, BT_NONE}, BT_BOOL, false},
+    {"add", RECV_PTR, BM_PTR_ADD, MODE_BORROW, {BT_INT, BT_NONE}, BT_SELF, false},
 };
 
 const BuiltinInfo *builtin_method(const Interner *names, Receiver receiver, Symbol name) {

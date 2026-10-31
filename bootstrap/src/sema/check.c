@@ -52,7 +52,9 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     if (!fn->body) {
         return;
     }
+    c->unsafe_depth = fn->is_unsafe ? 1 : 0;
     TypeId body = check_block(c, fn->body, NO_TYPE, false);
+    c->unsafe_depth = 0;
     bool needs_value = c->ret.id != TID_UNIT && c->ret.id != TID_ERROR;
     if (needs_value && body.id != TID_NEVER) {
         check_error(c, "E0303", fn->span,
@@ -76,10 +78,15 @@ static void check_methods(Checker *c, const Item *item, FnList methods) {
 
 static void check_item(Checker *c, Item *item) {
     switch (item->kind) {
-    case ITEM_FN: check_fn(c, item->as.fn, NO_TYPE); break;
+    case ITEM_FN:
+        if (item->as.fn->abi.len > 0) {   // `extern "C" fn` with a body, called from C
+            check_c_signature(c, item->as.fn);
+        }
+        check_fn(c, item->as.fn, NO_TYPE);
+        break;
     case ITEM_EXTERN:
         for (uint32_t i = 0; i < item->as.extern_.fns.len; i++) {
-            fn_signature(c, item->as.extern_.fns.items[i]);
+            check_c_signature(c, item->as.extern_.fns.items[i]);
         }
         break;
     case ITEM_STRUCT: case ITEM_TUPLE_STRUCT:

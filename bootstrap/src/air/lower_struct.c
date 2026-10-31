@@ -4,6 +4,10 @@
 
 // Collects the field positions of `e` from the innermost field outwards.
 // Returns the root expression.
+static bool is_deref(const Expr *e) {
+    return e->kind == EXPR_UNARY && e->as.unary.op == OP_DEREF;
+}
+
 static Expr *collect_path(Expr *e, uint32_t *fields, uint32_t *len) {
     if (e->kind == EXPR_FIELD && e->as.field.res.kind == RES_FIELD) {
         Expr *root = collect_path(e->as.field.base, fields, len);
@@ -37,8 +41,11 @@ Place lower_place(Lowerer *l, Expr *e) {
     Expr *root = collect_path(e, fields, &len);
     LocalId local;
     bool deref = false;
-    if ((root->kind == EXPR_IDENT || root->kind == EXPR_SELF) &&
-        root->as.ident.res.kind == RES_LOCAL) {
+    if (is_deref(root)) {   // `*p`: the pointer's value is the address of the place
+        local = to_local(l, lower_expr(l, root->as.unary.operand));
+        deref = true;
+    } else if ((root->kind == EXPR_IDENT || root->kind == EXPR_SELF) &&
+               root->as.ident.res.kind == RES_LOCAL) {
         local = air_local_of((LocalId){root->as.ident.res.index});
         deref = l->body->locals.data[local.id].by_ref;
     } else {

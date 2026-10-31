@@ -37,12 +37,22 @@ StrView def_name(Gen *g, DefId def) {
 
 // User functions are prefixed so they never clash with C symbols; `main`
 // becomes the entry point called by the runtime.
+bool is_c_function(const Def *def) {
+    return def->fn && (def->fn->abi.len > 0 || (def->item && def->item->kind == ITEM_EXTERN));
+}
+
 void function_name(Gen *g, Out *out, DefId def, bool is_main) {
     if (is_main) {
         out_str(out, "@astra_main");
         return;
     }
     const Def *d = sema_def(g->sema, def);
+    if (is_c_function(d)) {   // a C function keeps its name
+        StrView name = def_name(g, def);
+        out_char(out, '@');
+        out_write(out, name.ptr, name.len);
+        return;
+    }
     out_str(out, "@\"astra.");
     if (d->module != 0) {   // qualified by its module, except in the root module
         StrView module = g->sema->program.items[d->module].name;
@@ -200,10 +210,37 @@ void llvm_function(Gen *g, const AirBody *body) {
     gen_body(g, body);
 }
 
+void mark_c_used(Gen *g, DefId def) {
+    while (g->c_used.len <= def.id) {
+        VEC_PUSH(g->c_used, false);
+    }
+    g->c_used.data[def.id] = true;
+}
+
+// `declare` for each function of an extern block that is called.
+static void c_decls(Gen *g) {
+    for (uint32_t id = 0; id < g->c_used.len; id++) {
+        if (!g->c_used.data[id]) {
+            continue;
+        }
+        const Ty *sig = type_get(g->types, sema_def(g->sema, (DefId){id})->type);
+        const char *ret = llvm_type(g, sig->inner);
+        out_fmt(&g->out, "declare %s%s ", strcmp(ret, "i1") ? "" : "zeroext ", ret);
+        function_name(g, &g->out, (DefId){id}, false);
+        out_char(&g->out, '(');
+        for (uint32_t i = 0; i < sig->arg_count; i++) {
+            const char *type = llvm_type(g, sig->args[i]);
+            out_fmt(&g->out, "%s%s%s", i ? ", " : "", type, strcmp(type, "i1") ? "" : " zeroext");
+        }
+        out_str(&g->out, ") nounwind\n");
+    }
+}
+
 void llvm_end(Gen *g) {
     out_str(&g->out, RUNTIME_DECLS);
     overflow_decls(g);
     gen_float_decls(g);
+    c_decls(g);
     out_char(&g->out, '\n');
     out_write(&g->out, g->globals.buf, g->globals.len);
     out_free(&g->type_defs);
@@ -211,6 +248,7 @@ void llvm_end(Gen *g) {
     out_free(&g->path);
     out_free(&g->globals);
     VEC_FREE(g->files_emitted);
+    VEC_FREE(g->c_used);
     out_free(&g->out);
     free(g);
 }
