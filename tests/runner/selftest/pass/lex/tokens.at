@@ -1,0 +1,3 @@
+// fake-stdout: 1:1 fn
+// fake-stdout: 1:4 ident main
+fn main

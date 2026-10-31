@@ -1,0 +1,16 @@
+# Build output
+/build/
+*.o
+*.a
+*.ll
+!seed/*.ll
+
+# Test runner output
+/tests/**/*.actual
+__pycache__/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

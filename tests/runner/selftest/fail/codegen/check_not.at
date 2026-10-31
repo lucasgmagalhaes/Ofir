@@ -1,0 +1,7 @@
+// CHECK: define
+// CHECK-NOT: call
+// CHECK: ret
+// fake-ir: define void @f() {
+// fake-ir:   call void @g()
+// fake-ir:   ret void
+fn f() {}
