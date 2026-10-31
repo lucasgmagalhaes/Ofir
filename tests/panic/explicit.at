@@ -1,0 +1,8 @@
+// panic: something went wrong: 42
+fn fail(code: int) ! {
+    panic("something went wrong: {code}")
+}
+
+fn main() {
+    fail(42)
+}
