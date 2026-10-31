@@ -4,7 +4,7 @@
 
 static TypeId check_stmt(Checker *c, Stmt *s);
 
-static void set_local(Checker *c, LocalId id, TypeId type) {
+static inline void set_local(Checker *c, LocalId id, TypeId type) {
     c->local_types[id.id] = type;
 }
 
@@ -14,17 +14,16 @@ static StrView local_name(Checker *c, LocalId id) {
 
 static TypeId let_stmt(Checker *c, Stmt *s) {
     Pattern *pattern = s->as.let.pattern;
-    if (pattern->kind != PAT_BINDING && pattern->kind != PAT_WILDCARD) {
-        unsupported(c, pattern->span, "destructuring `let` is");
-    }
     if (s->as.let.else_) {
         unsupported(c, s->span, "`let ... else` is");
     }
     TypeId type = s->as.let.type ? resolve_type(c, s->as.let.type) : NO_TYPE;
     TypeId found = s->as.let.type ? coerce(c, s->as.let.value, type)
                                   : check_expr(c, s->as.let.value, NO_TYPE);
-    if (pattern->kind == PAT_BINDING) {
-        set_local(c, pattern->as.binding.local, s->as.let.type ? type : found);
+    check_pattern(c, pattern, s->as.let.type ? type : found);
+    if (!pattern_irrefutable(c, pattern)) {
+        check_error(c, "E0501", pattern->span,
+                    "this pattern does not match every value: use `match` or `if let`");
     }
     return found.id == TID_NEVER ? found : type_id(TID_UNIT);
 }
@@ -145,7 +144,9 @@ static TypeId jump_stmt(Checker *c, Stmt *s) {
 
 // An `if`, `match` or block used as a statement: its branches are not values.
 static TypeId expr_stmt(Checker *c, Expr *e) {
-    if (e->kind == EXPR_IF) {
+    if (e->kind == EXPR_MATCH) {
+        e->type = check_match(c, e, NO_TYPE, false);
+    } else if (e->kind == EXPR_IF) {
         e->type = check_if(c, e, NO_TYPE, false);
     } else if (e->kind == EXPR_BLOCK || e->kind == EXPR_UNSAFE) {
         e->type = check_block(c, e->as.block, NO_TYPE, false);

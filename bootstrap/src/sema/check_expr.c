@@ -137,7 +137,10 @@ static TypeId binary(Checker *c, Expr *e, TypeId expected) {
     }
     TypeId type = check_expr(c, first, hint);
     coerce(c, second, type);
-    if (!operand_ok(type_get(c->types, type), op) && type.id != TID_ERROR) {
+    DefId id;
+    const EnumInfo *info = (op == OP_EQ || op == OP_NE) ? enum_of(c, type, &id) : NULL;
+    bool fieldless = info && !info->has_payload;   // enums without payloads compare tags
+    if (!fieldless && !operand_ok(type_get(c->types, type), op) && type.id != TID_ERROR) {
         return operator_error(c, e->span, type);
     }
     return compares ? type_id(TID_BOOL) : type;
@@ -230,6 +233,18 @@ static TypeId call(Checker *c, Expr *e) {
 
 // ---------------------------------------------------------------------------
 
+// `(a, b)`: each element takes the matching element of the expected type.
+static TypeId tuple(Checker *c, Expr *e, TypeId expected) {
+    uint32_t count = e->as.elems.len;
+    const Ty *hint = type_get(c->types, expected);
+    TypeId *types = ARENA_ARRAY(&c->sema->session->arena, TypeId, count + 1);
+    for (uint32_t i = 0; i < count; i++) {
+        bool hinted = hint->kind == TY_TUPLE && hint->arg_count == count;
+        types[i] = check_expr(c, e->as.elems.items[i], hinted ? hint->args[i] : NO_TYPE);
+    }
+    return type_tuple(c->types, types, count);
+}
+
 // check-sizes: table
 static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     switch (e->kind) {
@@ -246,8 +261,7 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_CALL: return call(c, e);
     case EXPR_IF: return check_if(c, e, expected, true);
     case EXPR_BLOCK: case EXPR_UNSAFE: return check_block(c, e->as.block, expected, true);
-    case EXPR_TUPLE:
-        return e->as.elems.len == 0 ? type_id(TID_UNIT) : unsupported(c, e->span, "tuples are");
+    case EXPR_TUPLE: return tuple(c, e, expected);
     case EXPR_SELF_TYPE: return type_id(TID_ERROR);   // replaced by the resolver
     case EXPR_GENERIC: return unsupported(c, e->span, "generic types are");
     case EXPR_RANGE: return unsupported(c, e->span, "ranges outside of `for` are");
@@ -257,8 +271,8 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_TRY: return unsupported(c, e->span, "the `?` operator is");
     case EXPR_STRUCT: return check_struct_literal(c, e);
     case EXPR_ARRAY: case EXPR_ARRAY_REPEAT: return unsupported(c, e->span, "arrays are");
-    case EXPR_VARIANT: return unsupported(c, e->span, "enum variants are");
-    case EXPR_MATCH: return unsupported(c, e->span, "`match` is");
+    case EXPR_VARIANT: return check_variant_shorthand(c, e, expected);
+    case EXPR_MATCH: return check_match(c, e, expected, true);
     }
     return type_id(TID_ERROR);
 }
