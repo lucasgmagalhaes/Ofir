@@ -4,10 +4,16 @@
 
 #include <string.h>
 
-static void store(Gen *g, LocalId dest, Value v) {
+static void store_at(Gen *g, LocalId dest, FieldPath path, Value v) {
     if (strcmp(v.type, "void") != 0) {
-        out_fmt(&g->out, "  store %s %s, ptr %%l%u\n", v.type, v.text, dest.id);
+        char at[16];
+        place_address(g, dest, path, at);
+        out_fmt(&g->out, "  store %s %s, ptr %s\n", v.type, v.text, at);
     }
+}
+
+static void store(Gen *g, LocalId dest, Value v) {
+    store_at(g, dest, (FieldPath){0}, v);
 }
 
 // Runtime arguments: bools are `zeroext i1` in the C ABI.
@@ -84,8 +90,12 @@ static void statement(Gen *g, const AirStmt *s) {
         return;
     }
     Value v;
-    gen_rvalue(g, &s->as.rvalue, g->body->locals.data[s->dest.id].type, &v);
-    store(g, s->dest, v);
+    TypeId type = g->body->locals.data[s->dest.id].type;
+    if (s->dest_path.len > 0) {   // the value has the field's type: the operand's
+        type = s->as.rvalue.a.type;
+    }
+    gen_rvalue(g, &s->as.rvalue, type, &v);
+    store_at(g, s->dest, s->dest_path, v);
 }
 
 static const char *const PANIC_FNS[] = {

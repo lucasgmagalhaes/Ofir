@@ -36,6 +36,11 @@ static bool stmt_ok(const Validator *v, const AirStmt *s) {
         return true;
     }
     const Rvalue *rv = &s->as.rvalue;
+    for (uint32_t i = 0; rv->kind == RV_AGGREGATE && i < rv->count; i++) {
+        if (!operand_ok(v, rv->items[i])) {
+            return false;
+        }
+    }
     bool flag_ok = rv->kind != RV_CHECKED || local_ok(v, rv->flag);
     return flag_ok && operand_ok(v, rv->a) && operand_ok(v, rv->b) && operand_ok(v, rv->cond);
 }

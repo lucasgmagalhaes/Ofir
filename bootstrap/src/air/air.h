@@ -3,7 +3,8 @@
 // local or a constant; control flow and runtime checks are explicit.
 //
 // Stage 0 differences from the design:
-// - places are whole locals (projections come with structs);
+// - the only projection is a field: a place is a local and a path of field
+//   positions (`p.pos.x` is local p with path [pos, x]);
 // - calls are statements, not terminators: Astra has no unwinding, so a
 //   call either returns or ends the process;
 // - a call to a function returning `!` is followed by `Unreachable`.
@@ -30,16 +31,23 @@ typedef enum {
     OPERAND_UNIT,
 } OperandKind;
 
+// The field path of a place: positions of struct fields from the local.
+typedef struct {
+    const uint32_t *fields;
+    uint32_t len;
+} FieldPath;
+
 typedef struct {
     OperandKind kind;
     TypeId type;
     union {
-        LocalId local;
+        LocalId local;       // OPERAND_COPY and OPERAND_ADDR, with `path`
         uint64_t int_value;
         double float_value;
         bool bool_value;
         StrView str;
     } as;
+    FieldPath path;          // empty for a whole local
 } Operand;
 
 typedef enum {
@@ -54,6 +62,7 @@ typedef enum {
     RV_STR_LEN,       // the length of the str a
     RV_STR_BYTE,      // the byte b of the str a (bounds already checked)
     RV_FLOAT_FN,      // fn(a) or fn(a, b): sqrt, fabs, floor, ceil, minnum, maxnum
+    RV_AGGREGATE,     // a struct value from its fields, in declaration order
 } RvalueKind;
 
 typedef enum { FF_SQRT, FF_FABS, FF_FLOOR, FF_CEIL, FF_MINNUM, FF_MAXNUM, FF_COUNT } FloatFn;
@@ -65,6 +74,8 @@ typedef struct {
     TypeId to;        // casts
     LocalId flag;     // RV_CHECKED
     FloatFn fn;       // RV_FLOAT_FN
+    Operand *items;   // RV_AGGREGATE
+    uint32_t count;
 } Rvalue;
 
 // Functions of the runtime library (runtime/include/astra_rt.h).
@@ -87,6 +98,7 @@ typedef enum {
 typedef struct {
     AirStmtKind kind;
     LocalId dest;
+    FieldPath dest_path;     // assignments to a field
     bool has_dest;
     union {
         Rvalue rvalue;

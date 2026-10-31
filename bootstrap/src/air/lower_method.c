@@ -25,10 +25,9 @@ static Operand select_value(Lowerer *l, Operand cond, Operand a, Operand b) {
     return value_of(l, a.type, (Rvalue){.kind = RV_SELECT, .cond = cond, .a = a, .b = b});
 }
 
-// The place a `mut self` method modifies: the receiver's own local.
-static Operand receiver_place(Expr *base) {
-    LocalId local = air_local_of((LocalId){base->as.ident.res.index});
-    return (Operand){.kind = OPERAND_ADDR, .type = base->type, .as.local = local};
+// The place a `mut self` method modifies: the receiver itself, not a copy.
+static Operand receiver_place(Lowerer *l, Expr *base) {
+    return place_operand(lower_place(l, base), OPERAND_ADDR, base->type);
 }
 
 // A runtime call writing its str result through the first argument.
@@ -144,12 +143,12 @@ static Operand str_method(Lowerer *l, BuiltinMethod m, Expr *base, Operand self,
         return binary(l, OP_EQ, boolean, len, op_int(0, type_id(TID_INT)));
     }
     case BM_STR_PUSH: {
-        Operand call_args[] = {receiver_place(base), address(l, args[0])};
+        Operand call_args[] = {receiver_place(l, base), address(l, args[0])};
         emit_runtime(l, RT_STR_PUSH_STR, call_args, 2, NULL);
         return op_unit();
     }
     case BM_STR_CLEAR: {
-        Operand place = receiver_place(base);
+        Operand place = receiver_place(l, base);
         emit_runtime(l, RT_STR_CLEAR, &place, 1, NULL);
         return op_unit();
     }

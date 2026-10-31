@@ -22,6 +22,9 @@ struct Gen {
     const AirBody *body;     // the function being generated
     uint32_t temp;           // next %t number in this function
     Out path;                // the escaped source path
+    Out type_defs;           // struct type definitions, written at the end
+    const char **adt_types;  // the LLVM name of each struct, by DefId (NULL until used)
+    size_t adt_count;
 };
 
 // A generated value: its LLVM type and its text (`%t3`, `42`, `true`, ...).
@@ -37,6 +40,9 @@ void function_name(Gen *g, Out *out, DefId def, bool is_main);
 
 // A fresh temporary name, written into `text`.
 void next_temp(Gen *g, char text[16]);
+
+// The address of a place: `%l<N>` itself, or a getelementptr to the field.
+void place_address(Gen *g, LocalId local, FieldPath path, char text[16]);
 
 uint32_t string_global(Gen *g, StrView text);   // the N of @.str.N
 uint32_t location_global(Gen *g, Span span);     // the N of @.loc.N

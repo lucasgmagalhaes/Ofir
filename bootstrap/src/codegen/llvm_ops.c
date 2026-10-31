@@ -38,16 +38,19 @@ static void float_text(char *out, size_t size, double value, bool is_f32) {
 Value gen_operand(Gen *g, Operand o) {
     Value v = {.type = llvm_type(g, o.type)};
     switch (o.kind) {
-    case OPERAND_COPY:
+    case OPERAND_COPY: {
         if (strcmp(v.type, "void") == 0) {
             break;   // a local of type (): nothing to load
         }
+        char at[16];
+        place_address(g, o.as.local, o.path, at);
         next_temp(g, v.text);
-        out_fmt(&g->out, "  %s = load %s, ptr %%l%u\n", v.text, v.type, o.as.local.id);
+        out_fmt(&g->out, "  %s = load %s, ptr %s\n", v.text, v.type, at);
         break;
+    }
     case OPERAND_ADDR:
         v.type = "ptr";
-        fmt_into(v.text, sizeof v.text, "%%l%u", o.as.local.id);
+        place_address(g, o.as.local, o.path, v.text);
         break;
     case OPERAND_INT:
         int_text(v.text, sizeof v.text, o.as.int_value, INT_BITS[ty_of(g, o.type)->data]);
@@ -188,7 +191,7 @@ void gen_rvalue(Gen *g, const Rvalue *rv, TypeId dest_type, Value *result) {
     case RV_CAST: cast(g, rv, result); break;
     case RV_CAST_FAILS: gen_cast_fails(g, rv, result); break;
     case RV_SATURATE: gen_saturate(g, rv, result); break;
-    case RV_SELECT: case RV_STR_LEN: case RV_STR_BYTE: case RV_FLOAT_FN:
+    case RV_SELECT: case RV_STR_LEN: case RV_STR_BYTE: case RV_FLOAT_FN: case RV_AGGREGATE:
         gen_misc(g, rv, result);
         break;
     }
