@@ -59,6 +59,34 @@ Param  = identifier ":" Type .
 - A function with a non-`()` return type must `return` on every path; the
   compiler rejects functions where control can reach the end of the body.
 - The order of declarations in a file does not matter.
+- **There is no overloading**: two functions in the same scope (or two
+  methods of the same type) cannot have the same name, whatever their
+  parameters. Use distinct names (`parseInt`, `parseFloat`), default
+  values, or generics.
+
+### Default values and named arguments
+
+Trailing parameters may have a default value. Any argument may be passed by
+name, after the positional ones:
+
+```astra
+fn connect(host: str, port: int = 443, timeout: int = 30, verbose: bool = false) Conn { ... }
+
+connect("example.com")
+connect("example.com", 8443)
+connect("example.com", timeout: 5, verbose: true)
+```
+
+- Once a parameter has a default, all following parameters must have one.
+- A default value is a constant expression (chapter 3.2), an empty
+  collection literal (`[]`), or a call to an associated function without
+  arguments (`Map.new()`). It is evaluated at each call that omits it.
+- Named arguments use the parameter's name and may come in any order, but
+  only after all positional arguments; each parameter is given at most once.
+- Parameter names are therefore part of a function's public API: renaming a
+  `pub` function's parameter is a breaking change.
+- A function value (`fn(A, B) R`, chapter 10) has no defaults and no names:
+  calls through it pass every argument positionally.
 
 ### Entry point
 
@@ -81,11 +109,53 @@ let u = User{name: "Ana", email: "ana@example.com", age: 30}
 let v = User{age: 31, ..u}     // copy/move the remaining fields from u
 ```
 
-- All fields must be initialized in a struct literal.
+- Every field without a default value must be initialized in a struct
+  literal.
 - `pub` on the struct makes the type visible to other modules; `pub` on a
   field makes the field visible. Fields are private to the module by default.
 - A struct may not contain itself by value, directly or indirectly; use
   `Box<T>` or a collection instead.
+
+### Default field values
+
+A field may declare a default value, used when a literal omits the field:
+
+```astra
+struct Config {
+    host: str = "localhost"
+    port: int = 8080
+    tags: List<str> = []
+    verbose: bool = false
+}
+
+let a = Config{}                       // all defaults
+let b = Config{port: 80, verbose: true}
+```
+
+The same rules as default parameter values apply: a constant expression, an
+empty collection literal, or a call to an associated function without
+arguments, evaluated each time it is used. A default cannot refer to other
+fields.
+
+### Tuple structs
+
+A tuple struct has positional fields. With a single field it creates a new,
+distinct type at zero cost (a "newtype"):
+
+```astra
+copy struct UserId(int)
+copy struct Rgb(u8, u8, u8)
+
+let id = UserId(42)
+let red = Rgb(255, 0, 0)
+println("{id.0} {red.1}")
+let n: int = id            // error: mismatched types: expected int, found UserId
+```
+
+Tuple structs are constructed by calling the type name, their fields are
+accessed with `.0`, `.1`, ..., and they can be destructured in patterns:
+`let UserId(raw) = id`. They may declare methods in a body after the fields:
+`struct Meters(float) { fn km(self) float { return self.0 / 1000.0 } }`.
 
 ## 3.5 Enums
 
