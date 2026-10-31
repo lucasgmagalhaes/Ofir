@@ -66,12 +66,12 @@ Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 1.1 | `base/`: arena allocator, dynamic array macros, string builder, string views | M | C unit tests pass |
-| 1.2 | `base/`: hash map (insertion ordered) and identifier interning | S | C unit tests pass |
-| 1.3 | `base/`: file reading, path joining; file table with `FileId` and spans | S | C unit tests pass |
-| 1.4 | `diag/`: diagnostics with codes, rendering with source excerpt and caret | S | output matches the design doc format |
-| 1.5 | Lexer: all tokens of spec chapter 1 except interpolation, raw and byte strings; newline tokens; contextual keywords as identifiers | M | `tests/lex` cases pass, `--emit=tokens` works |
-| 1.6 | Lexer: string interpolation tokens | S | `tests/lex/interpolation*` pass |
+| 1.1 | `base/`: arena allocator, dynamic array macros, string builder, string views | M | **done**: C unit tests pass |
+| 1.2 | `base/`: hash map (insertion ordered) and identifier interning | S | **done** (interning; the general map is added when first needed): C unit tests pass |
+| 1.3 | `base/`: file reading, path joining; file table with `FileId` and spans | S | **done**: C unit tests pass |
+| 1.4 | `diag/`: diagnostics with codes, rendering with source excerpt and caret | S | **done**: output matches the design doc format |
+| 1.5 | Lexer: all tokens of spec chapter 1 except interpolation, raw and byte strings; newline tokens; contextual keywords as identifiers | M | **done**: `tests/lex` cases pass, `--emit=tokens` works |
+| 1.6 | Lexer: string interpolation tokens | S | **done**: `tests/lex/interpolation*` pass |
 | 1.7 | AST definitions and AST printer (`--emit=ast`) | M | printer covers every node kind |
 | 1.8 | Parser: items (`fn`, `struct`, `enum`, `const`, `import`), types, statements, parser-driven newline handling (spec 1.3) | M | `tests/parse` cases pass, including `tests/parse/newlines*` |
 | 1.9 | Parser: expressions with precedence, struct literal restriction, generic disambiguation, patterns | M | `tests/parse` cases pass |
@@ -83,7 +83,9 @@ Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 | 1.15 | Lowering for the skeleton subset | S | AIR validator passes |
 | 1.16 | Codegen: functions, locals, integer arithmetic, calls, string constants; no `noalias` | M | generated `.ll` accepted by clang 17 and the latest clang |
 | 1.17 | Runtime: entry point, stdout buffer, `astra_write`, panic functions, allocator | S | runtime builds with `-Werror` |
-| 1.18 | Driver: `astra build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **M1: hello world runs** |
+| 1.17a | **done**: Benchmark harness: `bench/run_bench.py`, `--time-passes`, `--stop-after`, CI regression gate | S | `make bench` and `make bench-compare` work |
+| 1.17b | Benchmarks for each new phase (`parse-100k`, `check-100k`, `build-100k`) added with the phase | S | each phase has a benchmark |
+| 1.18 | Driver: `astra build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **M1: hello world runs**; binary size measured |
 
 ## Phase 2 — Stage 0 core language
 
@@ -131,6 +133,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 3.9 | `std.os` S0 entries: args, env, exit, `run` | M | a test program runs `clang --version` |
 | 3.10 | Runtime: stack overflow detection | S | `tests/panic/stack_overflow*` pass |
 | 3.11 | `@test` functions and `astra test` | M | `std` tests run in CI |
+| 3.11a | First generated-code benchmarks (`fib`, `nbody`, `binary_trees`) against C | M | ratio to C recorded in `bench/HISTORY.md` |
 | 3.12 | Freeze review: all suites under ASan/UBSan, fix leaks and crashes | M | **M2: stage 0 complete** → release 0.1 |
 
 ## Phase 4 — Self-hosting (milestones M3 and M4)
@@ -178,7 +181,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.12 | Diagnostics: notes and help messages, `astra explain`, JSON output; an explanation file for every registry code | M | every error code has `docs/errors/EXXXX.md` |
 | 5.13 | Debug info (DWARF) | M | stepping through code in `lldb` works |
 | 5.14 | Optimization: `noalias`/`readonly` (stage 1 only), niche layouts, field reordering, AIR check elimination | M | benchmarks within 10% of C |
-| 5.15 | Benchmark suite with C/Rust/Go baselines in CI | M | results published per release |
+| 5.15 | Generated-code benchmark suite with C/Rust/Go baselines (started at M2 with the first programs) | M | results in `bench/HISTORY.md` per release |
 
 **M5** is reached when every chapter of the specification not marked
 **[planned]** is implemented and tested → release 0.5.
@@ -228,7 +231,6 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Phase 0 is complete. Start Phase 1 (walking skeleton), beginning with
-   tasks 1.1 to 1.4 (`base/` and `diag/` in stage 0).
+1. Phase 1 in progress: next are the AST and the parser (tasks 1.7 to 1.10).
 
 See also the [risk register](risks.md).

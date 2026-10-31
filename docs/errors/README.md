@@ -55,6 +55,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0700 | cannot borrow `x` as mutable more than once | stage 1 |
 | E0701 | cannot borrow `x` as mutable because it is also borrowed as shared | stage 1 |
 | E0702 | a reference cannot be stored or returned here | stage 1 |
+| E0900 | cannot read source file | stage 0 |
 
 ### Warnings
 

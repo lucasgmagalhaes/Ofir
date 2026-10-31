@@ -1,0 +1,7 @@
+"plain"
+"escapes: \n \t \r \\ \" \{ \} \x41 \u{e9} \u{1F600}"
+"utf-8: olá"
+"a {x} b {f(y)} c"
+"nested {"inner {z}"}"
+"{a}{b}"
+b'a' b'\n' b'\xff' b'\''

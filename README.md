@@ -19,6 +19,7 @@ collector.
 | [Toolchain](docs/design/toolchain.md) | the `astra` command and build process |
 | [Runtime](docs/design/runtime.md) | the small C runtime |
 | [Testing](docs/design/testing.md) | test suites and formats |
+| [Performance](docs/design/performance.md) | benchmarks, profiling and the regression gate |
 | [Decisions](docs/adr/README.md) | architecture decision records |
 | [Bootstrap](docs/bootstrap.md) | the path to a self-hosted compiler |
 | [Roadmap](docs/roadmap.md) | ordered implementation tasks |

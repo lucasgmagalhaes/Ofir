@@ -1,0 +1,7 @@
+//! Module documentation.
+//! Second line.
+
+/// Documents `main`.
+/// More details.
+fn main() {} // ordinary comment
+//// not a doc comment

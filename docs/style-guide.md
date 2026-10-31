@@ -84,3 +84,30 @@ fn load(path: str) Result<Config, IoError> {
 - Ordinary comments explain *why*, not *what*. Write full sentences.
 - `// TODO(name): ...` for known follow-ups, with a roadmap task or issue
   number when one exists.
+
+## Size and structure
+
+Small files and small functions are easier to read, review and test. These
+rules apply to all code in the repository (Astra, C and Python) and are
+checked by `tools/check_sizes.py` in `make test`:
+
+| Rule | Target | Limit |
+|------|-------:|------:|
+| Lines per file (Astra: not counting the `@test` section at the end) | 400 | 600 |
+| Lines per function | 40 | 60 |
+| Nesting depth inside a function | 3 | 4 |
+| Parameters per function (not counting `self`) | 5 | 7 |
+| Characters per line | 100 | 100 |
+
+- Above the **target**, the checker warns: consider splitting, and explain
+  in review if not. Above the **limit**, it fails.
+- **One file, one subject; one function, one nameable task.** If a
+  function needs a comment to separate its "parts", each part is a function.
+- **Small types.** All the methods of a type live in its body (ADR 0015),
+  so a large type means a large file. Split responsibilities into smaller
+  types (for example, a `Cursor` used by a `Lexer`) instead of growing one.
+- More than five parameters usually means a missing struct: group related
+  parameters into one (`Context`, `Options`).
+- **Exception:** a function that is a single flat `match`/`switch` mapping
+  cases to results (a dispatch table) may exceed the length limit; mark it
+  with a `check-sizes: table` comment on the line before it.

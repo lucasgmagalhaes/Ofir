@@ -1,0 +1,33 @@
+1:1 str "plain"
+1:8 newline
+2:1 str "escapes: \n \t \r \\ \" \{ \} A é 😀"
+2:54 newline
+3:1 str "utf-8: olá"
+3:14 newline
+4:1 str_start "a "
+4:5 ident x
+4:6 str_mid " b "
+4:11 ident f
+4:12 (
+4:13 ident y
+4:14 )
+4:15 str_end " c"
+4:19 newline
+5:1 str_start "nested "
+5:10 str_start "inner "
+5:18 ident z
+5:19 str_end ""
+5:21 str_end ""
+5:23 newline
+6:1 str_start ""
+6:3 ident a
+6:4 str_mid ""
+6:6 ident b
+6:7 str_end ""
+6:9 newline
+7:1 byte 97
+7:6 byte 10
+7:12 byte 255
+7:20 byte 39
+7:25 newline
+8:1 eof
