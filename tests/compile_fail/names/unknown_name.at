@@ -1,0 +1,7 @@
+fn main() {
+    println(greeting)   // error[E0200]: cannot find `greeting` in this scope
+}
+
+fn other() {
+    let total = count + 1   // error[E0200]: cannot find `count` in this scope
+}

@@ -30,6 +30,7 @@ list up front and a faster hash for short identifiers.
 |--------|--------|-------------:|----------:|--------:|---------:|
 | `e66fa35` | baseline: first stage 0 parser | 532,273,215 | 141.5 | 0.71M | 91,528 |
 | `8ff66f0` | doc comment tokens dropped in place, not copied | 533,476,261 | 122.1 | 0.82M | 64,008 |
+| `c37458a` | expressions grow from 48 to 56 bytes (TypeId annotation) | 533,596,957 | 117.4 | 0.85M | 70,808 |
 
 The parser itself costs about 320M instructions, 1.5 times the lexer.
 Profile (callgrind, parse-10k, share of all instructions): `lex` 19%,
@@ -39,3 +40,13 @@ that collect list items. Next candidates: one table lookup per binary
 operator instead of one call per precedence level, inlining the token
 helpers, and building lists directly in the arena. Memory: 32-byte tokens
 (28 MB at 100k lines) dominate the peak.
+
+## check-100k (100 007 lines of the `typed` profile, lex + parse + check)
+
+| Commit | Change | Instructions | Wall (ms) | Lines/s | Peak KiB |
+|--------|--------|-------------:|----------:|--------:|---------:|
+| `c37458a` | baseline: first resolver and type checker | 561,991,670 | 140.1 | 0.71M | 70,048 |
+
+On the same input, stopping after the parser costs 489.4M instructions:
+resolution and type checking add 72.6M (13% of the total, a third of the
+lexer).

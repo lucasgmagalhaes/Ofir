@@ -27,20 +27,24 @@ ROOT = Path(__file__).resolve().parents[1]
 INPUTS = ROOT / "build" / "bench"
 
 # name -> (generated input lines, compiler arguments after the input path)
+# name: (lines, generator profile, compiler arguments)
 BENCHMARKS = {
-    "lex-10k": (10_000, ["--stop-after=lex"]),
-    "lex-100k": (100_000, ["--stop-after=lex"]),
-    "parse-10k": (10_000, ["--stop-after=parse"]),
-    "parse-100k": (100_000, ["--stop-after=parse"]),
+    "lex-10k": (10_000, "syntax", ["--stop-after=lex"]),
+    "lex-100k": (100_000, "syntax", ["--stop-after=lex"]),
+    "parse-10k": (10_000, "syntax", ["--stop-after=parse"]),
+    "parse-100k": (100_000, "syntax", ["--stop-after=parse"]),
+    "check-10k": (10_000, "typed", ["--stop-after=check"]),
+    "check-100k": (100_000, "typed", ["--stop-after=check"]),
 }
 
 
-def input_file(lines: int) -> Path:
-    path = INPUTS / f"input-{lines}.at"
+def input_file(lines: int, profile: str) -> Path:
+    path = INPUTS / f"input-{profile}-{lines}.at"
     if not path.exists():
         INPUTS.mkdir(parents=True, exist_ok=True)
         source = subprocess.run([sys.executable, str(ROOT / "bench" / "gen_source.py"),
-                                 "--lines", str(lines)], capture_output=True, text=True, check=True)
+                                 "--lines", str(lines), "--profile", profile],
+                                capture_output=True, text=True, check=True)
         path.write_text(source.stdout)
     return path
 
@@ -69,8 +73,8 @@ def instructions(cmd: list[str]) -> int | None:
 
 def measure(compiler: str, runs: int, count_instructions: bool) -> dict:
     results = {}
-    for name, (lines, args) in BENCHMARKS.items():
-        cmd = [compiler, "build", str(input_file(lines)), *args]
+    for name, (lines, profile, args) in BENCHMARKS.items():
+        cmd = [compiler, "build", str(input_file(lines, profile)), *args]
         samples = [run_once(cmd) for _ in range(runs)]
         wall = statistics.median(s[0] for s in samples)
         results[name] = {

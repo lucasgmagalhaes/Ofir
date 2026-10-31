@@ -1,0 +1,28 @@
+fn ranges() {
+    let a: u8 = 255
+    let b: u8 = 256         // error[E0312]: integer literal out of range for `u8`
+}
+
+fn negative() {
+    let a: i8 = -128
+    let b: i8 = -129        // error[E0312]: integer literal out of range for `i8`
+}
+
+fn unsigned() {
+    let c: u32 = -1         // error[E0313]: operator cannot be applied to type `u32`
+}
+
+fn defaults() {
+    let big = 9223372036854775808   // error[E0312]: integer literal out of range for `int`
+}
+
+// Accepted: literals take the expected type.
+fn inferred(small: u8, ratio: float) {
+    let a = small + 1
+    let b = 2 * small
+    let c = ratio * 2
+    var total: float = 0
+    let d: i16 = -300
+}
+
+const LOOP = LOOP + 1   // error[E0800]: the constant `LOOP` depends on itself
