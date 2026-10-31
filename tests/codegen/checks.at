@@ -1,0 +1,18 @@
+// Unsigned arithmetic uses the unsigned intrinsics; division checks the
+// divisor; a narrowing cast checks the range.
+// CHECK: @llvm.uadd.with.overflow.i8(
+// CHECK: icmp eq i32
+// CHECK: call void @astra_panic_div_zero(
+// CHECK: udiv i32
+// CHECK: icmp sgt i64
+// CHECK: call void @astra_panic_cast(
+// CHECK: trunc i64
+fn checks(small: u8, d: u32, n: int) {
+    let a = small + 1
+    let b = 100 / d
+    let c = n as i16
+}
+
+fn main() {
+    checks(1, 2, 3)
+}

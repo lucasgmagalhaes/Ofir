@@ -1,0 +1,5 @@
+// panic: value out of range for the target type of `as`
+fn main() {
+    let huge = 1e300
+    println("{huge as i64}")
+}

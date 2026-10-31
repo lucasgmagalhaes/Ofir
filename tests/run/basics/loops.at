@@ -1,0 +1,45 @@
+fn main() {
+    var sum = 0
+    for i in 0..10 {
+        sum += i
+    }
+    println("sum {sum}")
+    for i in 3..=5 {
+        print("{i} ")
+    }
+    println("")
+    for i in 5..5 {
+        println("never")
+    }
+    for i in 6..=5 {
+        println("never")
+    }
+    let top: u8 = 255
+    var count = 0
+    for i in 250..=top {   // stops at the maximum without overflowing
+        count += 1
+    }
+    println("count {count}")
+    var n = 0
+    for {
+        n += 1
+        if n == 3 {
+            continue
+        }
+        if n > 5 {
+            break
+        }
+        print("{n} ")
+    }
+    println("")
+    var k = 10
+    for k > 0 {
+        k -= 3
+    }
+    println("k {k}")
+    for mut i in 0..3 {
+        i += 10
+        print("{i} ")
+    }
+    println("")
+}

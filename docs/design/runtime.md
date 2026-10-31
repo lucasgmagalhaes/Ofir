@@ -17,6 +17,11 @@ LLVM IR. Its interface is `runtime/include/astra_rt.h`.
 | Files | thin wrappers over `open`, `close`, `stat`, `opendir` |
 | Processes | `astra_spawn` (needed for the compiler to invoke clang) |
 
+Stage 0 implements the entry point, the panic functions, the allocator,
+the standard output buffer and the string functions used by
+interpolation (`runtime/src`). Values of type `str` are passed to the
+runtime by pointer, which keeps the C ABI of generated calls simple.
+
 ## 2. Panic functions
 
 Generated code calls specialized functions so that the call sites stay
