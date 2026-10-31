@@ -21,6 +21,8 @@ changed by writing a new record that supersedes the old one.
 | [0013](0013-camel-case-naming.md) | camelCase naming convention | Accepted |
 | [0014](0014-parameter-modes.md) | Parameters are borrowed by default (`mut`, `move` modes) | Accepted |
 | [0015](0015-methods-inside-types.md) | Methods are declared inside their type | Accepted |
+| [0016](0016-call-and-binding-ergonomics.md) | Defaults, named arguments, `let ... else` and `??`; no overloading | Accepted |
+| [0017](0017-compile-time-reflection.md) | Compile-time reflection instead of macros | Accepted |
 
 ## Template
 
