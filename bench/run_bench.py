@@ -35,6 +35,8 @@ BENCHMARKS = {
     "parse-100k": (100_000, "syntax", ["--stop-after=parse"]),
     "check-10k": (10_000, "typed", ["--stop-after=check"]),
     "check-100k": (100_000, "typed", ["--stop-after=check"]),
+    "llvm-10k": (10_000, "typed", ["--emit=llvm", "-o", str(INPUTS / "out-10k")]),
+    "llvm-100k": (100_000, "typed", ["--emit=llvm", "-o", str(INPUTS / "out-100k")]),
 }
 
 
