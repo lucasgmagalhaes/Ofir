@@ -3,20 +3,35 @@
 
 #include "syntax/lexer_internal.h"
 
+// Keywords are interned first in every session (see intern_keywords), so
+// the symbol of keyword `i` has id `i + 1` and a word needs a single hash
+// lookup to be classified.
 static const struct {
-    const char *word;
+    StrView word;
     TokenKind kind;
 } keywords[] = {
-    {"as", TOK_KW_AS},         {"break", TOK_KW_BREAK},   {"const", TOK_KW_CONST},
-    {"continue", TOK_KW_CONTINUE}, {"copy", TOK_KW_COPY}, {"dyn", TOK_KW_DYN},
-    {"else", TOK_KW_ELSE},     {"enum", TOK_KW_ENUM},     {"extern", TOK_KW_EXTERN},
-    {"false", TOK_KW_FALSE},   {"fn", TOK_KW_FN},         {"for", TOK_KW_FOR},
-    {"if", TOK_KW_IF},         {"import", TOK_KW_IMPORT}, {"in", TOK_KW_IN},
-    {"interface", TOK_KW_INTERFACE}, {"let", TOK_KW_LET}, {"match", TOK_KW_MATCH},
-    {"mut", TOK_KW_MUT},       {"pub", TOK_KW_PUB},       {"return", TOK_KW_RETURN},
-    {"self", TOK_KW_SELF_VALUE}, {"Self", TOK_KW_SELF_TYPE}, {"struct", TOK_KW_STRUCT},
-    {"true", TOK_KW_TRUE},     {"unsafe", TOK_KW_UNSAFE}, {"var", TOK_KW_VAR},
+    {SV_INIT("as"), TOK_KW_AS}, {SV_INIT("break"), TOK_KW_BREAK},
+    {SV_INIT("const"), TOK_KW_CONST}, {SV_INIT("continue"), TOK_KW_CONTINUE},
+    {SV_INIT("copy"), TOK_KW_COPY}, {SV_INIT("dyn"), TOK_KW_DYN}, {SV_INIT("else"), TOK_KW_ELSE},
+    {SV_INIT("enum"), TOK_KW_ENUM}, {SV_INIT("extern"), TOK_KW_EXTERN},
+    {SV_INIT("false"), TOK_KW_FALSE}, {SV_INIT("fn"), TOK_KW_FN}, {SV_INIT("for"), TOK_KW_FOR},
+    {SV_INIT("if"), TOK_KW_IF}, {SV_INIT("import"), TOK_KW_IMPORT}, {SV_INIT("in"), TOK_KW_IN},
+    {SV_INIT("interface"), TOK_KW_INTERFACE}, {SV_INIT("let"), TOK_KW_LET},
+    {SV_INIT("match"), TOK_KW_MATCH}, {SV_INIT("mut"), TOK_KW_MUT}, {SV_INIT("pub"), TOK_KW_PUB},
+    {SV_INIT("return"), TOK_KW_RETURN}, {SV_INIT("self"), TOK_KW_SELF_VALUE},
+    {SV_INIT("Self"), TOK_KW_SELF_TYPE}, {SV_INIT("struct"), TOK_KW_STRUCT},
+    {SV_INIT("true"), TOK_KW_TRUE}, {SV_INIT("unsafe"), TOK_KW_UNSAFE},
+    {SV_INIT("var"), TOK_KW_VAR},
 };
+
+void intern_keywords(Interner *names) {
+    for (size_t i = 0; i < ARRAY_LEN(keywords); i++) {
+        Symbol symbol = intern(names, keywords[i].word);
+        if (symbol.id != i + 1) {
+            fatal("keywords must be interned before any other name");
+        }
+    }
+}
 
 Token *emit(Lexer *lx, TokenKind kind, uint32_t start) {
     Token token = {.kind = kind, .span = span_from(lx, start)};
@@ -84,14 +99,12 @@ static void word(Lexer *lx) {
     while (!at_end(lx) && (is_letter(lx->src[lx->pos]) || is_digit(lx->src[lx->pos]))) {
         lx->pos++;
     }
-    StrView text = {lx->src + start, lx->pos - start};
-    for (size_t i = 0; i < ARRAY_LEN(keywords); i++) {
-        if (sv_eq_cstr(text, keywords[i].word)) {
-            emit(lx, keywords[i].kind, start);
-            return;
-        }
+    Symbol symbol = intern(&lx->session->names, (StrView){lx->src + start, lx->pos - start});
+    if (symbol.id <= ARRAY_LEN(keywords)) {
+        emit(lx, keywords[symbol.id - 1].kind, start);
+        return;
     }
-    emit(lx, TOK_IDENT, start)->as.symbol = intern(&lx->session->names, text);
+    emit(lx, TOK_IDENT, start)->as.symbol = symbol;
 }
 
 // ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ typedef struct {
 } StrView;
 
 #define SV(literal) ((StrView){(literal), sizeof(literal) - 1})
+#define SV_INIT(literal) {(literal), sizeof(literal) - 1}   // for static initializers
 #define SV_FMT "%.*s"
 #define SV_ARG(sv) (int)(sv).len, (sv).ptr
 
