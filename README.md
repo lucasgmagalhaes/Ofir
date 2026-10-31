@@ -13,6 +13,7 @@ collector.
 | [Specification](docs/spec/README.md) | the language, chapter by chapter, with the full grammar |
 | [Standard library](docs/std/README.md) | API reference of `std` |
 | [Error codes](docs/errors/README.md) | registry of compiler diagnostics |
+| [Style guide](docs/style-guide.md) | formatting and naming of Astra code |
 | [Compiler architecture](docs/design/compiler-architecture.md) | phases, AIR, code generation |
 | [Project structure](docs/design/project-structure.md) | where every part of the code lives |
 | [Toolchain](docs/design/toolchain.md) | the `astra` command and build process |
