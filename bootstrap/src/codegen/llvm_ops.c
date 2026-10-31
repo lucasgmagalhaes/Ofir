@@ -194,7 +194,7 @@ void gen_rvalue(Gen *g, const Rvalue *rv, TypeId dest_type, Value *result) {
     case RV_CAST: cast(g, rv, result); break;
     case RV_CAST_FAILS: gen_cast_fails(g, rv, result); break;
     case RV_SATURATE: gen_saturate(g, rv, result); break;
-    case RV_SELECT: case RV_STR_LEN: case RV_STR_BYTE: case RV_FLOAT_FN: case RV_AGGREGATE:
+    case RV_STR_LEN: case RV_STR_BYTE: case RV_FLOAT_FN: case RV_AGGREGATE:
     case RV_PTR_ADD:
         gen_misc(g, rv, result);
         break;
