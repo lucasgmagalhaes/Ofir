@@ -37,6 +37,7 @@ typedef enum {
     RES_LOCAL,      // index: a LocalId of the enclosing function
     RES_DEF,        // index: a DefId
     RES_BUILTIN,    // index: a BuiltinMethod (sema/builtins.h)
+    RES_FIELD,      // index: the position of a struct field
     RES_ERROR,      // an error was reported
 } ResKind;
 

@@ -22,6 +22,15 @@ typedef enum {
 
 typedef enum { BUILTIN_PRINT, BUILTIN_PRINTLN, BUILTIN_PANIC, BUILTIN_ASSERT } Builtin;
 
+// The fields of a struct, computed by the checker (sema/structs.c).
+typedef struct {
+    uint32_t count;
+    Symbol *names;       // 0 for the fields of a tuple struct
+    TypeId *types;
+    Expr **defaults;     // NULL when the field has no default
+    bool is_tuple, is_copy;
+} StructInfo;
+
 typedef struct {
     DefKind kind;
     Symbol name;
@@ -34,6 +43,7 @@ typedef struct {
     bool typed;          // `type` is set (signatures, constants)
     bool checking;       // a constant whose type is being computed (cycle guard)
     const struct ConstValue *value;   // a constant's value, NULL if it could not be computed
+    StructInfo *fields;  // structs, once computed
 } Def;
 
 typedef struct {

@@ -81,6 +81,9 @@ static void check_item(Checker *c, Item *item) {
         }
         break;
     case ITEM_STRUCT: case ITEM_TUPLE_STRUCT:
+        if (item->as.struct_.type_params.len == 0) {
+            struct_fields(c, scope_module(&c->sema->scope, item->name));
+        }
         check_methods(c, item, item->as.struct_.methods);
         break;
     case ITEM_ENUM: check_methods(c, item, item->as.enum_.methods); break;

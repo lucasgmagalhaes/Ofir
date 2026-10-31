@@ -17,7 +17,26 @@ static const Def *primitive_name(Checker *c, const Expr *e) {
     return def->kind == DEF_PRIMITIVE ? def : NULL;
 }
 
-void require_mutable(Checker *c, Expr *e) {
+Expr *place_root(Expr *e) {
+    for (;;) {
+        if (e->kind == EXPR_FIELD) {
+            e = e->as.field.base;
+        } else if (e->kind == EXPR_TUPLE_FIELD) {
+            e = e->as.tuple_field.base;
+        } else {
+            return e->kind == EXPR_IDENT || e->kind == EXPR_SELF ? e : NULL;
+        }
+    }
+}
+
+void require_mutable(Checker *c, Expr *place) {
+    Expr *e = place_root(place);
+    if (!e) {
+        if (place->type.id != TID_ERROR) {
+            check_error(c, "E0315", place->span, "only variables and their fields can be modified");
+        }
+        return;
+    }
     bool ok = false;
     if ((e->kind == EXPR_IDENT || e->kind == EXPR_SELF) && e->as.ident.res.kind == RES_LOCAL) {
         ok = c->fn->locals.items[e->as.ident.res.index].mutable;
@@ -119,15 +138,11 @@ TypeId check_method_call(Checker *c, Expr *call) {
     return call_builtin(c, call, info, self);
 }
 
-// `i32.MAX`, `float.NAN`, ...; fields of structs come later.
+// `p.x` on a struct, or `i32.MAX`, `float.NAN`, ... on a primitive type.
 TypeId check_field(Checker *c, Expr *e) {
     const Def *primitive = primitive_name(c, e->as.field.base);
     if (!primitive) {
-        TypeId base = check_expr(c, e->as.field.base, NO_TYPE);
-        if (base.id == TID_ERROR) {
-            return base;
-        }
-        return unsupported(c, e->span, "fields are");
+        return check_struct_field(c, e, check_expr(c, e->as.field.base, NO_TYPE));
     }
     e->as.field.base->type = primitive->type;
     const Ty *ty = type_get(c->types, primitive->type);
