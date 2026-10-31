@@ -48,6 +48,11 @@ BREAKING CHANGE: function signatures no longer use ->.
   significant decisions get an [ADR](docs/adr/README.md).
 - New diagnostics get a code in the [registry](docs/errors/README.md) in the
   same commit.
+- Performance work follows [performance.md](docs/design/performance.md):
+  measure first, one optimization per `perf` commit with its measured
+  effect in the message, and an entry in `bench/HISTORY.md`. Pull requests
+  must not increase benchmark instruction counts by more than 3% without
+  a stated reason.
 - Until milestone M4, code in `compiler/` uses only the
   [bootstrap subset](docs/bootstrap.md#bootstrap-subset).
 

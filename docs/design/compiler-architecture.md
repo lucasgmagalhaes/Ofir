@@ -336,6 +336,8 @@ error[E0600]: use of moved value `inv`
 
 ## 14. Performance targets
 
+Measured and enforced as described in [performance.md](performance.md).
+
 | Metric | Target |
 |--------|--------|
 | Front end (lex → borrow check) | ≥ 200k lines/second per core |
