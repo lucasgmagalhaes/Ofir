@@ -58,7 +58,7 @@ static void fn_decl(Printer *p, const FnDecl *fn) {
     symbols(p, "type_params", fn->type_params, ", ");
     if (fn->has_self) {
         line_start(p);
-        fprintf(p->out, "self %s\n", mode_text(fn->self_mode));
+        fprintf(p->out, "%sself\n", mode_text(fn->self_mode));
     }
     for (uint32_t i = 0; i < fn->params.len; i++) {
         param(p, &fn->params.items[i]);
@@ -158,6 +158,7 @@ static void item(Printer *p, const Item *it) {
         line_start(p);
         fprintf(p->out, "type %s%s\n", name(p, it->name), it->is_pub ? " pub" : "");
         p->depth++;
+        symbols(p, "type_params", it->as.alias.type_params, ", ");
         type_line(p, "=", it->as.alias.type);
         p->depth--;
         break;

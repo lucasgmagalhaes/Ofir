@@ -112,7 +112,12 @@ static void if_expr(Printer *p, const Expr *e) {
     }
     print_expr(p, e->as.if_.cond);
     print_block(p, "then", e->as.if_.then);
-    child(p, "else", e->as.if_.else_);
+    const Expr *else_ = e->as.if_.else_;
+    if (else_ && else_->kind == EXPR_BLOCK) {
+        print_block(p, "else", else_->as.block);
+    } else {
+        child(p, "else", else_);   // `else if`
+    }
     p->depth--;
 }
 
@@ -194,8 +199,10 @@ static void compound(Printer *p, const Expr *e) {
         p->depth--;
         break;
     case EXPR_RANGE:
-        with_children(p, e->as.range.inclusive ? "range ..=" : "range ..", e->as.range.lo,
-                      e->as.range.hi);
+        // `_` marks a missing bound: `range _..` is `..hi`, `range .._` is `lo..`.
+        snprintf(label, sizeof label, "range %s%s%s", e->as.range.lo ? "" : "_",
+                 e->as.range.inclusive ? "..=" : "..", e->as.range.hi ? "" : "_");
+        with_children(p, label, e->as.range.lo, e->as.range.hi);
         break;
     case EXPR_CALL:
         line(p, "call");

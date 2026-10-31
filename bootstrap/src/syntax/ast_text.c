@@ -3,6 +3,9 @@
 
 #include "syntax/ast_text.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 static void symbols_text(StrBuf *out, SymbolList path, const Interner *names) {
     for (uint32_t i = 0; i < path.len; i++) {
         if (i > 0) {
@@ -98,10 +101,25 @@ static void escaped_text(StrBuf *out, StrView s) {
     strbuf_push(out, '"');
 }
 
+// The shortest decimal form that reads back as the same value.
+static void float_text(StrBuf *out, double value) {
+    char text[32];
+    for (int precision = 1; precision <= 17; precision++) {
+        snprintf(text, sizeof text, "%.*g", precision, value);
+        if (strtod(text, NULL) == value) {
+            break;
+        }
+    }
+    strbuf_append_cstr(out, text);
+    if (!strpbrk(text, ".eEni")) {
+        strbuf_append_cstr(out, ".0");   // keep `1.0` distinct from the integer `1`
+    }
+}
+
 void literal_text(StrBuf *out, const Expr *e, const Interner *names) {
     switch (e->kind) {
     case EXPR_INT: strbuf_appendf(out, "%llu", (unsigned long long)e->as.int_value); break;
-    case EXPR_FLOAT: strbuf_appendf(out, "%.17g", e->as.float_value); break;
+    case EXPR_FLOAT: float_text(out, e->as.float_value); break;
     case EXPR_BYTE: strbuf_appendf(out, "b%u", e->as.byte_value); break;
     case EXPR_BOOL: strbuf_append_cstr(out, e->as.bool_value ? "true" : "false"); break;
     case EXPR_STR: escaped_text(out, e->as.str); break;
