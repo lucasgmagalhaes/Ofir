@@ -42,6 +42,7 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     c->ret = sig->inner;
     c->self_type = self_type;
     c->local_types = ARENA_ARRAY(&c->sema->session->arena, TypeId, fn->locals.len + 1);
+    fn->local_types = c->local_types;
     if (fn->has_self) {
         c->local_types[0] = self_type;
     }

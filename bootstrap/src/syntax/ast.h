@@ -287,6 +287,7 @@ struct FnDecl {
     // Set by the resolver: `self` is local 0 in methods.
     DefId def;
     List(Local) locals;
+    TypeId *local_types;    // set by the type checker, indexed by LocalId
 };
 
 typedef struct {
