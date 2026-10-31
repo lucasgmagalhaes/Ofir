@@ -1,6 +1,7 @@
 // The back end: lowering, LLVM IR, clang (docs/design/toolchain.md, 4).
 
 #define _XOPEN_SOURCE 700   // realpath
+#define _DARWIN_C_SOURCE    // mkdtemp on macOS
 
 #include "driver_internal.h"
 
