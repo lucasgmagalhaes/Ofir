@@ -7,6 +7,8 @@
 #include "base/source.h"
 #include "base/vec.h"
 
+#include <stdio.h>
+
 // X(name, text): `text` is used by `--emit=tokens` and in error messages.
 #define TOKEN_KINDS(X)                                                        \
     /* literals, names and layout */                                          \
@@ -59,5 +61,8 @@ typedef struct {
 typedef Vec(Token) TokenList;
 
 const char *token_kind_text(TokenKind kind);
+
+// Writes one token per line, as used by `--emit=tokens` and tests/lex.
+void print_tokens(const TokenList *tokens, const SourceMap *map, const Interner *names, FILE *out);
 
 #endif
