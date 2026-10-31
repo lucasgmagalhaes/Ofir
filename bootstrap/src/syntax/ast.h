@@ -8,6 +8,7 @@
 
 #include "base/intern.h"
 #include "base/source.h"
+#include "sema/ids.h"
 
 #include <stdio.h>
 
@@ -27,6 +28,28 @@ typedef List(TypeExpr *) TypeList;
 typedef List(Pattern *) PatternList;
 typedef List(Symbol) SymbolList;
 typedef List(FnDecl *) FnList;
+
+// ---------------------------------------------------------------------------
+// Semantic annotations: zero after parsing, filled in by sema/.
+
+typedef enum {
+    RES_NONE,       // not resolved yet
+    RES_LOCAL,      // index: a LocalId of the enclosing function
+    RES_DEF,        // index: a DefId
+    RES_ERROR,      // an error was reported
+} ResKind;
+
+typedef struct {
+    ResKind kind;
+    uint32_t index;
+} Res;
+
+// A local variable or parameter of one function body.
+typedef struct {
+    Symbol name;
+    Span span;
+    bool mutable;
+} Local;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,7 +107,7 @@ struct Pattern {
     PatternKind kind;
     Span span;
     union {
-        struct { Symbol name; bool mutable; } binding;
+        struct { Symbol name; bool mutable; LocalId local; } binding;
         Expr *literal;
         struct { Expr *lo; Expr *hi; bool inclusive; } range;
         struct { SymbolList path; Symbol name; PatternList args; bool has_args; } variant;
@@ -155,6 +178,7 @@ typedef struct {
 struct Expr {
     ExprKind kind;
     Span span;
+    TypeId type;            // set by the type checker
     union {
         uint64_t int_value;
         double float_value;
@@ -162,8 +186,8 @@ struct Expr {
         bool bool_value;
         StrView str;
         ExprList parts;                                          // interpolation
-        Symbol ident;
-        struct { Symbol name; TypeList args; } generic;
+        struct { Symbol name; Res res; } ident;                  // ident, self
+        struct { Symbol name; TypeList args; Res res; } generic;
         struct { Op op; Expr *operand; } unary;
         struct { Op op; Expr *lhs; Expr *rhs; } binary;
         struct { Expr *value; TypeExpr *type; } cast;
@@ -208,13 +232,14 @@ struct Stmt {
     Span span;
     union {
         struct { Pattern *pattern; TypeExpr *type; Expr *value; Block *else_; } let;
-        struct { Symbol name; TypeExpr *type; Expr *value; } var;
+        struct { Symbol name; TypeExpr *type; Expr *value; LocalId local; } var;
         // op is OP_ASSIGN or the operator of a compound assignment (+=, ...)
         struct { Op op; Expr *target; Expr *value; } assign;
         struct {
             ForKind kind;
             bool mutable;
             Symbol first, second;   // `for i, x in`: first = i, second = x
+            LocalId first_local, second_local;
             Expr *expr;             // condition or iterated value
             Block *body;
         } for_;
@@ -244,6 +269,7 @@ typedef struct {
     TypeExpr *type;
     Expr *default_value;    // NULL without `= value`
     Span span;
+    LocalId local;
 } Param;
 
 struct FnDecl {
@@ -258,6 +284,9 @@ struct FnDecl {
     List(Param) params;
     TypeExpr *ret;          // NULL for ()
     Block *body;            // NULL in extern blocks
+    // Set by the resolver: `self` is local 0 in methods.
+    DefId def;
+    List(Local) locals;
 };
 
 typedef struct {

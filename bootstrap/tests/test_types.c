@@ -1,0 +1,82 @@
+#include "sema/types.h"
+#include "test.h"
+
+#include <string.h>
+
+static bool text_is(const TypeTable *table, TypeId id, const char *expected) {
+    StrBuf buf = {0};
+    ty_text(&buf, table, id, NULL, NULL);
+    bool ok = strcmp(buf.data, expected) == 0;
+    if (!ok) {
+        fprintf(stderr, "  got `%s`, expected `%s`\n", buf.data, expected);
+    }
+    strbuf_free(&buf);
+    return ok;
+}
+
+static void test_builtins(TypeTable *table) {
+    CHECK(type_get(table, type_id(TID_ERROR))->kind == TY_ERROR);
+    CHECK(type_get(table, type_id(TID_U8))->kind == TY_INT);
+    CHECK(type_get(table, type_id(TID_U8))->data == INT_U8);
+    CHECK(type_get(table, type_id(TID_F32))->data == 32);
+    CHECK(type_eq(type_intern(table, (Ty){.kind = TY_STR}), type_id(TID_STR)));
+    CHECK(type_is_integer(table, type_id(TID_INT)));
+    CHECK(!type_is_integer(table, type_id(TID_FLOAT)));
+    CHECK(type_is_numeric(table, type_id(TID_FLOAT)));
+}
+
+static void test_interning(TypeTable *table) {
+    TypeId str = type_id(TID_STR), i32 = type_id(TID_I32);
+    CHECK(type_eq(type_ref(table, str, false), type_ref(table, str, false)));
+    CHECK(!type_eq(type_ref(table, str, false), type_ref(table, str, true)));
+    TypeId pair[] = {i32, str};
+    TypeId swapped[] = {str, i32};
+    CHECK(type_eq(type_tuple(table, pair, 2), type_tuple(table, pair, 2)));
+    CHECK(!type_eq(type_tuple(table, pair, 2), type_tuple(table, swapped, 2)));
+    CHECK(type_eq(type_tuple(table, NULL, 0), type_id(TID_UNIT)));
+    TypeId f = type_fn(table, pair, 2, type_id(TID_BOOL));
+    CHECK(type_eq(f, type_fn(table, pair, 2, type_id(TID_BOOL))));
+    CHECK(!type_eq(f, type_fn(table, pair, 1, type_id(TID_BOOL))));
+}
+
+static void test_growth(TypeTable *table) {
+    TypeId t = type_id(TID_INT);
+    TypeId first[200];
+    for (int i = 0; i < 200; i++) {
+        first[i] = t;
+        t = type_slice(table, t);
+    }
+    t = type_id(TID_INT);
+    for (int i = 0; i < 200; i++) {
+        CHECK(type_eq(first[i], t));   // still found after the table grew
+        t = type_slice(table, t);
+    }
+}
+
+static void test_text(TypeTable *table) {
+    TypeId str = type_id(TID_STR);
+    TypeId one[] = {type_id(TID_INT)};
+    TypeId two[] = {type_id(TID_U8), str};
+    CHECK(text_is(table, type_id(TID_INT), "int"));
+    CHECK(text_is(table, type_id(TID_I32), "i32"));
+    CHECK(text_is(table, type_id(TID_FLOAT), "float"));
+    CHECK(text_is(table, type_ref(table, type_slice(table, str), true), "&mut [str]"));
+    CHECK(text_is(table, type_tuple(table, one, 1), "(int,)"));
+    CHECK(text_is(table, type_tuple(table, two, 2), "(u8, str)"));
+    CHECK(text_is(table, type_fn(table, two, 2, type_id(TID_UNIT)), "fn(u8, str)"));
+    CHECK(text_is(table, type_fn(table, NULL, 0, type_id(TID_NEVER)), "fn() !"));
+}
+
+int main(void) {
+    Arena arena;
+    arena_init(&arena);
+    TypeTable table;
+    types_init(&table, &arena);
+    test_builtins(&table);
+    test_interning(&table);
+    test_growth(&table);
+    test_text(&table);
+    types_free(&table);
+    arena_free(&arena);
+    return test_report("types");
+}

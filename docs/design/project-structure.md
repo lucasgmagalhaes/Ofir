@@ -78,11 +78,17 @@ bootstrap/
 │   │   ├── parse_types.c     types
 │   │   └── parse_patterns.c  patterns
 │   ├── sema/
+│   │   ├── ids.h             TypeId, DefId, LocalId
 │   │   ├── types.c/.h        type representation and interning
-│   │   ├── scope.c/.h        scopes and symbols
-│   │   ├── resolve.c         name resolution, module loading
-│   │   ├── check.c           type checking and inference
-│   │   └── generics.c        generic signatures and bounds
+│   │   ├── sema.h            definitions and the phase entry points
+│   │   ├── scope.c/.h        module table and local binding stack
+│   │   ├── resolve.c         prelude and top-level declarations
+│   │   ├── resolve_body.c    names in function bodies
+│   │   ├── check.c           type checking: module and functions
+│   │   ├── check_types.c     type expressions and signatures
+│   │   ├── check_expr.c      expressions
+│   │   ├── check_stmt.c      statements, blocks and `if`
+│   │   └── generics.c        generic signatures and bounds (planned)
 │   ├── air/
 │   │   ├── air.h             Astra Intermediate Representation
 │   │   ├── lower.c           typed AST → AIR
