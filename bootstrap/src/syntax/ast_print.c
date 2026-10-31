@@ -212,10 +212,18 @@ static void compound(Printer *p, const Expr *e) {
         p->depth--;
         break;
     case EXPR_INDEX: with_children(p, "index", e->as.index.base, e->as.index.index); break;
-    case EXPR_FIELD:
-        snprintf(label, sizeof label, "field %s", name(p, e->as.field.name));
-        with_children(p, label, e->as.field.base, NULL);
+    case EXPR_FIELD: {
+        StrBuf buf = {0};
+        strbuf_appendf(&buf, "field %s", name(p, e->as.field.name));
+        for (uint32_t i = 0; i < e->as.field.type_args.len; i++) {
+            strbuf_append_cstr(&buf, i == 0 ? "<" : ", ");
+            type_text(&buf, e->as.field.type_args.items[i], p->names);
+        }
+        strbuf_append_cstr(&buf, e->as.field.type_args.len ? ">" : "");
+        with_children(p, buf.data, e->as.field.base, NULL);
+        strbuf_free(&buf);
         break;
+    }
     case EXPR_TUPLE_FIELD:
         snprintf(label, sizeof label, "tuple_field %u", e->as.tuple_field.index);
         with_children(p, label, e->as.tuple_field.base, NULL);

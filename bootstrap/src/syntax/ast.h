@@ -36,6 +36,7 @@ typedef enum {
     RES_NONE,       // not resolved yet
     RES_LOCAL,      // index: a LocalId of the enclosing function
     RES_DEF,        // index: a DefId
+    RES_BUILTIN,    // index: a BuiltinMethod (sema/builtins.h)
     RES_ERROR,      // an error was reported
 } ResKind;
 
@@ -194,7 +195,9 @@ struct Expr {
         struct { Expr *lo; Expr *hi; bool inclusive; } range;    // lo, hi may be NULL
         struct { Expr *callee; ArgList args; } call;
         struct { Expr *base; Expr *index; } index;
-        struct { Expr *base; Symbol name; } field;
+        // `res` is set by the checker for a method: RES_DEF (a user method) or
+        // RES_BUILTIN (a BuiltinMethod of a primitive type).
+        struct { Expr *base; Symbol name; TypeList type_args; Res res; } field;
         struct { Expr *base; uint32_t index; } tuple_field;
         Expr *inner;                                             // try
         struct { Expr *type; List(FieldInit) fields; Expr *base; } struct_;
