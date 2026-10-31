@@ -115,7 +115,7 @@ static Expr *name(Parser *p) {
         return e;
     }
     Expr *e = new_expr(p, EXPR_IDENT, t->span);
-    e->as.ident = t->as.symbol;
+    e->as.ident.name = t->as.symbol;
     return e;
 }
 
@@ -197,7 +197,7 @@ static Expr *array(Parser *p) {
 // uppercase letter, possibly qualified or with type arguments.
 static bool is_type_name(const Parser *p, const Expr *e) {
     switch (e->kind) {
-    case EXPR_IDENT: return symbol_name(&p->session->names, e->as.ident).ptr[0] <= 'Z';
+    case EXPR_IDENT: return symbol_name(&p->session->names, e->as.ident.name).ptr[0] <= 'Z';
     case EXPR_GENERIC: return true;
     case EXPR_FIELD: return symbol_name(&p->session->names, e->as.field.name).ptr[0] <= 'Z';
     case EXPR_SELF_TYPE: return true;

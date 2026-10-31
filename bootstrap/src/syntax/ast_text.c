@@ -123,7 +123,7 @@ void literal_text(StrBuf *out, const Expr *e, const Interner *names) {
     case EXPR_BYTE: strbuf_appendf(out, "b%u", e->as.byte_value); break;
     case EXPR_BOOL: strbuf_append_cstr(out, e->as.bool_value ? "true" : "false"); break;
     case EXPR_STR: escaped_text(out, e->as.str); break;
-    case EXPR_IDENT: strbuf_append(out, symbol_name(names, e->as.ident)); break;
+    case EXPR_IDENT: strbuf_append(out, symbol_name(names, e->as.ident.name)); break;
     case EXPR_UNARY:
         strbuf_push(out, '-');
         literal_text(out, e->as.unary.operand, names);
