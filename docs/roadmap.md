@@ -72,10 +72,10 @@ Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 | 1.4 | `diag/`: diagnostics with codes, rendering with source excerpt and caret | S | **done**: output matches the design doc format |
 | 1.5 | Lexer: all tokens of spec chapter 1 except interpolation, raw and byte strings; newline tokens; contextual keywords as identifiers | M | **done**: `tests/lex` cases pass, `--emit=tokens` works |
 | 1.6 | Lexer: string interpolation tokens | S | **done**: `tests/lex/interpolation*` pass |
-| 1.7 | AST definitions and AST printer (`--emit=ast`) | M | printer covers every node kind |
-| 1.8 | Parser: items (`fn`, `struct`, `enum`, `const`, `import`), types, statements, parser-driven newline handling (spec 1.3) | M | `tests/parse` cases pass, including `tests/parse/newlines*` |
-| 1.9 | Parser: expressions with precedence, struct literal restriction, generic disambiguation, patterns | M | `tests/parse` cases pass |
-| 1.10 | Parser: error recovery to next statement | S | several syntax errors reported per file |
+| 1.7 | AST definitions and AST printer (`--emit=ast`) | M | **done**: printer covers every node kind |
+| 1.8 | Parser: items (`fn`, `struct`, `enum`, `const`, `import`), types, statements, parser-driven newline handling (spec 1.3) | M | **done**: `tests/parse` cases pass, including `tests/parse/generics_and_newlines` |
+| 1.9 | Parser: expressions with precedence, struct literal restriction, generic disambiguation, patterns | M | **done**: `tests/parse` cases pass |
+| 1.10 | Parser: error recovery to next statement | S | **done**: several syntax errors reported per file (`tests/compile_fail/parser/recovery`) |
 | 1.11 | Types: interned type table with primitive types, `str`, `()` | S | unit tests |
 | 1.12 | Resolver: single module, functions and locals | S | `E0200`/`E0201` reported |
 | 1.13 | Type checker: functions, `let`/`var`, integer literals, calls, `println(str)`, literals passed to `str` parameters, interpolation of `str` and `int` | M | `tests/compile_fail/types_basic*` pass |
@@ -231,6 +231,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Phase 1 in progress: next are the AST and the parser (tasks 1.7 to 1.10).
+1. Phase 1 in progress: the lexer and the parser are done (tasks 1.1 to 1.10);
+   next are the type table, name resolution and the type checker (1.11 to 1.13).
 
 See also the [risk register](risks.md).

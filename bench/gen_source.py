@@ -29,7 +29,8 @@ def expression(rng: random.Random, depth: int = 0) -> str:
         return f"{rng.random() * 1000:.3f}"
     if choice == 3:
         op = rng.choice(["+", "-", "*", "/", "%", "==", "<", ">=", "&&", "||"])
-        return f"{expression(rng, depth + 1)} {op} {expression(rng, depth + 1)}"
+        binary = f"{expression(rng, depth + 1)} {op} {expression(rng, depth + 1)}"
+        return f"({binary})" if depth > 0 else binary   # comparisons do not chain
     if choice == 4:
         args = ", ".join(expression(rng, depth + 1) for _ in range(rng.randrange(4)))
         return f"{name(rng)}({args})"

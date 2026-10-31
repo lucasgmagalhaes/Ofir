@@ -1,0 +1,3 @@
+fn main() {
+    first(); second()   // error[E0100]: expected a new line after the statement
+}
