@@ -11,4 +11,8 @@
 // diagnostics; the token list is always complete so parsing can continue.
 void lex(Session *session, FileId file, TokenList *out);
 
+// Interns every keyword. Must run on a fresh interner, before any other
+// name; session_init does it.
+void intern_keywords(Interner *names);
+
 #endif
