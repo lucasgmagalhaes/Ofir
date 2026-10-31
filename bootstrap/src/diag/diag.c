@@ -16,34 +16,37 @@ void diags_free(Diagnostics *diags) {
     VEC_FREE(diags->items);
 }
 
-static void add(Diagnostics *diags, Severity severity, const char *code, Span span,
-                const char *format, va_list args) {
+// Formats the message of `d` and records it.
+static void add(Diagnostics *diags, Diagnostic d, const char *format, va_list args) {
     va_list copy;
     va_copy(copy, args);
     int n = vsnprintf(NULL, 0, format, copy);
     va_end(copy);
-    char *message = arena_alloc(diags->arena, (size_t)n + 1, 1);
-    vsnprintf(message, (size_t)n + 1, format, args);
-
-    Diagnostic d = {.severity = severity, .span = span, .message = message};
-    snprintf(d.code, sizeof d.code, "%s", code);
+    d.message = arena_alloc(diags->arena, (size_t)n + 1, 1);
+    vsnprintf(d.message, (size_t)n + 1, format, args);
     VEC_PUSH(diags->items, d);
-    if (severity == SEVERITY_ERROR) {
+    if (d.severity == SEVERITY_ERROR) {
         diags->error_count++;
     }
+}
+
+static Diagnostic make(Severity severity, const char *code, Span span) {
+    Diagnostic d = {.severity = severity, .span = span};
+    snprintf(d.code, sizeof d.code, "%s", code);
+    return d;
 }
 
 void diag_error(Diagnostics *diags, const char *code, Span span, const char *format, ...) {
     va_list args;
     va_start(args, format);
-    add(diags, SEVERITY_ERROR, code, span, format, args);
+    add(diags, make(SEVERITY_ERROR, code, span), format, args);
     va_end(args);
 }
 
 void diag_warning(Diagnostics *diags, const char *code, Span span, const char *format, ...) {
     va_list args;
     va_start(args, format);
-    add(diags, SEVERITY_WARNING, code, span, format, args);
+    add(diags, make(SEVERITY_WARNING, code, span), format, args);
     va_end(args);
 }
 
