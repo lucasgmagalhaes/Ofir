@@ -90,14 +90,27 @@ bootstrap/
 │   │   ├── check_stmt.c      statements, blocks and `if`
 │   │   └── generics.c        generic signatures and bounds (planned)
 │   ├── air/
-│   │   ├── air.h             Astra Intermediate Representation
-│   │   ├── lower.c           typed AST → AIR
-│   │   ├── moves.c           moves, definite initialization, drop flags
-│   │   ├── mono.c            monomorphization
-│   │   └── air_print.c       AIR dump for debugging and tests
-│   └── codegen/
-│       ├── llvm.c/.h         AIR → textual LLVM IR
-│       └── abi.c/.h          type layout and calling convention
+│   │   ├── air.c/.h          Astra Intermediate Representation
+│   │   ├── air_print.c/.h    AIR dump (`--emit=air`)
+│   │   ├── air_validate.c    structural checks after lowering
+│   │   ├── lower.c/.h        typed AST → AIR: functions, blocks
+│   │   ├── lower_internal.h  state shared by the lowering files
+│   │   ├── lower_stmt.c      statements and loops
+│   │   ├── lower_expr.c      expressions, calls, `if`, `&&`/`||`
+│   │   ├── lower_ops.c       checked operators, casts, interpolation, printing
+│   │   ├── moves.c           moves, definite initialization, drop flags (planned)
+│   │   └── mono.c            monomorphization (planned)
+│   ├── codegen/
+│   │   ├── llvm.c/.h         AIR → textual LLVM IR: module, types, constants
+│   │   ├── llvm_internal.h   state shared by the generator files
+│   │   ├── llvm_body.c       functions, statements, terminators
+│   │   ├── llvm_ops.c        operands and rvalues
+│   │   ├── llvm_cast.c       range checks of `as`
+│   │   ├── out.c/.h          buffered text writer
+│   │   └── abi.c/.h          type layout and calling convention (planned)
+│   ├── driver.c/.h           the front end phases and the command line options
+│   ├── driver_backend.c      lowering, code generation, clang, `run`
+│   └── driver_internal.h     state shared by the driver files
 └── tests/                    unit tests for the C code (base/, lexer)
 ```
 

@@ -218,6 +218,12 @@ Terminator = Goto(BlockId)
            | Return | Unreachable
 ```
 
+Stage 0 implements a subset (`bootstrap/src/air/air.h`): places are whole
+locals until structs arrive, and calls are statements rather than
+terminators, because Astra has no unwinding: a call either returns or ends
+the process. The driver lowers, validates and generates one function at a
+time, so only one AIR body is in memory.
+
 Properties:
 
 - Every expression with side effects is broken down into statements; all

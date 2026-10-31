@@ -50,3 +50,19 @@ helpers, and building lists directly in the arena. Memory: 32-byte tokens
 On the same input, stopping after the parser costs 489.4M instructions:
 resolution and type checking add 72.6M (13% of the total, a third of the
 lexer).
+
+## llvm-100k (100 007 lines of the `typed` profile, up to the LLVM IR, no clang)
+
+| Commit | Change | Instructions | Wall (ms) | Lines/s | Peak KiB |
+|--------|--------|-------------:|----------:|--------:|---------:|
+| `5c273fa` | baseline: first AIR lowering and LLVM IR generator | 4,091,654,779 | 780.4 | 0.13M | 226,072 |
+| `f0a5e18` | buffered writer instead of printf | 2,382,338,156 | | | |
+| `5f311c6` | one function lowered and generated at a time | 2,377,801,094 | | | 81,500 |
+
+The baseline spent about 65% of its instructions in the C library's printf.
+The generated IR is 66 MB for 100k lines, about 23 IR lines per source
+line: next candidates are fewer loads and stores (keeping temporaries in
+SSA values instead of allocas) and deduplicated string constants, which
+would also make clang faster (16 s at -O0 for this input).
+
+Binary size of `examples/hello.at`: 17,440 bytes, 14,584 stripped.
