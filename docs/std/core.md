@@ -38,6 +38,9 @@ enum Result<T, E> { Ok(value: T)  Err(error: E) }
 | `fn mapErr<F>(move self, f: fn(move E) F) Result<T, F>` | | |
 | `fn map<U>(move self, f: fn(move T) U) Result<U, E>` | | |
 
+`opt ?? default` (spec 4.8) is the operator form of `unwrapOr` with a lazily
+evaluated default.
+
 **Error conversion in `?`** (stage 1): if the function returns
 `Result<_, F>` and `F` satisfies `From<E>`, `?` converts the error with
 `F.from(e)`. Otherwise both error types must be equal.
