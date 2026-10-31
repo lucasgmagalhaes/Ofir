@@ -3,6 +3,7 @@
 #include "base/clock.h"
 #include "session.h"
 #include "syntax/lexer.h"
+#include "syntax/parser.h"
 
 #include <stdio.h>
 
@@ -35,24 +36,64 @@ static Next load_input(Session *session, const Options *opts, FileId *file) {
     return CONTINUE;
 }
 
-static Next run_lexer(Session *session, const Options *opts, FileId file, Timer *timer) {
-    TokenList tokens = {0};
+static Next run_lexer(Session *session, const Options *opts, FileId file, TokenList *tokens,
+                      Timer *timer) {
     timer_start(timer);
-    lex(session, file, &tokens);
+    lex(session, file, tokens);
     char detail[96];
     const SourceFile *source = source_file(&session->sources, file);
     snprintf(detail, sizeof detail, "%zu bytes, %u lines, %zu tokens", source->text.len,
-             source->line_count, tokens.len);
+             source->line_count, tokens->len);
     timer_report(timer, "lex", detail);
     if (opts->emit == EMIT_TOKENS) {
-        print_tokens(&tokens, &session->sources, &session->names, stdout);
+        print_tokens(tokens, &session->sources, &session->names, stdout);
     }
-    VEC_FREE(tokens);
     bool done = opts->emit == EMIT_TOKENS || opts->stop_after == STOP_AFTER_LEX;
     if (diags_has_errors(&session->diags) || done) {
         return STOP;
     }
     return CONTINUE;
+}
+
+static Next run_parser(Session *session, const Options *opts, FileId file,
+                       const TokenList *tokens, Timer *timer) {
+    timer_start(timer);
+    Module *module = parse(session, file, tokens);
+    char detail[64];
+    snprintf(detail, sizeof detail, "%u items", module->items.len);
+    timer_report(timer, "parse", detail);
+    if (opts->emit == EMIT_AST) {
+        print_module(module, &session->names, stdout);
+    }
+    bool done = opts->emit == EMIT_AST || opts->stop_after == STOP_AFTER_PARSE;
+    if (diags_has_errors(&session->diags) || done) {
+        return STOP;
+    }
+    return CONTINUE;
+}
+
+// Runs the phases in order; returns false if one of them could not finish.
+static bool run_phases(Session *session, const Options *opts, Timer *timer) {
+    FileId file;
+    timer_start(timer);
+    bool ok = load_input(session, opts, &file) == CONTINUE;
+    timer_report(timer, "load", "");
+    if (!ok) {
+        return false;
+    }
+    TokenList tokens = {0};
+    Next next = run_lexer(session, opts, file, &tokens, timer);
+    if (next == CONTINUE) {
+        next = run_parser(session, opts, file, &tokens, timer);
+    }
+    VEC_FREE(tokens);
+    if (next == CONTINUE) {
+        // The phases after the parser are not written yet.
+        fprintf(stderr, "error: `%s` is not implemented yet (only --emit=tokens|ast)\n",
+                opts->command);
+        return false;
+    }
+    return true;
 }
 
 int driver_build(const Options *opts) {
@@ -61,15 +102,7 @@ int driver_build(const Options *opts) {
     timer_start(&total);
     Session session;
     session_init(&session);
-    FileId file;
-    timer_start(&phase);
-    bool ok = load_input(&session, opts, &file) == CONTINUE;
-    timer_report(&phase, "load", "");
-    if (ok && run_lexer(&session, opts, file, &phase) == CONTINUE) {
-        // The phases after the lexer are not written yet.
-        fprintf(stderr, "error: `%s` is not implemented yet (only --emit=tokens)\n", opts->command);
-        ok = false;
-    }
+    bool ok = run_phases(&session, opts, &phase);
     diags_render(&session.diags, &session.sources, opts->format, stderr);
     ok = ok && !diags_has_errors(&session.diags);
     session_free(&session);
