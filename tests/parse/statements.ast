@@ -1,0 +1,102 @@
+module
+  fn statements
+    body
+      let x
+        lit 1
+      let y
+        type int
+        lit 2
+      let (a, b)
+        ident pair
+      let .Some(value)
+        ident maybe
+        else
+          return
+      var count
+        lit 0
+      var name
+        type str
+      var items
+        type List<int>
+        array
+      assign =
+        ident count
+        lit 1
+      assign +=
+        ident count
+        lit 2
+      assign -=
+        ident count
+        lit 3
+      assign *=
+        ident count
+        lit 4
+      assign /=
+        ident count
+        lit 5
+      assign %=
+        ident count
+        lit 6
+      assign &=
+        ident flags
+        lit 1
+      assign |=
+        ident flags
+        lit 2
+      assign ^=
+        ident flags
+        lit 3
+      assign <<=
+        ident flags
+        lit 4
+      assign >>=
+        ident flags
+        lit 5
+      assign =
+        field x
+          ident point
+        lit 1.0
+      assign =
+        index
+          ident items
+          lit 0
+        lit 7
+      for
+        body
+          break
+      for cond
+        binary <
+          ident count
+          lit 10
+        body
+          assign +=
+            ident count
+            lit 1
+          continue
+      for item in
+        ident items
+        body
+          call
+            ident println
+            interp
+              ident item
+      for mut item in
+        ident items
+        body
+          assign +=
+            ident item
+            lit 1
+      for i, item in
+        call
+          field enumerate
+            ident items
+        body
+      for i in
+        range ..
+          lit 0
+          lit 10
+        body
+      call
+        ident process
+        ident items
+      return

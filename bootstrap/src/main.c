@@ -18,8 +18,9 @@ static void print_usage(FILE *out) {
           "options:\n"
           "  -o <path>                 output path\n"
           "  --emit=tokens             print the tokens and stop\n"
+          "  --emit=ast                print the syntax tree and stop\n"
           "  --message-format=short    one line per diagnostic\n"
-          "  --stop-after=lex          run the phases up to lex, without output\n"
+          "  --stop-after=lex|parse    run the phases up to the given one, without output\n"
           "  --time-passes             report the time spent in each phase\n",
           out);
 }
@@ -32,12 +33,16 @@ static bool parse_option(int argc, char **argv, int *i, Options *opts) {
         opts->output = argv[++*i];
     } else if (strcmp(arg, "--emit=tokens") == 0) {
         opts->emit = EMIT_TOKENS;
+    } else if (strcmp(arg, "--emit=ast") == 0) {
+        opts->emit = EMIT_AST;
     } else if (strcmp(arg, "--message-format=short") == 0) {
         opts->format = DIAG_FORMAT_SHORT;
     } else if (strcmp(arg, "--message-format=human") == 0) {
         opts->format = DIAG_FORMAT_HUMAN;
     } else if (strcmp(arg, "--stop-after=lex") == 0) {
         opts->stop_after = STOP_AFTER_LEX;
+    } else if (strcmp(arg, "--stop-after=parse") == 0) {
+        opts->stop_after = STOP_AFTER_PARSE;
     } else if (strcmp(arg, "--time-passes") == 0) {
         opts->time_passes = true;
     } else {

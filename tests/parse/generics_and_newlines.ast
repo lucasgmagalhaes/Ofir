@@ -1,0 +1,72 @@
+module
+  fn generics
+    body
+      let a
+        call
+          generic parse<int>
+          str "1"
+      let b
+        binary <
+          ident x
+          ident y
+      let c
+        tuple
+          binary <
+            ident x
+            ident y
+          binary >
+            ident z
+            ident w
+      let d
+        call
+          field new
+            generic List<List<int>>
+      let e
+        binary >=
+          ident value
+          ident limit
+      let f
+        struct
+          generic Pair<int, str>
+          field first
+            lit 1
+          field second
+            str "a"
+      if
+        binary <
+          ident a
+          ident b
+        then
+          return
+  fn newlines
+    body
+      let list
+        array
+          lit 1
+          lit 2
+      let sum
+        binary +
+          ident first
+          ident second
+      let chained
+        call
+          field add
+            call
+              field add
+                ident builder
+              lit 1
+          lit 2
+      let nested
+        call
+          ident call
+          struct
+            ident Point
+            field x
+              lit 1
+            field y
+              lit 2
+      call
+        ident process
+        ident list
+      call
+        ident finish

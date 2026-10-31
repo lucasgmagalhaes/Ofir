@@ -8,11 +8,13 @@
 typedef enum {
     EMIT_NONE,     // full compilation
     EMIT_TOKENS,   // print the tokens and stop
+    EMIT_AST,      // print the syntax tree and stop
 } Emit;
 
 typedef enum {
     STOP_NEVER,        // run every phase
     STOP_AFTER_LEX,    // --stop-after=lex: for benchmarks, no output
+    STOP_AFTER_PARSE,  // --stop-after=parse
 } StopAfter;
 
 typedef struct {
