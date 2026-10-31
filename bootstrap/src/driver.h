@@ -15,6 +15,7 @@ typedef enum {
     STOP_NEVER,        // run every phase
     STOP_AFTER_LEX,    // --stop-after=lex: for benchmarks, no output
     STOP_AFTER_PARSE,  // --stop-after=parse
+    STOP_AFTER_CHECK,  // --stop-after=check: name resolution and type checking
 } StopAfter;
 
 typedef struct {

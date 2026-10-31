@@ -83,7 +83,7 @@ void types_init(TypeTable *table, Arena *arena) {
     type_intern(table, (Ty){.kind = TY_FLOAT, .data = 32});
     type_intern(table, (Ty){.kind = TY_FLOAT, .data = 64});
     type_intern(table, (Ty){.kind = TY_STR});
-    if (table->count != TYPE_BUILTIN_COUNT) {
+    if (table->count != TID_BUILTIN_COUNT) {
         fatal("types_init: built-in types out of order");
     }
 }
@@ -104,7 +104,7 @@ TypeId type_slice(TypeTable *table, TypeId elem) {
 
 TypeId type_tuple(TypeTable *table, const TypeId *elems, uint32_t count) {
     if (count == 0) {
-        return type_id(TYPE_UNIT);
+        return type_id(TID_UNIT);
     }
     return type_intern(table, (Ty){.kind = TY_TUPLE, .arg_count = count, .args = elems});
 }
@@ -172,7 +172,7 @@ void ty_text(StrBuf *out, const TypeTable *table, TypeId id, AdtNameFn adt_name,
         strbuf_append_cstr(out, "fn(");
         list_text(out, table, ty, adt_name, context);
         strbuf_push(out, ')');
-        if (!type_eq(ty->inner, type_id(TYPE_UNIT))) {
+        if (!type_eq(ty->inner, type_id(TID_UNIT))) {
             strbuf_push(out, ' ');
             ty_text(out, table, ty->inner, adt_name, context);
         }

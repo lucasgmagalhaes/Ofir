@@ -20,7 +20,7 @@ static void print_usage(FILE *out) {
           "  --emit=tokens             print the tokens and stop\n"
           "  --emit=ast                print the syntax tree and stop\n"
           "  --message-format=short    one line per diagnostic\n"
-          "  --stop-after=lex|parse    run the phases up to the given one, without output\n"
+          "  --stop-after=PHASE       run the phases up to lex, parse or check, without output\n"
           "  --time-passes             report the time spent in each phase\n",
           out);
 }
@@ -43,6 +43,8 @@ static bool parse_option(int argc, char **argv, int *i, Options *opts) {
         opts->stop_after = STOP_AFTER_LEX;
     } else if (strcmp(arg, "--stop-after=parse") == 0) {
         opts->stop_after = STOP_AFTER_PARSE;
+    } else if (strcmp(arg, "--stop-after=check") == 0) {
+        opts->stop_after = STOP_AFTER_CHECK;
     } else if (strcmp(arg, "--time-passes") == 0) {
         opts->time_passes = true;
     } else {
