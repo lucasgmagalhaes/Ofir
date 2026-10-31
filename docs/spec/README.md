@@ -22,6 +22,7 @@ This specification describes the Astra language. Sections marked
 12. [Attributes, testing and documentation](12-attributes-testing.md)
 13. [Memory layout and ABI](13-memory-layout.md)
 14. [Concurrency](14-concurrency.md) **[planned]**
+15. [Compile-time code](15-compile-time.md) **[planned]**
 
 Appendices:
 

@@ -29,6 +29,7 @@ struct Header {
 | `@bench` | functions | a benchmark (12.3) |
 | `@cfg(cond)` | any | conditional compilation (12.4) |
 | `@allow(category)` | any | silence a warning category (12.6) |
+| `@tag("key", "value")` | types, fields, variants | metadata for compile-time code (chapter 15.4) |
 
 Unknown attributes are compile errors.
 
