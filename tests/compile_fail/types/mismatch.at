@@ -1,0 +1,36 @@
+fn takesStr(text: str) {}
+
+fn returnsInt() int {
+    return "seven"   // error[E0300]: mismatched types: expected int, found str
+}
+
+fn annotations() {
+    let a: int = "x"      // error[E0300]: mismatched types: expected int, found str
+    var b: bool = 1       // error[E0300]: mismatched types: expected bool, found int
+    let c: str = true     // error[E0300]: mismatched types: expected str, found bool
+}
+
+fn arguments() {
+    takesStr(42)          // error[E0300]: mismatched types: expected str, found int
+    println(1)            // error[E0300]: mismatched types: expected str, found int
+}
+
+fn operands(n: int, small: u8) {
+    let a = n + small     // error[E0300]: mismatched types: expected int, found u8
+    let b = n + "1"       // error[E0300]: mismatched types: expected int, found str
+}
+
+fn conditions(n: int) {
+    if n {                // error[E0300]: mismatched types: expected bool, found int
+    }
+    for n {               // error[E0300]: mismatched types: expected bool, found int
+    }
+}
+
+fn branches(flag: bool) {
+    let value = if flag { 1 } else { "one" }   // error[E0300]: mismatched types: expected int, found str
+}
+
+fn emptyReturn() int {
+    return   // error[E0300]: mismatched types: expected int, found ()
+}

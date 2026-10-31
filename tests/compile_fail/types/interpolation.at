@@ -1,0 +1,10 @@
+fn unit() {}
+
+fn badPart() {
+    println("value: {unit()}")   // error[E0314]: a value of type `()` cannot be interpolated into a string
+}
+
+// Accepted.
+fn parts(name: str, count: int, ratio: float, ok: bool) {
+    println("{name} has {count} items ({ratio}, {ok}) and {count + 1} next")
+}
