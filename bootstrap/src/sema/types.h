@@ -1,0 +1,92 @@
+// Types: hash-consed, so each distinct type exists once and type equality is
+// a comparison of `TypeId`s (docs/design/compiler-architecture.md, 2).
+
+#ifndef ASTRA_TYPES_H
+#define ASTRA_TYPES_H
+
+#include "base/arena.h"
+#include "base/intern.h"
+#include "base/str.h"
+#include "sema/ids.h"
+
+typedef enum {
+    TY_ERROR,    // after a reported error; compatible with every type
+    TY_UNIT,     // ()
+    TY_NEVER,    // !
+    TY_BOOL,
+    TY_INT,      // i8 ... u64; `int` and `uint` are aliases
+    TY_FLOAT,    // f32, f64; `float` is an alias
+    TY_STR,
+    TY_REF,      // &T, &mut T
+    TY_PTR,      // *T, *mut T
+    TY_SLICE,    // [T]
+    TY_ARRAY,    // [T; N]
+    TY_TUPLE,    // (A, B)
+    TY_FN,       // fn(A, B) R
+    TY_ADT,      // a struct or an enum, with type arguments
+    TY_PARAM,    // a type parameter of the enclosing declaration
+} TyKind;
+
+typedef enum { INT_I8, INT_I16, INT_I32, INT_I64, INT_U8, INT_U16, INT_U32, INT_U64 } IntKind;
+
+typedef struct {
+    TyKind kind;
+    uint32_t data;      // int: IntKind; float: bits; ref, ptr: mutable; array: length;
+                        // adt: DefId; param: index
+    TypeId inner;       // ref, ptr, slice, array: element; fn: return type
+    uint32_t arg_count; // tuple: elements; fn: parameters; adt: type arguments
+    const TypeId *args;
+} Ty;
+
+// The types created by `types_init`, in this order.
+enum {
+    TYPE_ERROR, TYPE_UNIT, TYPE_NEVER, TYPE_BOOL,
+    TYPE_I8, TYPE_I16, TYPE_I32, TYPE_I64, TYPE_U8, TYPE_U16, TYPE_U32, TYPE_U64,
+    TYPE_F32, TYPE_F64, TYPE_STR,
+    TYPE_BUILTIN_COUNT,
+};
+
+#define TYPE_INT TYPE_I64     // `int`
+#define TYPE_FLOAT TYPE_F64   // `float`
+
+typedef struct {
+    Arena *arena;          // owns the argument arrays
+    Ty *types;             // types[id]
+    uint32_t count, cap;
+    uint32_t *slots;       // open addressing table of id + 1 (0 = empty)
+    uint32_t slots_cap;    // a power of two
+} TypeTable;
+
+void types_init(TypeTable *table, Arena *arena);
+void types_free(TypeTable *table);
+
+// Returns the id of `ty`, creating it the first time. `ty.args` is copied.
+TypeId type_intern(TypeTable *table, Ty ty);
+
+static inline const Ty *type_get(const TypeTable *table, TypeId id) {
+    return &table->types[id.id];
+}
+
+static inline TypeId type_id(uint32_t id) {
+    return (TypeId){id};
+}
+
+static inline bool type_eq(TypeId a, TypeId b) {
+    return a.id == b.id;
+}
+
+TypeId type_ref(TypeTable *table, TypeId inner, bool mutable);
+TypeId type_slice(TypeTable *table, TypeId elem);
+TypeId type_tuple(TypeTable *table, const TypeId *elems, uint32_t count);
+TypeId type_fn(TypeTable *table, const TypeId *params, uint32_t count, TypeId ret);
+
+bool type_is_integer(const TypeTable *table, TypeId id);
+bool type_is_numeric(const TypeTable *table, TypeId id);
+
+// Appends the source spelling of a type, as in `&mut List<int>`. ADT names
+// come from `adt_name`, which may be NULL in tests.
+typedef StrView (*AdtNameFn)(const void *context, uint32_t def);
+void ty_text(StrBuf *out, const TypeTable *table, TypeId id, AdtNameFn adt_name,
+             const void *context);
+
+#endif
