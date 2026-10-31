@@ -176,21 +176,24 @@ static void module_items(Parser *p, Module *module) {
 }
 
 // Doc comments are not part of the grammar yet (spec 12.5): `///` tokens are
-// dropped, `//!` tokens become the module documentation.
-static void filter_docs(Parser *p, const TokenList *tokens, Module *module, TokenList *out) {
+// dropped, `//!` tokens become the module documentation. Compacts `tokens`
+// in place rather than copying them.
+static void filter_docs(Parser *p, TokenList *tokens, Module *module) {
     Vec(StrView) docs = {0};
+    size_t kept = 0;
     for (size_t i = 0; i < tokens->len; i++) {
-        const Token *t = &tokens->data[i];
-        if (t->kind == TOK_MODULE_DOC) {
-            VEC_PUSH(docs, t->as.text);
-        } else if (t->kind != TOK_DOC_COMMENT) {
-            VEC_PUSH(*out, *t);
+        Token t = tokens->data[i];
+        if (t.kind == TOK_MODULE_DOC) {
+            VEC_PUSH(docs, t.as.text);
+        } else if (t.kind != TOK_DOC_COMMENT) {
+            tokens->data[kept++] = t;
         }
     }
+    tokens->len = kept;
     TO_LIST(p, docs, module->docs);
 }
 
-Module *parse(Session *session, FileId file, const TokenList *tokens) {
+Module *parse(Session *session, FileId file, TokenList *tokens) {
     Parser p = {.session = session, .file = file};
     p.words.move = intern(&session->names, SV("move"));
     p.words.type = intern(&session->names, SV("type"));
@@ -200,11 +203,9 @@ Module *parse(Session *session, FileId file, const TokenList *tokens) {
 
     Module *module = NEW(&p, Module);
     module->file = file;
-    TokenList filtered = {0};
-    filter_docs(&p, tokens, module, &filtered);
-    p.tokens = filtered.data;
-    p.count = filtered.len;
+    filter_docs(&p, tokens, module);
+    p.tokens = tokens->data;
+    p.count = tokens->len;
     module_items(&p, module);
-    VEC_FREE(filtered);
     return module;
 }
