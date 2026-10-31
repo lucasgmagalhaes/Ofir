@@ -1,0 +1,37 @@
+//! Tokens produced by the lexer (spec chapter 1).
+
+import base.intern.Symbol
+import base.span.Span
+
+pub copy enum TokenKind {
+    // literals, names and layout
+    Ident, Int, Float, Byte, Str, StrStart, StrMid, StrEnd
+    DocComment, ModuleDoc, Newline, Invalid, Eof
+
+    // reserved keywords (contextual keywords are lexed as Ident)
+    As, Break, Const, Continue, Copy, Dyn, Else, Enum, Extern, False, Fn, For
+    If, Import, In, Interface, Let, Match, Mut, Pub, Return, SelfValue, SelfType
+    Struct, True, Unsafe, Var
+
+    // punctuation; `>` is never combined here (see `punct`)
+    LParen, RParen, LBrace, RBrace, LBracket, RBracket
+    Comma, Colon, Semicolon, Dot, DotDot, DotDotEq, FatArrow, Question, QuestionQuestion, At
+    Plus, Minus, Star, Slash, Percent, Amp, Pipe, Caret, Shl, Bang
+    Eq, EqEq, Ne, Lt, Le, Gt, AndAnd, OrOr
+    PlusEq, MinusEq, StarEq, SlashEq, PercentEq, AmpEq, PipeEq, CaretEq, ShlEq
+}
+
+pub enum TokenValue {
+    None
+    Int(value: u64)
+    Float(value: float)
+    Byte(value: u8)
+    Str(value: str)
+    Name(symbol: Symbol)
+}
+
+pub struct Token {
+    pub kind: TokenKind
+    pub span: Span
+    pub value: TokenValue
+}
