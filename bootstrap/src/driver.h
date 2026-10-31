@@ -9,6 +9,8 @@ typedef enum {
     EMIT_NONE,     // full compilation
     EMIT_TOKENS,   // print the tokens and stop
     EMIT_AST,      // print the syntax tree and stop
+    EMIT_AIR,      // print the AIR and stop
+    EMIT_LLVM,     // write <output>.ll and stop
 } Emit;
 
 typedef enum {
@@ -26,6 +28,8 @@ typedef struct {
     StopAfter stop_after;
     DiagFormat format;
     bool time_passes;      // --time-passes: report the time spent in each phase
+    bool release;          // --release: optimize (clang -O2)
+    const char *argv0;     // to find the runtime next to the compiler
 } Options;
 
 // Returns the process exit status: 0 on success, 1 on compile errors.

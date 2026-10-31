@@ -19,6 +19,9 @@ static void print_usage(FILE *out) {
           "  -o <path>                 output path\n"
           "  --emit=tokens             print the tokens and stop\n"
           "  --emit=ast                print the syntax tree and stop\n"
+          "  --emit=air                print the intermediate representation and stop\n"
+          "  --emit=llvm               write <output>.ll and stop\n"
+          "  --release                 optimize the program\n"
           "  --message-format=short    one line per diagnostic\n"
           "  --stop-after=PHASE       run the phases up to lex, parse or check, without output\n"
           "  --time-passes             report the time spent in each phase\n",
@@ -35,6 +38,12 @@ static bool parse_option(int argc, char **argv, int *i, Options *opts) {
         opts->emit = EMIT_TOKENS;
     } else if (strcmp(arg, "--emit=ast") == 0) {
         opts->emit = EMIT_AST;
+    } else if (strcmp(arg, "--emit=air") == 0) {
+        opts->emit = EMIT_AIR;
+    } else if (strcmp(arg, "--emit=llvm") == 0) {
+        opts->emit = EMIT_LLVM;
+    } else if (strcmp(arg, "--release") == 0) {
+        opts->release = true;
     } else if (strcmp(arg, "--message-format=short") == 0) {
         opts->format = DIAG_FORMAT_SHORT;
     } else if (strcmp(arg, "--message-format=human") == 0) {
@@ -54,7 +63,7 @@ static bool parse_option(int argc, char **argv, int *i, Options *opts) {
 }
 
 static bool parse_options(int argc, char **argv, Options *opts) {
-    *opts = (Options){.command = argv[1], .format = DIAG_FORMAT_HUMAN};
+    *opts = (Options){.command = argv[1], .format = DIAG_FORMAT_HUMAN, .argv0 = argv[0]};
     for (int i = 2; i < argc; i++) {
         if (argv[i][0] == '-') {
             if (!parse_option(argc, argv, &i, opts)) {
