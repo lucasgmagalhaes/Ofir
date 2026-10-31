@@ -21,6 +21,7 @@ Item          = [ DocComment ] { Attribute } [ "pub" ] ItemKind .
 DocComment    = doc_comment { doc_comment } .               (* `///` lines *)
 ItemKind      = FnDecl
               | StructDecl
+              | TupleStructDecl
               | EnumDecl
               | InterfaceDecl
               | ConstDecl
@@ -48,7 +49,7 @@ MethodParams  = SelfParam [ "," [ Params ] ]       (* method *)
 SelfParam     = [ Mode ] "self" .
 
 Params        = Param { "," Param } [ "," ] .
-Param         = identifier ":" [ Mode ] Type .
+Param         = identifier ":" [ Mode ] Type [ "=" Expr ] .   (* default value *)
 Mode          = "mut" | "move" .                   (* chapter 5.3; default: borrow *)
 
 TypeParams    = "<" TypeParam { "," TypeParam } [ "," ] ">" .
@@ -64,7 +65,10 @@ WherePred     = Type ":" Bounds .
 ```ebnf
 StructDecl    = [ "copy" | "ref" ] "struct" identifier [ TypeParams ]
                 [ ":" Bounds ] "{" { FieldDecl } { MethodDecl } "}" .
-FieldDecl     = { Attribute } [ "pub" ] identifier ":" Type ( "," | NL ) .
+FieldDecl     = { Attribute } [ "pub" ] identifier ":" Type [ "=" Expr ] ( "," | NL ) .
+TupleStructDecl = [ "copy" ] "struct" identifier [ TypeParams ]
+                "(" [ { Attribute } [ "pub" ] Type { "," { Attribute } [ "pub" ] Type } [ "," ] ] ")"
+                [ "{" { MethodDecl } "}" ] .
 
 EnumDecl      = [ "copy" ] "enum" identifier [ TypeParams ]
                 [ ":" Bounds ] "{" { Variant } { MethodDecl } "}" .
@@ -122,7 +126,7 @@ Statement     = ( LetStmt
                 | "continue"
                 | ExprStmt ) [ NL ] .
 
-LetStmt       = "let" Pattern [ ":" Type ] "=" Expr .
+LetStmt       = "let" Pattern [ ":" Type ] "=" Expr [ "else" Block ] .
 VarStmt       = "var" identifier [ ":" Type ] [ "=" Expr ] .
 AssignStmt    = Expr AssignOp Expr .
 AssignOp      = "=" | "+=" | "-=" | "*=" | "/=" | "%="
@@ -138,7 +142,8 @@ ExprStmt      = Expr .
 
 ```ebnf
 Expr          = RangeExpr .
-RangeExpr     = OrExpr [ ( ".." | "..=" ) OrExpr ] .
+RangeExpr     = CoalesceExpr [ ( ".." | "..=" ) CoalesceExpr ] .
+CoalesceExpr  = OrExpr [ "??" CoalesceExpr ] .               (* right-associative *)
 OrExpr        = AndExpr { "||" AndExpr } .
 AndExpr       = CmpExpr { "&&" CmpExpr } .
 CmpExpr       = AddExpr [ CmpOp AddExpr ] .              (* non-associative *)
@@ -155,7 +160,8 @@ Postfix       = "(" [ Args ] ")"                 (* call *)
               | "." identifier                   (* field or method *)
               | "." int_lit                      (* tuple field *)
               | "?" .                            (* error propagation *)
-Args          = Expr { "," Expr } [ "," ] .
+Args          = Arg { "," Arg } [ "," ] .
+Arg           = [ identifier ":" ] Expr .                   (* named argument *)
 
 Primary       = Literal
               | identifier
@@ -209,6 +215,7 @@ PatternAtom   = "_"
               | "." identifier [ "(" PatternList ")" ]  (* variant shorthand *)
               | TypePath "." identifier [ "(" PatternList ")" ]
               | TypePath "{" FieldPat { "," FieldPat } [ "," ".." ] "}"
+              | TypePath "(" PatternList ")"                (* tuple struct *)
               | "(" PatternList ")"                     (* tuple *)
               | identifier ":" Type .                   (* dyn type test *)
 PatternList   = Pattern { "," Pattern } [ "," ] .

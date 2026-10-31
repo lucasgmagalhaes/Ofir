@@ -45,6 +45,9 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0303 | function may reach its end without returning a value | stage 0 |
 | E0304 | cannot assign twice to immutable variable `x` | stage 0 |
 | E0305 | unused `Result` that must be used | stage 0 |
+| E0306 | unknown, duplicate or misplaced named argument | stage 1 |
+| E0307 | the `else` block of `let ... else` must not fall through | stage 0 |
+| E0308 | missing value for a field or parameter without a default | stage 0 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
 | E0601 | use of possibly uninitialized variable `x` | stage 0 |

@@ -119,7 +119,7 @@ let type = token.type      // fine: `type` is an ordinary identifier here
 +    -    *    /    %    &    |    ^    <<   >>   !
 +=   -=   *=   /=   %=   &=   |=   ^=   <<=  >>=
 ==   !=   <    <=   >    >=   &&   ||
-=    .    ..   ..=  ,    :    =>   ?    @
+=    .    ..   ..=  ,    :    =>   ?    ??   @
 (    )    [    ]    {    }    ;
 ```
 
