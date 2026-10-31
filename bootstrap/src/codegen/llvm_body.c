@@ -4,10 +4,16 @@
 
 #include <string.h>
 
-static void store(Gen *g, LocalId dest, Value v) {
+static void store_at(Gen *g, LocalId dest, FieldPath path, Value v) {
     if (strcmp(v.type, "void") != 0) {
-        out_fmt(&g->out, "  store %s %s, ptr %%l%u\n", v.type, v.text, dest.id);
+        char at[16];
+        place_address(g, dest, path, at);
+        out_fmt(&g->out, "  store %s %s, ptr %s\n", v.type, v.text, at);
     }
+}
+
+static void store(Gen *g, LocalId dest, Value v) {
+    store_at(g, dest, (FieldPath){0}, v);
 }
 
 // Runtime arguments: bools are `zeroext i1` in the C ABI.
@@ -17,7 +23,9 @@ static void runtime_call(Gen *g, const AirStmt *s) {
         args[i] = gen_operand(g, s->as.call.args[i]);
     }
     RuntimeFn fn = s->as.call.rt;
-    const char *ret = fn == RT_STR_EQ ? "i1" : fn == RT_STR_CMP ? "i32" : "void";
+    bool returns_bool = fn == RT_STR_EQ || fn == RT_STR_STARTS_WITH || fn == RT_STR_ENDS_WITH ||
+                        fn == RT_STR_CONTAINS;
+    const char *ret = returns_bool ? "i1" : fn == RT_STR_CMP ? "i32" : "void";
     char result[16] = "";
     if (s->has_dest) {
         next_temp(g, result);
@@ -82,13 +90,18 @@ static void statement(Gen *g, const AirStmt *s) {
         return;
     }
     Value v;
-    gen_rvalue(g, &s->as.rvalue, g->body->locals.data[s->dest.id].type, &v);
-    store(g, s->dest, v);
+    TypeId type = g->body->locals.data[s->dest.id].type;
+    if (s->dest_path.len > 0) {   // the value has the field's type: the operand's
+        type = s->as.rvalue.a.type;
+    }
+    gen_rvalue(g, &s->as.rvalue, type, &v);
+    store_at(g, s->dest, s->dest_path, v);
 }
 
 static const char *const PANIC_FNS[] = {
     [PANIC_OVERFLOW] = "astra_panic_overflow", [PANIC_DIV_ZERO] = "astra_panic_div_zero",
     [PANIC_SHIFT] = "astra_panic_shift", [PANIC_CAST] = "astra_panic_cast",
+    [PANIC_BOUNDS] = "astra_panic_bounds", [PANIC_ASSERT] = "astra_panic_assert",
 };
 
 // The failing branch calls the panic function with the source location.
@@ -96,8 +109,15 @@ static void assertion(Gen *g, const Terminator *t, size_t index) {
     Value c = gen_operand(g, t->cond);
     uint32_t loc = location_global(g, t->span);
     out_fmt(&g->out, "  br i1 %s, label %%panic%zu, label %%bb%u\n", c.text, index, t->target.id);
-    out_fmt(&g->out, "panic%zu:\n  call void @%s(ptr @.loc.%u)\n  unreachable\n", index,
-            PANIC_FNS[t->panic], loc);
+    out_fmt(&g->out, "panic%zu:\n", index);
+    if (t->panic == PANIC_BOUNDS) {   // the message shows the index and the length
+        Value i = gen_operand(g, t->index), len = gen_operand(g, t->len);
+        out_fmt(&g->out, "  call void @astra_panic_bounds(i64 %s, i64 %s, ptr @.loc.%u)\n",
+                i.text, len.text, loc);
+    } else {
+        out_fmt(&g->out, "  call void @%s(ptr @.loc.%u)\n", PANIC_FNS[t->panic], loc);
+    }
+    out_str(&g->out, "  unreachable\n");
 }
 
 static void return_value(Gen *g) {
@@ -120,6 +140,13 @@ static void terminator(Gen *g, const Terminator *t, size_t index) {
         break;
     }
     case TERM_ASSERT: assertion(g, t, index); break;
+    case TERM_PANIC: {
+        Value msg = gen_operand(g, t->cond);
+        uint32_t loc = location_global(g, t->span);
+        out_fmt(&g->out, "  call void @astra_panic_str(ptr %s, ptr @.loc.%u)\n  unreachable\n",
+                msg.text, loc);
+        break;
+    }
     case TERM_RETURN: return_value(g); break;
     case TERM_UNREACHABLE: case TERM_NONE: out_str(&g->out, "  unreachable\n"); break;
     }
@@ -133,9 +160,10 @@ static void header(Gen *g, const AirBody *body) {
     out_char(&g->out, '(');
     bool first = true;
     for (uint32_t i = 1; i <= body->param_count; i++) {
-        TypeId type = body->locals.data[i].type;
-        if (llvm_has_value(type)) {
-            out_fmt(&g->out, "%s%s %%p%u", first ? "" : ", ", llvm_type(g, type), i);
+        const AirLocal *local = &body->locals.data[i];
+        if (local->by_ref || llvm_has_value(local->type)) {
+            const char *type = local->by_ref ? "ptr" : llvm_type(g, local->type);
+            out_fmt(&g->out, "%s%s %%p%u", first ? "" : ", ", type, i);
             first = false;
         }
     }
@@ -147,15 +175,17 @@ void gen_body(Gen *g, const AirBody *body) {
     g->temp = 0;
     header(g, body);
     for (size_t i = 0; i < body->locals.len; i++) {
-        TypeId type = body->locals.data[i].type;
-        if (llvm_has_value(type)) {
-            out_fmt(&g->out, "  %%l%zu = alloca %s\n", i, llvm_type(g, type));
+        const AirLocal *local = &body->locals.data[i];
+        if (local->by_ref || llvm_has_value(local->type)) {
+            const char *type = local->by_ref ? "ptr" : llvm_type(g, local->type);
+            out_fmt(&g->out, "  %%l%zu = alloca %s\n", i, type);
         }
     }
     for (uint32_t i = 1; i <= body->param_count; i++) {
-        TypeId type = body->locals.data[i].type;
-        if (llvm_has_value(type)) {
-            out_fmt(&g->out, "  store %s %%p%u, ptr %%l%u\n", llvm_type(g, type), i, i);
+        const AirLocal *local = &body->locals.data[i];
+        if (local->by_ref || llvm_has_value(local->type)) {
+            const char *type = local->by_ref ? "ptr" : llvm_type(g, local->type);
+            out_fmt(&g->out, "  store %s %%p%u, ptr %%l%u\n", type, i, i);
         }
     }
     out_str(&g->out, "  br label %bb0\n");

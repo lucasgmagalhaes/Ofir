@@ -1,0 +1,20 @@
+const WIDTH = 80
+const HEIGHT: i32 = 24
+const AREA = WIDTH * HEIGHT as int
+const HALF: float = 0.5
+const SCALE = HALF * 4.0
+const NAME = "As" + "tra"
+const BIG = i32.MAX as i64 + 1
+const MASK: u8 = 0xF0 | 0x0F
+const SHIFTED = 1 << 40
+const NEGATIVE = -WIDTH / 3
+const READY = WIDTH > 10 && NAME == "Astra"
+const LAST: u8 = 255
+
+fn main() {
+    println("{AREA} {SCALE} {NAME} {BIG} {MASK} {SHIFTED} {NEGATIVE} {READY}")
+    for i in 250..=LAST {
+        print("{i} ")
+    }
+    println("")
+}

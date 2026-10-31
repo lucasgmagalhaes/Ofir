@@ -1,0 +1,50 @@
+// Structs are values: assignment and passing copy them.
+struct Counter {
+    name: str
+    count: int = 0
+}
+
+copy struct Rgb(u8, u8, u8)
+
+struct Pixel {
+    at: Position
+    color: Rgb
+}
+
+copy struct Position {
+    x: int
+    y: int
+}
+
+fn brighter(c: Rgb) Rgb {
+    return Rgb(c.0.saturatingCast<u8>(), (c.1 as int + 100).saturatingCast<u8>(), c.2)
+}
+
+fn moved(p: Pixel, dx: int) Pixel {
+    return Pixel{at: Position{x: p.at.x + dx, y: p.at.y}, color: p.color}
+}
+
+fn make(name: str) Counter {
+    return Counter{name}
+}
+
+fn main() {
+    var first = make("clicks")
+    var second = first
+    second.count += 5
+    second.name += " (copy)"
+    println("{first.name}: {first.count}, {second.name}: {second.count}")
+    let red = Rgb(255, 0, 0)
+    let pink = brighter(red)
+    println("{red.0} {red.1} {pink.1}")
+    let p = Pixel{at: Position{x: 1, y: 2}, color: red}
+    let q = moved(moved(p, 10), 5)
+    println("{p.at.x} {q.at.x} {q.at.y} {q.color.0}")
+    println("{make("x").count} {Position{x: 3, y: 4}.y}")
+    var grid = Pixel{at: Position{x: 0, y: 0}, color: Rgb(0, 0, 0)}
+    for i in 0..3 {
+        grid.at.x += i
+        grid.at.y = grid.at.x * 2
+    }
+    println("{grid.at.x} {grid.at.y}")
+}

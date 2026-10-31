@@ -1,6 +1,7 @@
 // Lowering of expressions to operands.
 
 #include "air/lower_internal.h"
+#include "sema/const_eval.h"
 
 bool type_is_value(TypeId type) {
     return type.id != TID_UNIT && type.id != TID_NEVER && type.id != TID_ERROR;
@@ -14,9 +15,19 @@ static Operand int_literal(Lowerer *l, Expr *e) {
     return op_int(e->as.int_value, e->type);
 }
 
+static Operand const_operand(const ConstValue *v, TypeId type) {
+    switch (v->kind) {
+    case CV_INT: return op_int(v->bits, type);
+    case CV_FLOAT: return (Operand){.kind = OPERAND_FLOAT, .type = type, .as.float_value = v->f};
+    case CV_BOOL: return op_bool(v->b);
+    case CV_STR: return (Operand){.kind = OPERAND_STR, .type = type, .as.str = v->s};
+    }
+    return op_unit();
+}
+
 static Operand def_value(Lowerer *l, Expr *e, Def *def) {
-    if (def->kind == DEF_CONST) {   // a constant is its value, inlined at each use
-        return lower_expr(l, def->item->as.const_.value);
+    if (def->kind == DEF_CONST) {   // evaluated by the checker (sema/const_eval.c)
+        return const_operand(def->value, e->type);
     }
     diag_error(&l->sema->session->diags, "E0901", e->span,
                "global variables are not supported yet");
@@ -26,25 +37,59 @@ static Operand def_value(Lowerer *l, Expr *e, Def *def) {
 static Operand name(Lowerer *l, Expr *e) {
     Res res = e->as.ident.res;
     if (res.kind == RES_LOCAL) {
-        return op_copy(air_local_of((LocalId){res.index}), e->type);
+        return place_operand(lower_place(l, e), OPERAND_COPY, e->type);
     }
     return def_value(l, e, sema_def(l->sema, (DefId){res.index}));
 }
 
 static Operand call(Lowerer *l, Expr *e) {
     Expr *callee = e->as.call.callee;
+    if (callee->kind == EXPR_FIELD) {
+        return lower_method_call(l, e);
+    }
     Def *def = sema_def(l->sema, (DefId){callee->as.ident.res.index});
     ArgList args = e->as.call.args;
+    if (def->kind == DEF_STRUCT) {
+        return lower_constructor(l, e);
+    }
     if (def->kind == DEF_BUILTIN) {
-        lower_print(l, args.items[0].value, def->builtin == BUILTIN_PRINTLN);
+        if (def->builtin == BUILTIN_PANIC || def->builtin == BUILTIN_ASSERT) {
+            lower_panic_assert(l, e, def->builtin);
+        } else {
+            lower_print(l, args.items[0].value, def->builtin == BUILTIN_PRINTLN);
+        }
         return op_unit();
     }
+    return emit_user_call(l, e, def->fn, NULL);
+}
+
+// An argument: the address of the place for a `mut` parameter, else the
+// value.
+static Operand argument(Lowerer *l, Expr *arg, bool by_ref, const Expr *next) {
+    if (by_ref) {
+        return place_operand(lower_place(l, arg), OPERAND_ADDR, arg->type);
+    }
+    Operand value = lower_expr(l, arg);
+    return next ? settle(l, value, next) : value;
+}
+
+// A call of a user function or method; the receiver of a method is the
+// first argument.
+Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver) {
+    ArgList args = e->as.call.args;
+    uint32_t first = receiver ? 1 : 0;
     AirStmt s = {.kind = AIR_CALL};
-    s.as.call.fn = (DefId){callee->as.ident.res.index};
-    s.as.call.arg_count = args.len;
-    s.as.call.args = ARENA_ARRAY(&l->sema->session->arena, Operand, args.len + 1);
+    s.as.call.fn = fn->def;
+    s.as.call.arg_count = args.len + first;
+    s.as.call.args = ARENA_ARRAY(&l->sema->session->arena, Operand, args.len + first + 1);
+    if (receiver) {
+        const Expr *next = args.len ? args.items[0].value : NULL;
+        s.as.call.args[0] = argument(l, receiver, fn->self_mode == MODE_MUT, next);
+    }
     for (uint32_t i = 0; i < args.len; i++) {
-        s.as.call.args[i] = lower_expr(l, args.items[i].value);
+        const Expr *next = i + 1 < args.len ? args.items[i + 1].value : NULL;
+        bool by_ref = i < fn->params.len && fn->params.items[i].mode == MODE_MUT;
+        s.as.call.args[first + i] = argument(l, args.items[i].value, by_ref, next);
     }
     Operand result = op_unit();
     if (type_is_value(e->type)) {
@@ -109,7 +154,7 @@ static Operand binary(Lowerer *l, Expr *e) {
     if (op == OP_LOGICAL_AND || op == OP_LOGICAL_OR) {
         return logical(l, e);
     }
-    Operand a = lower_expr(l, e->as.binary.lhs);
+    Operand a = settle(l, lower_expr(l, e->as.binary.lhs), e->as.binary.rhs);
     Operand b = lower_expr(l, e->as.binary.rhs);
     return lower_binary_op(l, (Arith){.op = op, .type = e->as.binary.lhs->type, .a = a, .b = b,
                                       .span = e->span});
@@ -131,6 +176,11 @@ Operand lower_expr(Lowerer *l, Expr *e) {
     case EXPR_BINARY: return binary(l, e);
     case EXPR_CAST: return lower_cast(l, lower_expr(l, e->as.cast.value), e->type, e->span);
     case EXPR_CALL: return call(l, e);
+    case EXPR_FIELD:
+        return e->as.field.res.kind == RES_FIELD ? lower_field_read(l, e) : lower_field(l, e);
+    case EXPR_TUPLE_FIELD: return lower_field_read(l, e);
+    case EXPR_STRUCT: return lower_struct_literal(l, e);
+    case EXPR_INDEX: return lower_index(l, e);
     case EXPR_IF: return lower_if(l, e);
     case EXPR_BLOCK: case EXPR_UNSAFE:
         return lower_block(l, e->as.block, type_is_value(e->type));

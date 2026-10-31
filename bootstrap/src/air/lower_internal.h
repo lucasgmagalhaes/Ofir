@@ -14,6 +14,11 @@ typedef struct {
 } Loop;
 
 typedef struct {
+    LocalId local;
+    FieldPath path;
+} Place;
+
+typedef struct {
     Sema *sema;
     TypeTable *types;
     AirBody *body;
@@ -55,6 +60,7 @@ LocalId to_local(Lowerer *l, Operand operand);   // a local holding the operand
 
 // lower_expr.c
 Operand lower_expr(Lowerer *l, Expr *e);
+Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver);
 bool type_is_value(TypeId type);   // false for () and !
 
 // lower_ops.c
@@ -70,5 +76,22 @@ Operand lower_unary(Lowerer *l, Expr *e);
 Operand lower_cast(Lowerer *l, Operand value, TypeId to, Span span);
 Operand lower_interpolation(Lowerer *l, Expr *e);
 void lower_print(Lowerer *l, Expr *arg, bool newline);
+
+// lower_method.c
+Operand lower_method_call(Lowerer *l, Expr *call);
+Operand lower_field(Lowerer *l, Expr *e);
+Operand lower_index(Lowerer *l, Expr *e);
+void lower_panic_assert(Lowerer *l, Expr *call, Builtin builtin);
+
+// lower_struct.c
+Place lower_place(Lowerer *l, Expr *e);
+Operand place_operand(Place place, OperandKind kind, TypeId type);
+Operand lower_field_read(Lowerer *l, Expr *e);
+Operand lower_struct_literal(Lowerer *l, Expr *e);
+Operand lower_constructor(Lowerer *l, Expr *call);
+void emit_store(Lowerer *l, Place place, Operand value);
+// Reads a variable now when `next`, evaluated after it, could assign to it
+// (a block or an `if`): evaluation is left to right (spec 4.10).
+Operand settle(Lowerer *l, Operand value, const Expr *next);
 
 #endif

@@ -121,6 +121,7 @@ static void take_body(void *context, const AirBody *body) {
     Sink *sink = context;
     char error[256];
     if (!air_validate_body(body, error, sizeof error)) {
+        air_print_body(body, sink->sema, stderr);   // what the bug report needs
         fatal("invalid AIR: %s", error);
     }
     if (sink->gen) {

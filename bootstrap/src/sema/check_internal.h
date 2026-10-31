@@ -40,6 +40,31 @@ bool types_compatible(TypeId found, TypeId expected);
 TypeId check_expr(Checker *c, Expr *e, TypeId expected);
 TypeId coerce(Checker *c, Expr *e, TypeId expected);
 TypeId check_const(Checker *c, Def *def);   // the type of a constant or global
+TypeId check_args(Checker *c, Expr *call, const Ty *sig);
+
+// const_eval.c: the value of a constant's initializer, or NULL after an error
+struct ConstValue *const_eval(Checker *c, const Expr *e);
+
+// check_method.c: methods, fields and indexing
+TypeId check_method_call(Checker *c, Expr *call);
+TypeId check_field(Checker *c, Expr *e);
+TypeId check_index(Checker *c, Expr *e);
+// Reports E0315 unless `e` is a place that may be modified.
+void require_mutable(Checker *c, Expr *e);
+// The variable at the root of a place: `p` in `p.pos.x`, or NULL.
+Expr *place_root(Expr *e);
+
+// check_user_method.c
+bool type_name_of(Checker *c, const Expr *e, DefId *out);
+void check_mut_args(Checker *c, const FnDecl *fn, Expr *call);
+TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type);
+
+// structs.c
+StructInfo *struct_fields(Checker *c, DefId id);   // NULL for generic structs
+TypeId check_struct_field(Checker *c, Expr *e, TypeId base);
+TypeId check_tuple_field(Checker *c, Expr *e);
+TypeId check_constructor(Checker *c, Expr *call, DefId id);
+TypeId check_struct_literal(Checker *c, Expr *e);
 
 // check_stmt.c
 TypeId check_block(Checker *c, Block *block, TypeId expected, bool as_value);

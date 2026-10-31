@@ -22,6 +22,7 @@ static const PreludeEntry PRELUDE[] = {
     {"f64", DEF_PRIMITIVE, TID_F64},     {"bool", DEF_PRIMITIVE, TID_BOOL},
     {"str", DEF_PRIMITIVE, TID_STR},
     {"print", DEF_BUILTIN, BUILTIN_PRINT}, {"println", DEF_BUILTIN, BUILTIN_PRINTLN},
+    {"panic", DEF_BUILTIN, BUILTIN_PANIC}, {"assert", DEF_BUILTIN, BUILTIN_ASSERT},
 };
 
 static DefId add_def(Sema *sema, Def def) {
@@ -147,9 +148,11 @@ static void resolve_item(Resolver *r, Item *item) {
         resolve_fn(r, item->as.fn);
         break;
     case ITEM_STRUCT: case ITEM_TUPLE_STRUCT:
+        r->owner = item;
         for (uint32_t i = 0; i < item->as.struct_.methods.len; i++) {
             resolve_fn(r, item->as.struct_.methods.items[i]);
         }
+        r->owner = NULL;
         for (uint32_t i = 0; i < item->as.struct_.fields.len; i++) {
             Expr *value = item->as.struct_.fields.items[i].default_value;
             if (value) {
@@ -158,9 +161,11 @@ static void resolve_item(Resolver *r, Item *item) {
         }
         break;
     case ITEM_ENUM:
+        r->owner = item;
         for (uint32_t i = 0; i < item->as.enum_.methods.len; i++) {
             resolve_fn(r, item->as.enum_.methods.items[i]);
         }
+        r->owner = NULL;
         break;
     case ITEM_CONST: case ITEM_GLOBAL:
         resolve_expr(r, item->as.const_.value);

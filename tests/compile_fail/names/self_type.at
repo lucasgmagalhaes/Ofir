@@ -1,0 +1,7 @@
+struct Point {
+    x: int
+}
+
+fn outside() {
+    let p = Self{x: 1}    // error[E0200]: `Self` is only available inside a type
+}

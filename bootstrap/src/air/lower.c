@@ -60,7 +60,7 @@ void emit_assert(Lowerer *l, Operand fails, PanicKind panic, Span span) {
 }
 
 LocalId to_local(Lowerer *l, Operand operand) {
-    if (operand.kind == OPERAND_COPY) {
+    if (operand.kind == OPERAND_COPY && operand.path.len == 0 && !operand.path.deref) {
         return operand.as.local;
     }
     return emit_temp(l, operand.type, (Rvalue){.kind = RV_USE, .a = operand});
@@ -77,6 +77,15 @@ static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
     for (uint32_t i = 0; i < fn->locals.len; i++) {
         const Local *local = &fn->locals.items[i];
         air_new_local(&body, fn->local_types[i], local->name, local->span);
+    }
+    // `mut self` and `mut` parameters are passed by reference (spec 5.3).
+    if (fn->has_self && fn->self_mode == MODE_MUT) {
+        body.locals.data[1].by_ref = true;
+    }
+    for (uint32_t i = 0; i < fn->params.len; i++) {
+        if (fn->params.items[i].mode == MODE_MUT) {
+            body.locals.data[air_local_of(fn->params.items[i].local).id].by_ref = true;
+        }
     }
     l->block = air_new_block(&body);
     lower_block(l, fn->body, false);
@@ -100,11 +109,15 @@ void lower_module(Sema *sema, BodySink sink, void *context) {
     }
     for (uint32_t i = 0; i < sema->module->items.len; i++) {
         Item *item = sema->module->items.items[i];
-        bool has_methods = (item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT ||
-                            item->kind == ITEM_ENUM);
+        bool is_struct = item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT;
         if (item->kind == ITEM_FN && item->as.fn->body) {
             lower_fn(&l, item->as.fn, sink, context);
-        } else if (has_methods || item->kind == ITEM_GLOBAL || item->kind == ITEM_EXTERN) {
+        } else if (is_struct && item->as.struct_.type_params.len == 0) {
+            for (uint32_t m = 0; m < item->as.struct_.methods.len; m++) {
+                lower_fn(&l, item->as.struct_.methods.items[m], sink, context);
+            }
+        } else if (is_struct || item->kind == ITEM_ENUM || item->kind == ITEM_GLOBAL ||
+                   item->kind == ITEM_EXTERN) {
             diag_error(&sema->session->diags, "E0901", item->span,
                        "compiling this declaration is not supported yet");
         }

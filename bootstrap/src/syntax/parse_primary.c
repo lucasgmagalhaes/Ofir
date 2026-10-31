@@ -321,6 +321,11 @@ static Expr *member(Parser *p, Expr *base) {
     Expr *e = new_expr(p, EXPR_FIELD, base->span);
     e->as.field.base = base;
     e->as.field.name = t->as.symbol;
+    if (at(p, TOK_LT) && looks_like_type_args(p, 0)) {   // x.wrappingCast<u8>()
+        advance(p);
+        e->as.field.type_args = parse_type_args(p);
+    }
+    e->span = span_since(p, base->span);
     return e;
 }
 

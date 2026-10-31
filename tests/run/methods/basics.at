@@ -1,0 +1,98 @@
+struct Counter {
+    name: str
+    count: int = 0
+
+    fn new(name: str) Counter {
+        return Counter{name}
+    }
+
+    fn value(self) int {
+        return self.count
+    }
+
+    fn bump(mut self, by: int) {
+        self.count += by
+    }
+
+    fn reset(mut self) {
+        self.count = 0
+        self.name.push(" (reset)")
+    }
+
+    fn label(self) str {
+        return "{self.name}={self.count}"
+    }
+}
+
+copy struct Vec2 {
+    x: float
+    y: float
+
+    fn add(self, other: Vec2) Vec2 {
+        return Vec2{x: self.x + other.x, y: self.y + other.y}
+    }
+
+    fn scaled(self, k: float) Vec2 {
+        return Vec2{x: self.x * k, y: self.y * k}
+    }
+
+    fn length(self) float {
+        return (self.x * self.x + self.y * self.y).sqrt()
+    }
+}
+
+struct Meters(float) {
+    fn km(self) float {
+        return self.0 / 1000.0
+    }
+}
+
+fn twice(c: mut Counter) {
+    c.bump(1)
+    c.bump(1)
+}
+
+fn swapIn(target: mut int, value: int) {
+    target = value
+}
+
+fn main() {
+    var c = Counter.new("clicks")
+    c.bump(3)
+    twice(c)
+    println("{c.label()} {c.value()}")
+    c.reset()
+    println(c.label())
+    let v = Vec2{x: 3.0, y: 4.0}
+    println("{v.length()} {v.add(v).scaled(0.5).x} {v.scaled(2.0).length()}")
+    println("{Meters(1500.0).km()}")
+    var n = 1
+    swapIn(n, 42)
+    println("{n}")
+    var pair = Counter.new("pair")
+    twice(pair)
+    var grid = Vec2{x: 0.0, y: 0.0}
+    for i in 0..3 {
+        grid = grid.add(Vec2{x: 1.0, y: 2.0})
+    }
+    println("{pair.value()} {grid.x} {grid.y}")
+    sizes()
+}
+
+struct Size {
+    w: int
+    h: int
+
+    fn square(n: int) Self {
+        return Self{w: n, h: n}
+    }
+
+    fn doubled(self) Self {
+        return Self.square(self.w * 2)
+    }
+}
+
+fn sizes() {
+    let s = Size.square(3).doubled()
+    println("{s.w}x{s.h}")
+}

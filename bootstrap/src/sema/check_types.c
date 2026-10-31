@@ -110,12 +110,21 @@ TypeId fn_signature(Checker *c, FnDecl *fn) {
     if (def->typed) {
         return def->type;
     }
+    // A method's signature may be needed by a caller elsewhere: `Self` is
+    // the method's own type, whatever is being checked.
+    TypeId saved_self = c->self_type;
+    const Item *owner = def->item;
+    if (owner && owner->kind != ITEM_FN && owner->kind != ITEM_EXTERN) {
+        DefId id = scope_module(&c->sema->scope, owner->name);
+        c->self_type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
+    }
     uint32_t count = fn->params.len;
     TypeId *params = ARENA_ARRAY(&c->sema->session->arena, TypeId, count + 1);
     for (uint32_t i = 0; i < count; i++) {
         params[i] = resolve_type(c, fn->params.items[i].type);
     }
     TypeId ret = fn->ret ? resolve_type(c, fn->ret) : type_id(TID_UNIT);
+    c->self_type = saved_self;
     def->type = type_fn(c->types, params, count, ret);
     def->typed = true;
     return def->type;
