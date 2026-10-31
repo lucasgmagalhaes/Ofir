@@ -102,8 +102,9 @@ M4, the code in `compiler/` must be written in this subset.
 - `if`, `for` (all forms), `break`, `continue`, `return`
 - `str`, string interpolation (without format specifiers), `print`/`println`
 - structs and enums with methods and associated functions declared in
-  their body, `copy struct`
-- enums with data, `match` (exhaustiveness checked), `if let`
+  their body, `copy struct`, default field values, tuple structs
+- enums with data, `match` (exhaustiveness checked), `if let`,
+  `let ... else`, the `??` operator
 - tuples
 - `==` and `!=` on integers, floats, `bool`, `str` and fieldless enums
   (derived equality for other types comes with interfaces in stage 1)
@@ -132,6 +133,8 @@ M4, the code in `compiler/` must be written in this subset.
 - `ref struct` and user functions returning borrows
 - error conversion in `?`
 - format specifiers, raw strings, attributes other than `@test`
+- default parameter values and named arguments
+- compile-time code (`comptime`, `std.meta`)
 - good diagnostics: stage 0 reports the first error per function
 
 Programs accepted by stage 0 are still valid Astra: stage 1 enforces every

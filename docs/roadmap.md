@@ -100,14 +100,14 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.7 | `const` declarations with compile-time evaluation | S | tests pass |
 | 2.8 | `str`: literals, `+`, `+=`, `==`, comparison, `len`, byte indexing, `push` | M | `tests/run/strings/*` pass |
 | 2.9 | Interpolation of all primitive types; shortest round-trip float formatting (spec 2.1) | M | `tests/run/strings/float_format*` pass |
-| 2.10 | Structs: declaration, literals, field access and assignment, nested structs, `copy struct` | M | `tests/run/structs/*` pass |
+| 2.10 | Structs: declaration, literals, field access and assignment, nested structs, `copy struct`, default field values, tuple structs | M | `tests/run/structs/*` pass |
 | 2.11 | Methods and associated functions declared inside structs and enums, `self` | M | `tests/run/methods/*` pass |
 | 2.12 | Parameter modes (borrow, `mut`, `move`) for parameters and `self`, `for mut`, `[T]`/`str` view parameters; explicit `&T`/`&mut T` locals, auto-deref, `*` | M | `tests/run/modes/*` pass |
 | 2.13 | Tuples and destructuring `let` | S | tests pass |
 | 2.14 | Enums: layout, construction, `.Variant` shorthand | M | tests pass |
 | 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards; Copy bindings through references | L | `examples/shapes.at` runs |
 | 2.16 | Exhaustiveness checking (usefulness algorithm) | M | `tests/compile_fail/match_*` pass |
-| 2.17 | `if let` | S | tests pass |
+| 2.17 | `if let`, `let ... else`, `??` | S | tests pass |
 | 2.18 | Generic functions, structs and enums **without bounds**; monomorphization and mangling | L | `tests/run/generics_basic/*` pass |
 | 2.19 | `Box<T>` and recursive enums | M | expression tree test program runs |
 | 2.20 | `List<T>` (std/collections.md S0 entries): literals, bounds checks, `for` over lists with Copy loop variables, `sort` | L | `tests/run/list/*`, `tests/panic/bounds*` pass |
@@ -174,6 +174,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.9 | Interior mutability: `UnsafeCell`, `Cell` | S | tests pass |
 | 5.10 | Format specifiers, raw strings, multi-line strings, byte strings | M | tests pass |
 | 5.11 | Attributes: `@inline`, `@cold`, `@repr(C)`, `@cfg`, `@deprecated`, `@export`, `@link`, `@allow` | M | tests pass |
+| 5.12a | Default parameter values and named arguments | M | `tests/run/calls/*` pass |
 | 5.12 | Diagnostics: notes and help messages, `astra explain`, JSON output; an explanation file for every registry code | M | every error code has `docs/errors/EXXXX.md` |
 | 5.13 | Debug info (DWARF) | M | stepping through code in `lldb` works |
 | 5.14 | Optimization: `noalias`/`readonly` (stage 1 only), niche layouts, field reordering, AIR check elimination | M | benchmarks within 10% of C |
@@ -187,12 +188,13 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | # | Task | Size |
 |---|------|:----:|
 | 6.1 | Concurrency (spec chapter 14): threads, channels, `Send`/`Sync`, `std.sync` | L |
-| 6.2 | `astra fmt` (formatter sharing the parser and AST printer) | M |
+| 6.2 | `astra fmt` implementing the [style guide](style-guide.md) | M |
 | 6.3 | Language server (diagnostics, go to definition, completion) | L |
 | 6.4 | `astra doc` and doc tests | M |
 | 6.5 | Package manager: `astra.toml` dependencies, lock file, registry design | L |
 | 6.6 | Incremental and parallel compilation | L |
 | 6.7 | Seeded `Map` hasher, labeled loops, const generics | M |
+| 6.7a | Compile-time code: `comptime`, `std.meta`, `comptime for`/`if`, `@tag` (spec chapter 15) | L |
 | 6.8 | Windows support | L |
 | 6.9 | Scheduled CI job for the auditable bootstrap path | S |
 | 6.10 | Website, tutorial ("The Astra Book"), playground | L |
@@ -210,9 +212,19 @@ release (bootstrap chain, `docs/bootstrap.md`).
 
 These do not block Phases 0–4 and will be settled with an ADR when needed:
 
-1. Package registry hosting and naming rules (Phase 6).
-2. Async or green threads on top of the thread model (after 1.0).
-3. Final project name and repository rename (risk R9).
+1. Lazy iterator chains (`list.iter().map(f).filter(g)`) versus eager
+   `List.map`/`filter` only (before task 5.8).
+2. More patterns: slices (`[first, ..rest]`), strings, `name @ pattern`
+   bindings (before task 2.15 is extended in stage 1).
+3. Labeled `break`/`continue` (task 6.7).
+4. Error handling conventions: error context and cause chains in `std`.
+5. 128-bit integers.
+6. Concurrency details beyond threads and channels (async, green threads).
+7. Packages: registry hosting, versioning, `pub import` re-exports.
+8. Custom allocators and arenas in `std`.
+9. Advanced FFI: callbacks from C, variadic C functions, `union`.
+10. Stability policy and editions.
+11. Final project name and repository rename (risk R9).
 
 ## Next steps
 
