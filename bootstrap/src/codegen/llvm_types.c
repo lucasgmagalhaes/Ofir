@@ -197,6 +197,10 @@ void place_address(Gen *g, LocalId local, FieldPath path, char text[16]) {
         out_fmt(&g->out, "  %s = load ptr, ptr %%l%u\n", base, local.id);
     }
     Cursor cur = {.type = g->body->locals.data[local.id].type};
+    const Ty *pointer = type_get(g->types, cur.type);
+    if (path.deref && pointer->kind == TY_PTR) {   // `*p`: start from the pointee
+        cur.type = pointer->inner;
+    }
     for (uint32_t i = 0; i < path.len; i++) {
         step(g, &cur, path.fields[i], base);
     }

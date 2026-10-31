@@ -26,6 +26,7 @@ struct Gen {
     Out type_defs;           // struct type definitions, written at the end
     const char **adt_types;  // the LLVM name of each struct, by DefId (NULL until used)
     size_t adt_count;
+    Vec(bool) c_used;        // by DefId: functions of extern blocks to declare
 };
 
 // A generated value: its LLVM type and its text (`%t3`, `42`, `true`, ...).
@@ -38,6 +39,8 @@ const char *llvm_type(Gen *g, TypeId type);
 bool llvm_has_value(TypeId type);   // false for () and !
 StrView def_name(Gen *g, DefId def);
 void function_name(Gen *g, Out *out, DefId def, bool is_main);
+bool is_c_function(const Def *def);   // in an extern block, or `extern "C" fn`
+void mark_c_used(Gen *g, DefId def);   // declare it at the end of the module
 
 // A fresh temporary name, written into `text`.
 void next_temp(Gen *g, char text[16]);

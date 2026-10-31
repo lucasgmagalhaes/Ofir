@@ -84,7 +84,11 @@ static TypeId join_arm(Checker *c, Expr *body, TypeId result, TypeId arm) {
 }
 
 static TypeId arm_body(Checker *c, Expr *body, TypeId expected, bool as_value) {
-    if (!as_value && (body->kind == EXPR_BLOCK || body->kind == EXPR_UNSAFE)) {
+    if (!as_value && body->kind == EXPR_UNSAFE) {
+        body->type = check_unsafe_block(c, body, NO_TYPE, false);
+        return body->type.id == TID_NEVER ? body->type : type_id(TID_UNIT);
+    }
+    if (!as_value && body->kind == EXPR_BLOCK) {
         body->type = check_block(c, body->as.block, NO_TYPE, false);
         return body->type.id == TID_NEVER ? body->type : type_id(TID_UNIT);
     }

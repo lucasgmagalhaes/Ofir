@@ -125,8 +125,7 @@ static void lower_items(Lowerer *l, ItemList items, BodySink sink, void *context
             for (uint32_t m = 0; m < item->as.enum_.methods.len; m++) {
                 lower_fn(l, item->as.enum_.methods.items[m], sink, context);
             }
-        } else if (is_struct || item->kind == ITEM_ENUM || item->kind == ITEM_GLOBAL ||
-                   item->kind == ITEM_EXTERN) {
+        } else if (is_struct || item->kind == ITEM_ENUM || item->kind == ITEM_GLOBAL) {
             diag_error(&l->sema->session->diags, "E0901", item->span,
                        "compiling this declaration is not supported yet");
         }

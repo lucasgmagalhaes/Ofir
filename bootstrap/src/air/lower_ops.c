@@ -102,6 +102,9 @@ Operand lower_binary_op(Lowerer *l, Arith x) {
 }
 
 Operand lower_unary(Lowerer *l, Expr *e) {
+    if (e->as.unary.op == OP_DEREF) {
+        return lower_field_read(l, e);   // a place reached through the pointer
+    }
     Operand value = lower_expr(l, e->as.unary.operand);
     if (e->as.unary.op == OP_NEG && type_get(l->types, e->type)->kind == TY_INT) {
         if (value.kind == OPERAND_INT) {   // a negative literal, already range checked
@@ -118,7 +121,7 @@ Operand lower_unary(Lowerer *l, Expr *e) {
 // Integer conversions that can lose information, and float to integer
 // conversions, check that the value fits (spec 2.1).
 static bool cast_needs_check(const Ty *from, const Ty *to) {
-    if (to->kind != TY_INT) {
+    if (to->kind != TY_INT || from->kind == TY_PTR) {
         return false;
     }
     if (from->kind == TY_FLOAT) {

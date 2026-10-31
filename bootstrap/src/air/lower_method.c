@@ -192,6 +192,8 @@ Operand lower_method_call(Lowerer *l, Expr *call) {
         args[i] = lower_expr(l, call->as.call.args.items[i].value);
     }
     switch (info->receiver) {
+    case RECV_PTR:
+        return value_of(l, self.type, (Rvalue){.kind = RV_PTR_ADD, .a = self, .b = args[0]});
     case RECV_INT: return integer_method(l, m, call, self, args);
     case RECV_FLOAT: return float_method(l, m, self, args);
     default: return str_method(l, m, base, self, args);
