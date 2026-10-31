@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 runtime unit runner-selftest test check-codes clean
+.PHONY: all stage0 runtime unit runner-selftest test check-codes check-sizes clean
 
 all: stage0 runtime
 
@@ -23,7 +23,10 @@ runner-selftest:
 check-codes:
 	$(PYTHON) tools/check_error_codes.py
 
-test: stage0 runtime unit runner-selftest check-codes
+check-sizes:
+	$(PYTHON) tools/check_sizes.py
+
+test: stage0 runtime unit runner-selftest check-codes check-sizes
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/astra
 
 clean:
