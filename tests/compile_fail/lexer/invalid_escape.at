@@ -1,0 +1,15 @@
+fn main() {
+    let a = "bad \q escape"          // error[E0004]: invalid escape sequence
+}
+
+fn second() {
+    let b = "not ascii: \x80"        // error[E0004]: `\x` escapes in strings must be between
+}
+
+fn third() {
+    let c = "surrogate: \u{d800}"    // error[E0004]: invalid unicode escape
+}
+
+fn fourth() {
+    let d = b'ab'                    // error[E0004]: invalid byte literal
+}
