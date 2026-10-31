@@ -62,3 +62,9 @@ fn tupleArity() {
 fn noComparison(s: Shape) {
     let same = s == s         // error[E0313]: operator cannot be applied to type `Shape`
 }
+
+fn fallsThrough(r: Shape) {
+    let .Circle(x) = r else {   // error[E0307]: the `else` block of `let ... else` must not fall through: end it with `return`, `break`, `continue` or a panic
+        println("no")
+    }
+}

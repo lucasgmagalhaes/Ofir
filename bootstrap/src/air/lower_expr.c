@@ -117,7 +117,13 @@ static Operand lower_if(Lowerer *l, Expr *e) {
     Operand cond = lower_expr(l, e->as.if_.cond);
     BlockId then = air_new_block(l->body), other = air_new_block(l->body);
     BlockId join = air_new_block(l->body);
-    terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = cond, .target = then, .other = other});
+    if (e->as.if_.let_pattern) {   // the pattern's tests jump to `else` on a mismatch
+        lower_pattern(l, e->as.if_.let_pattern, (Place){.local = to_local(l, cond)}, other);
+        emit_goto(l, then);
+    } else {
+        terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = cond, .target = then,
+                                  .other = other});
+    }
     switch_to(l, then);
     store(l, dest, has_value, lower_block(l, e->as.if_.then, has_value));
     emit_goto(l, join);
