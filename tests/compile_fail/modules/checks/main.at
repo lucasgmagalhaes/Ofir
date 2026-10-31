@@ -1,0 +1,19 @@
+import lib
+
+fn field(a: lib.Account) int {
+    return a.balance              // error[E0202]: `balance` is private to module `lib`
+}
+
+fn method(a: lib.Account) int {
+    return a.audit()              // error[E0202]: `audit` is private to module `lib`
+}
+
+fn literal() lib.Account {
+    return lib.Account{owner: "x", balance: 1}   // error[E0202]: `balance` is private to module `lib`
+}
+
+fn privateType(s: lib.Secret) {}  // error[E0202]: `Secret` is private to module `lib`
+
+fn unknownMember(a: lib.Missing) {}   // error[E0200]: cannot find `Missing` in module `lib`
+
+fn main() {}

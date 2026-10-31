@@ -1,0 +1,33 @@
+import util
+
+pub struct Circle {
+    pub radius: float
+}
+
+pub struct Square {
+    side: float
+
+    pub fn new(side: float) Square {
+        return Square{side}
+    }
+
+    pub fn area(self) float {
+        return self.side * self.side
+    }
+}
+
+pub enum Kind {
+    Round
+    Angular
+}
+
+pub fn area(c: Circle) float {
+    return 3.0 * c.radius * c.radius + util.twice(0) as float
+}
+
+pub fn describe(k: Kind) str {
+    return match k {
+        .Round => "round"
+        .Angular => "angular"
+    }
+}

@@ -1,0 +1,11 @@
+import geometry.shapes
+import geometry.shapes.Circle
+import util as u
+
+fn main() {
+    let c = Circle{radius: 2.0}
+    let s = shapes.Square.new(3.0)
+    println("{shapes.area(c)} {s.area()} {u.twice(21)} {u.LIMIT}")
+    let kind = shapes.Kind.Round
+    println("{shapes.describe(kind)} {shapes.describe(.Angular)}")
+}
