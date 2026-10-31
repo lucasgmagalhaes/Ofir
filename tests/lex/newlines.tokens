@@ -1,0 +1,33 @@
+1:1 ident f
+1:2 (
+1:3 ident a
+1:4 ,
+2:3 ident b
+2:4 )
+2:5 newline
+3:1 [
+3:2 int 1
+3:3 ,
+4:2 int 2
+4:3 ]
+4:4 newline
+5:1 ident g
+5:2 (
+5:3 fn
+5:5 (
+5:6 )
+5:8 {
+5:9 newline
+6:5 ident x
+6:6 newline
+7:1 }
+7:2 )
+7:3 newline
+8:1 ident a
+8:3 newline
+9:8 ident b
+9:9 newline
+10:1 ident c
+10:19 ident d
+10:20 newline
+11:1 eof
