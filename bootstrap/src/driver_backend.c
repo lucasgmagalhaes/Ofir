@@ -109,55 +109,70 @@ static Next link_program(const Options *opts, const char *ll, const char *exe) {
     return STOP;
 }
 
-static Next generate(Pipeline *p, Sema *sema, const AirProgram *air) {
-    const Options *opts = p->opts;
-    Timer *timer = p->timer;
-    char *exe = p->exe;
-    char ll[PATH_SIZE + 3];
-    if (!output_path(opts, exe) || snprintf(ll, sizeof ll, "%s.ll", exe) >= (int)sizeof ll) {
-        fprintf(stderr, "error[E0902]: cannot create the output path\n");
-        return STOP_FAIL;
+// Each lowered function is validated, then printed (--emit=air) or turned
+// into LLVM IR right away.
+typedef struct {
+    Sema *sema;
+    Gen *gen;     // NULL for --emit=air
+} Sink;
+
+static void take_body(void *context, const AirBody *body) {
+    Sink *sink = context;
+    char error[256];
+    if (!air_validate_body(body, error, sizeof error)) {
+        fatal("invalid AIR: %s", error);
     }
+    if (sink->gen) {
+        llvm_function(sink->gen, body);
+    } else {
+        air_print_body(body, sink->sema, stdout);
+    }
+}
+
+// Lowers and writes `<exe>.ll`; returns false if lowering reported errors.
+static bool write_llvm(Pipeline *p, Sema *sema, const char *ll) {
     FILE *out = fopen(ll, "w");
     if (!out) {
         fprintf(stderr, "error[E0902]: cannot write `%s`: %s\n", ll, strerror(errno));
+        return false;
+    }
+    timer_start(p->timer);
+    Sink sink = {.sema = sema, .gen = llvm_begin(sema, out)};
+    lower_module(sema, take_body, &sink);
+    llvm_end(sink.gen);
+    fclose(out);
+    timer_report(p->timer, "llvm", ll);
+    return !diags_has_errors(&sema->session->diags);
+}
+
+static Next generate(Pipeline *p, Sema *sema) {
+    char *exe = p->exe;
+    char ll[PATH_SIZE + 3];
+    if (!output_path(p->opts, exe) || snprintf(ll, sizeof ll, "%s.ll", exe) >= (int)sizeof ll) {
+        fprintf(stderr, "error[E0902]: cannot create the output path\n");
         return STOP_FAIL;
     }
-    timer_start(timer);
-    llvm_generate(sema, air, out);
-    fclose(out);
-    timer_report(timer, "llvm", ll);
-    if (opts->emit == EMIT_LLVM) {
-        exe[0] = '\0';
-        return STOP;
+    bool ok = write_llvm(p, sema, ll);
+    Next next = ok ? STOP : STOP_FAIL;
+    if (ok && p->opts->emit != EMIT_LLVM) {
+        timer_start(p->timer);
+        next = link_program(p->opts, ll, exe);
+        timer_report(p->timer, "clang", exe);
     }
-    timer_start(timer);
-    Next next = link_program(opts, ll, exe);
-    timer_report(timer, "clang", exe);
-    remove(ll);
-    if (next != STOP) {
+    if (!ok || p->opts->emit != EMIT_LLVM) {
+        remove(ll);
+    }
+    if (next != STOP || p->opts->emit == EMIT_LLVM) {
         exe[0] = '\0';
     }
     return next;
 }
 
 Next run_backend(Pipeline *p, Sema *sema) {
-    timer_start(p->timer);
-    AirProgram air = {0};
-    lower_module(sema, &air);
-    char error[256];
-    if (!air_validate(&air, error, sizeof error)) {
-        fatal("invalid AIR: %s", error);
+    if (p->opts->emit == EMIT_AIR) {
+        Sink sink = {.sema = sema};
+        lower_module(sema, take_body, &sink);
+        return STOP;
     }
-    timer_report(p->timer, "lower", "");
-    Next next = STOP;
-    if (diags_has_errors(&sema->session->diags)) {
-        next = STOP;
-    } else if (p->opts->emit == EMIT_AIR) {
-        air_print(&air, sema, stdout);
-    } else {
-        next = generate(p, sema, &air);
-    }
-    air_program_free(&air);
-    return next;
+    return generate(p, sema);
 }

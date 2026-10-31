@@ -9,6 +9,13 @@
 
 #include <stdio.h>
 
-void llvm_generate(Sema *sema, const AirProgram *program, FILE *out);
+// The module is written one function at a time: llvm_begin, then
+// llvm_function for each body, then llvm_end, which writes the declarations
+// and the constants and frees the generator.
+typedef struct Gen Gen;
+
+Gen *llvm_begin(Sema *sema, FILE *out);
+void llvm_function(Gen *g, const AirBody *body);
+void llvm_end(Gen *g);
 
 #endif

@@ -135,11 +135,7 @@ typedef struct {
     Vec(AirBlock) blocks;   // block 0 is the entry
 } AirBody;
 
-typedef struct {
-    Vec(AirBody) bodies;
-} AirProgram;
-
-void air_program_free(AirProgram *program);
+void air_body_free(AirBody *body);
 
 // Building blocks, used by the lowering.
 BlockId air_new_block(AirBody *body);
