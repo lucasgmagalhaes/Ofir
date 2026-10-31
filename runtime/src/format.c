@@ -52,7 +52,7 @@ static int tidy_exponent(char *buf, int n) {
 // The shortest decimal form that reads back as the same value (spec 2.1):
 // fixed notation for magnitudes in [1e-5, 1e16), an exponent otherwise, and
 // always a fraction or an exponent, so that `1.0` is not printed as `1`.
-int astra_format_float(char *buf, double value) {
+static int format_float(char *buf, double value, bool is_f32) {
     if (isnan(value)) {
         memcpy(buf, "NaN", 4);
         return 3;
@@ -67,7 +67,8 @@ int astra_format_float(char *buf, double value) {
     for (int precision = fixed ? 0 : 1; precision <= (fixed ? 22 : 17); precision++) {
         int digits = fixed ? precision : precision - 1;
         n = snprintf(buf, ASTRA_FORMAT_SIZE, fixed ? "%.*f" : "%.*e", digits, value);
-        if (strtod(buf, NULL) == value) {
+        bool exact = is_f32 ? strtof(buf, NULL) == (float)value : strtod(buf, NULL) == value;
+        if (exact) {
             break;
         }
     }
@@ -77,4 +78,12 @@ int astra_format_float(char *buf, double value) {
         n += 2;
     }
     return n;
+}
+
+int astra_format_float(char *buf, double value) {
+    return format_float(buf, value, false);
+}
+
+int astra_format_f32(char *buf, float value) {
+    return format_float(buf, value, true);
 }
