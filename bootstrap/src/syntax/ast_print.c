@@ -146,7 +146,7 @@ static bool leaf(Printer *p, const Expr *e) {
         break;
     case EXPR_IDENT:
         line_start(p);
-        fprintf(p->out, "ident %s\n", name(p, e->as.ident));
+        fprintf(p->out, "ident %s\n", name(p, e->as.ident.name));
         break;
     case EXPR_SELF: line(p, "self"); break;
     case EXPR_SELF_TYPE: line(p, "Self"); break;
