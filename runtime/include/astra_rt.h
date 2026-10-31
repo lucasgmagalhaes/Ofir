@@ -78,14 +78,6 @@ void astra_str_concat(AstraStr *out, const AstraStr *a, const AstraStr *b);
 bool astra_str_eq(const AstraStr *a, const AstraStr *b);
 int32_t astra_str_cmp(const AstraStr *a, const AstraStr *b);   // <0, 0 or >0, bytewise
 
-void astra_str_clear(AstraStr *s);   // keeps the capacity
-bool astra_str_starts_with(const AstraStr *s, const AstraStr *prefix);
-bool astra_str_ends_with(const AstraStr *s, const AstraStr *suffix);
-bool astra_str_contains(const AstraStr *s, const AstraStr *part);
-void astra_str_repeat(AstraStr *out, const AstraStr *s, int64_t n);   // n <= 0: empty
-void astra_str_to_lower(AstraStr *out, const AstraStr *s);            // ASCII only
-void astra_str_to_upper(AstraStr *out, const AstraStr *s);
-void astra_str_to_owned(AstraStr *out, const AstraStr *s);
 
 // Formats into `buf` (ASTRA_FORMAT_SIZE bytes) and returns the length.
 #define ASTRA_FORMAT_SIZE 48

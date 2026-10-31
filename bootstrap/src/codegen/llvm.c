@@ -154,15 +154,7 @@ static const char RUNTIME_DECLS[] =
     "declare void @astra_panic_cast(ptr) noreturn cold nounwind\n"
     "declare void @astra_panic_bounds(i64, i64, ptr) noreturn cold nounwind\n"
     "declare void @astra_panic_assert(ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_str(ptr, ptr) noreturn cold nounwind\n"
-    "declare void @astra_str_clear(ptr) nounwind\n"
-    "declare zeroext i1 @astra_str_starts_with(ptr, ptr) nounwind\n"
-    "declare zeroext i1 @astra_str_ends_with(ptr, ptr) nounwind\n"
-    "declare zeroext i1 @astra_str_contains(ptr, ptr) nounwind\n"
-    "declare void @astra_str_repeat(ptr, ptr, i64) nounwind\n"
-    "declare void @astra_str_to_lower(ptr, ptr) nounwind\n"
-    "declare void @astra_str_to_upper(ptr, ptr) nounwind\n"
-    "declare void @astra_str_to_owned(ptr, ptr) nounwind\n";
+    "declare void @astra_panic_str(ptr, ptr) noreturn cold nounwind\n";
 
 static void overflow_decls(Gen *g) {
     static const char *const OPS[] = {"add", "sub", "mul"};

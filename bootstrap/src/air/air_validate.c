@@ -42,7 +42,7 @@ static bool stmt_ok(const Validator *v, const AirStmt *s) {
         }
     }
     bool flag_ok = rv->kind != RV_CHECKED || local_ok(v, rv->flag);
-    return flag_ok && operand_ok(v, rv->a) && operand_ok(v, rv->b) && operand_ok(v, rv->cond);
+    return flag_ok && operand_ok(v, rv->a) && operand_ok(v, rv->b);
 }
 
 static bool block_ok(Validator *v, size_t index) {

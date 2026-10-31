@@ -17,14 +17,6 @@ static const char *const RUNTIME_NAMES[RT_COUNT] = {
     [RT_STR_CONCAT] = "astra_str_concat",
     [RT_STR_EQ] = "astra_str_eq",
     [RT_STR_CMP] = "astra_str_cmp",
-    [RT_STR_CLEAR] = "astra_str_clear",
-    [RT_STR_STARTS_WITH] = "astra_str_starts_with",
-    [RT_STR_ENDS_WITH] = "astra_str_ends_with",
-    [RT_STR_CONTAINS] = "astra_str_contains",
-    [RT_STR_REPEAT] = "astra_str_repeat",
-    [RT_STR_TO_LOWER] = "astra_str_to_lower",
-    [RT_STR_TO_UPPER] = "astra_str_to_upper",
-    [RT_STR_TO_OWNED] = "astra_str_to_owned",
 };
 
 const char *runtime_fn_name(RuntimeFn fn) {

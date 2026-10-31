@@ -65,7 +65,6 @@ typedef enum {
     RV_CAST,          // a as T
     RV_CAST_FAILS,    // whether `a as T` is out of range (bool)
     RV_SATURATE,      // a converted to T, clamped to its range
-    RV_SELECT,        // cond ? a : b
     RV_STR_LEN,       // the length of the str a
     RV_STR_BYTE,      // the byte b of the str a (bounds already checked)
     RV_FLOAT_FN,      // fn(a) or fn(a, b): sqrt, fabs, floor, ceil, minnum, maxnum
@@ -78,7 +77,7 @@ typedef enum { FF_SQRT, FF_FABS, FF_FLOOR, FF_CEIL, FF_MINNUM, FF_MAXNUM, FF_COU
 typedef struct {
     RvalueKind kind;
     Op op;
-    Operand a, b, cond;
+    Operand a, b;
     TypeId to;        // casts
     LocalId flag;     // RV_CHECKED
     FloatFn fn;       // RV_FLOAT_FN
@@ -93,8 +92,6 @@ typedef enum {
     RT_STR_PUSH_STR, RT_STR_PUSH_INT, RT_STR_PUSH_UINT, RT_STR_PUSH_FLOAT, RT_STR_PUSH_F32,
     RT_STR_PUSH_BOOL,
     RT_STR_CONCAT, RT_STR_EQ, RT_STR_CMP,
-    RT_STR_CLEAR, RT_STR_STARTS_WITH, RT_STR_ENDS_WITH, RT_STR_CONTAINS, RT_STR_REPEAT,
-    RT_STR_TO_LOWER, RT_STR_TO_UPPER, RT_STR_TO_OWNED,
     RT_COUNT,
 } RuntimeFn;
 
