@@ -1,0 +1,5 @@
+// Spec 1.3: a newline ends a statement wherever it could end.
+fn main() {
+    let total = price
+        + tax   // error[E0100]: expected an expression
+}
