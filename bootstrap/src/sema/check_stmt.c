@@ -90,8 +90,14 @@ static TypeId for_in(Checker *c, Stmt *s) {
         unsupported(c, range->span, "`for` over values other than `a..b` ranges is");
         return type_id(TID_UNIT);
     }
-    TypeId type = check_expr(c, range->as.range.lo, NO_TYPE);
-    coerce(c, range->as.range.hi, type);
+    // A literal bound takes the type of the other one: `for i in 0..n` with `n: u8`.
+    Expr *first = range->as.range.lo, *second = range->as.range.hi;
+    if (first->kind == EXPR_INT && second->kind != EXPR_INT) {
+        first = range->as.range.hi;
+        second = range->as.range.lo;
+    }
+    TypeId type = check_expr(c, first, NO_TYPE);
+    coerce(c, second, type);
     if (!type_is_integer(c->types, type) && type.id != TID_ERROR) {
         check_error(c, "E0300", range->span, "mismatched types: expected an integer, found %s",
                     type_name(c, type));

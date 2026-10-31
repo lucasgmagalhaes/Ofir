@@ -1,0 +1,8 @@
+// panic: integer overflow
+fn negate(x: i8) i8 {
+    return -x
+}
+
+fn main() {
+    println("{negate(-128)}")
+}
