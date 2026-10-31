@@ -17,9 +17,9 @@ static bool is_signed(const Ty *ty) {
 static void either(Gen *g, const char *low, const char *high, Value *result) {
     if (low[0] && high[0]) {
         next_temp(g, result->text);
-        fprintf(g->out, "  %s = or i1 %s, %s\n", result->text, low, high);
+        out_fmt(&g->out, "  %s = or i1 %s, %s\n", result->text, low, high);
     } else {
-        snprintf(result->text, sizeof result->text, "%s", low[0] ? low : high[0] ? high : "false");
+        fmt_into(result->text, sizeof result->text, "%s", low[0] ? low : high[0] ? high : "false");
     }
 }
 
@@ -32,7 +32,7 @@ static void int_fails(Gen *g, Value a, const Ty *from, const Ty *to, Value *resu
     if (below) {   // the target minimum: 0 or -2^(t-1)
         next_temp(g, low);
         int64_t min = is_signed(to) ? -(int64_t)(1ull << (t - 1)) : 0;
-        fprintf(g->out, "  %s = icmp slt %s %s, %" PRId64 "\n", low, a.type, a.text, min);
+        out_fmt(&g->out, "  %s = icmp slt %s %s, %" PRId64 "\n", low, a.type, a.text, min);
     }
     bool above = is_signed(from) ? (is_signed(to) ? t < s : t + 1 < s)
                                  : (is_signed(to) ? t <= s : t < s);
@@ -40,7 +40,7 @@ static void int_fails(Gen *g, Value a, const Ty *from, const Ty *to, Value *resu
         next_temp(g, high);
         uint64_t max = is_signed(to) ? (1ull << (t - 1)) - 1 : t == 64 ? UINT64_MAX
                                                                       : (1ull << t) - 1;
-        fprintf(g->out, "  %s = icmp %s %s %s, %" PRIu64 "\n", high,
+        out_fmt(&g->out, "  %s = icmp %s %s %s, %" PRIu64 "\n", high,
                 is_signed(from) ? "sgt" : "ugt", a.type, a.text, max);
     }
     either(g, low, high, result);
@@ -49,7 +49,7 @@ static void int_fails(Gen *g, Value a, const Ty *from, const Ty *to, Value *resu
 static void float_bound(char *out, double bound) {
     uint64_t bits;
     memcpy(&bits, &bound, sizeof bits);
-    snprintf(out, 32, "0x%016" PRIX64, bits);
+    fmt_into(out, 32, "0x%016" PRIX64, bits);
 }
 
 // Float to integer: the value must be in [min, max + 1). NaN fails both
@@ -62,13 +62,13 @@ static void float_fails(Gen *g, Value a, const Ty *to, Value *result) {
     float_bound(lo, min);
     float_bound(hi, end);
     next_temp(g, ge);
-    fprintf(g->out, "  %s = fcmp oge %s %s, %s\n", ge, a.type, a.text, lo);
+    out_fmt(&g->out, "  %s = fcmp oge %s %s, %s\n", ge, a.type, a.text, lo);
     next_temp(g, lt);
-    fprintf(g->out, "  %s = fcmp olt %s %s, %s\n", lt, a.type, a.text, hi);
+    out_fmt(&g->out, "  %s = fcmp olt %s %s, %s\n", lt, a.type, a.text, hi);
     next_temp(g, ok);
-    fprintf(g->out, "  %s = and i1 %s, %s\n", ok, ge, lt);
+    out_fmt(&g->out, "  %s = and i1 %s, %s\n", ok, ge, lt);
     next_temp(g, result->text);
-    fprintf(g->out, "  %s = xor i1 %s, true\n", result->text, ok);
+    out_fmt(&g->out, "  %s = xor i1 %s, true\n", result->text, ok);
 }
 
 void gen_cast_fails(Gen *g, const Rvalue *rv, Value *result) {

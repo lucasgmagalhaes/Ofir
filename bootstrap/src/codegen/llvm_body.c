@@ -6,7 +6,7 @@
 
 static void store(Gen *g, LocalId dest, Value v) {
     if (strcmp(v.type, "void") != 0) {
-        fprintf(g->out, "  store %s %s, ptr %%l%u\n", v.type, v.text, dest.id);
+        out_fmt(&g->out, "  store %s %s, ptr %%l%u\n", v.type, v.text, dest.id);
     }
 }
 
@@ -21,17 +21,17 @@ static void runtime_call(Gen *g, const AirStmt *s) {
     char result[16] = "";
     if (s->has_dest) {
         next_temp(g, result);
-        fprintf(g->out, "  %s = ", result);
+        out_fmt(&g->out, "  %s = ", result);
     } else {
-        fputs("  ", g->out);
+        out_str(&g->out, "  ");
     }
-    fprintf(g->out, "call %s @%s(", ret, runtime_fn_name(fn));
+    out_fmt(&g->out, "call %s @%s(", ret, runtime_fn_name(fn));
     for (uint32_t i = 0; i < s->as.call.arg_count; i++) {
         bool is_bool = strcmp(args[i].type, "i1") == 0;
-        fprintf(g->out, "%s%s%s %s", i ? ", " : "", args[i].type, is_bool ? " zeroext" : "",
+        out_fmt(&g->out, "%s%s%s %s", i ? ", " : "", args[i].type, is_bool ? " zeroext" : "",
                 args[i].text);
     }
-    fputs(")\n", g->out);
+    out_str(&g->out, ")\n");
     if (s->has_dest) {
         Value v = {.type = ret};
         memcpy(v.text, result, sizeof result);
@@ -48,24 +48,23 @@ static void user_call(Gen *g, const AirStmt *s) {
     }
     const Ty *sig = type_get(g->types, sema_def(g->sema, s->as.call.fn)->type);
     const char *ret = llvm_type(g, sig->inner);
-    StrBuf name = {0};
-    function_name(g, &name, s->as.call.fn, false);
     char result[16] = "";
     if (s->has_dest) {
         next_temp(g, result);
-        fprintf(g->out, "  %s = call fastcc %s %s(", result, ret, name.data);
+        out_fmt(&g->out, "  %s = call fastcc %s ", result, ret);
     } else {
-        fprintf(g->out, "  call fastcc %s %s(", ret, name.data);
+        out_fmt(&g->out, "  call fastcc %s ", ret);
     }
+    function_name(g, &g->out, s->as.call.fn, false);
+    out_char(&g->out, '(');
     bool first = true;
     for (uint32_t i = 0; i < count; i++) {
         if (strcmp(values[i].type, "void") != 0) {   // () arguments are not passed
-            fprintf(g->out, "%s%s %s", first ? "" : ", ", values[i].type, values[i].text);
+            out_fmt(&g->out, "%s%s %s", first ? "" : ", ", values[i].type, values[i].text);
             first = false;
         }
     }
-    fputs(")\n", g->out);
-    strbuf_free(&name);
+    out_str(&g->out, ")\n");
     if (s->has_dest) {
         Value v = {.type = ret};
         memcpy(v.text, result, sizeof result);
@@ -96,8 +95,8 @@ static const char *const PANIC_FNS[] = {
 static void assertion(Gen *g, const Terminator *t, size_t index) {
     Value c = gen_operand(g, t->cond);
     uint32_t loc = location_global(g, t->span);
-    fprintf(g->out, "  br i1 %s, label %%panic%zu, label %%bb%u\n", c.text, index, t->target.id);
-    fprintf(g->out, "panic%zu:\n  call void @%s(ptr @.loc.%u)\n  unreachable\n", index,
+    out_fmt(&g->out, "  br i1 %s, label %%panic%zu, label %%bb%u\n", c.text, index, t->target.id);
+    out_fmt(&g->out, "panic%zu:\n  call void @%s(ptr @.loc.%u)\n  unreachable\n", index,
             PANIC_FNS[t->panic], loc);
 }
 
@@ -105,43 +104,42 @@ static void return_value(Gen *g) {
     TypeId ret = g->body->locals.data[0].type;
     if (llvm_has_value(ret)) {
         Value v = gen_operand(g, (Operand){.kind = OPERAND_COPY, .type = ret});
-        fprintf(g->out, "  ret %s %s\n", v.type, v.text);
+        out_fmt(&g->out, "  ret %s %s\n", v.type, v.text);
     } else {
-        fputs("  ret void\n", g->out);
+        out_str(&g->out, "  ret void\n");
     }
 }
 
 static void terminator(Gen *g, const Terminator *t, size_t index) {
     switch (t->kind) {
-    case TERM_GOTO: fprintf(g->out, "  br label %%bb%u\n", t->target.id); break;
+    case TERM_GOTO: out_fmt(&g->out, "  br label %%bb%u\n", t->target.id); break;
     case TERM_BRANCH: {
         Value c = gen_operand(g, t->cond);
-        fprintf(g->out, "  br i1 %s, label %%bb%u, label %%bb%u\n", c.text, t->target.id,
+        out_fmt(&g->out, "  br i1 %s, label %%bb%u, label %%bb%u\n", c.text, t->target.id,
                 t->other.id);
         break;
     }
     case TERM_ASSERT: assertion(g, t, index); break;
     case TERM_RETURN: return_value(g); break;
-    case TERM_UNREACHABLE: case TERM_NONE: fputs("  unreachable\n", g->out); break;
+    case TERM_UNREACHABLE: case TERM_NONE: out_str(&g->out, "  unreachable\n"); break;
     }
 }
 
 static void header(Gen *g, const AirBody *body) {
-    StrBuf name = {0};
-    function_name(g, &name, body->def, body->is_main);
     TypeId ret = body->locals.data[0].type;
-    fprintf(g->out, "define %s%s %s(", body->is_main ? "" : "internal fastcc ",
-            body->is_main ? "void" : llvm_type(g, ret), name.data);
+    out_fmt(&g->out, "define %s%s ", body->is_main ? "" : "internal fastcc ",
+            body->is_main ? "void" : llvm_type(g, ret));
+    function_name(g, &g->out, body->def, body->is_main);
+    out_char(&g->out, '(');
     bool first = true;
     for (uint32_t i = 1; i <= body->param_count; i++) {
         TypeId type = body->locals.data[i].type;
         if (llvm_has_value(type)) {
-            fprintf(g->out, "%s%s %%p%u", first ? "" : ", ", llvm_type(g, type), i);
+            out_fmt(&g->out, "%s%s %%p%u", first ? "" : ", ", llvm_type(g, type), i);
             first = false;
         }
     }
-    fputs(") nounwind {\nstart:\n", g->out);
-    strbuf_free(&name);
+    out_str(&g->out, ") nounwind {\nstart:\n");
 }
 
 void gen_body(Gen *g, const AirBody *body) {
@@ -151,23 +149,23 @@ void gen_body(Gen *g, const AirBody *body) {
     for (size_t i = 0; i < body->locals.len; i++) {
         TypeId type = body->locals.data[i].type;
         if (llvm_has_value(type)) {
-            fprintf(g->out, "  %%l%zu = alloca %s\n", i, llvm_type(g, type));
+            out_fmt(&g->out, "  %%l%zu = alloca %s\n", i, llvm_type(g, type));
         }
     }
     for (uint32_t i = 1; i <= body->param_count; i++) {
         TypeId type = body->locals.data[i].type;
         if (llvm_has_value(type)) {
-            fprintf(g->out, "  store %s %%p%u, ptr %%l%u\n", llvm_type(g, type), i, i);
+            out_fmt(&g->out, "  store %s %%p%u, ptr %%l%u\n", llvm_type(g, type), i, i);
         }
     }
-    fputs("  br label %bb0\n", g->out);
+    out_str(&g->out, "  br label %bb0\n");
     for (size_t b = 0; b < body->blocks.len; b++) {
         const AirBlock *block = &body->blocks.data[b];
-        fprintf(g->out, "bb%zu:\n", b);
+        out_fmt(&g->out, "bb%zu:\n", b);
         for (size_t i = 0; i < block->stmts.len; i++) {
             statement(g, &block->stmts.data[i]);
         }
         terminator(g, &block->term, b);
     }
-    fputs("}\n\n", g->out);
+    out_str(&g->out, "}\n\n");
 }

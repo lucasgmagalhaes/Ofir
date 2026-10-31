@@ -9,12 +9,13 @@
 #define ASTRA_LLVM_INTERNAL_H
 
 #include "codegen/llvm.h"
+#include "codegen/out.h"
 
 typedef struct {
     Sema *sema;
     const TypeTable *types;
-    FILE *out;
-    StrBuf globals;          // string literals and locations, written at the end
+    Out out;
+    Out globals;             // string literals and locations, written at the end
     uint32_t str_count, loc_count;
     uint64_t overflow_used[2][3][4];   // [signed][add, sub, mul][i8, i16, i32, i64]
     const AirBody *body;     // the function being generated
@@ -30,7 +31,7 @@ typedef struct {
 const char *llvm_type(Gen *g, TypeId type);
 bool llvm_has_value(TypeId type);   // false for () and !
 StrView def_name(Gen *g, DefId def);
-void function_name(Gen *g, StrBuf *out, DefId def, bool is_main);
+void function_name(Gen *g, Out *out, DefId def, bool is_main);
 
 // A fresh temporary name, written into `text`.
 void next_temp(Gen *g, char text[16]);

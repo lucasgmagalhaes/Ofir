@@ -23,7 +23,7 @@ static void int_text(char *out, size_t size, uint64_t value, uint32_t bits) {
     if (bits < 64 && (value >> (bits - 1)) & 1) {
         value |= ~mask;   // sign-extend
     }
-    snprintf(out, size, "%" PRId64, (int64_t)value);
+    fmt_into(out, size, "%" PRId64, (int64_t)value);
 }
 
 // Floats are written as the hexadecimal bits of a double, the only exact form
@@ -32,7 +32,7 @@ static void float_text(char *out, size_t size, double value, bool is_f32) {
     double exact = is_f32 ? (double)(float)value : value;
     uint64_t bits;
     memcpy(&bits, &exact, sizeof bits);
-    snprintf(out, size, "0x%016" PRIX64, bits);
+    fmt_into(out, size, "0x%016" PRIX64, bits);
 }
 
 Value gen_operand(Gen *g, Operand o) {
@@ -43,11 +43,11 @@ Value gen_operand(Gen *g, Operand o) {
             break;   // a local of type (): nothing to load
         }
         next_temp(g, v.text);
-        fprintf(g->out, "  %s = load %s, ptr %%l%u\n", v.text, v.type, o.as.local.id);
+        out_fmt(&g->out, "  %s = load %s, ptr %%l%u\n", v.text, v.type, o.as.local.id);
         break;
     case OPERAND_ADDR:
         v.type = "ptr";
-        snprintf(v.text, sizeof v.text, "%%l%u", o.as.local.id);
+        fmt_into(v.text, sizeof v.text, "%%l%u", o.as.local.id);
         break;
     case OPERAND_INT:
         int_text(v.text, sizeof v.text, o.as.int_value, INT_BITS[ty_of(g, o.type)->data]);
@@ -55,10 +55,10 @@ Value gen_operand(Gen *g, Operand o) {
     case OPERAND_FLOAT:
         float_text(v.text, sizeof v.text, o.as.float_value, ty_of(g, o.type)->data == 32);
         break;
-    case OPERAND_BOOL: snprintf(v.text, sizeof v.text, o.as.bool_value ? "true" : "false"); break;
+    case OPERAND_BOOL: strcpy(v.text, o.as.bool_value ? "true" : "false"); break;
     case OPERAND_STR: {
         uint32_t n = string_global(g, o.as.str);
-        snprintf(v.text, sizeof v.text, "{ ptr @.str.%u, i64 %zu, i64 0 }", n, o.as.str.len);
+        fmt_into(v.text, sizeof v.text, "{ ptr @.str.%u, i64 %zu, i64 0 }", n, o.as.str.len);
         break;
     }
     case OPERAND_UNIT: v.type = "void"; break;
@@ -110,7 +110,7 @@ static void binary(Gen *g, const Rvalue *rv, Value *result) {
     const Ty *ty = ty_of(g, rv->a.type);
     const char *op = ty->kind == TY_FLOAT ? float_op(rv->op) : int_op(rv->op, is_signed(ty));
     next_temp(g, result->text);
-    fprintf(g->out, "  %s = %s %s %s, %s\n", result->text, op, a.type, a.text, b.text);
+    out_fmt(&g->out, "  %s = %s %s %s, %s\n", result->text, op, a.type, a.text, b.text);
 }
 
 static void checked(Gen *g, const Rvalue *rv, Value *result) {
@@ -122,22 +122,22 @@ static void checked(Gen *g, const Rvalue *rv, Value *result) {
     static const char *const OPS[] = {"add", "sub", "mul"};
     char pair[16], flag[16];
     next_temp(g, pair);
-    fprintf(g->out, "  %s = call { %s, i1 } @llvm.%c%s.with.overflow.%s(%s %s, %s %s)\n", pair,
+    out_fmt(&g->out, "  %s = call { %s, i1 } @llvm.%c%s.with.overflow.%s(%s %s, %s %s)\n", pair,
             a.type, is_signed(ty) ? 's' : 'u', OPS[op], a.type, a.type, a.text, a.type, b.text);
     next_temp(g, result->text);
-    fprintf(g->out, "  %s = extractvalue { %s, i1 } %s, 0\n", result->text, a.type, pair);
+    out_fmt(&g->out, "  %s = extractvalue { %s, i1 } %s, 0\n", result->text, a.type, pair);
     next_temp(g, flag);
-    fprintf(g->out, "  %s = extractvalue { %s, i1 } %s, 1\n", flag, a.type, pair);
-    fprintf(g->out, "  store i1 %s, ptr %%l%u\n", flag, rv->flag.id);
+    out_fmt(&g->out, "  %s = extractvalue { %s, i1 } %s, 1\n", flag, a.type, pair);
+    out_fmt(&g->out, "  store i1 %s, ptr %%l%u\n", flag, rv->flag.id);
 }
 
 static void unary(Gen *g, const Rvalue *rv, Value *result) {
     Value a = gen_operand(g, rv->a);
     next_temp(g, result->text);
     if (rv->op == OP_NEG) {
-        fprintf(g->out, "  %s = fneg %s %s\n", result->text, a.type, a.text);
+        out_fmt(&g->out, "  %s = fneg %s %s\n", result->text, a.type, a.text);
     } else {
-        fprintf(g->out, "  %s = xor %s %s, -1\n", result->text, a.type, a.text);   // also i1
+        out_fmt(&g->out, "  %s = xor %s %s, -1\n", result->text, a.type, a.text);   // also i1
     }
 }
 
@@ -167,7 +167,7 @@ static void cast(Gen *g, const Rvalue *rv, Value *result) {
         return;
     }
     next_temp(g, result->text);
-    fprintf(g->out, "  %s = %s %s %s to %s\n", result->text, op, a.type, a.text,
+    out_fmt(&g->out, "  %s = %s %s %s to %s\n", result->text, op, a.type, a.text,
             llvm_type(g, rv->to));
 }
 
