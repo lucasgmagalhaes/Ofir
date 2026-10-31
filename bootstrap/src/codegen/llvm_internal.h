@@ -41,8 +41,12 @@ void function_name(Gen *g, Out *out, DefId def, bool is_main);
 // A fresh temporary name, written into `text`.
 void next_temp(Gen *g, char text[16]);
 
+// llvm_types.c
 // The address of a place: `%l<N>` itself, or a getelementptr to the field.
 void place_address(Gen *g, LocalId local, FieldPath path, char text[16]);
+const char *adt_type(Gen *g, uint32_t def);          // defined at its first use
+const char *variant_type(Gen *g, uint32_t def, uint32_t v);
+const char *tuple_type(Gen *g, const Ty *ty);
 
 uint32_t string_global(Gen *g, StrView text);   // the N of @.str.N
 uint32_t location_global(Gen *g, Span span);     // the N of @.loc.N

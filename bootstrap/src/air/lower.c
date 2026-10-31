@@ -116,6 +116,10 @@ void lower_module(Sema *sema, BodySink sink, void *context) {
             for (uint32_t m = 0; m < item->as.struct_.methods.len; m++) {
                 lower_fn(&l, item->as.struct_.methods.items[m], sink, context);
             }
+        } else if (item->kind == ITEM_ENUM && item->as.enum_.type_params.len == 0) {
+            for (uint32_t m = 0; m < item->as.enum_.methods.len; m++) {
+                lower_fn(&l, item->as.enum_.methods.items[m], sink, context);
+            }
         } else if (is_struct || item->kind == ITEM_ENUM || item->kind == ITEM_GLOBAL ||
                    item->kind == ITEM_EXTERN) {
             diag_error(&sema->session->diags, "E0901", item->span,
