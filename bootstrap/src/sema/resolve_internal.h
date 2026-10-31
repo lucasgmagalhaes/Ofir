@@ -23,6 +23,7 @@ void declare_item(Resolver *r, Def def);
 
 // resolve_import.c
 void resolve_import(Resolver *r, const Item *item);
+void import_prelude(Resolver *r);   // after every module's declarations are known
 // `m.name` where `m` is an imported module becomes a reference to the item.
 void resolve_qualified(Resolver *r, Expr *e);
 // The definition named `name` in module `index`, if visible from here.

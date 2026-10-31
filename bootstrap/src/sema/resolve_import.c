@@ -104,3 +104,31 @@ void resolve_qualified(Resolver *r, Expr *e) {
     e->as.ident.name = name;
     e->as.ident.res = member.id ? (Res){RES_DEF, member.id} : (Res){RES_ERROR, 0};
 }
+
+// The public declarations of `std.core` are visible in every module, below
+// the module's own declarations (spec 7.4).
+void import_prelude(Resolver *r) {
+    int64_t core = -1;
+    for (uint32_t m = 0; m < r->sema->program.len; m++) {
+        if (sv_eq(module_name(r, m), SV("std.core"))) {
+            core = m;
+        }
+    }
+    if (core < 0) {
+        return;
+    }
+    Scope *scope = &r->sema->scope;
+    for (uint32_t name = 1; name < scope->symbol_count; name++) {
+        uint32_t id = scope->tables[core][name];
+        const Def *def = id ? sema_def(r->sema, (DefId){id}) : NULL;
+        if (!def || !def->is_pub || def->module != (uint32_t)core) {
+            continue;
+        }
+        for (uint32_t m = 0; m < r->sema->program.len; m++) {
+            uint32_t own = scope->tables[m][name];
+            if (m != (uint32_t)core && (own == 0 || sema_def(r->sema, (DefId){own})->in_prelude)) {
+                scope->tables[m][name] = id;
+            }
+        }
+    }
+}

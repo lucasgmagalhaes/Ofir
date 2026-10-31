@@ -154,6 +154,9 @@ void resolve_program(Sema *sema) {
             sema_enter(sema, m);
             resolve_pass(&r, pass);
         }
+        if (pass == 0) {
+            import_prelude(&r);
+        }
     }
     sema_enter(sema, 0);
     VEC_FREE(r.locals);
