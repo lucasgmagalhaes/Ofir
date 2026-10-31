@@ -50,8 +50,8 @@ void astra_stdout_write(const uint8_t *ptr, int64_t len) {
     }
 }
 
-void astra_print_str(const uint8_t *ptr, int64_t len) {
-    astra_stdout_write(ptr, len);
+void astra_print_str(const AstraStr *s) {
+    astra_stdout_write(s->ptr, s->len);
 }
 
 void astra_print_int(int64_t value) {
@@ -67,6 +67,11 @@ void astra_print_uint(uint64_t value) {
 void astra_print_float(double value) {
     char text[ASTRA_FORMAT_SIZE];
     astra_stdout_write((const uint8_t *)text, astra_format_float(text, value));
+}
+
+void astra_print_f32(float value) {
+    char text[ASTRA_FORMAT_SIZE];
+    astra_stdout_write((const uint8_t *)text, astra_format_f32(text, value));
 }
 
 void astra_print_bool(bool value) {

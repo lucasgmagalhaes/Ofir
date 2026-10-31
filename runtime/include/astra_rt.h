@@ -50,27 +50,36 @@ void astra_stdout_write(const uint8_t *ptr, int64_t len);
 void astra_stdout_flush(void);
 void astra_write(int fd, const uint8_t *ptr, int64_t len);
 
-void astra_print_str(const uint8_t *ptr, int64_t len);
+void astra_print_str(const AstraStr *s);
 void astra_print_int(int64_t value);
 void astra_print_uint(uint64_t value);
 void astra_print_float(double value);
+void astra_print_f32(float value);
 void astra_print_bool(bool value);
 void astra_print_newline(void);
 
 // ---------------------------------------------------------------------------
 // Strings: building the value of an interpolation.
 
+// `str` values are passed by pointer, which keeps the C ABI simple.
 void astra_str_push_bytes(AstraStr *s, const uint8_t *ptr, int64_t len);
+void astra_str_push_str(AstraStr *s, const AstraStr *part);
 void astra_str_push_int(AstraStr *s, int64_t value);
 void astra_str_push_uint(AstraStr *s, uint64_t value);
 void astra_str_push_float(AstraStr *s, double value);
+void astra_str_push_f32(AstraStr *s, float value);
 void astra_str_push_bool(AstraStr *s, bool value);
 void astra_str_drop(AstraStr *s);
+
+void astra_str_concat(AstraStr *out, const AstraStr *a, const AstraStr *b);
+bool astra_str_eq(const AstraStr *a, const AstraStr *b);
+int32_t astra_str_cmp(const AstraStr *a, const AstraStr *b);   // <0, 0 or >0, bytewise
 
 // Formats into `buf` (ASTRA_FORMAT_SIZE bytes) and returns the length.
 #define ASTRA_FORMAT_SIZE 48
 int astra_format_int(char *buf, int64_t value);
 int astra_format_uint(char *buf, uint64_t value);
 int astra_format_float(char *buf, double value);   // shortest round-trip form
+int astra_format_f32(char *buf, float value);      // shortest form that reads back as `value`
 
 #endif
