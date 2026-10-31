@@ -3,6 +3,7 @@
 #include "base/clock.h"
 #include "session.h"
 #include "syntax/lexer.h"
+#include "sema/sema.h"
 #include "syntax/parser.h"
 
 #include <stdio.h>
@@ -55,6 +56,22 @@ static Next run_lexer(Session *session, const Options *opts, FileId file, TokenL
     return CONTINUE;
 }
 
+static Next run_sema(Session *session, const Options *opts, Module *module, Timer *timer) {
+    timer_start(timer);
+    Sema sema;
+    sema_init(&sema, session, module);
+    resolve_module(&sema);
+    if (!diags_has_errors(&session->diags)) {
+        check_module(&sema);
+    }
+    char detail[64];
+    snprintf(detail, sizeof detail, "%u types", sema.types.count);
+    sema_free(&sema);
+    timer_report(timer, "check", detail);
+    bool done = opts->stop_after == STOP_AFTER_CHECK;
+    return diags_has_errors(&session->diags) || done ? STOP : CONTINUE;
+}
+
 static Next run_parser(Session *session, const Options *opts, FileId file,
                        TokenList *tokens, Timer *timer) {
     timer_start(timer);
@@ -69,7 +86,7 @@ static Next run_parser(Session *session, const Options *opts, FileId file,
     if (diags_has_errors(&session->diags) || done) {
         return STOP;
     }
-    return CONTINUE;
+    return run_sema(session, opts, module, timer);
 }
 
 // Runs the phases in order; returns false if one of them could not finish.

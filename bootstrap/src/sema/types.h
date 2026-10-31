@@ -40,14 +40,14 @@ typedef struct {
 
 // The types created by `types_init`, in this order.
 enum {
-    TYPE_ERROR, TYPE_UNIT, TYPE_NEVER, TYPE_BOOL,
-    TYPE_I8, TYPE_I16, TYPE_I32, TYPE_I64, TYPE_U8, TYPE_U16, TYPE_U32, TYPE_U64,
-    TYPE_F32, TYPE_F64, TYPE_STR,
-    TYPE_BUILTIN_COUNT,
+    TID_ERROR, TID_UNIT, TID_NEVER, TID_BOOL,
+    TID_I8, TID_I16, TID_I32, TID_I64, TID_U8, TID_U16, TID_U32, TID_U64,
+    TID_F32, TID_F64, TID_STR,
+    TID_BUILTIN_COUNT,
 };
 
-#define TYPE_INT TYPE_I64     // `int`
-#define TYPE_FLOAT TYPE_F64   // `float`
+#define TID_INT TID_I64     // `int`
+#define TID_FLOAT TID_F64   // `float`
 
 typedef struct {
     Arena *arena;          // owns the argument arrays
