@@ -35,7 +35,7 @@ static Bounds bounds(const Ty *from, const Ty *to) {
     Bounds b = {.below = is_signed(from) && (!is_signed(to) || t < s)};
     b.above = is_signed(from) ? (is_signed(to) ? t < s : t + 1 < s)
                               : (is_signed(to) ? t <= s : t < s);
-    b.min = is_signed(to) ? -(int64_t)(1ull << (t - 1)) : 0;
+    b.min = !is_signed(to) ? 0 : t == 64 ? INT64_MIN : -(int64_t)(1ull << (t - 1));
     b.max = is_signed(to) ? (1ull << (t - 1)) - 1 : t == 64 ? UINT64_MAX : (1ull << t) - 1;
     return b;
 }

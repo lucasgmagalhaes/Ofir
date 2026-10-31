@@ -60,29 +60,13 @@ void emit_assert(Lowerer *l, Operand fails, PanicKind panic, Span span) {
 }
 
 LocalId to_local(Lowerer *l, Operand operand) {
-    if (operand.kind == OPERAND_COPY && operand.path.len == 0) {
+    if (operand.kind == OPERAND_COPY && operand.path.len == 0 && !operand.path.deref) {
         return operand.as.local;
     }
     return emit_temp(l, operand.type, (Rvalue){.kind = RV_USE, .a = operand});
 }
 
-// `mut` parameters are passed by reference (roadmap 2.12); until then they
-// are rejected rather than silently passed by value.
-static bool parameters_supported(Lowerer *l, FnDecl *fn) {
-    for (uint32_t i = 0; i < fn->params.len; i++) {
-        if (fn->params.items[i].mode == MODE_MUT) {
-            diag_error(&l->sema->session->diags, "E0901", fn->params.items[i].span,
-                       "`mut` parameters are not supported yet");
-            return false;
-        }
-    }
-    return true;
-}
-
 static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
-    if (!parameters_supported(l, fn)) {
-        return;
-    }
     Def *def = sema_def(l->sema, fn->def);
     const Ty *sig = type_get(l->types, def->type);
     AirBody body = {.def = fn->def, .name = fn->name};
@@ -93,6 +77,15 @@ static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
     for (uint32_t i = 0; i < fn->locals.len; i++) {
         const Local *local = &fn->locals.items[i];
         air_new_local(&body, fn->local_types[i], local->name, local->span);
+    }
+    // `mut self` and `mut` parameters are passed by reference (spec 5.3).
+    if (fn->has_self && fn->self_mode == MODE_MUT) {
+        body.locals.data[1].by_ref = true;
+    }
+    for (uint32_t i = 0; i < fn->params.len; i++) {
+        if (fn->params.items[i].mode == MODE_MUT) {
+            body.locals.data[air_local_of(fn->params.items[i].local).id].by_ref = true;
+        }
     }
     l->block = air_new_block(&body);
     lower_block(l, fn->body, false);

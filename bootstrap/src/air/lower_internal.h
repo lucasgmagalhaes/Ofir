@@ -60,6 +60,7 @@ LocalId to_local(Lowerer *l, Operand operand);   // a local holding the operand
 
 // lower_expr.c
 Operand lower_expr(Lowerer *l, Expr *e);
+Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver);
 bool type_is_value(TypeId type);   // false for () and !
 
 // lower_ops.c

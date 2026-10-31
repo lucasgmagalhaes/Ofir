@@ -29,6 +29,9 @@ void out_write_slow(Out *out, const char *text, size_t len);
 // The fast path is inline: most pieces are a few bytes. The byte after the
 // text is set to NUL (there is always room: the test is strict).
 static inline void out_write(Out *out, const char *text, size_t len) {
+    if (len == 0) {
+        return;   // also when `text` is the NULL buffer of an empty Out
+    }
     if (out->len + len < out->cap) {
         memcpy(out->buf + out->len, text, len);
         out->len += len;
