@@ -254,10 +254,24 @@ def run_test(cfg: Config, suite: str, path: Path) -> Result:
     return check_diagnostics(cfg, path, source)
 
 
+def is_module_of_project(path: Path, suite_dir: Path) -> bool:
+    """A directory with a main.at is one multi-file test: its other files are
+    modules of that program, not tests."""
+    for parent in path.parents:
+        if parent == suite_dir or suite_dir not in parent.parents:
+            break
+        if (parent / "main.at").exists() and path != parent / "main.at":
+            return True
+    return False
+
+
 def discover(tests_dir: Path, filters: list[str]) -> list[tuple[str, Path]]:
     found = []
     for suite in SUITES:
-        for path in sorted((tests_dir / suite).rglob("*.at")):
+        suite_dir = tests_dir / suite
+        for path in sorted(suite_dir.rglob("*.at")):
+            if is_module_of_project(path, suite_dir):
+                continue
             rel = path.relative_to(tests_dir).as_posix()
             if not filters or any(f in rel for f in filters):
                 found.append((suite, path))
