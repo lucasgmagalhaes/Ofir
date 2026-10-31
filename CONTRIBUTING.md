@@ -56,4 +56,6 @@ BREAKING CHANGE: function signatures no longer use ->.
 - C (`bootstrap/`, `runtime/`): C11, 4-space indentation, `snake_case`,
   must compile with `-Wall -Wextra -Werror`.
 - Astra: the [style guide](docs/style-guide.md).
+- All languages: the size rules of the style guide (files, functions,
+  nesting, parameters), checked by `tools/check_sizes.py`.
 - Python (test runner and tools): standard library only, Python ≥ 3.9.
