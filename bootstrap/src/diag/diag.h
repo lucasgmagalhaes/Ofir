@@ -1,0 +1,51 @@
+// Diagnostics: collected during compilation, rendered at the end.
+//
+// Codes come from the registry in docs/errors/README.md.
+
+#ifndef ASTRA_DIAG_H
+#define ASTRA_DIAG_H
+
+#include "base/source.h"
+#include "base/vec.h"
+
+#include <stdio.h>
+
+typedef enum {
+    SEVERITY_ERROR,
+    SEVERITY_WARNING,
+} Severity;
+
+typedef struct {
+    Severity severity;
+    char code[8];        // "E0001", "W0002"
+    Span span;
+    char *message;       // owned by the diagnostics arena
+} Diagnostic;
+
+typedef enum {
+    DIAG_FORMAT_HUMAN,   // source excerpt with a caret
+    DIAG_FORMAT_SHORT,   // file:line:col: error[E0001]: message
+} DiagFormat;
+
+typedef struct {
+    Arena *arena;
+    Vec(Diagnostic) items;
+    uint32_t error_count;
+} Diagnostics;
+
+void diags_init(Diagnostics *diags, Arena *arena);
+void diags_free(Diagnostics *diags);
+
+void diag_error(Diagnostics *diags, const char *code, Span span, const char *format, ...)
+    __attribute__((format(printf, 4, 5)));
+void diag_warning(Diagnostics *diags, const char *code, Span span, const char *format, ...)
+    __attribute__((format(printf, 4, 5)));
+
+static inline bool diags_has_errors(const Diagnostics *diags) {
+    return diags->error_count > 0;
+}
+
+// Sorts by position, removes duplicates and writes every diagnostic to `out`.
+void diags_render(Diagnostics *diags, const SourceMap *map, DiagFormat format, FILE *out);
+
+#endif

@@ -47,20 +47,23 @@ bootstrap/
 ├── Makefile
 ├── README.md
 ├── src/
-│   ├── main.c                command line entry point
-│   ├── driver.c/.h           pipeline orchestration, invoking clang
+│   ├── main.c                command line parsing
+│   ├── driver.c/.h           pipeline: runs the phases on a session, invokes clang
+│   ├── session.c/.h          state shared by all phases (arena, sources, names, diagnostics)
 │   ├── base/                 foundation, no compiler knowledge
 │   │   ├── arena.c/.h        arena allocator (all compiler memory)
 │   │   ├── vec.h             generic dynamic array macros
 │   │   ├── map.c/.h          hash map (string interning, symbol tables)
 │   │   ├── str.c/.h          string builder and string views
 │   │   ├── intern.c/.h       interned identifiers
-│   │   └── fs.c/.h           file reading, paths
+│   │   └── source.c/.h       file table, spans, line and column lookup
 │   ├── diag/
 │   │   └── diag.c/.h         diagnostics: collection and rendering
 │   ├── syntax/
-│   │   ├── token.h           token kinds
-│   │   ├── lexer.c/.h        source → tokens
+│   │   ├── token.c/.h        token kinds, names and printing
+│   │   ├── lexer.c/.h        source → tokens: main loop, comments, words, punctuation
+│   │   ├── lexer_internal.h  state shared by the lexer files
+│   │   ├── literals.c        numbers, strings and byte literals
 │   │   ├── ast.h             AST node definitions
 │   │   ├── ast_print.c       AST dump for debugging and tests
 │   │   └── parser.c/.h       tokens → AST
@@ -105,8 +108,10 @@ compiler/
 │   ├── render.at             terminal rendering with source excerpts
 │   └── codes.at              stable error codes (E0001, ...)
 ├── syntax/
-│   ├── token.at
-│   ├── lexer.at
+│   ├── token.at              token kinds and values
+│   ├── cursor.at             position in a source file
+│   ├── literals.at           numbers, strings and byte literals
+│   ├── lexer.at              main loop, comments, words, punctuation
 │   ├── ast.at
 │   ├── parser.at
 │   └── printer.at            AST pretty printer (shared with formatter)

@@ -1,4 +1,6 @@
-// Stage 0 compiler entry point.
+// Stage 0 compiler entry point: command line parsing.
+
+#include "driver.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -11,8 +13,59 @@ static void print_usage(FILE *out) {
           "commands:\n"
           "  build <file.at>   compile a program\n"
           "  run <file.at>     compile and run a program\n"
-          "  version           print the compiler version\n",
+          "  version           print the compiler version\n"
+          "\n"
+          "options:\n"
+          "  -o <path>                 output path\n"
+          "  --emit=tokens             print the tokens and stop\n"
+          "  --message-format=short    one line per diagnostic\n"
+          "  --stop-after=lex          run the phases up to lex, without output\n"
+          "  --time-passes             report the time spent in each phase\n",
           out);
+}
+
+// Applies one option; returns false if it is unknown. `i` may advance past
+// an option's argument.
+static bool parse_option(int argc, char **argv, int *i, Options *opts) {
+    const char *arg = argv[*i];
+    if (strcmp(arg, "-o") == 0 && *i + 1 < argc) {
+        opts->output = argv[++*i];
+    } else if (strcmp(arg, "--emit=tokens") == 0) {
+        opts->emit = EMIT_TOKENS;
+    } else if (strcmp(arg, "--message-format=short") == 0) {
+        opts->format = DIAG_FORMAT_SHORT;
+    } else if (strcmp(arg, "--message-format=human") == 0) {
+        opts->format = DIAG_FORMAT_HUMAN;
+    } else if (strcmp(arg, "--stop-after=lex") == 0) {
+        opts->stop_after = STOP_AFTER_LEX;
+    } else if (strcmp(arg, "--time-passes") == 0) {
+        opts->time_passes = true;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+static bool parse_options(int argc, char **argv, Options *opts) {
+    *opts = (Options){.command = argv[1], .format = DIAG_FORMAT_HUMAN};
+    for (int i = 2; i < argc; i++) {
+        if (argv[i][0] == '-') {
+            if (!parse_option(argc, argv, &i, opts)) {
+                fprintf(stderr, "error: unknown option `%s`\n", argv[i]);
+                return false;
+            }
+        } else if (!opts->input) {
+            opts->input = argv[i];
+        } else {
+            fprintf(stderr, "error: unexpected argument `%s`\n", argv[i]);
+            return false;
+        }
+    }
+    if (!opts->input) {
+        fprintf(stderr, "error: `%s` needs an input file\n", opts->command);
+        return false;
+    }
+    return true;
 }
 
 int main(int argc, char **argv) {
@@ -30,8 +83,8 @@ int main(int argc, char **argv) {
         return 0;
     }
     if (strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
-        fprintf(stderr, "error: `%s` is not implemented yet\n", command);
-        return 1;
+        Options opts;
+        return parse_options(argc, argv, &opts) ? driver_build(&opts) : 2;
     }
     fprintf(stderr, "error: unknown command `%s`\n\n", command);
     print_usage(stderr);

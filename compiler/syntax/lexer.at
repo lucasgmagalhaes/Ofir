@@ -1,529 +1,22 @@
 //! Lexer: turns source text into tokens (spec chapter 1).
 //!
-//! Written in the bootstrap subset (docs/bootstrap.md). This file started as
-//! the paper prototype of roadmap task 0.8; it is not compiled yet. Findings
-//! are recorded in docs/design/prototype-review.md.
+//! Written in the bootstrap subset (docs/bootstrap.md). It started as the
+//! paper prototype of roadmap task 0.8 and is not compiled yet; findings are
+//! recorded in docs/design/prototype-review.md. Literals are scanned in
+//! `syntax.literals`, positions are tracked by `syntax.cursor`.
 
 import base.intern.Interner
-import base.intern.Symbol
 import base.span.FileId
-import base.span.Span
 import diag.Diagnostics
-
-pub copy enum TokenKind {
-    // literals, names and layout
-    Ident, Int, Float, Byte, Str, StrStart, StrMid, StrEnd
-    DocComment, ModuleDoc, Newline, Invalid, Eof
-
-    // reserved keywords (contextual keywords are lexed as Ident)
-    As, Break, Const, Continue, Copy, Dyn, Else, Enum, Extern, False, Fn, For
-    If, Import, In, Interface, Let, Match, Mut, Pub, Return, SelfValue, SelfType
-    Struct, True, Unsafe, Var
-
-    // punctuation; `>` is never combined here (see `punct`)
-    LParen, RParen, LBrace, RBrace, LBracket, RBracket
-    Comma, Colon, Semicolon, Dot, DotDot, DotDotEq, FatArrow, Question, QuestionQuestion, At
-    Plus, Minus, Star, Slash, Percent, Amp, Pipe, Caret, Shl, Bang
-    Eq, EqEq, Ne, Lt, Le, Gt, AndAnd, OrOr
-    PlusEq, MinusEq, StarEq, SlashEq, PercentEq, AmpEq, PipeEq, CaretEq, ShlEq
-}
-
-pub enum TokenValue {
-    None
-    Int(value: u64)
-    Float(value: float)
-    Byte(value: u8)
-    Str(value: str)
-    Name(symbol: Symbol)
-}
-
-pub struct Token {
-    pub kind: TokenKind
-    pub span: Span
-    pub value: TokenValue
-}
-
-// The lexer does not keep the source: a struct cannot hold a reference in the
-// bootstrap subset (no `ref struct`), so every method borrows the source as a
-// parameter. Tokens store spans, not slices.
-struct Lexer {
-    file: FileId
-    pos: int
-    brackets: List<u8>          // open `(`, `[` and `{`, innermost last
-    interpolations: List<int>   // `brackets.len()` when each `{` of an interpolation opened
-    keywords: Map<str, TokenKind>
-
-    fn new(file: FileId) Lexer {
-        return Lexer{
-            file
-            pos: 0
-            brackets: []
-            interpolations: []
-            keywords: keywordTable()
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Main loop
-
-    fn next(mut self, src: str, names: mut Interner, diags: mut Diagnostics) Token {
-        for self.pos < src.len() {
-            let c = src[self.pos]
-            match c {
-                b' ' | b'\t' | b'\r' => {
-                    self.pos += 1
-                }
-                b'\n' => {
-                    let start = self.pos
-                    self.pos += 1
-                    if self.newlinesMatter() {
-                        return self.token(.Newline, start)
-                    }
-                }
-                b'/' if self.peek(src, 1) == b'/' => {
-                    if let .Some(doc) = self.lineComment(src) {
-                        return doc
-                    }
-                }
-                b'/' if self.peek(src, 1) == b'*' => {
-                    let start = self.pos
-                    if self.blockComment(src, diags) && self.newlinesMatter() {
-                        return self.token(.Newline, start)
-                    }
-                }
-                _ => {
-                    return self.tokenAt(src, names, diags)
-                }
-            }
-        }
-        return self.token(.Eof, self.pos)
-    }
-
-    // Newlines are tokens except directly inside `(...)` and `[...]`. Inside a
-    // `{` block, even one nested in parentheses (a closure passed as an
-    // argument), they separate statements again.
-    fn newlinesMatter(self) bool {
-        return match self.brackets.last() {
-            .Some(open) => open == b'{'
-            .None => true
-        }
-    }
-
-    fn tokenAt(mut self, src: str, names: mut Interner, diags: mut Diagnostics) Token {
-        let start = self.pos
-        let c = src[start]
-        if c == b'b' && self.peek(src, 1) == b'\'' {
-            return self.byteLiteral(src, diags)
-        }
-        if isLetter(c) {
-            return self.word(src, names)
-        }
-        if isDigit(c) {
-            return self.number(src, diags)
-        }
-        if c == b'"' {
-            self.pos += 1
-            return self.stringPart(src, start, true, diags)
-        }
-        return self.punct(src, diags)
-    }
-
-    // -----------------------------------------------------------------------
-    // Helpers
-
-    fn peek(self, src: str, offset: int) u8 {
-        let i = self.pos + offset
-        if i < src.len() {
-            return src[i]
-        }
-        return 0
-    }
-
-    fn spanFrom(self, start: int) Span {
-        return Span{file: self.file, start, end: self.pos}
-    }
-
-    fn token(self, kind: TokenKind, start: int) Token {
-        return Token{kind, span: self.spanFrom(start), value: .None}
-    }
-
-    fn tokenWith(self, kind: TokenKind, start: int, value: move TokenValue) Token {
-        return Token{kind, span: self.spanFrom(start), value}
-    }
-
-    // -----------------------------------------------------------------------
-    // Comments
-
-    // Skips a `//` comment. Returns a token for `///` and `//!` doc comments.
-    fn lineComment(mut self, src: str) Option<Token> {
-        let start = self.pos
-        let kind: Option<TokenKind> = match (self.peek(src, 2), self.peek(src, 3)) {
-            (b'/', b'/') => .None             // `////...` is an ordinary comment
-            (b'/', _) => .Some(.DocComment)
-            (b'!', _) => .Some(.ModuleDoc)
-            _ => .None
-        }
-        for self.pos < src.len() && src[self.pos] != b'\n' {
-            self.pos += 1
-        }
-        if let .Some(k) = kind {
-            let text = src[start + 3..self.pos].trim().toOwned()
-            return .Some(self.tokenWith(k, start, .Str(text)))
-        }
-        return .None
-    }
-
-    // Skips a `/* ... */` comment. Returns true if it contained a newline.
-    fn blockComment(mut self, src: str, diags: mut Diagnostics) bool {
-        let start = self.pos
-        self.pos += 2
-        var newline = false
-        for {
-            if self.pos >= src.len() {
-                diags.error("E0003", self.spanFrom(start), "unterminated block comment")
-                return newline
-            }
-            if src[self.pos] == b'*' && self.peek(src, 1) == b'/' {
-                self.pos += 2
-                return newline
-            }
-            if src[self.pos] == b'\n' {
-                newline = true
-            }
-            self.pos += 1
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Words and numbers
-
-    fn word(mut self, src: str, names: mut Interner) Token {
-        let start = self.pos
-        for self.pos < src.len() && (isLetter(src[self.pos]) || isDigit(src[self.pos])) {
-            self.pos += 1
-        }
-        let text = src[start..self.pos]
-        if let .Some(kind) = self.keywords.get(text) {
-            return self.token(kind, start)
-        }
-        return self.tokenWith(.Ident, start, .Name(names.intern(text)))
-    }
-
-    fn number(mut self, src: str, diags: mut Diagnostics) Token {
-        let start = self.pos
-        let base = match (src[start], self.peek(src, 1)) {
-            (b'0', b'x') => 16
-            (b'0', b'o') => 8
-            (b'0', b'b') => 2
-            _ => 10
-        }
-        if base != 10 {
-            self.pos += 2
-        }
-
-        var value: Option<u64> = .Some(0)
-        for self.pos < src.len() {
-            let c = src[self.pos]
-            if c == b'_' {
-                self.pos += 1
-                continue
-            }
-            let digit = digitValue(c)
-            if digit >= base {
-                break
-            }
-            value = accumulate(value, base, digit)
-            self.pos += 1
-        }
-
-        if base == 10 && self.atFractionOrExponent(src) {
-            return self.floatRest(src, start, diags)
-        }
-        if isLetter(self.peek(src, 0)) {
-            diags.error("E0001", self.spanFrom(self.pos), "unexpected character after number")
-        }
-        return match value {
-            .Some(v) => self.tokenWith(.Int, start, .Int(v))
-            .None => {
-                diags.error("E0005", self.spanFrom(start), "integer literal is too large")
-                self.tokenWith(.Int, start, .Int(0))
-            }
-        }
-    }
-
-    // `1.5` and `2e10` are floats; `0..10` is a range and `x.0` a tuple field.
-    fn atFractionOrExponent(self, src: str) bool {
-        let c = self.peek(src, 0)
-        if c == b'.' {
-            return isDigit(self.peek(src, 1))
-        }
-        if c == b'e' || c == b'E' {
-            let next = self.peek(src, 1)
-            return isDigit(next) || (next == b'+' || next == b'-') && isDigit(self.peek(src, 2))
-        }
-        return false
-    }
-
-    fn floatRest(mut self, src: str, start: int, diags: mut Diagnostics) Token {
-        if self.peek(src, 0) == b'.' {
-            self.pos += 1
-            self.skipDigits(src)
-        }
-        let c = self.peek(src, 0)
-        if c == b'e' || c == b'E' {
-            self.pos += 1
-            if self.peek(src, 0) == b'+' || self.peek(src, 0) == b'-' {
-                self.pos += 1
-            }
-            self.skipDigits(src)
-        }
-        let text = src[start..self.pos].replace("_", "")
-        return match float.parse(text) {
-            .Ok(v) => self.tokenWith(.Float, start, .Float(v))
-            .Err(_) => {
-                diags.error("E0005", self.spanFrom(start), "invalid float literal")
-                self.tokenWith(.Float, start, .Float(0.0))
-            }
-        }
-    }
-
-    fn skipDigits(mut self, src: str) {
-        for self.pos < src.len() && (isDigit(src[self.pos]) || src[self.pos] == b'_') {
-            self.pos += 1
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Strings and bytes
-
-    // Lexes string text up to the closing quote or the next interpolation.
-    // `opening` is true right after the opening quote and false after the `}`
-    // that ends an interpolation; together with the stopping character it decides
-    // between Str, StrStart, StrMid and StrEnd.
-    fn stringPart(mut self, src: str, start: int, opening: bool, diags: mut Diagnostics) Token {
-        var text = str.new()
-        for {
-            if self.pos >= src.len() || src[self.pos] == b'\n' {
-                diags.error("E0002", self.spanFrom(start), "unterminated string literal")
-                return self.tokenWith(if opening { .Str } else { .StrEnd }, start, .Str(text))
-            }
-            let c = src[self.pos]
-            if c == b'"' {
-                self.pos += 1
-                return self.tokenWith(if opening { .Str } else { .StrEnd }, start, .Str(text))
-            }
-            if c == b'{' {
-                self.pos += 1
-                self.interpolations.push(self.brackets.len())
-                return self.tokenWith(if opening { .StrStart } else { .StrMid }, start, .Str(text))
-            }
-            if c == b'}' {
-                diags.error("E0006", self.spanFrom(self.pos), "unescaped `}` in string literal; write `\}`")
-                self.pos += 1
-                continue
-            }
-            if c == b'\\' {
-                self.escape(src, text, diags)
-                continue
-            }
-            // Copy a run of ordinary bytes at once. Runs stop only at ASCII
-            // bytes, so each run of the (valid UTF-8) source is valid UTF-8.
-            let run = self.pos
-            for self.pos < src.len() && !isStringSpecial(src[self.pos]) {
-                self.pos += 1
-            }
-            text.push(src[run..self.pos])
-        }
-    }
-
-    fn escape(mut self, src: str, out: mut str, diags: mut Diagnostics) {
-        let start = self.pos
-        self.pos += 1                                   // the backslash
-        let c = self.peek(src, 0)
-        self.pos += 1
-        match c {
-            b'n' => out.push("\n")
-            b't' => out.push("\t")
-            b'r' => out.push("\r")
-            b'0' => out.push("\0")
-            b'\\' => out.push("\\")
-            b'"' => out.push("\"")
-            b'{' => out.push("\{")
-            b'}' => out.push("\}")
-            b'x' => {
-                let value = self.hexDigits(src, 2)
-                if value < 0 || value > 0x7f {
-                    diags.error("E0004", self.spanFrom(start), "`\\x` escapes in strings must be between \\x00 and \\x7f")
-                } else {
-                    out.pushChar(value as u32)
-                }
-            }
-            b'u' => {
-                let value = self.unicodeEscape(src)
-                if value < 0 || value > 0x10ffff || value >= 0xd800 && value <= 0xdfff {
-                    diags.error("E0004", self.spanFrom(start), "invalid unicode escape")
-                } else {
-                    out.pushChar(value as u32)
-                }
-            }
-            _ => diags.error("E0004", self.spanFrom(start), "invalid escape sequence")
-        }
-    }
-
-    // Reads exactly `count` hex digits; returns -1 if they are missing.
-    fn hexDigits(mut self, src: str, count: int) int {
-        var value = 0
-        for _ in 0..count {
-            let d = digitValue(self.peek(src, 0))
-            if d >= 16 {
-                return -1
-            }
-            value = value * 16 + d
-            self.pos += 1
-        }
-        return value
-    }
-
-    // Reads `{H...}` after `\u`; returns -1 if malformed.
-    fn unicodeEscape(mut self, src: str) int {
-        if self.peek(src, 0) != b'{' {
-            return -1
-        }
-        self.pos += 1
-        var value = 0
-        var digits = 0
-        for digitValue(self.peek(src, 0)) < 16 {
-            if digits == 6 {
-                return -1
-            }
-            value = value * 16 + digitValue(self.peek(src, 0))
-            digits += 1
-            self.pos += 1
-        }
-        if digits == 0 || self.peek(src, 0) != b'}' {
-            return -1
-        }
-        self.pos += 1
-        return value
-    }
-
-    // `b'a'`, `b'\n'`, `b'\xff'`: any byte value, unlike `\x` in strings.
-    fn byteLiteral(mut self, src: str, diags: mut Diagnostics) Token {
-        let start = self.pos
-        self.pos += 2                                   // b'
-        var value = self.peek(src, 0) as int
-        self.pos += 1
-        if value == b'\\' as int {
-            let escape = self.peek(src, 0)
-            self.pos += 1
-            value = match escape {
-                b'n' => 10
-                b't' => 9
-                b'r' => 13
-                b'0' => 0
-                b'\\' => 92
-                b'\'' => 39
-                b'x' => self.hexDigits(src, 2)
-                _ => -1
-            }
-        }
-        if value < 0 || self.peek(src, 0) != b'\'' {
-            diags.error("E0004", self.spanFrom(start), "invalid byte literal")
-            return self.tokenWith(.Byte, start, .Byte(0))
-        }
-        self.pos += 1
-        return self.tokenWith(.Byte, start, .Byte(value as u8))
-    }
-
-    // -----------------------------------------------------------------------
-    // Punctuation
-
-    // `>` is always a single token. The parser combines adjacent `>` tokens into
-    // `>>`, `>=` and `>>=` where an expression needs them, so that
-    // `List<List<int>>` closes two type argument lists.
-    fn punct(mut self, src: str, diags: mut Diagnostics) Token {
-        let start = self.pos
-        let c = src[start]
-        self.pos += 1
-        let kind: TokenKind = match c {
-            b'(' => self.open(b'(', .LParen)
-            b'[' => self.open(b'[', .LBracket)
-            b'{' => self.open(b'{', .LBrace)
-            b')' => self.close(.RParen)
-            b']' => self.close(.RBracket)
-            b'}' => {
-                if self.closesInterpolation() {
-                    return self.stringPart(src, start, false, diags)
-                }
-                self.close(.RBrace)
-            }
-            b',' => .Comma
-            b':' => .Colon
-            b';' => .Semicolon
-            b'?' => self.pick(src, b'?', .QuestionQuestion, .Question)
-            b'@' => .At
-            b'>' => .Gt
-            b'.' => if self.eat(src, b'.') { self.pick(src, b'=', .DotDotEq, .DotDot) } else { .Dot }
-            b'=' => if self.eat(src, b'>') { .FatArrow } else { self.pick(src, b'=', .EqEq, .Eq) }
-            b'+' => self.pick(src, b'=', .PlusEq, .Plus)
-            b'-' => self.pick(src, b'=', .MinusEq, .Minus)
-            b'*' => self.pick(src, b'=', .StarEq, .Star)
-            b'/' => self.pick(src, b'=', .SlashEq, .Slash)
-            b'%' => self.pick(src, b'=', .PercentEq, .Percent)
-            b'^' => self.pick(src, b'=', .CaretEq, .Caret)
-            b'!' => self.pick(src, b'=', .Ne, .Bang)
-            b'&' => if self.eat(src, b'&') { .AndAnd } else { self.pick(src, b'=', .AmpEq, .Amp) }
-            b'|' => if self.eat(src, b'|') { .OrOr } else { self.pick(src, b'=', .PipeEq, .Pipe) }
-            b'<' => if self.eat(src, b'<') { self.pick(src, b'=', .ShlEq, .Shl) } else { self.pick(src, b'=', .Le, .Lt) }
-            _ => {
-                diags.error("E0001", self.spanFrom(start), "unexpected character")
-                .Invalid
-            }
-        }
-        return self.token(kind, start)
-    }
-
-    // Consumes `expected` if it is the next byte.
-    fn eat(mut self, src: str, expected: u8) bool {
-        if self.peek(src, 0) == expected {
-            self.pos += 1
-            return true
-        }
-        return false
-    }
-
-    fn pick(mut self, src: str, expected: u8, long: TokenKind, short: TokenKind) TokenKind {
-        if self.eat(src, expected) {
-            return long
-        }
-        return short
-    }
-
-    fn open(mut self, bracket: u8, kind: TokenKind) TokenKind {
-        self.brackets.push(bracket)
-        return kind
-    }
-
-    // Mismatched brackets are reported by the parser; the lexer only keeps its
-    // stack balanced.
-    fn close(mut self, kind: TokenKind) TokenKind {
-        self.brackets.pop()
-        return kind
-    }
-
-    fn closesInterpolation(mut self) bool {
-        if let .Some(depth) = self.interpolations.last() {
-            if depth == self.brackets.len() {
-                self.interpolations.pop()
-                return true
-            }
-        }
-        return false
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Entry point and character classes
+import syntax.cursor.Cursor
+import syntax.cursor.isDigit
+import syntax.cursor.isLetter
+import syntax.literals.scanByteLiteral
+import syntax.literals.scanNumber
+import syntax.literals.scanStringPart
+import syntax.token.Token
+import syntax.token.TokenKind
+import syntax.token.TokenValue
 
 pub fn tokenize(src: str, file: FileId, names: mut Interner, diags: mut Diagnostics) List<Token> {
     var lx = Lexer.new(file)
@@ -535,6 +28,236 @@ pub fn tokenize(src: str, file: FileId, names: mut Interner, diags: mut Diagnost
         if done {
             return tokens
         }
+    }
+}
+
+struct Lexer {
+    cur: Cursor
+    brackets: List<u8> = []          // open `(`, `[` and `{`, innermost last
+    interpolations: List<int> = []   // `brackets.len()` when each interpolation opened
+    keywords: Map<str, TokenKind>
+
+    fn new(file: FileId) Lexer {
+        return Lexer{cur: Cursor.new(file), keywords: keywordTable()}
+    }
+
+    fn next(mut self, src: str, names: mut Interner, diags: mut Diagnostics) Token {
+        for !self.cur.atEnd(src) {
+            if let .Some(trivia) = self.skipTrivia(src, diags) {
+                return trivia
+            }
+            if !self.atTrivia(src) {
+                return self.tokenAt(src, names, diags)
+            }
+        }
+        return self.cur.token(.Eof, self.cur.pos)
+    }
+
+    fn atTrivia(self, src: str) bool {
+        let c = self.cur.peek(src, 0)
+        let next = self.cur.peek(src, 1)
+        let space = c == b' ' || c == b'\t' || c == b'\r' || c == b'\n'
+        return space || c == b'/' && (next == b'/' || next == b'*')
+    }
+
+    // Skips one piece of whitespace or comment. Returns a token when the
+    // piece produces one: a newline that matters or a doc comment.
+    fn skipTrivia(mut self, src: str, diags: mut Diagnostics) Option<Token> {
+        let start = self.cur.pos
+        let c = self.cur.peek(src, 0)
+        let next = self.cur.peek(src, 1)
+        if c == b' ' || c == b'\t' || c == b'\r' {
+            self.cur.pos += 1
+        } else if c == b'\n' {
+            self.cur.pos += 1
+            return self.newlineToken(start)
+        } else if c == b'/' && next == b'/' {
+            return self.lineComment(src)
+        } else if c == b'/' && next == b'*' && self.blockComment(src, diags) {
+            return self.newlineToken(start)
+        }
+        return .None
+    }
+
+    // Newlines are tokens except directly inside `(...)` and `[...]` (spec 1.3).
+    fn newlineToken(self, start: int) Option<Token> {
+        let matters = match self.brackets.last() {
+            .Some(open) => open == b'{'
+            .None => true
+        }
+        if matters {
+            return .Some(self.cur.token(.Newline, start))
+        }
+        return .None
+    }
+
+    fn tokenAt(mut self, src: str, names: mut Interner, diags: mut Diagnostics) Token {
+        let start = self.cur.pos
+        let c = self.cur.peek(src, 0)
+        if c == b'b' && self.cur.peek(src, 1) == b'\'' {
+            return scanByteLiteral(self.cur, src, diags)
+        }
+        if isLetter(c) {
+            return self.word(src, names)
+        }
+        if isDigit(c) {
+            return scanNumber(self.cur, src, diags)
+        }
+        if c == b'"' {
+            self.cur.pos += 1
+            return self.stringPart(src, start, true, diags)
+        }
+        return self.punct(src, diags)
+    }
+
+    fn stringPart(mut self, src: str, start: int, opening: bool, diags: mut Diagnostics) Token {
+        let token = scanStringPart(self.cur, src, start, opening, diags)
+        if token.kind == .StrStart || token.kind == .StrMid {
+            self.interpolations.push(self.brackets.len())
+        }
+        return token
+    }
+
+    // -----------------------------------------------------------------------
+    // Comments
+
+    // Skips a `//` comment; `///` and `//!` become doc comment tokens.
+    fn lineComment(mut self, src: str) Option<Token> {
+        let start = self.cur.pos
+        let kind: Option<TokenKind> = match (self.cur.peek(src, 2), self.cur.peek(src, 3)) {
+            (b'/', b'/') => .None             // `////...` is an ordinary comment
+            (b'/', _) => .Some(.DocComment)
+            (b'!', _) => .Some(.ModuleDoc)
+            _ => .None
+        }
+        for !self.cur.atEnd(src) && src[self.cur.pos] != b'\n' {
+            self.cur.pos += 1
+        }
+        let .Some(k) = kind else { return .None }
+        let text = src[start + 3..self.cur.pos].trim().toOwned()
+        return .Some(self.cur.tokenWith(k, start, .Str(text)))
+    }
+
+    // Skips a `/* ... */` comment. Returns true if it contained a newline.
+    fn blockComment(mut self, src: str, diags: mut Diagnostics) bool {
+        let start = self.cur.pos
+        self.cur.pos += 2
+        var newline = false
+        for {
+            if self.cur.atEnd(src) {
+                diags.error("E0003", self.cur.spanFrom(start), "unterminated block comment")
+                return newline
+            }
+            if src[self.cur.pos] == b'*' && self.cur.peek(src, 1) == b'/' {
+                self.cur.pos += 2
+                return newline
+            }
+            if src[self.cur.pos] == b'\n' {
+                newline = true
+            }
+            self.cur.pos += 1
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Words and punctuation
+
+    fn word(mut self, src: str, names: mut Interner) Token {
+        let start = self.cur.pos
+        for !self.cur.atEnd(src) && (isLetter(src[self.cur.pos]) || isDigit(src[self.cur.pos])) {
+            self.cur.pos += 1
+        }
+        let text = src[start..self.cur.pos]
+        if let .Some(kind) = self.keywords.get(text) {
+            return self.cur.token(kind, start)
+        }
+        return self.cur.tokenWith(.Ident, start, .Name(names.intern(text)))
+    }
+
+    fn punct(mut self, src: str, diags: mut Diagnostics) Token {
+        let start = self.cur.pos
+        let c = src[start]
+        self.cur.pos += 1
+        if c == b'}' && self.closesInterpolation() {
+            return self.stringPart(src, start, false, diags)
+        }
+        return self.cur.token(self.punctKind(src, c, diags), start)
+    }
+
+    // `>` is always a single token: the parser joins adjacent ones (spec 1.6).
+    // check-sizes: table
+    fn punctKind(mut self, src: str, c: u8, diags: mut Diagnostics) TokenKind {
+        return match c {
+            b'(' => self.open(b'(', .LParen)
+            b'[' => self.open(b'[', .LBracket)
+            b'{' => self.open(b'{', .LBrace)
+            b')' => self.close(.RParen)
+            b']' => self.close(.RBracket)
+            b'}' => self.close(.RBrace)
+            b',' => .Comma
+            b':' => .Colon
+            b';' => .Semicolon
+            b'@' => .At
+            b'>' => .Gt
+            b'?' => self.cur.pick(src, b'?', .QuestionQuestion, .Question)
+            b'.' => if self.cur.eat(src, b'.') {
+                self.cur.pick(src, b'=', .DotDotEq, .DotDot)
+            } else {
+                .Dot
+            }
+            b'=' => if self.cur.eat(src, b'>') {
+                .FatArrow
+            } else {
+                self.cur.pick(src, b'=', .EqEq, .Eq)
+            }
+            b'+' => self.cur.pick(src, b'=', .PlusEq, .Plus)
+            b'-' => self.cur.pick(src, b'=', .MinusEq, .Minus)
+            b'*' => self.cur.pick(src, b'=', .StarEq, .Star)
+            b'/' => self.cur.pick(src, b'=', .SlashEq, .Slash)
+            b'%' => self.cur.pick(src, b'=', .PercentEq, .Percent)
+            b'^' => self.cur.pick(src, b'=', .CaretEq, .Caret)
+            b'!' => self.cur.pick(src, b'=', .Ne, .Bang)
+            b'&' => if self.cur.eat(src, b'&') {
+                .AndAnd
+            } else {
+                self.cur.pick(src, b'=', .AmpEq, .Amp)
+            }
+            b'|' => if self.cur.eat(src, b'|') {
+                .OrOr
+            } else {
+                self.cur.pick(src, b'=', .PipeEq, .Pipe)
+            }
+            b'<' => if self.cur.eat(src, b'<') {
+                self.cur.pick(src, b'=', .ShlEq, .Shl)
+            } else {
+                self.cur.pick(src, b'=', .Le, .Lt)
+            }
+            _ => {
+                diags.error("E0001", self.cur.spanAt(self.cur.pos - 1), "unexpected character")
+                .Invalid
+            }
+        }
+    }
+
+    fn open(mut self, bracket: u8, kind: TokenKind) TokenKind {
+        self.brackets.push(bracket)
+        return kind
+    }
+
+    // Mismatched brackets are reported by the parser; the lexer only keeps
+    // its stack balanced.
+    fn close(mut self, kind: TokenKind) TokenKind {
+        self.brackets.pop()
+        return kind
+    }
+
+    fn closesInterpolation(mut self) bool {
+        let .Some(depth) = self.interpolations.last() else { return false }
+        if depth != self.brackets.len() {
+            return false
+        }
+        self.interpolations.pop()
+        return true
     }
 }
 
@@ -570,41 +293,13 @@ fn keywordTable() Map<str, TokenKind> {
     return k
 }
 
-fn isLetter(c: u8) bool {
-    return c >= b'a' && c <= b'z' || c >= b'A' && c <= b'Z' || c == b'_'
-}
-
-fn isDigit(c: u8) bool {
-    return c >= b'0' && c <= b'9'
-}
-
-// Value of a digit in any base up to 16, or 99 for any other byte.
-fn digitValue(c: u8) int {
-    return match c {
-        b'0'..=b'9' => (c - b'0') as int
-        b'a'..=b'f' => (c - b'a') as int + 10
-        b'A'..=b'F' => (c - b'A') as int + 10
-        _ => 99
-    }
-}
-
-fn accumulate(value: Option<u64>, base: int, digit: int) Option<u64> {
-    let v = value?
-    let shifted = v.checkedMul(base as u64)?
-    return shifted.checkedAdd(digit as u64)
-}
-
-fn isStringSpecial(c: u8) bool {
-    return c == b'"' || c == b'\\' || c == b'{' || c == b'}' || c == b'\n'
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 
 fn expectKinds(src: str, expected: [TokenKind]) {
     var names = Interner.new()
     var diags = Diagnostics.new()
-    let tokens = tokenize(src, FileId{index: 0}, names, diags)
+    let tokens = tokenize(src, FileId(0), names, diags)
     assert(!diags.hasErrors())
     assert(tokens.len() == expected.len())
     for i, token in tokens {

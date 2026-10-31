@@ -1,0 +1,2 @@
+fn main() {}
+/* never closed   // error[E0003]: unterminated block comment

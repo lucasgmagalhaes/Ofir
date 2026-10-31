@@ -23,6 +23,7 @@ changed by writing a new record that supersedes the old one.
 | [0015](0015-methods-inside-types.md) | Methods are declared inside their type | Accepted |
 | [0016](0016-call-and-binding-ergonomics.md) | Defaults, named arguments, `let ... else` and `??`; no overloading | Accepted |
 | [0017](0017-compile-time-reflection.md) | Compile-time reflection instead of macros | Accepted |
+| [0018](0018-performance-driven-development.md) | Performance-driven development | Accepted |
 
 ## Template
 

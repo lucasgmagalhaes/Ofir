@@ -1,0 +1,10 @@
+f(a,
+  b)
+[1,
+ 2]
+g(fn() {
+    x
+})
+a /* one
+two */ b
+c /* same line */ d
