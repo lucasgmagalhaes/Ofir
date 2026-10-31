@@ -4,7 +4,17 @@ Astra is a compiled, statically typed systems programming language with a
 lightweight, Go-like syntax and Rust-like memory safety — without a garbage
 collector.
 
-> Status: design phase. Implementation follows the [roadmap](docs/roadmap.md).
+> Status: milestone M1 reached: the stage 0 compiler (C) builds and runs
+> programs made of functions, integers, floats, booleans, strings,
+> `if`, `for` and checked arithmetic. Next: the core language (roadmap
+> phase 2).
+
+```sh
+make                                   # the stage 0 compiler and the runtime
+build/stage0/astra run examples/hello.at
+```
+
+Requirements: a C11 compiler, `make`, Python 3 and clang 17 or later.
 
 ## Documentation
 

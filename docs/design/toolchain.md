@@ -88,6 +88,11 @@ The compiler finds:
   executable, `../lib/astra/std`);
 - the **runtime** in `$ASTRA_HOME/lib/libastra_rt.a`;
 - **clang** through `$ASTRA_CLANG`, otherwise `clang` on the `PATH`.
+- In stage 0, which has no projects yet: the runtime through
+  `$ASTRA_RUNTIME`, otherwise `libastra_rt.a` in the parent directory of the
+  compiler (`build/libastra_rt.a` for `build/stage0/astra`). `astra build
+  file.at` writes `./file` (or `-o`); `astra run file.at` builds into a
+  temporary directory and runs the program.
   Supported: LLVM 17 to the latest release, each tested in CI (ADR 0001).
   `astra version` reports the clang in use.
 

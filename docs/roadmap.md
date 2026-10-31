@@ -79,13 +79,13 @@ Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 | 1.11 | Types: interned type table with primitive types, `str`, `()` | S | **done**: unit tests (`bootstrap/tests/test_types.c`) |
 | 1.12 | Resolver: single module, functions and locals | S | **done**: `E0200`/`E0201` reported (`tests/compile_fail/names`) |
 | 1.13 | Type checker: functions, `let`/`var`, integer literals, calls, `println(str)`, literals passed to `str` parameters, interpolation of `str` and `int` | M | **done**: `tests/compile_fail/types/*` pass, also in stage 1 mode |
-| 1.14 | AIR definitions, printer (`--emit=air`) and validator | M | AIR dumps for hello world |
-| 1.15 | Lowering for the skeleton subset | S | AIR validator passes |
-| 1.16 | Codegen: functions, locals, integer arithmetic, calls, string constants; no `noalias` | M | generated `.ll` accepted by clang 17 and the latest clang |
-| 1.17 | Runtime: entry point, stdout buffer, `astra_write`, panic functions, allocator | S | runtime builds with `-Werror` |
+| 1.14 | AIR definitions, printer (`--emit=air`) and validator | M | **done**: AIR dumps for hello world |
+| 1.15 | Lowering for the skeleton subset | S | **done**: AIR validator passes |
+| 1.16 | Codegen: functions, locals, integer arithmetic, calls, string constants; no `noalias` | M | **done**: generated `.ll` accepted by clang (CI: 17 and the latest) |
+| 1.17 | Runtime: entry point, stdout buffer, `astra_write`, panic functions, allocator | S | **done**: runtime builds with `-Werror` |
 | 1.17a | **done**: Benchmark harness: `bench/run_bench.py`, `--time-passes`, `--stop-after`, CI regression gate | S | `make bench` and `make bench-compare` work |
-| 1.17b | Benchmarks for each new phase (`parse-100k`, `check-100k`, `build-100k`) added with the phase | S | parse and check done; `build-100k` comes with codegen |
-| 1.18 | Driver: `astra build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **M1: hello world runs**; binary size measured |
+| 1.17b | Benchmarks for each new phase (`parse-100k`, `check-100k`, `build-100k`) added with the phase | S | **done**: `parse-*`, `check-*` and `llvm-*` (IR generation without clang) |
+| 1.18 | Driver: `astra build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **done — M1: hello world runs**; binary size: 17 KiB (14.6 KiB stripped) |
 
 ## Phase 2 — Stage 0 core language
 
@@ -231,7 +231,8 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Phase 1 in progress: the front end is done (tasks 1.1 to 1.13); next are
-   AIR, lowering, codegen, the runtime and the driver (1.14 to 1.18) for M1.
+1. Phase 1 is done (milestone M1). Next is phase 2, the stage 0 core
+   language, starting with the integer types and conversions (2.1) and
+   structs (2.10).
 
 See also the [risk register](risks.md).
