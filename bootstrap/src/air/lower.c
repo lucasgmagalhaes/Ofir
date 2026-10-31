@@ -66,7 +66,23 @@ LocalId to_local(Lowerer *l, Operand operand) {
     return emit_temp(l, operand.type, (Rvalue){.kind = RV_USE, .a = operand});
 }
 
+// `mut` parameters are passed by reference (roadmap 2.12); until then they
+// are rejected rather than silently passed by value.
+static bool parameters_supported(Lowerer *l, FnDecl *fn) {
+    for (uint32_t i = 0; i < fn->params.len; i++) {
+        if (fn->params.items[i].mode == MODE_MUT) {
+            diag_error(&l->sema->session->diags, "E0901", fn->params.items[i].span,
+                       "`mut` parameters are not supported yet");
+            return false;
+        }
+    }
+    return true;
+}
+
 static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
+    if (!parameters_supported(l, fn)) {
+        return;
+    }
     Def *def = sema_def(l->sema, fn->def);
     const Ty *sig = type_get(l->types, def->type);
     AirBody body = {.def = fn->def, .name = fn->name};

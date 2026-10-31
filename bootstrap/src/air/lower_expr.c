@@ -33,10 +33,17 @@ static Operand name(Lowerer *l, Expr *e) {
 
 static Operand call(Lowerer *l, Expr *e) {
     Expr *callee = e->as.call.callee;
+    if (callee->kind == EXPR_FIELD) {
+        return lower_method_call(l, e);
+    }
     Def *def = sema_def(l->sema, (DefId){callee->as.ident.res.index});
     ArgList args = e->as.call.args;
     if (def->kind == DEF_BUILTIN) {
-        lower_print(l, args.items[0].value, def->builtin == BUILTIN_PRINTLN);
+        if (def->builtin == BUILTIN_PANIC || def->builtin == BUILTIN_ASSERT) {
+            lower_panic_assert(l, e, def->builtin);
+        } else {
+            lower_print(l, args.items[0].value, def->builtin == BUILTIN_PRINTLN);
+        }
         return op_unit();
     }
     AirStmt s = {.kind = AIR_CALL};
@@ -131,6 +138,8 @@ Operand lower_expr(Lowerer *l, Expr *e) {
     case EXPR_BINARY: return binary(l, e);
     case EXPR_CAST: return lower_cast(l, lower_expr(l, e->as.cast.value), e->type, e->span);
     case EXPR_CALL: return call(l, e);
+    case EXPR_FIELD: return lower_field(l, e);
+    case EXPR_INDEX: return lower_index(l, e);
     case EXPR_IF: return lower_if(l, e);
     case EXPR_BLOCK: case EXPR_UNSAFE:
         return lower_block(l, e->as.block, type_is_value(e->type));

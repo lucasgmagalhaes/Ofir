@@ -1,0 +1,68 @@
+// LLVM IR for select, str length and bytes, and the float functions.
+
+#include "codegen/llvm_internal.h"
+
+#include <string.h>
+
+static const char *const FLOAT_FNS[FF_COUNT] = {
+    [FF_SQRT] = "sqrt", [FF_FABS] = "fabs", [FF_FLOOR] = "floor",
+    [FF_CEIL] = "ceil", [FF_MINNUM] = "minnum", [FF_MAXNUM] = "maxnum",
+};
+
+static void float_fn(Gen *g, const Rvalue *rv, Value *result) {
+    Value a = gen_operand(g, rv->a);
+    bool is_f64 = strcmp(a.type, "double") == 0;
+    g->float_fn_used[rv->fn][is_f64] = true;
+    next_temp(g, result->text);
+    out_fmt(&g->out, "  %s = call %s @llvm.%s.%s(%s %s", result->text, a.type, FLOAT_FNS[rv->fn],
+            is_f64 ? "f64" : "f32", a.type, a.text);
+    if (rv->fn == FF_MINNUM || rv->fn == FF_MAXNUM) {
+        Value b = gen_operand(g, rv->b);
+        out_fmt(&g->out, ", %s %s", b.type, b.text);
+    }
+    out_str(&g->out, ")\n");
+}
+
+void gen_float_decls(Gen *g) {
+    for (int fn = 0; fn < FF_COUNT; fn++) {
+        for (int is_f64 = 0; is_f64 < 2; is_f64++) {
+            if (!g->float_fn_used[fn][is_f64]) {
+                continue;
+            }
+            const char *type = is_f64 ? "double" : "float";
+            bool binary = fn == FF_MINNUM || fn == FF_MAXNUM;
+            out_fmt(&g->out, "declare %s @llvm.%s.%s(%s%s%s)\n", type, FLOAT_FNS[fn],
+                    is_f64 ? "f64" : "f32", type, binary ? ", " : "", binary ? type : "");
+        }
+    }
+}
+
+void gen_misc(Gen *g, const Rvalue *rv, Value *result) {
+    switch (rv->kind) {
+    case RV_SELECT: {
+        Value c = gen_operand(g, rv->cond), a = gen_operand(g, rv->a), b = gen_operand(g, rv->b);
+        next_temp(g, result->text);
+        out_fmt(&g->out, "  %s = select i1 %s, %s %s, %s %s\n", result->text, c.text, a.type,
+                a.text, b.type, b.text);
+        break;
+    }
+    case RV_STR_LEN: {
+        Value s = gen_operand(g, rv->a);
+        next_temp(g, result->text);
+        out_fmt(&g->out, "  %s = extractvalue %%astra.str %s, 1\n", result->text, s.text);
+        break;
+    }
+    case RV_STR_BYTE: {
+        Value s = gen_operand(g, rv->a), i = gen_operand(g, rv->b);
+        char ptr[16], at[16];
+        next_temp(g, ptr);
+        out_fmt(&g->out, "  %s = extractvalue %%astra.str %s, 0\n", ptr, s.text);
+        next_temp(g, at);
+        out_fmt(&g->out, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", at, ptr, i.text);
+        next_temp(g, result->text);
+        out_fmt(&g->out, "  %s = load i8, ptr %s\n", result->text, at);
+        break;
+    }
+    default: float_fn(g, rv, result); break;
+    }
+}

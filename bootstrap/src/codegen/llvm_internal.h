@@ -18,6 +18,7 @@ struct Gen {
     Out globals;             // string literals and locations, written at the end
     uint32_t str_count, loc_count;
     uint64_t overflow_used[2][3][4];   // [signed][add, sub, mul][i8, i16, i32, i64]
+    bool float_fn_used[FF_COUNT][2];   // [function][f32, f64]
     const AirBody *body;     // the function being generated
     uint32_t temp;           // next %t number in this function
     Out path;                // the escaped source path
@@ -47,5 +48,9 @@ void gen_body(Gen *g, const AirBody *body);
 Value gen_operand(Gen *g, Operand o);
 void gen_rvalue(Gen *g, const Rvalue *rv, TypeId dest_type, Value *result);
 void gen_cast_fails(Gen *g, const Rvalue *rv, Value *result);
+void gen_saturate(Gen *g, const Rvalue *rv, Value *result);
+void gen_cast_value(Gen *g, TypeId from, TypeId to, Value a, Value *result);
+void gen_misc(Gen *g, const Rvalue *rv, Value *result);   // select, str, float functions
+void gen_float_decls(Gen *g);
 
 #endif

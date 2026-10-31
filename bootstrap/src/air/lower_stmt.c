@@ -20,6 +20,13 @@ static void lower_assign(Lowerer *l, Stmt *s) {
     Expr *target = s->as.assign.target;
     LocalId dest = air_local_of((LocalId){target->as.ident.res.index});
     Operand value = lower_expr(l, s->as.assign.value);
+    if (s->as.assign.op == OP_ADD && target->type.id == TID_STR) {   // s += t appends in place
+        Operand place = {.kind = OPERAND_ADDR, .type = target->type, .as.local = dest};
+        Operand part = {.kind = OPERAND_ADDR, .type = value.type, .as.local = to_local(l, value)};
+        Operand args[] = {place, part};
+        emit_runtime(l, RT_STR_PUSH_STR, args, 2, NULL);
+        return;
+    }
     if (s->as.assign.op != OP_ASSIGN) {   // x op= y is x = x op y
         Operand current = op_copy(dest, target->type);
         Arith x = {.op = s->as.assign.op, .type = target->type, .a = current, .b = value,

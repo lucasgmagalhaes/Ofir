@@ -158,17 +158,20 @@ static const char *cast_op(const Ty *from, const Ty *to) {
     return to_bits < from_bits ? "trunc" : is_signed(from) ? "sext" : "zext";
 }
 
-static void cast(Gen *g, const Rvalue *rv, Value *result) {
-    Value a = gen_operand(g, rv->a);
-    const char *op = cast_op(ty_of(g, rv->a.type), ty_of(g, rv->to));
+void gen_cast_value(Gen *g, TypeId from, TypeId to, Value a, Value *result) {
+    const char *op = cast_op(ty_of(g, from), ty_of(g, to));
     if (!op) {
         *result = a;
-        result->type = llvm_type(g, rv->to);
+        result->type = llvm_type(g, to);
         return;
     }
     next_temp(g, result->text);
     out_fmt(&g->out, "  %s = %s %s %s to %s\n", result->text, op, a.type, a.text,
-            llvm_type(g, rv->to));
+            llvm_type(g, to));
+}
+
+static void cast(Gen *g, const Rvalue *rv, Value *result) {
+    gen_cast_value(g, rv->a.type, rv->to, gen_operand(g, rv->a), result);
 }
 
 void gen_rvalue(Gen *g, const Rvalue *rv, TypeId dest_type, Value *result) {
@@ -184,5 +187,9 @@ void gen_rvalue(Gen *g, const Rvalue *rv, TypeId dest_type, Value *result) {
     case RV_UNARY: unary(g, rv, result); break;
     case RV_CAST: cast(g, rv, result); break;
     case RV_CAST_FAILS: gen_cast_fails(g, rv, result); break;
+    case RV_SATURATE: gen_saturate(g, rv, result); break;
+    case RV_SELECT: case RV_STR_LEN: case RV_STR_BYTE: case RV_FLOAT_FN:
+        gen_misc(g, rv, result);
+        break;
     }
 }

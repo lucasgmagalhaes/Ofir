@@ -17,7 +17,9 @@ static void runtime_call(Gen *g, const AirStmt *s) {
         args[i] = gen_operand(g, s->as.call.args[i]);
     }
     RuntimeFn fn = s->as.call.rt;
-    const char *ret = fn == RT_STR_EQ ? "i1" : fn == RT_STR_CMP ? "i32" : "void";
+    bool returns_bool = fn == RT_STR_EQ || fn == RT_STR_STARTS_WITH || fn == RT_STR_ENDS_WITH ||
+                        fn == RT_STR_CONTAINS;
+    const char *ret = returns_bool ? "i1" : fn == RT_STR_CMP ? "i32" : "void";
     char result[16] = "";
     if (s->has_dest) {
         next_temp(g, result);
@@ -89,6 +91,7 @@ static void statement(Gen *g, const AirStmt *s) {
 static const char *const PANIC_FNS[] = {
     [PANIC_OVERFLOW] = "astra_panic_overflow", [PANIC_DIV_ZERO] = "astra_panic_div_zero",
     [PANIC_SHIFT] = "astra_panic_shift", [PANIC_CAST] = "astra_panic_cast",
+    [PANIC_BOUNDS] = "astra_panic_bounds", [PANIC_ASSERT] = "astra_panic_assert",
 };
 
 // The failing branch calls the panic function with the source location.
@@ -96,8 +99,15 @@ static void assertion(Gen *g, const Terminator *t, size_t index) {
     Value c = gen_operand(g, t->cond);
     uint32_t loc = location_global(g, t->span);
     out_fmt(&g->out, "  br i1 %s, label %%panic%zu, label %%bb%u\n", c.text, index, t->target.id);
-    out_fmt(&g->out, "panic%zu:\n  call void @%s(ptr @.loc.%u)\n  unreachable\n", index,
-            PANIC_FNS[t->panic], loc);
+    out_fmt(&g->out, "panic%zu:\n", index);
+    if (t->panic == PANIC_BOUNDS) {   // the message shows the index and the length
+        Value i = gen_operand(g, t->index), len = gen_operand(g, t->len);
+        out_fmt(&g->out, "  call void @astra_panic_bounds(i64 %s, i64 %s, ptr @.loc.%u)\n",
+                i.text, len.text, loc);
+    } else {
+        out_fmt(&g->out, "  call void @%s(ptr @.loc.%u)\n", PANIC_FNS[t->panic], loc);
+    }
+    out_str(&g->out, "  unreachable\n");
 }
 
 static void return_value(Gen *g) {
@@ -120,6 +130,13 @@ static void terminator(Gen *g, const Terminator *t, size_t index) {
         break;
     }
     case TERM_ASSERT: assertion(g, t, index); break;
+    case TERM_PANIC: {
+        Value msg = gen_operand(g, t->cond);
+        uint32_t loc = location_global(g, t->span);
+        out_fmt(&g->out, "  call void @astra_panic_str(ptr %s, ptr @.loc.%u)\n  unreachable\n",
+                msg.text, loc);
+        break;
+    }
     case TERM_RETURN: return_value(g); break;
     case TERM_UNREACHABLE: case TERM_NONE: out_str(&g->out, "  unreachable\n"); break;
     }
