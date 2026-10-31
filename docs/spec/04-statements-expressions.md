@@ -92,9 +92,9 @@ match code {
   or element of one) borrows the matched parts instead; Copy parts are
   copied. See chapter 5.5.
 
-## 4.6 `if let`
+## 4.6 `if let` and `let ... else`
 
-A shorthand for a `match` with one interesting arm:
+`if let` is a shorthand for a `match` with one interesting arm:
 
 ```astra
 if let .Some(user) = findUser(id) {
@@ -103,6 +103,24 @@ if let .Some(user) = findUser(id) {
     println("not found")
 }
 ```
+
+`let ... else` binds a refutable pattern for the **rest of the block**, or
+runs the `else` block, which must leave the block (`return`, `break`,
+`continue` or `panic`):
+
+```astra
+fn greet(id: UserId) Result<str, str> {
+    let .Some(user) = findUser(id) else {
+        return Err("user {id.0} not found")
+    }
+    let .Admin(level) = user.role else { return Ok("hello, {user.name}") }
+    return Ok("welcome back, admin level {level}")
+}
+```
+
+It keeps the main path of a function unindented while every failure case is
+still handled explicitly. The `else` block has type `!` (chapter 2.15); a
+block that can fall through is an error (`E0307`).
 
 ## 4.7 `return`, `break`, `continue`
 
@@ -125,9 +143,24 @@ From highest to lowest precedence:
 | 4 | `==`, `!=`, `<`, `<=`, `>`, `>=` | none |
 | 3 | `&&` | left |
 | 2 | `\|\|` | left |
+| 1.5 | `??` | right |
 | 1 | `..`, `..=` | none |
 
 Comparison operators do not chain: `a < b < c` is a compile error.
+
+**`??` (default for `Option`).** `a ?? b` is the value inside `a` if it is
+`Some`, otherwise `b`. `b` is evaluated only when needed and must have the
+type of the content, or be another `Option` of it (then the result is an
+`Option`). It is right-associative, so defaults chain:
+
+```astra
+let name = user.nickname ?? user.firstName ?? "anonymous"
+let port = env("PORT") ?? "8080"
+```
+
+For a `Result`, use `r.unwrapOr(default)` or `?`. There is no `?.`
+operator; inside functions returning `Option`, `?` already short-circuits:
+`let city = user.address?.city`.
 
 Bitwise operators sit at the same level as the matching arithmetic
 operators, as in Go, so `a & mask == 0` means `(a & mask) == 0`.
