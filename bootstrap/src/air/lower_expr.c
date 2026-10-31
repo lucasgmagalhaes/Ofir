@@ -49,6 +49,9 @@ static Operand call(Lowerer *l, Expr *e) {
     }
     Def *def = sema_def(l->sema, (DefId){callee->as.ident.res.index});
     ArgList args = e->as.call.args;
+    if (def->kind == DEF_STRUCT) {
+        return lower_constructor(l, e);
+    }
     if (def->kind == DEF_BUILTIN) {
         if (def->builtin == BUILTIN_PANIC || def->builtin == BUILTIN_ASSERT) {
             lower_panic_assert(l, e, def->builtin);
@@ -63,6 +66,9 @@ static Operand call(Lowerer *l, Expr *e) {
     s.as.call.args = ARENA_ARRAY(&l->sema->session->arena, Operand, args.len + 1);
     for (uint32_t i = 0; i < args.len; i++) {
         s.as.call.args[i] = lower_expr(l, args.items[i].value);
+        if (i + 1 < args.len) {
+            s.as.call.args[i] = settle(l, s.as.call.args[i], args.items[i + 1].value);
+        }
     }
     Operand result = op_unit();
     if (type_is_value(e->type)) {
@@ -127,7 +133,7 @@ static Operand binary(Lowerer *l, Expr *e) {
     if (op == OP_LOGICAL_AND || op == OP_LOGICAL_OR) {
         return logical(l, e);
     }
-    Operand a = lower_expr(l, e->as.binary.lhs);
+    Operand a = settle(l, lower_expr(l, e->as.binary.lhs), e->as.binary.rhs);
     Operand b = lower_expr(l, e->as.binary.rhs);
     return lower_binary_op(l, (Arith){.op = op, .type = e->as.binary.lhs->type, .a = a, .b = b,
                                       .span = e->span});
@@ -149,7 +155,10 @@ Operand lower_expr(Lowerer *l, Expr *e) {
     case EXPR_BINARY: return binary(l, e);
     case EXPR_CAST: return lower_cast(l, lower_expr(l, e->as.cast.value), e->type, e->span);
     case EXPR_CALL: return call(l, e);
-    case EXPR_FIELD: return lower_field(l, e);
+    case EXPR_FIELD:
+        return e->as.field.res.kind == RES_FIELD ? lower_field_read(l, e) : lower_field(l, e);
+    case EXPR_TUPLE_FIELD: return lower_field_read(l, e);
+    case EXPR_STRUCT: return lower_struct_literal(l, e);
     case EXPR_INDEX: return lower_index(l, e);
     case EXPR_IF: return lower_if(l, e);
     case EXPR_BLOCK: case EXPR_UNSAFE:

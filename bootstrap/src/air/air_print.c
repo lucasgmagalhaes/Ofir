@@ -56,8 +56,12 @@ static const char *const FLOAT_FN_NAMES[] = {
 // check-sizes: table
 static void operand(AirPrinter *p, Operand o) {
     switch (o.kind) {
-    case OPERAND_COPY: fprintf(p->out, "_%u", o.as.local.id); break;
-    case OPERAND_ADDR: fprintf(p->out, "&_%u", o.as.local.id); break;
+    case OPERAND_COPY: case OPERAND_ADDR:
+        fprintf(p->out, "%s_%u", o.kind == OPERAND_ADDR ? "&" : "", o.as.local.id);
+        for (uint32_t i = 0; i < o.path.len; i++) {
+            fprintf(p->out, ".%u", o.path.fields[i]);
+        }
+        break;
     case OPERAND_INT: fprintf(p->out, "%" PRIu64 "_%s", o.as.int_value, type_str(p, o.type)); break;
     case OPERAND_FLOAT: fprintf(p->out, "%g_%s", o.as.float_value, type_str(p, o.type)); break;
     case OPERAND_BOOL: fprintf(p->out, "%s", o.as.bool_value ? "true" : "false"); break;
@@ -86,6 +90,14 @@ static void rvalue(AirPrinter *p, const Rvalue *rv) {
         operand(p, rv->b);
         return;
     case RV_STR_LEN: operands(p, "str_len", rv->a, NULL); return;
+    case RV_AGGREGATE:
+        fputs("{", p->out);
+        for (uint32_t i = 0; i < rv->count; i++) {
+            fputs(i ? ", " : "", p->out);
+            operand(p, rv->items[i]);
+        }
+        fputs("}", p->out);
+        return;
     case RV_STR_BYTE: operands(p, "str_byte", rv->a, &rv->b); return;
     case RV_FLOAT_FN:
         operands(p, FLOAT_FN_NAMES[rv->fn], rv->a,
@@ -117,7 +129,11 @@ static void rvalue(AirPrinter *p, const Rvalue *rv) {
 static void statement(AirPrinter *p, const AirStmt *s) {
     fputs("    ", p->out);
     if (s->has_dest) {
-        fprintf(p->out, "_%u = ", s->dest.id);
+        fprintf(p->out, "_%u", s->dest.id);
+        for (uint32_t i = 0; i < s->dest_path.len; i++) {
+            fprintf(p->out, ".%u", s->dest_path.fields[i]);
+        }
+        fputs(" = ", p->out);
     }
     if (s->kind == AIR_ASSIGN) {
         rvalue(p, &s->as.rvalue);

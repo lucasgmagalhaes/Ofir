@@ -37,8 +37,26 @@ void gen_float_decls(Gen *g) {
     }
 }
 
+// A struct value: insertvalue of each field into poison.
+static void aggregate(Gen *g, const Rvalue *rv, Value *result) {
+    char current[16] = "poison";
+    for (uint32_t i = 0; i < rv->count; i++) {
+        Value field = gen_operand(g, rv->items[i]);
+        if (strcmp(field.type, "void") == 0) {
+            continue;   // a field of type (): nothing to store
+        }
+        char next[16];
+        next_temp(g, next);
+        out_fmt(&g->out, "  %s = insertvalue %s %s, %s %s, %u\n", next, result->type, current,
+                field.type, field.text, i);
+        memcpy(current, next, sizeof next);
+    }
+    memcpy(result->text, current, sizeof current);
+}
+
 void gen_misc(Gen *g, const Rvalue *rv, Value *result) {
     switch (rv->kind) {
+    case RV_AGGREGATE: aggregate(g, rv, result); break;
     case RV_SELECT: {
         Value c = gen_operand(g, rv->cond), a = gen_operand(g, rv->a), b = gen_operand(g, rv->b);
         next_temp(g, result->text);
