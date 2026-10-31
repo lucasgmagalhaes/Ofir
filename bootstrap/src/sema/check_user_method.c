@@ -18,6 +18,13 @@ static FnDecl *find_method(Checker *c, DefId owner, Symbol name) {
     return NULL;
 }
 
+void check_visible(Checker *c, uint32_t module, bool is_pub, Symbol name, Span span) {
+    if (module != c->sema->current && !is_pub) {
+        check_error(c, "E0202", span, "`" SV_FMT "` is private to module `" SV_FMT "`",
+                    SV_ARG(name_of(c, name)), SV_ARG(c->sema->program.items[module].name));
+    }
+}
+
 // The struct or enum named by `e`, as in `Point.new()`.
 bool type_name_of(Checker *c, const Expr *e, DefId *out) {
     if (e->kind != EXPR_IDENT || e->as.ident.res.kind != RES_DEF) {
@@ -74,6 +81,7 @@ TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type) {
     if (fn->has_self && fn->self_mode == MODE_MUT) {
         require_mutable(c, field->as.field.base);
     }
+    check_visible(c, sema_def(c->sema, owner)->module, fn->is_pub, name, field->span);
     field->as.field.res = (Res){RES_DEF, fn->def.id};
     TypeId ret = check_args(c, call, type_get(c->types, fn_signature(c, fn)));
     check_mut_args(c, fn, call);

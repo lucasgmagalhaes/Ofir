@@ -70,7 +70,8 @@ static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
     Def *def = sema_def(l->sema, fn->def);
     const Ty *sig = type_get(l->types, def->type);
     AirBody body = {.def = fn->def, .name = fn->name};
-    body.is_main = sv_eq(symbol_name(&l->sema->session->names, fn->name), SV("main"));
+    body.is_main = l->sema->current == 0 && def->item && def->item->kind == ITEM_FN &&
+                   sv_eq(symbol_name(&l->sema->session->names, fn->name), SV("main"));
     body.param_count = fn->params.len + (fn->has_self ? 1 : 0);
     l->body = &body;
     air_new_local(&body, sig->inner, (Symbol){0}, fn->span);   // the return value
@@ -96,35 +97,49 @@ static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
     air_body_free(&body);
 }
 
-void lower_module(Sema *sema, BodySink sink, void *context) {
-    Lowerer l = {.sema = sema, .types = &sema->types};
-    DefId main_fn = scope_module(&sema->scope, intern(&sema->session->names, SV("main")));
+// The root module must declare `fn main()`.
+static void check_main(Sema *sema) {
+    DefId main_fn = scope_module_in(&sema->scope, 0, intern(&sema->session->names, SV("main")));
     Def *main_def = main_fn.id ? sema_def(sema, main_fn) : NULL;
-    if (!main_def || main_def->kind != DEF_FN || !main_def->fn->body) {
-        diag_error(&sema->session->diags, "E0203", (Span){.file = sema->module->file},
+    if (!main_def || main_def->kind != DEF_FN || !main_def->fn->body || main_def->module != 0) {
+        diag_error(&sema->session->diags, "E0203",
+                   (Span){.file = sema->program.items[0].module->file},
                    "the program has no `main` function");
     } else if (main_def->fn->params.len > 0 || main_def->fn->ret) {
         diag_error(&sema->session->diags, "E0203", main_def->span,
                    "`main` takes no parameters and returns nothing: `fn main() { ... }`");
     }
-    for (uint32_t i = 0; i < sema->module->items.len; i++) {
-        Item *item = sema->module->items.items[i];
+}
+
+static void lower_items(Lowerer *l, ItemList items, BodySink sink, void *context) {
+    for (uint32_t i = 0; i < items.len; i++) {
+        Item *item = items.items[i];
         bool is_struct = item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT;
         if (item->kind == ITEM_FN && item->as.fn->body) {
-            lower_fn(&l, item->as.fn, sink, context);
+            lower_fn(l, item->as.fn, sink, context);
         } else if (is_struct && item->as.struct_.type_params.len == 0) {
             for (uint32_t m = 0; m < item->as.struct_.methods.len; m++) {
-                lower_fn(&l, item->as.struct_.methods.items[m], sink, context);
+                lower_fn(l, item->as.struct_.methods.items[m], sink, context);
             }
         } else if (item->kind == ITEM_ENUM && item->as.enum_.type_params.len == 0) {
             for (uint32_t m = 0; m < item->as.enum_.methods.len; m++) {
-                lower_fn(&l, item->as.enum_.methods.items[m], sink, context);
+                lower_fn(l, item->as.enum_.methods.items[m], sink, context);
             }
         } else if (is_struct || item->kind == ITEM_ENUM || item->kind == ITEM_GLOBAL ||
                    item->kind == ITEM_EXTERN) {
-            diag_error(&sema->session->diags, "E0901", item->span,
+            diag_error(&l->sema->session->diags, "E0901", item->span,
                        "compiling this declaration is not supported yet");
         }
     }
+}
+
+void lower_program(Sema *sema, BodySink sink, void *context) {
+    Lowerer l = {.sema = sema, .types = &sema->types};
+    check_main(sema);
+    for (uint32_t m = 0; m < sema->program.len; m++) {
+        sema_enter(sema, m);
+        lower_items(&l, sema->module->items, sink, context);
+    }
+    sema_enter(sema, 0);
     VEC_FREE(l.loops);
 }

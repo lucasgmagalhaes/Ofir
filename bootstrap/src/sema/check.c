@@ -102,10 +102,14 @@ static void check_item(Checker *c, Item *item) {
     }
 }
 
-void check_module(Sema *sema) {
+void check_program(Sema *sema) {
     Checker c = {.sema = sema, .types = &sema->types, .self_type = NO_TYPE};
-    for (uint32_t i = 0; i < sema->module->items.len; i++) {
-        check_item(&c, sema->module->items.items[i]);
+    for (uint32_t m = 0; m < sema->program.len; m++) {
+        sema_enter(sema, m);
+        for (uint32_t i = 0; i < sema->module->items.len; i++) {
+            check_item(&c, sema->module->items.items[i]);
+        }
     }
+    sema_enter(sema, 0);
     VEC_FREE(c.loops);
 }

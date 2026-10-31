@@ -44,6 +44,11 @@ void function_name(Gen *g, Out *out, DefId def, bool is_main) {
     }
     const Def *d = sema_def(g->sema, def);
     out_str(out, "@\"astra.");
+    if (d->module != 0) {   // qualified by its module, except in the root module
+        StrView module = g->sema->program.items[d->module].name;
+        out_write(out, module.ptr, module.len);
+        out_char(out, '.');
+    }
     bool method = d->item && d->item->kind != ITEM_FN && d->item->kind != ITEM_EXTERN;
     if (method) {   // a method: qualified by its type, `astra.Point.norm`
         StrView owner = symbol_name(&g->sema->session->names, d->item->name);
@@ -91,12 +96,28 @@ uint32_t string_global(Gen *g, StrView text) {
     return n;
 }
 
+// The name of a source file, for panic locations: `@.file.<FileId>`.
+static void file_global(Gen *g, FileId file) {
+    if (file.id < g->files_emitted.len && g->files_emitted.data[file.id]) {
+        return;
+    }
+    while (g->files_emitted.len <= file.id) {
+        VEC_PUSH(g->files_emitted, false);
+    }
+    g->files_emitted.data[file.id] = true;
+    StrView path = source_file(&g->sema->session->sources, file)->path;
+    out_fmt(&g->globals, "@.file.%u = private unnamed_addr constant [%zu x i8] c\"", file.id,
+            path.len + 1);
+    escaped_bytes(&g->globals, path);
+    out_str(&g->globals, "\\00\"\n");
+}
+
 uint32_t location_global(Gen *g, Span span) {
     LineCol pos = source_line_col(&g->sema->session->sources, span.file, span.start);
+    file_global(g, span.file);
     uint32_t n = g->loc_count++;
-    out_fmt(&g->globals,
-            "@.loc.%u = private unnamed_addr constant %%astra.loc { ptr @.file, i32 %u, i32 %u }\n",
-            n, pos.line, pos.column);
+    out_fmt(&g->globals, "@.loc.%u = private unnamed_addr constant %%astra.loc "
+            "{ ptr @.file.%u, i32 %u, i32 %u }\n", n, span.file.id, pos.line, pos.column);
     return n;
 }
 
@@ -152,7 +173,8 @@ Gen *llvm_begin(Sema *sema, FILE *file) {
     out_to_file(&g->out, file);
     out_to_memory(&g->globals);
     out_to_memory(&g->type_defs);
-    const SourceFile *source = source_file(&sema->session->sources, sema->module->file);
+    FileId root = sema->program.items[0].module->file;
+    const SourceFile *source = source_file(&sema->session->sources, root);
     out_to_memory(&g->path);
     escaped_bytes(&g->path, source->path);
     out_char(&g->path, '\0');
@@ -179,17 +201,16 @@ void llvm_function(Gen *g, const AirBody *body) {
 }
 
 void llvm_end(Gen *g) {
-    const SourceFile *source = source_file(&g->sema->session->sources, g->sema->module->file);
     out_str(&g->out, RUNTIME_DECLS);
     overflow_decls(g);
     gen_float_decls(g);
-    out_fmt(&g->out, "\n@.file = private unnamed_addr constant [%zu x i8] c\"%s\\00\"\n",
-            source->path.len + 1, g->path.buf);
+    out_char(&g->out, '\n');
     out_write(&g->out, g->globals.buf, g->globals.len);
     out_free(&g->type_defs);
     free(g->adt_types);
     out_free(&g->path);
     out_free(&g->globals);
+    VEC_FREE(g->files_emitted);
     out_free(&g->out);
     free(g);
 }

@@ -21,7 +21,8 @@ struct Gen {
     bool float_fn_used[FF_COUNT][2];   // [function][f32, f64]
     const AirBody *body;     // the function being generated
     uint32_t temp;           // next %t number in this function
-    Out path;                // the escaped source path
+    Out path;                // the escaped source path of the root module
+    Vec(bool) files_emitted; // by FileId: whether @.file.<id> exists
     Out type_defs;           // struct type definitions, written at the end
     const char **adt_types;  // the LLVM name of each struct, by DefId (NULL until used)
     size_t adt_count;
