@@ -97,6 +97,7 @@ checked by `tools/check_sizes.py` in `make test`:
 | Lines per function | 40 | 60 |
 | Nesting depth inside a function | 3 | 4 |
 | Parameters per function (not counting `self`) | 5 | 7 |
+| Characters per line | 100 | 100 |
 
 - Above the **target**, the checker warns: consider splitting, and explain
   in review if not. Above the **limit**, it fails.

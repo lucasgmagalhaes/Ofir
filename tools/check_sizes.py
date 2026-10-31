@@ -24,6 +24,7 @@ FILE_LINES = (400, 600)
 FUNCTION_LINES = (40, 60)
 NESTING = (3, 4)
 PARAMETERS = (5, 7)
+LINE_WIDTH = 100    # a hard limit: every longer line is an error
 
 
 @dataclass
@@ -100,7 +101,8 @@ def braced_functions(lines: list[str], is_start) -> list[Function]:
     return functions
 
 
-C_START = re.compile(r"^(?!(if|for|while|switch|return|typedef|struct|enum)\b)[A-Za-z_][\w\s\*]*?\b(\w+)\([^;]*$")
+C_START = re.compile(r"^(?!(if|for|while|switch|return|typedef|struct|enum)\b)"
+                     r"[A-Za-z_][\w\s\*]*?\b(\w+)\([^;]*$")
 
 
 def c_start(line: str):
@@ -110,7 +112,13 @@ def c_start(line: str):
 
 def astra_start(line: str):
     m = re.match(r"^\s*(?:pub\s+)?(?:unsafe\s+)?fn\s+(\w+)", line)
-    return m.group(1) if m and "{" in strip_literals(line) or (m and line.rstrip().endswith(")")) else None
+    if m and ("{" in strip_literals(line) or line.rstrip().endswith(")")):
+        return m.group(1)
+    return None
+
+
+def indentation(line: str) -> int:
+    return len(line) - len(line.lstrip())
 
 
 def python_functions(lines: list[str]) -> list[Function]:
@@ -121,7 +129,7 @@ def python_functions(lines: list[str]) -> list[Function]:
             continue
         indent = len(m.group(1))
         j, deepest = i + 1, 0
-        while j < len(lines) and (not lines[j].strip() or len(lines[j]) - len(lines[j].lstrip()) > indent):
+        while j < len(lines) and (not lines[j].strip() or indentation(lines[j]) > indent):
             text = lines[j].split("#")[0].rstrip()
             if re.match(r"\s*(if|elif|else|for|while|with|try|except|finally)\b.*:$", text):
                 level = (len(lines[j]) - len(lines[j].lstrip()) - indent) // 4
@@ -149,6 +157,8 @@ def check(path: Path, report) -> None:
     lines = path.read_text().splitlines()
     rel = path.relative_to(ROOT)
     report((rel, 1), "file", counted_lines(path, lines), FILE_LINES, "lines")
+    for number, line in enumerate(lines, start=1):
+        report((rel, number), "line", len(line), (LINE_WIDTH, LINE_WIDTH), "characters")
     if path.suffix == ".py":
         functions = python_functions(lines)
     elif path.suffix == ".at":
