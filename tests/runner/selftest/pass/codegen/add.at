@@ -1,0 +1,8 @@
+// CHECK: define internal fastcc i64 @add
+// CHECK-NOT: call
+// CHECK: ret i64
+// fake-ir: define internal fastcc i64 @add(i64 %a, i64 %b) {
+// fake-ir:   %r = add i64 %a, %b
+// fake-ir:   ret i64 %r
+// fake-ir: }
+fn add(a: int, b: int) int { return a + b }

@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+"""Astra test runner.
+
+Discovers test files under tests/<suite>/, runs them against a compiler and
+reports the results. Test formats are described in docs/design/testing.md.
+
+Compiler interface used by the runner:
+
+    astra build FILE --emit=tokens          print tokens to stdout
+    astra build FILE --emit=ast             print the AST to stdout
+    astra build FILE --emit=llvm -o OUT     write OUT.ll
+    astra build FILE --message-format=short diagnostics as
+                                            `file:line:col: error[E0300]: message`
+    astra run FILE                          compile and run
+
+Standard library only; Python 3.9 or newer.
+"""
+
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+SUITES = ["lex", "parse", "run", "compile_fail", "panic", "borrow", "codegen"]
+TIMEOUT_SECONDS = 20
+PANIC_EXIT_STATUS = 101
+
+ANNOTATION_RE = re.compile(r"//\s*(error|warning)\[([EW]\d{4})\]:\s*(.*?)\s*$")
+DIAGNOSTIC_RE = re.compile(r"^(.*?):(\d+):(\d+): (error|warning)\[([EW]\d{4})\]: (.*)$")
+REQUIRES_RE = re.compile(r"^//\s*requires:\s*(\S+)", re.MULTILINE)
+PANIC_RE = re.compile(r"^//\s*panic:\s*(.*?)\s*$", re.MULTILINE)
+CHECK_RE = re.compile(r"^//\s*(CHECK|CHECK-NOT):\s*(.*?)\s*$")
+TOP_LEVEL_FN_RE = re.compile(r"^(pub\s+)?(unsafe\s+)?fn\b")
+
+
+@dataclass
+class Result:
+    path: Path
+    status: str  # "pass", "fail" or "skip"
+    detail: str = ""
+
+
+@dataclass
+class Diagnostic:
+    line: int
+    severity: str
+    code: str
+    message: str
+
+
+@dataclass
+class Config:
+    compiler: str
+    stage: int
+    bless: bool
+    tests_dir: Path
+    verbose: bool
+    tmp: Path = field(default_factory=lambda: Path(tempfile.mkdtemp(prefix="astra-tests-")))
+
+
+def run_process(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT_SECONDS
+        )
+    except subprocess.TimeoutExpired as exc:
+        return subprocess.CompletedProcess(cmd, -1, exc.stdout or "", f"timeout after {TIMEOUT_SECONDS}s")
+
+
+def compiler_cmd(cfg: Config, *args: str) -> list[str]:
+    # A compiler given as a .py file (used by the runner self-test) runs
+    # through the current interpreter.
+    if cfg.compiler.endswith(".py"):
+        return [sys.executable, cfg.compiler, *args]
+    return [cfg.compiler, *args]
+
+
+def describe(proc: subprocess.CompletedProcess) -> str:
+    return f"exit status {proc.returncode}\n--- stdout ---\n{proc.stdout}--- stderr ---\n{proc.stderr}"
+
+
+def compare_output(cfg: Config, path: Path, actual: str, expected_suffix: str) -> Result:
+    expected_path = path.with_suffix(expected_suffix)
+    if cfg.bless:
+        expected_path.write_text(actual)
+        return Result(path, "pass", "blessed")
+    if not expected_path.exists():
+        return Result(path, "fail", f"missing {expected_path.name} (run with --bless to create it)")
+    expected = expected_path.read_text()
+    if actual == expected:
+        return Result(path, "pass")
+    path.with_suffix(".actual").write_text(actual)
+    return Result(path, "fail", f"output differs from {expected_path.name}; actual output saved to "
+                                f"{path.with_suffix('.actual').name}")
+
+
+def parse_annotations(source: str) -> list[tuple[int, Diagnostic]]:
+    """Returns (function_start_line, diagnostic) for each annotation."""
+    annotations = []
+    current_fn = 0
+    for number, text in enumerate(source.splitlines(), start=1):
+        if TOP_LEVEL_FN_RE.match(text):
+            current_fn = number
+        m = ANNOTATION_RE.search(text)
+        if m:
+            annotations.append((current_fn, Diagnostic(number, m.group(1), m.group(2), m.group(3))))
+    return annotations
+
+
+def parse_diagnostics(output: str) -> list[Diagnostic]:
+    diagnostics = []
+    for text in output.splitlines():
+        m = DIAGNOSTIC_RE.match(text)
+        if m:
+            diagnostics.append(Diagnostic(int(m.group(2)), m.group(4), m.group(5), m.group(6)))
+    return diagnostics
+
+
+def check_diagnostics(cfg: Config, path: Path, source: str) -> Result:
+    annotations = parse_annotations(source)
+    proc = run_process(compiler_cmd(cfg, "build", str(path), "--message-format=short",
+                                    "-o", str(cfg.tmp / path.stem)))
+    reported = parse_diagnostics(proc.stdout + proc.stderr)
+    expects_error = any(d.severity == "error" for _, d in annotations)
+
+    if expects_error and proc.returncode == 0:
+        return Result(path, "fail", "expected compilation to fail\n" + describe(proc))
+    if not expects_error and proc.returncode != 0:
+        return Result(path, "fail", "expected compilation to succeed\n" + describe(proc))
+
+    reported_keys = {(d.line, d.code) for d in reported}
+    annotated_keys = {(d.line, d.code) for _, d in annotations}
+    problems = []
+
+    # Every reported diagnostic must be annotated (both stages).
+    for d in reported:
+        if (d.line, d.code) not in annotated_keys:
+            problems.append(f"unexpected {d.severity}[{d.code}] at line {d.line}: {d.message}")
+
+    if cfg.stage == 0:
+        # Stage 0 reports only the first error of each function and its
+        # messages are terse: require the first annotation of each function.
+        firsts: dict[int, Diagnostic] = {}
+        for fn_line, d in annotations:
+            firsts.setdefault(fn_line, d)
+        for d in firsts.values():
+            if (d.line, d.code) not in reported_keys:
+                problems.append(f"missing {d.severity}[{d.code}] at line {d.line}")
+    else:
+        for _, d in annotations:
+            matches = [r for r in reported if (r.line, r.code) == (d.line, d.code)]
+            if not matches:
+                problems.append(f"missing {d.severity}[{d.code}] at line {d.line}: {d.message}")
+            elif d.message and not any(d.message in r.message for r in matches):
+                problems.append(f"message mismatch at line {d.line}: expected '{d.message}', "
+                                f"got '{matches[0].message}'")
+
+    if problems:
+        return Result(path, "fail", "\n".join(problems))
+    return Result(path, "pass")
+
+
+def check_panic(cfg: Config, path: Path, source: str) -> Result:
+    m = PANIC_RE.search(source)
+    if not m:
+        return Result(path, "fail", "missing `// panic: message` header")
+    proc = run_process(compiler_cmd(cfg, "run", str(path)))
+    if proc.returncode != PANIC_EXIT_STATUS:
+        return Result(path, "fail", f"expected exit status {PANIC_EXIT_STATUS}\n" + describe(proc))
+    if f"panic: {m.group(1)}" not in proc.stderr:
+        return Result(path, "fail", f"expected 'panic: {m.group(1)}' on stderr\n" + describe(proc))
+    return Result(path, "pass")
+
+
+def check_run(cfg: Config, path: Path) -> Result:
+    proc = run_process(compiler_cmd(cfg, "run", str(path)))
+    if proc.returncode != 0:
+        return Result(path, "fail", describe(proc))
+    return compare_output(cfg, path, proc.stdout, ".out")
+
+
+def check_emit(cfg: Config, path: Path, what: str, suffix: str) -> Result:
+    proc = run_process(compiler_cmd(cfg, "build", str(path), f"--emit={what}"))
+    if proc.returncode != 0:
+        return Result(path, "fail", describe(proc))
+    return compare_output(cfg, path, proc.stdout, suffix)
+
+
+def check_codegen(cfg: Config, path: Path, source: str) -> Result:
+    out = cfg.tmp / path.stem
+    proc = run_process(compiler_cmd(cfg, "build", str(path), "--emit=llvm", "-o", str(out)))
+    if proc.returncode != 0:
+        return Result(path, "fail", describe(proc))
+    ir_path = out.with_suffix(".ll")
+    if not ir_path.exists():
+        return Result(path, "fail", f"compiler did not write {ir_path}")
+    ir_lines = ir_path.read_text().splitlines()
+
+    # A small subset of LLVM FileCheck: CHECK patterns must appear in order;
+    # CHECK-NOT patterns must not appear between the surrounding CHECK matches.
+    position = 0
+    pending_not: list[str] = []
+    checks = [CHECK_RE.match(line) for line in source.splitlines()]
+    for m in filter(None, checks):
+        kind, pattern = m.group(1), m.group(2)
+        if kind == "CHECK-NOT":
+            pending_not.append(pattern)
+            continue
+        found = next((i for i in range(position, len(ir_lines)) if pattern in ir_lines[i]), None)
+        if found is None:
+            return Result(path, "fail", f"CHECK not found: {pattern}")
+        for banned in pending_not:
+            if any(banned in line for line in ir_lines[position:found]):
+                return Result(path, "fail", f"CHECK-NOT matched: {banned}")
+        pending_not.clear()
+        position = found + 1
+    for banned in pending_not:
+        if any(banned in line for line in ir_lines[position:]):
+            return Result(path, "fail", f"CHECK-NOT matched: {banned}")
+    return Result(path, "pass")
+
+
+def run_test(cfg: Config, suite: str, path: Path) -> Result:
+    source = path.read_text()
+    for requirement in REQUIRES_RE.findall(source):
+        if requirement == "stage1" and cfg.stage == 0:
+            return Result(path, "skip", "requires stage1")
+    if suite == "lex":
+        return check_emit(cfg, path, "tokens", ".tokens")
+    if suite == "parse":
+        return check_emit(cfg, path, "ast", ".ast")
+    if suite == "run":
+        return check_run(cfg, path)
+    if suite == "panic":
+        return check_panic(cfg, path, source)
+    if suite == "codegen":
+        return check_codegen(cfg, path, source)
+    # compile_fail and borrow
+    return check_diagnostics(cfg, path, source)
+
+
+def discover(tests_dir: Path, filters: list[str]) -> list[tuple[str, Path]]:
+    found = []
+    for suite in SUITES:
+        for path in sorted((tests_dir / suite).rglob("*.at")):
+            rel = path.relative_to(tests_dir).as_posix()
+            if not filters or any(f in rel for f in filters):
+                found.append((suite, path))
+    return found
+
+
+def main(argv: list[str]) -> int:
+    root = Path(__file__).resolve().parents[2]
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("filters", nargs="*", help="run only tests whose path contains one of these")
+    parser.add_argument("--compiler", default=str(root / "build" / "stage0" / "astra"))
+    parser.add_argument("--stage", type=int, choices=[0, 1],
+                        help="compiler stage (default: 0 if the path contains 'stage0')")
+    parser.add_argument("--tests-dir", type=Path, default=root / "tests")
+    parser.add_argument("--bless", action="store_true", help="overwrite expected output files")
+    parser.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 1)
+    parser.add_argument("-v", "--verbose", action="store_true", help="also list passing tests")
+    args = parser.parse_args(argv)
+
+    stage = args.stage if args.stage is not None else (0 if "stage0" in args.compiler else 1)
+    cfg = Config(args.compiler, stage, args.bless, args.tests_dir.resolve(), args.verbose)
+
+    tests = discover(cfg.tests_dir, args.filters)
+    if not tests:
+        print("no tests found")
+        return 0
+    if not Path(cfg.compiler).exists():
+        print(f"error: compiler not found: {cfg.compiler}", file=sys.stderr)
+        return 2
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        results = list(pool.map(lambda t: run_test(cfg, *t), tests))
+
+    counts = {"pass": 0, "fail": 0, "skip": 0}
+    for r in results:
+        counts[r.status] += 1
+        rel = r.path.relative_to(cfg.tests_dir).as_posix()
+        if r.status == "fail":
+            print(f"FAIL {rel}\n" + "\n".join("     " + line for line in r.detail.splitlines()))
+        elif cfg.verbose:
+            print(f"{r.status.upper():4} {rel}" + (f" ({r.detail})" if r.detail else ""))
+    print(f"\n{len(results)} tests: {counts['pass']} passed, {counts['fail']} failed, "
+          f"{counts['skip']} skipped (stage {stage})")
+    return 1 if counts["fail"] else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

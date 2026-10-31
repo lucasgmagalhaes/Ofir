@@ -1,0 +1,102 @@
+# Prelude and `std.core`
+
+Everything on this page is available without imports.
+
+## `Option<T>`
+
+```astra
+enum Option<T> { Some(value: T)  None }
+```
+
+| Method | Description | S0 |
+|--------|-------------|:--:|
+| `fn isSome(self) bool` | | ✓ |
+| `fn isNone(self) bool` | | ✓ |
+| `fn unwrap(move self) T` | **panics** on `None` | ✓ |
+| `fn expect(move self, msg: str) T` | **panics** with `msg` on `None` | ✓ |
+| `fn unwrapOr(move self, default: move T) T` | | ✓ |
+| `fn asRef(self) Option<&T>` | borrow the content | ✓ |
+| `fn take(mut self) Option<T>` | leaves `None` behind | ✓ |
+| `fn okOr<E>(move self, err: move E) Result<T, E>` | | ✓ |
+| `fn map<U>(move self, f: fn(move T) U) Option<U>` | | |
+| `fn unwrapOrElse(move self, f: fn() T) T` | | |
+
+## `Result<T, E>`
+
+```astra
+enum Result<T, E> { Ok(value: T)  Err(error: E) }
+```
+
+| Method | Description | S0 |
+|--------|-------------|:--:|
+| `fn isOk(self) bool` | | ✓ |
+| `fn isErr(self) bool` | | ✓ |
+| `fn unwrap(move self) T` | **panics** on `Err` (requires `E: Debug`) | ✓ |
+| `fn expect(move self, msg: str) T` | **panics** with `msg` | ✓ |
+| `fn unwrapOr(move self, default: move T) T` | | ✓ |
+| `fn ok(move self) Option<T>` | | ✓ |
+| `fn mapErr<F>(move self, f: fn(move E) F) Result<T, F>` | | |
+| `fn map<U>(move self, f: fn(move T) U) Result<U, E>` | | |
+
+`opt ?? default` (spec 4.8) is the operator form of `unwrapOr` with a lazily
+evaluated default.
+
+**Error conversion in `?`** (stage 1): if the function returns
+`Result<_, F>` and `F` satisfies `From<E>`, `?` converts the error with
+`F.from(e)`. Otherwise both error types must be equal.
+
+## `Ordering`
+
+```astra
+copy enum Ordering { Less  Equal  Greater }
+```
+
+Methods: `isLt()`, `isEq()`, `isGt()`, `reverse()`, and
+`then(other: Ordering) Ordering` for lexicographic comparison.
+
+## Interfaces
+
+Defined in spec chapter 9.9: `Eq`, `Ord`, `Hash`, `Clone`, `Display`,
+`Debug`, `Drop`, `Iterator<T>`, `Default`, `From<T>`, and the markers `Send`
+and `Sync`.
+
+```astra
+interface Hash {
+    fn hash(self, h: mut Hasher)
+}
+
+pub struct Hasher {                     // deterministic (spec 2.6)
+    ...
+
+    pub fn write(mut self, bytes: [u8])
+    pub fn writeInt(mut self, v: int)
+    pub fn finish(self) u64
+}
+```
+
+## Integer methods
+
+For every integer type `I`:
+
+| Method | Description | S0 |
+|--------|-------------|:--:|
+| `wrappingAdd/Sub/Mul(b: I) I` | modular arithmetic | ✓ |
+| `checkedAdd/Sub/Mul/Div(b: I) Option<I>` | `None` on overflow | ✓ |
+| `saturatingAdd/Sub/Mul(b: I) I` | clamps to the range | |
+| `wrappingCast<T>()`, `saturatingCast<T>()`, `checkedCast<T>()` | spec 2.1 | ✓ |
+| `divFloor(b: I) I`, `remEuclid(b: I) I` | other division conventions | |
+| `abs() I` | **panics** on `MIN` for signed types | ✓ |
+| `min(b: I) I`, `max(b: I) I`, `clamp(lo: I, hi: I) I` | | ✓ |
+| `pow(exp: u32) I` | checked | ✓ |
+| `countOnes() int`, `leadingZeros() int`, `trailingZeros() int` | | |
+| `I.MIN`, `I.MAX` | constants | ✓ |
+| `I.parse(s: str) Result<I, ParseError>` | decimal, optional sign | ✓ |
+
+## Float methods
+
+For `f32` and `f64`: `sqrt`, `abs`, `floor`, `ceil`, `round`, `trunc`,
+`powi(n: i32)`, `powf`, `exp`, `ln`, `log10`, `sin`, `cos`, `tan`, `atan2`,
+`min`, `max`, `isNan`, `isInfinite`, `totalCmp(other) Ordering`,
+`F.parse(s: str) Result<F, ParseError>`, and the constants `F.NAN`,
+`F.INFINITY`, `F.EPSILON`. In stage 0: `sqrt`, `abs`, `floor`, `ceil`,
+`isNan`, `parse`.

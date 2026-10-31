@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Self-test of the test runner, using the fake compiler."""
+
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+RUNNER = HERE.parent / "run_tests.py"
+FAKE = HERE / "fake_astra.py"
+
+
+def runner(tests_dir, stage):
+    return subprocess.run(
+        [sys.executable, str(RUNNER), "--compiler", str(FAKE), "--stage", str(stage),
+         "--tests-dir", str(HERE / tests_dir), "-j", "4"],
+        capture_output=True, text=True)
+
+
+def expect(name, proc, exit_code, summary):
+    ok = proc.returncode == exit_code and summary in proc.stdout
+    print(f"{'ok  ' if ok else 'FAIL'} {name}")
+    if not ok:
+        print(proc.stdout, proc.stderr)
+    return ok
+
+
+def main():
+    fail_count = len(list((HERE / "fail").rglob("*.at")))
+    pass_count = len(list((HERE / "pass").rglob("*.at")))
+    results = [
+        expect("passing fixtures (stage 1)", runner("pass", 1), 0,
+               f"{pass_count} tests: {pass_count} passed, 0 failed"),
+        expect("passing fixtures (stage 0)", runner("pass", 0), 0, "0 failed"),
+        expect("stage 0 rules", runner("pass_stage0", 0), 0, "1 passed, 0 failed, 1 skipped"),
+        expect("stage 1 rejects stage 0 leniency", runner("pass_stage0", 1), 1, "1 failed"),
+        expect("failing fixtures", runner("fail", 1), 1,
+               f"{fail_count} tests: 0 passed, {fail_count} failed"),
+    ]
+    for actual in HERE.rglob("*.actual"):
+        actual.unlink()
+    if not all(results):
+        return 1
+    print("runner self-test passed")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

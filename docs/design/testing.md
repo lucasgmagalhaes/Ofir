@@ -1,0 +1,107 @@
+# Testing strategy
+
+Tests are the safety net that makes self-hosting possible: every stage of the
+compiler must pass the same suites.
+
+## 1. Test kinds
+
+| Suite | Directory | What is checked |
+|-------|-----------|-----------------|
+| Unit (C) | `bootstrap/tests/` | data structures of stage 0 (arena, map, interning) |
+| Lexer | `tests/lex/` | token stream for a source file (`--emit=tokens`) |
+| Parser | `tests/parse/` | AST dump (`--emit=ast`) |
+| Run | `tests/run/` | program compiles, runs, and prints the expected output |
+| Compile fail | `tests/compile_fail/` | expected errors with code, line and message |
+| Panic | `tests/panic/` | program panics with the expected message and exit 101 |
+| Borrow | `tests/borrow/` | accepted and rejected ownership programs |
+| Codegen | `tests/codegen/` | patterns in the generated LLVM IR |
+| Unit (Astra) | `@test` functions in `compiler/` and `std/` | internal functions |
+| Self-host | `tests/selfhost/` | stage 2 output == stage 3 output |
+| Benchmarks | `bench/` | performance against C, Rust and Go baselines |
+
+## 2. File formats
+
+### Run tests
+
+```
+tests/run/structs/methods.at
+tests/run/structs/methods.out          expected stdout
+```
+
+### Compile-fail tests
+
+Expected diagnostics are annotations on the line where they are reported:
+
+```astra
+fn main() {
+    let x = 1
+    x = 2   // error[E0304]: cannot assign twice to immutable variable `x`
+}
+```
+
+The runner checks that exactly the annotated errors are produced, matching
+the **code and line** strictly and the message as a substring.
+
+Stage 0 reports only the first error per function and has terser messages.
+When testing stage 0, the runner therefore checks only that the **first**
+annotated error of each function is reported with the right code and line,
+and ignores messages. Tests that need several errors in one function or
+exact messages are tagged `// requires: stage1`.
+
+Error codes come from the registry in [`docs/errors`](../errors/README.md).
+
+### Panic tests
+
+```astra
+// panic: index out of bounds: the length is 3 but the index is 5
+fn main() {
+    let xs = [1, 2, 3]
+    let i = 5
+    println("{xs[i]}")
+}
+```
+
+### Codegen tests
+
+```astra
+// CHECK: define internal fastcc i64 @_A4test3add
+// CHECK-NOT: call
+fn add(a: int, b: int) int { return a + b }
+```
+
+## 3. Compiler interface used by the runner
+
+| Command | Used by |
+|---------|---------|
+| `astra build FILE --emit=tokens` (tokens on stdout) | `lex` |
+| `astra build FILE --emit=ast` (AST on stdout) | `parse` |
+| `astra run FILE` | `run`, `panic` |
+| `astra build FILE --message-format=short -o OUT` | `compile_fail`, `borrow` |
+| `astra build FILE --emit=llvm -o OUT` (writes `OUT.ll`) | `codegen` |
+
+With `--message-format=short`, each diagnostic is one line:
+`file:line:col: error[E0300]: message` (or `warning[W0001]`).
+
+## 4. Runner
+
+`tests/runner/run_tests.py` discovers test files, runs them in parallel and
+prints a summary. It accepts:
+
+- `--compiler=<path>` to choose the stage under test;
+- a path or substring filter;
+- `--bless` to rewrite expected `.tokens`, `.ast` and `.out` files after an
+  intended change (the diff is then reviewed in the commit).
+
+The runner itself is tested by `tests/runner/selftest/run_selftest.py`,
+which drives it with a fake compiler (`make runner-selftest`).
+
+## 5. Rules
+
+1. Every bug fix comes with a test reproducing the bug.
+2. Every new language feature comes with run tests **and** compile-fail tests
+   for its misuse.
+3. Test files are small: one behavior per file.
+4. CI runs all suites on Linux and macOS for every pull request.
+5. Stage 0 and stage 1 run the same `tests/run`, `tests/panic` and
+   `tests/compile_fail` suites (stage 0 may skip tests tagged
+   `// requires: stage1` for features outside the bootstrap subset).
