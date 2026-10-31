@@ -168,12 +168,25 @@ static void resolve_self(Resolver *r, Expr *e) {
     }
 }
 
+// `Self` in a method names the enclosing type: it becomes that name.
+static void resolve_self_type(Resolver *r, Expr *e) {
+    if (!r->owner) {
+        resolve_error(r, "E0200", e->span, "`Self` is only available inside a type");
+        e->kind = EXPR_IDENT;
+        e->as.ident.res = (Res){RES_ERROR, 0};
+        return;
+    }
+    e->kind = EXPR_IDENT;
+    e->as.ident.name = r->owner->name;
+    e->as.ident.res = (Res){RES_DEF, scope_module(&r->sema->scope, r->owner->name).id};
+}
+
 // check-sizes: table
 void resolve_expr(Resolver *r, Expr *e) {
     switch (e->kind) {
     case EXPR_INT: case EXPR_FLOAT: case EXPR_BYTE: case EXPR_STR: case EXPR_BOOL:
-    case EXPR_SELF_TYPE:
         break;
+    case EXPR_SELF_TYPE: resolve_self_type(r, e); break;
     case EXPR_INTERP: resolve_exprs(r, e->as.parts); break;
     case EXPR_IDENT: e->as.ident.res = lookup(r, e->as.ident.name, e->span); break;
     case EXPR_SELF: resolve_self(r, e); break;

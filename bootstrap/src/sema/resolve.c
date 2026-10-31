@@ -148,9 +148,11 @@ static void resolve_item(Resolver *r, Item *item) {
         resolve_fn(r, item->as.fn);
         break;
     case ITEM_STRUCT: case ITEM_TUPLE_STRUCT:
+        r->owner = item;
         for (uint32_t i = 0; i < item->as.struct_.methods.len; i++) {
             resolve_fn(r, item->as.struct_.methods.items[i]);
         }
+        r->owner = NULL;
         for (uint32_t i = 0; i < item->as.struct_.fields.len; i++) {
             Expr *value = item->as.struct_.fields.items[i].default_value;
             if (value) {
@@ -159,9 +161,11 @@ static void resolve_item(Resolver *r, Item *item) {
         }
         break;
     case ITEM_ENUM:
+        r->owner = item;
         for (uint32_t i = 0; i < item->as.enum_.methods.len; i++) {
             resolve_fn(r, item->as.enum_.methods.items[i]);
         }
+        r->owner = NULL;
         break;
     case ITEM_CONST: case ITEM_GLOBAL:
         resolve_expr(r, item->as.const_.value);

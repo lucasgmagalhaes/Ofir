@@ -54,6 +54,11 @@ void require_mutable(Checker *c, Expr *e);
 // The variable at the root of a place: `p` in `p.pos.x`, or NULL.
 Expr *place_root(Expr *e);
 
+// check_user_method.c
+bool type_name_of(Checker *c, const Expr *e, DefId *out);
+void check_mut_args(Checker *c, const FnDecl *fn, Expr *call);
+TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type);
+
 // structs.c
 StructInfo *struct_fields(Checker *c, DefId id);   // NULL for generic structs
 TypeId check_struct_field(Checker *c, Expr *e, TypeId base);

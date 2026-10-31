@@ -111,6 +111,11 @@ TypeId check_method_call(Checker *c, Expr *call) {
     Expr *field = call->as.call.callee;
     Expr *base = field->as.field.base;
     Symbol name = field->as.field.name;
+    DefId owner;
+    if (type_name_of(c, base, &owner)) {   // `Point.new()`
+        base->type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
+        return check_user_method(c, call, owner, true);
+    }
     const Def *type_name_def = primitive_name(c, base);
     Receiver receiver = RECV_STR_TYPE;
     TypeId self = type_id(TID_ERROR);
@@ -121,7 +126,11 @@ TypeId check_method_call(Checker *c, Expr *call) {
         known = self.id == TID_STR;
     } else {
         self = check_expr(c, base, NO_TYPE);
-        receiver = receiver_of(type_get(c->types, self), &known);
+        const Ty *ty = type_get(c->types, self);
+        if (ty->kind == TY_ADT) {
+            return check_user_method(c, call, (DefId){ty->data}, false);
+        }
+        receiver = receiver_of(ty, &known);
     }
     const BuiltinInfo *info = known ? builtin_method(&c->sema->session->names, receiver, name)
                                     : NULL;
