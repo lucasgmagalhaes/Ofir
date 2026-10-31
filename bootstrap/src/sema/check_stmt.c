@@ -14,14 +14,18 @@ static StrView local_name(Checker *c, LocalId id) {
 
 static TypeId let_stmt(Checker *c, Stmt *s) {
     Pattern *pattern = s->as.let.pattern;
-    if (s->as.let.else_) {
-        unsupported(c, s->span, "`let ... else` is");
-    }
     TypeId type = s->as.let.type ? resolve_type(c, s->as.let.type) : NO_TYPE;
     TypeId found = s->as.let.type ? coerce(c, s->as.let.value, type)
                                   : check_expr(c, s->as.let.value, NO_TYPE);
     check_pattern(c, pattern, s->as.let.type ? type : found);
-    if (!pattern_irrefutable(c, pattern)) {
+    if (s->as.let.else_) {   // `let pattern = value else { ... }` (spec 4.6)
+        TypeId other = check_block(c, s->as.let.else_, NO_TYPE, false);
+        if (other.id != TID_NEVER) {
+            check_error(c, "E0307", s->as.let.else_->span,
+                        "the `else` block of `let ... else` must not fall through: end it "
+                        "with `return`, `break`, `continue` or a panic");
+        }
+    } else if (!pattern_irrefutable(c, pattern)) {
         check_error(c, "E0501", pattern->span,
                     "this pattern does not match every value: use `match` or `if let`");
     }
@@ -200,10 +204,11 @@ static TypeId join(Checker *c, Expr *e, TypeId then, TypeId else_) {
 }
 
 TypeId check_if(Checker *c, Expr *e, TypeId expected, bool as_value) {
-    if (e->as.if_.let_pattern) {
-        return unsupported(c, e->span, "`if let` is");
+    if (e->as.if_.let_pattern) {   // `if let pattern = value`
+        check_pattern(c, e->as.if_.let_pattern, check_expr(c, e->as.if_.cond, NO_TYPE));
+    } else {
+        coerce(c, e->as.if_.cond, type_id(TID_BOOL));
     }
-    coerce(c, e->as.if_.cond, type_id(TID_BOOL));
     TypeId then = check_block(c, e->as.if_.then, expected, as_value);
     Expr *else_ = e->as.if_.else_;
     if (!else_) {

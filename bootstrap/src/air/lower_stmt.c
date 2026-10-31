@@ -14,10 +14,18 @@ static void lower_let(Lowerer *l, Stmt *s) {
     if (pattern->kind == PAT_BINDING) {
         assign_operand(l, air_local_of(pattern->as.binding.local), value);
     } else if (pattern->kind != PAT_WILDCARD && value.kind != OPERAND_UNIT) {
-        // A destructuring `let`: its pattern always matches (checked).
-        BlockId never = air_new_block(l->body);
-        lower_pattern(l, pattern, (Place){.local = to_local(l, value)}, never);
-        air_terminate(l->body, never, (Terminator){.kind = TERM_UNREACHABLE});
+        // On a mismatch: the `else` block, which cannot fall through; without
+        // `else` the pattern always matches (checked).
+        BlockId fail = air_new_block(l->body);
+        lower_pattern(l, pattern, (Place){.local = to_local(l, value)}, fail);
+        BlockId next = air_new_block(l->body);
+        emit_goto(l, next);
+        switch_to(l, fail);
+        if (s->as.let.else_) {
+            lower_block(l, s->as.let.else_, false);
+        }
+        terminate(l, (Terminator){.kind = TERM_UNREACHABLE});
+        switch_to(l, next);
     }
 }
 
