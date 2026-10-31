@@ -65,8 +65,18 @@ bootstrap/
 │   │   ├── lexer_internal.h  state shared by the lexer files
 │   │   ├── literals.c        numbers, strings and byte literals
 │   │   ├── ast.h             AST node definitions
-│   │   ├── ast_print.c       AST dump for debugging and tests
-│   │   └── parser.c/.h       tokens → AST
+│   │   ├── ast_print*.c      AST dump for `--emit=ast` and tests
+│   │   ├── ast_text.c/.h     one-line text for types, patterns and literals
+│   │   ├── parser.c/.h       tokens → AST: entry point, token helpers, recovery
+│   │   ├── parser_internal.h state shared by the parser files
+│   │   ├── parse_items.c     items, imports, extern blocks, attributes
+│   │   ├── parse_decls.c     functions, structs and enums
+│   │   ├── parse_stmts.c     statements
+│   │   ├── parse_control.c   blocks, `if`, `match`, `unsafe`
+│   │   ├── parse_exprs.c     operator precedence
+│   │   ├── parse_primary.c   primary and postfix expressions
+│   │   ├── parse_types.c     types
+│   │   └── parse_patterns.c  patterns
 │   ├── sema/
 │   │   ├── types.c/.h        type representation and interning
 │   │   ├── scope.c/.h        scopes and symbols
