@@ -62,7 +62,9 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
 
 static void check_methods(Checker *c, const Item *item, FnList methods) {
     DefId owner = scope_module(&c->sema->scope, item->name);
-    if (item->kind != ITEM_ENUM && item->as.struct_.type_params.len > 0) {
+    SymbolList params = item->kind == ITEM_ENUM ? item->as.enum_.type_params
+                                                : item->as.struct_.type_params;
+    if (params.len > 0) {
         unsupported(c, item->span, "generic types are");
         return;
     }
@@ -86,7 +88,12 @@ static void check_item(Checker *c, Item *item) {
         }
         check_methods(c, item, item->as.struct_.methods);
         break;
-    case ITEM_ENUM: check_methods(c, item, item->as.enum_.methods); break;
+    case ITEM_ENUM:
+        if (item->as.enum_.type_params.len == 0) {
+            enum_variants(c, scope_module(&c->sema->scope, item->name));
+        }
+        check_methods(c, item, item->as.enum_.methods);
+        break;
     case ITEM_CONST: case ITEM_GLOBAL:
         check_const(c, sema_def(c->sema, scope_module(&c->sema->scope, item->name)));
         break;

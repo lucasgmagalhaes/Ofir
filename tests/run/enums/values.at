@@ -1,0 +1,59 @@
+copy enum Direction {
+    North
+    East
+    South
+    West
+
+    fn turned(self) Direction {
+        return match self {
+            .North => .East
+            .East => .South
+            .South => .West
+            .West => .North
+        }
+    }
+
+    fn name(self) str {
+        return match self {
+            .North => "north"
+            .East => "east"
+            .South => "south"
+            .West => "west"
+        }
+    }
+}
+
+enum Shape {
+    Circle(radius: float)
+    Square(side: float)
+
+    fn scaled(self, k: float) Shape {
+        return match self {
+            .Circle(r) => .Circle(r * k)
+            .Square(s) => Shape.Square(s * k)
+        }
+    }
+
+    fn area(self) float {
+        return match self {
+            .Circle(r) => 3.0 * r * r
+            .Square(s) => s * s
+        }
+    }
+}
+
+fn main() {
+    var d = Direction.North
+    for i in 0..5 {
+        print("{d.name()} ")
+        d = d.turned()
+    }
+    println("")
+    println("{d == .East} {d == Direction.West} {d != .North}")
+    var s: Shape = .Square(2.0)
+    s = s.scaled(1.5)
+    let c = Shape.Circle(1.0).scaled(2.0)
+    println("{s.area()} {c.area()}")
+    let pair = (d, s)
+    println("{pair.0.name()} {pair.1.area()}")
+}

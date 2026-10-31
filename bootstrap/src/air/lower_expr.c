@@ -117,7 +117,13 @@ static Operand lower_if(Lowerer *l, Expr *e) {
     Operand cond = lower_expr(l, e->as.if_.cond);
     BlockId then = air_new_block(l->body), other = air_new_block(l->body);
     BlockId join = air_new_block(l->body);
-    terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = cond, .target = then, .other = other});
+    if (e->as.if_.let_pattern) {   // the pattern's tests jump to `else` on a mismatch
+        lower_pattern(l, e->as.if_.let_pattern, (Place){.local = to_local(l, cond)}, other);
+        emit_goto(l, then);
+    } else {
+        terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = cond, .target = then,
+                                  .other = other});
+    }
     switch_to(l, then);
     store(l, dest, has_value, lower_block(l, e->as.if_.then, has_value));
     emit_goto(l, join);
@@ -177,7 +183,14 @@ Operand lower_expr(Lowerer *l, Expr *e) {
     case EXPR_CAST: return lower_cast(l, lower_expr(l, e->as.cast.value), e->type, e->span);
     case EXPR_CALL: return call(l, e);
     case EXPR_FIELD:
+        if (e->as.field.res.kind == RES_VARIANT) {   // `Shape.Empty`
+            return build_variant(l, e->type, e->as.field.res.index, (ArgList){0});
+        }
         return e->as.field.res.kind == RES_FIELD ? lower_field_read(l, e) : lower_field(l, e);
+    case EXPR_VARIANT:
+        return build_variant(l, e->type, e->as.variant.index, e->as.variant.args);
+    case EXPR_TUPLE: return lower_tuple(l, e);
+    case EXPR_MATCH: return lower_match(l, e);
     case EXPR_TUPLE_FIELD: return lower_field_read(l, e);
     case EXPR_STRUCT: return lower_struct_literal(l, e);
     case EXPR_INDEX: return lower_index(l, e);

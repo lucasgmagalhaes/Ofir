@@ -1,0 +1,74 @@
+enum Token {
+    Number(int)
+    Word(text: str)
+    Pair(left: int, right: int)
+    End
+}
+
+struct Point {
+    x: int
+    y: int
+}
+
+struct UserId(int)
+
+enum Expr {
+    Literal(int)
+    Negate(Token)
+    Add(Token, Token)
+}
+
+fn describe(t: Token) str {
+    return match t {
+        .Number(0) => "zero"
+        .Number(n) if n < 0 => "negative {n}"
+        .Number(n) => "number {n}"
+        .Word("hi") | .Word("hello") => "greeting"
+        .Word(w) => "word {w}"
+        .Pair(a, b) | .Pair(b, a) if a == 0 => "pair with zero"
+        .Pair(a, b) => "pair {a + b}"
+        .End => "end"
+    }
+}
+
+fn eval(e: Expr) int {
+    return match e {
+        .Literal(n) => n
+        .Negate(.Number(n)) => -n
+        .Add(.Number(a), .Number(b)) => a + b
+        _ => 0
+    }
+}
+
+fn quadrant(p: Point) str {
+    return match p {
+        Point{x: 0, y: 0} => "origin"
+        Point{x: 0, ..} | Point{y: 0, ..} => "axis"
+        Point{x, y} if x > 0 && y > 0 => "first"
+        _ => "other"
+    }
+}
+
+fn main() {
+    let tokens = (Token.Number(0), Token.Number(-3), Token.Number(7), Token.Word("hi"))
+    println("{describe(tokens.0)}, {describe(tokens.1)}, {describe(tokens.2)}, {describe(tokens.3)}")
+    println("{describe(.Word("x"))}, {describe(.Pair(0, 5))}, {describe(.Pair(2, 3))}, {describe(.End)}")
+    println("{eval(.Literal(4))} {eval(.Negate(.Number(5)))} {eval(.Add(.Number(1), .Number(2)))} {eval(.Negate(.End))}")
+    println("{quadrant(Point{x: 0, y: 0})} {quadrant(Point{x: 0, y: 3})} {quadrant(Point{x: 2, y: 2})} {quadrant(Point{x: -1, y: 2})}")
+    let id = UserId(42)
+    let UserId(raw) = id
+    let Point{x, y: height} = Point{x: 7, y: 8}
+    let (first, (second, third)) = (1, (2.5, "three"))
+    println("{raw} {x} {height} {first} {second} {third}")
+    let flag = true
+    match flag {
+        true => println("yes")
+        false => println("no")
+    }
+    let grade = match 85 {
+        90..=100 => "A"
+        80..90 => "B"
+        _ => "C"
+    }
+    println(grade)
+}

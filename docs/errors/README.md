@@ -58,8 +58,11 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0315 | this value cannot be modified: declare it with `var` (or take it as `mut`) | stage 0 |
 | E0316 | no field `f` on type `T` | stage 0 |
 | E0317 | a `copy struct` can only have fields of Copy types | stage 0 |
-| E0318 | a struct cannot contain itself by value | stage 0 |
+| E0318 | a type cannot contain itself by value | stage 0 |
+| E0319 | invalid or duplicate enum discriminant | stage 0 |
+| E0320 | no variant `V` in enum `E`, or the enum of `.V` is unknown | stage 0 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
+| E0501 | refutable pattern in `let` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
 | E0601 | use of possibly uninitialized variable `x` | stage 0 |
 | E0602 | cannot move out of a borrowed or indexed place | stage 0 |

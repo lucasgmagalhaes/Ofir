@@ -1,0 +1,70 @@
+enum Shape {
+    Circle(radius: float)
+    Empty
+}
+
+enum Bad {
+    A(int) = 1                // error[E0319]: explicit discriminants are allowed only in enums without payloads
+}
+
+enum Twice {
+    A = 1
+    B = 1                     // error[E0319]: discriminant 1 is used twice
+}
+
+fn unknownVariant() {
+    let s = Shape.Square(1.0) // error[E0301]: no method `Square` on type `Shape`
+}
+
+fn shorthandWithoutType() {
+    let s = .Empty            // error[E0320]: cannot tell which enum `.Empty` belongs to: write `Enum.Empty`
+}
+
+fn arity() {
+    let s: Shape = .Circle()  // error[E0302]: wrong number of arguments: expected 1, found 0
+}
+
+fn missingPayload() {
+    let s = Shape.Circle      // error[E0302]: the variant `Circle` takes 1 values
+}
+
+fn extraPayload() {
+    let s: Shape = .Empty(1)  // error[E0302]: the variant `Empty` takes no values: write it without parentheses
+}
+
+fn nonExhaustive(s: Shape) int {
+    return match s {          // error[E0500]: non-exhaustive `match`: missing `.Empty`
+        .Circle(_) => 1
+    }
+}
+
+fn guardedOnly(n: int) int {
+    return match n {          // error[E0500]: non-exhaustive `match`: add a `_` arm
+        x if x > 0 => 1
+    }
+}
+
+fn wrongPattern(s: Shape) {
+    match s {
+        .Square(x) => println("?")   // error[E0320]: no variant `Square` in `Shape`
+        _ => println("?")
+    }
+}
+
+fn refutableLet(s: Shape) {
+    let .Circle(r) = s        // error[E0501]: this pattern does not match every value: use `match` or `if let`
+}
+
+fn tupleArity() {
+    let (a, b) = (1, 2, 3)    // error[E0302]: wrong number of fields in the pattern: expected 3, found 2
+}
+
+fn noComparison(s: Shape) {
+    let same = s == s         // error[E0313]: operator cannot be applied to type `Shape`
+}
+
+fn fallsThrough(r: Shape) {
+    let .Circle(x) = r else {   // error[E0307]: the `else` block of `let ... else` must not fall through: end it with `return`, `break`, `continue` or a panic
+        println("no")
+    }
+}
