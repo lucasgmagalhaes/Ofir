@@ -1,0 +1,156 @@
+// AIR, the Astra Intermediate Representation (docs/design/compiler-architecture.md,
+// 7): a control-flow graph of basic blocks per function. Every operand is a
+// local or a constant; control flow and runtime checks are explicit.
+//
+// Stage 0 differences from the design:
+// - places are whole locals (projections come with structs);
+// - calls are statements, not terminators: Astra has no unwinding, so a
+//   call either returns or ends the process;
+// - a call to a function returning `!` is followed by `Unreachable`.
+
+#ifndef ASTRA_AIR_H
+#define ASTRA_AIR_H
+
+#include "base/str.h"
+#include "base/vec.h"
+#include "sema/ids.h"
+#include "syntax/ast.h"
+
+typedef struct {
+    uint32_t id;
+} BlockId;
+
+typedef enum {
+    OPERAND_COPY,     // the value of a local
+    OPERAND_ADDR,     // the address of a local (runtime calls taking a pointer)
+    OPERAND_INT,      // integer constant of `type`
+    OPERAND_FLOAT,
+    OPERAND_BOOL,
+    OPERAND_STR,      // string literal
+    OPERAND_UNIT,
+} OperandKind;
+
+typedef struct {
+    OperandKind kind;
+    TypeId type;
+    union {
+        LocalId local;
+        uint64_t int_value;
+        double float_value;
+        bool bool_value;
+        StrView str;
+    } as;
+} Operand;
+
+typedef enum {
+    RV_USE,           // a
+    RV_BINARY,        // a op b, unchecked (comparisons, floats, bitwise, wrapping)
+    RV_CHECKED,       // a op b for + - *; `flag` receives the overflow bit
+    RV_UNARY,         // -a (floats), !a
+    RV_CAST,          // a as T
+    RV_CAST_FAILS,    // whether `a as T` is out of range (bool)
+} RvalueKind;
+
+typedef struct {
+    RvalueKind kind;
+    Op op;
+    Operand a, b;
+    TypeId to;        // casts
+    LocalId flag;     // RV_CHECKED
+} Rvalue;
+
+// Functions of the runtime library (runtime/include/astra_rt.h).
+typedef enum {
+    RT_PRINT_STR, RT_PRINT_INT, RT_PRINT_UINT, RT_PRINT_FLOAT, RT_PRINT_F32, RT_PRINT_BOOL,
+    RT_PRINT_NEWLINE,
+    RT_STR_PUSH_STR, RT_STR_PUSH_INT, RT_STR_PUSH_UINT, RT_STR_PUSH_FLOAT, RT_STR_PUSH_F32,
+    RT_STR_PUSH_BOOL,
+    RT_STR_CONCAT, RT_STR_EQ, RT_STR_CMP,
+    RT_COUNT,
+} RuntimeFn;
+
+typedef enum {
+    AIR_ASSIGN,       // dest = rvalue
+    AIR_CALL,         // dest = callee(args); dest may be absent
+} AirStmtKind;
+
+typedef struct {
+    AirStmtKind kind;
+    LocalId dest;
+    bool has_dest;
+    union {
+        Rvalue rvalue;
+        struct {
+            bool runtime;       // a runtime function, else a user function
+            RuntimeFn rt;
+            DefId fn;
+            Operand *args;
+            uint32_t arg_count;
+        } call;
+    } as;
+} AirStmt;
+
+typedef enum {
+    PANIC_OVERFLOW,
+    PANIC_DIV_ZERO,
+    PANIC_SHIFT,
+    PANIC_CAST,
+} PanicKind;
+
+typedef enum {
+    TERM_NONE,        // not terminated yet (only while lowering)
+    TERM_GOTO,
+    TERM_BRANCH,      // if cond goto then else goto other
+    TERM_ASSERT,      // if cond panics with `panic`, else goto next
+    TERM_RETURN,      // returns local 0
+    TERM_UNREACHABLE,
+} TermKind;
+
+typedef struct {
+    TermKind kind;
+    Operand cond;
+    BlockId target, other;   // goto/next: target; branch: target (true), other (false)
+    PanicKind panic;
+    Span span;               // where an assertion fails
+} Terminator;
+
+typedef struct {
+    Vec(AirStmt) stmts;
+    Terminator term;
+} AirBlock;
+
+typedef struct {
+    TypeId type;
+    Symbol name;      // 0 for temporaries
+    Span span;
+} AirLocal;
+
+// Local 0 is the return value; locals 1..param_count are the parameters.
+typedef struct {
+    DefId def;
+    Symbol name;
+    bool is_main;
+    uint32_t param_count;
+    Vec(AirLocal) locals;
+    Vec(AirBlock) blocks;   // block 0 is the entry
+} AirBody;
+
+typedef struct {
+    Vec(AirBody) bodies;
+} AirProgram;
+
+void air_program_free(AirProgram *program);
+
+// Building blocks, used by the lowering.
+BlockId air_new_block(AirBody *body);
+LocalId air_new_local(AirBody *body, TypeId type, Symbol name, Span span);
+void air_push(AirBody *body, BlockId block, AirStmt stmt);
+void air_terminate(AirBody *body, BlockId block, Terminator term);
+
+static inline AirBlock *air_block(AirBody *body, BlockId id) {
+    return &body->blocks.data[id.id];
+}
+
+const char *runtime_fn_name(RuntimeFn fn);
+
+#endif
