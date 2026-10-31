@@ -66,12 +66,12 @@ Goal: `astra run examples/hello.at` prints `Hello, Astra!`.
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 1.1 | `base/`: arena allocator, dynamic array macros, string builder, string views | M | C unit tests pass |
-| 1.2 | `base/`: hash map (insertion ordered) and identifier interning | S | C unit tests pass |
-| 1.3 | `base/`: file reading, path joining; file table with `FileId` and spans | S | C unit tests pass |
-| 1.4 | `diag/`: diagnostics with codes, rendering with source excerpt and caret | S | output matches the design doc format |
-| 1.5 | Lexer: all tokens of spec chapter 1 except interpolation, raw and byte strings; newline tokens; contextual keywords as identifiers | M | `tests/lex` cases pass, `--emit=tokens` works |
-| 1.6 | Lexer: string interpolation tokens | S | `tests/lex/interpolation*` pass |
+| 1.1 | `base/`: arena allocator, dynamic array macros, string builder, string views | M | **done**: C unit tests pass |
+| 1.2 | `base/`: hash map (insertion ordered) and identifier interning | S | **done** (interning; the general map is added when first needed): C unit tests pass |
+| 1.3 | `base/`: file reading, path joining; file table with `FileId` and spans | S | **done**: C unit tests pass |
+| 1.4 | `diag/`: diagnostics with codes, rendering with source excerpt and caret | S | **done**: output matches the design doc format |
+| 1.5 | Lexer: all tokens of spec chapter 1 except interpolation, raw and byte strings; newline tokens; contextual keywords as identifiers | M | **done**: `tests/lex` cases pass, `--emit=tokens` works |
+| 1.6 | Lexer: string interpolation tokens | S | **done**: `tests/lex/interpolation*` pass |
 | 1.7 | AST definitions and AST printer (`--emit=ast`) | M | printer covers every node kind |
 | 1.8 | Parser: items (`fn`, `struct`, `enum`, `const`, `import`), types, statements, parser-driven newline handling (spec 1.3) | M | `tests/parse` cases pass, including `tests/parse/newlines*` |
 | 1.9 | Parser: expressions with precedence, struct literal restriction, generic disambiguation, patterns | M | `tests/parse` cases pass |
@@ -228,7 +228,6 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Phase 0 is complete. Start Phase 1 (walking skeleton), beginning with
-   tasks 1.1 to 1.4 (`base/` and `diag/` in stage 0).
+1. Phase 1 in progress: next are the AST and the parser (tasks 1.7 to 1.10).
 
 See also the [risk register](risks.md).
