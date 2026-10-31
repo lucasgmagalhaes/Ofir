@@ -1,0 +1,5 @@
+// panic: integer overflow
+fn main() {
+    let a = 9223372036854775807
+    println("{a * 2}")
+}

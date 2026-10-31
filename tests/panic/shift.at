@@ -1,0 +1,5 @@
+// panic: shift amount out of range
+fn main() {
+    let amount = 64
+    println("{1 << amount}")
+}
