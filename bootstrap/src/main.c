@@ -18,7 +18,9 @@ static void print_usage(FILE *out) {
           "options:\n"
           "  -o <path>                 output path\n"
           "  --emit=tokens             print the tokens and stop\n"
-          "  --message-format=short    one line per diagnostic\n",
+          "  --message-format=short    one line per diagnostic\n"
+          "  --stop-after=lex          run the phases up to lex, without output\n"
+          "  --time-passes             report the time spent in each phase\n",
           out);
 }
 
@@ -34,6 +36,10 @@ static bool parse_option(int argc, char **argv, int *i, Options *opts) {
         opts->format = DIAG_FORMAT_SHORT;
     } else if (strcmp(arg, "--message-format=human") == 0) {
         opts->format = DIAG_FORMAT_HUMAN;
+    } else if (strcmp(arg, "--stop-after=lex") == 0) {
+        opts->stop_after = STOP_AFTER_LEX;
+    } else if (strcmp(arg, "--time-passes") == 0) {
+        opts->time_passes = true;
     } else {
         return false;
     }
