@@ -44,12 +44,22 @@ The specification declares methods inside the body of their type (ADR
   `@lang` is allowed only in `std`.
 - Operations that only the compiler can generate (arithmetic without the
   overflow check, LLVM intrinsics such as `llvm.sqrt`, saturating casts)
-  are functions declared in `std` with `@intrinsic` and no body:
+  are functions without a body in an `extern "intrinsic"` block, allowed
+  only in `std`. The compiler recognizes them by name and lowers each call
+  to the LLVM operation; unlike `extern "C"` functions, they are safe to
+  call:
 
   ```astra
-  @intrinsic("wrapping_add")
-  fn wrappingAdd(a: i64, b: i64) i64
+  extern "intrinsic" {
+      fn wrapping_add_i64(a: i64, b: i64) i64
+      fn sqrt_f64(x: f64) f64
+  }
   ```
+
+- Until generics, three methods stay built into the compiler because their
+  signature needs a type argument or a pointer element type:
+  `x.wrappingCast<T>()`, `x.saturatingCast<T>()` and `p.add(n)`; the
+  constants `I.MIN`, `I.MAX`, `F.NAN`, `F.INFINITY` and `F.EPSILON` too.
 
 - The C runtime keeps only the process entry, panics, allocation and the
   system interface; `std` reaches it through `extern "C"` declarations.
