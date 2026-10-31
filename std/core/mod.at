@@ -1,5 +1,12 @@
 //! The prelude: every module sees the public declarations of `std.core`
 //! without an import (spec 7.4, docs/std/core.md).
+//!
+//! The methods of the primitive types live in the submodules, as `@lang`
+//! declarations (ADR 0019).
+
+import std.core.str
+import std.core.ints
+import std.core.floats
 
 /// The result of comparing two values.
 pub copy enum Ordering {

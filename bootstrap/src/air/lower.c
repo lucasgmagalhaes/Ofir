@@ -111,34 +111,54 @@ static void check_main(Sema *sema) {
     }
 }
 
-static void lower_items(Lowerer *l, ItemList items, BodySink sink, void *context) {
+void reach(Lowerer *l, FnDecl *fn) {
+    while (l->reached.len <= fn->def.id) {
+        VEC_PUSH(l->reached, false);
+    }
+    if (fn->body && !l->reached.data[fn->def.id]) {
+        l->reached.data[fn->def.id] = true;
+        VEC_PUSH(l->pending, fn);
+    }
+}
+
+// The roots: `main` and the `extern "C" fn` functions, which C may call.
+// Declarations stage 0 cannot compile yet are reported here.
+static void find_roots(Lowerer *l, ItemList items) {
     for (uint32_t i = 0; i < items.len; i++) {
         Item *item = items.items[i];
         bool is_struct = item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT;
+        bool generic = is_struct ? item->as.struct_.type_params.len > 0
+                       : item->kind == ITEM_ENUM ? item->as.enum_.type_params.len > 0
+                                                 : false;
         if (item->kind == ITEM_FN && item->as.fn->body) {
-            lower_fn(l, item->as.fn, sink, context);
-        } else if (is_struct && item->as.struct_.type_params.len == 0) {
-            for (uint32_t m = 0; m < item->as.struct_.methods.len; m++) {
-                lower_fn(l, item->as.struct_.methods.items[m], sink, context);
+            bool is_main = l->sema->current == 0 &&
+                           sv_eq(symbol_name(&l->sema->session->names, item->name), SV("main"));
+            if (is_main || item->as.fn->abi.len > 0) {
+                reach(l, item->as.fn);
             }
-        } else if (item->kind == ITEM_ENUM && item->as.enum_.type_params.len == 0) {
-            for (uint32_t m = 0; m < item->as.enum_.methods.len; m++) {
-                lower_fn(l, item->as.enum_.methods.items[m], sink, context);
-            }
-        } else if (is_struct || item->kind == ITEM_ENUM || item->kind == ITEM_GLOBAL) {
+        } else if (generic || item->kind == ITEM_GLOBAL) {
             diag_error(&l->sema->session->diags, "E0901", item->span,
                        "compiling this declaration is not supported yet");
         }
     }
 }
 
+// Lowers the functions reachable from the roots, in the order they are
+// reached, so that the output is deterministic.
 void lower_program(Sema *sema, BodySink sink, void *context) {
     Lowerer l = {.sema = sema, .types = &sema->types};
     check_main(sema);
     for (uint32_t m = 0; m < sema->program.len; m++) {
         sema_enter(sema, m);
-        lower_items(&l, sema->module->items, sink, context);
+        find_roots(&l, sema->module->items);
+    }
+    for (size_t next = 0; next < l.pending.len; next++) {
+        FnDecl *fn = l.pending.data[next];
+        sema_enter(sema, sema_def(sema, fn->def)->module);
+        lower_fn(&l, fn, sink, context);
     }
     sema_enter(sema, 0);
     VEC_FREE(l.loops);
+    VEC_FREE(l.pending);
+    VEC_FREE(l.reached);
 }

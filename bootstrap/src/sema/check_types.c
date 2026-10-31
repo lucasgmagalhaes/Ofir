@@ -150,8 +150,7 @@ TypeId fn_signature(Checker *c, FnDecl *fn) {
     TypeId saved_self = c->self_type;
     const Item *owner = def->item;
     if (owner && owner->kind != ITEM_FN && owner->kind != ITEM_EXTERN) {
-        DefId id = scope_module(&c->sema->scope, owner->name);
-        c->self_type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
+        c->self_type = owner_type(c->sema, owner);
     }
     uint32_t count = fn->params.len;
     TypeId *params = ARENA_ARRAY(&c->sema->session->arena, TypeId, count + 1);

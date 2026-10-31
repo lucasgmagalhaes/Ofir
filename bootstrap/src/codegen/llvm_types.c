@@ -181,6 +181,8 @@ static void step(Gen *g, Cursor *cur, uint32_t entry, char base[16]) {
         cur->type = cur->variant->types[entry];
     } else if (ty->kind == TY_TUPLE) {
         cur->type = ty->args[entry];
+    } else if (ty->kind != TY_ADT) {   // a primitive's fields, from its `@lang` declaration
+        cur->type = lang_def(g->sema, cur->type)->fields->types[entry];
     } else {
         const Def *def = sema_def(g->sema, (DefId){ty->data});
         cur->type = def->kind == DEF_STRUCT ? def->fields->types[entry] : type_id(TID_I32);

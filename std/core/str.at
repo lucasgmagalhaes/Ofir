@@ -1,0 +1,143 @@
+//! The methods of `str` (docs/std/strings.md).
+
+extern "C" {
+    fn memcpy(dst: *mut u8, src: *u8, n: u64) *mut u8
+    fn memcmp(a: *u8, b: *u8, n: u64) i32
+    fn astra_alloc(size: int) *mut u8
+    fn astra_realloc(p: *mut u8, size: int) *mut u8
+}
+
+/// `str`: an owned, growable UTF-8 byte string (spec 2.3). A literal points
+/// to read-only memory and has `cap == 0`; it is copied to the heap on the
+/// first modification. The compiler and the runtime share this layout.
+@lang("str")
+pub struct str {
+    ptr: *u8
+    len: int
+    cap: int
+
+    pub fn new() str {
+        return ""
+    }
+
+    /// The length in bytes.
+    pub fn len(self) int {
+        return self.len
+    }
+
+    pub fn isEmpty(self) bool {
+        return self.len == 0
+    }
+
+    /// Appends `t`; allocates when the capacity is exceeded.
+    pub fn push(mut self, t: str) {
+        if t.len == 0 {
+            return
+        }
+        self.reserve(t.len)
+        unsafe {
+            memcpy(self.ptr.add(self.len) as *mut u8, t.ptr, t.len as u64)
+        }
+        self.len += t.len
+    }
+
+    /// Empties the string; a heap buffer keeps its capacity.
+    pub fn clear(mut self) {
+        if self.cap == 0 {
+            self.ptr = "".ptr
+        }
+        self.len = 0
+    }
+
+    pub fn startsWith(self, prefix: str) bool {
+        return prefix.len <= self.len && sameBytes(self.ptr, prefix.ptr, prefix.len)
+    }
+
+    pub fn endsWith(self, suffix: str) bool {
+        if suffix.len > self.len {
+            return false
+        }
+        let start = unsafe { self.ptr.add(self.len - suffix.len) }
+        return sameBytes(start, suffix.ptr, suffix.len)
+    }
+
+    pub fn contains(self, part: str) bool {
+        for i in 0..=self.len - part.len {
+            if sameBytes(unsafe { self.ptr.add(i) }, part.ptr, part.len) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// `n` copies of the string; empty when `n <= 0`.
+    pub fn repeat(self, n: int) str {
+        var out = ""
+        if n > 0 && self.len > 0 {
+            out.reserve(self.len * n)
+        }
+        for i in 0..n {
+            out.push(self)
+        }
+        return out
+    }
+
+    /// A copy with ASCII letters in lower case.
+    pub fn toLower(self) str {
+        return self.mapAscii(b'A', b'Z')
+    }
+
+    /// A copy with ASCII letters in upper case.
+    pub fn toUpper(self) str {
+        return self.mapAscii(b'a', b'z')
+    }
+
+    /// A copy on the heap, owned by the caller.
+    pub fn toOwned(self) str {
+        var out = ""
+        out.push(self)
+        return out
+    }
+
+    // Makes room for `extra` more bytes; a literal moves to the heap.
+    fn reserve(mut self, extra: int) {
+        let needed = self.len + extra
+        if needed <= self.cap {
+            return
+        }
+        var cap = if self.cap > 0 { self.cap * 2 } else { 16 }
+        for cap < needed {
+            cap *= 2
+        }
+        unsafe {
+            if self.cap == 0 {
+                let heap = astra_alloc(cap)
+                if self.len > 0 {
+                    memcpy(heap, self.ptr, self.len as u64)
+                }
+                self.ptr = heap
+            } else {
+                self.ptr = astra_realloc(self.ptr as *mut u8, cap)
+            }
+        }
+        self.cap = cap
+    }
+
+    // A copy where the bytes in `from..=to` have their ASCII case flipped.
+    fn mapAscii(self, from: u8, to: u8) str {
+        var out = self.toOwned()
+        for i in 0..out.len {
+            unsafe {
+                let at = out.ptr.add(i) as *mut u8
+                if *at >= from && *at <= to {
+                    *at = *at ^ 0x20
+                }
+            }
+        }
+        return out
+    }
+}
+
+fn sameBytes(a: *u8, b: *u8, n: int) bool {
+    return n == 0 || unsafe { memcmp(a, b, n as u64) } == 0
+}

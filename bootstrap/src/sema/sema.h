@@ -57,6 +57,7 @@ typedef struct {
     Builtin builtin;
     bool in_prelude;
     bool is_pub;
+    bool lang;           // a `@lang` declaration: `type` is the primitive it describes
     uint32_t module;     // the module that declares it (index in the program)
     uint32_t target;     // DEF_MODULE: the imported module
     bool typed;          // `type` is set (signatures, constants)
@@ -85,10 +86,21 @@ typedef struct {
     TypeTable types;
     Vec(Def) defs;       // defs.data[0] is unused: DefId 0 means "none"
     Scope scope;         // its module table is the current module's
+    DefId lang[TID_BUILTIN_COUNT];   // the `@lang` declaration of each primitive type
 } Sema;
 
 void sema_init(Sema *sema, Session *session, Program program);
 void sema_free(Sema *sema);
+
+// The attribute `@name(...)` of a declaration, or NULL.
+const Attribute *find_attribute(const Sema *sema, AttributeList attributes, const char *name);
+
+// The `@lang` declaration of a primitive type, or NULL.
+Def *lang_def(Sema *sema, TypeId type);
+
+// The type a method's `self` and `Self` stand for: the struct or enum, or
+// the primitive of a `@lang` declaration.
+TypeId owner_type(Sema *sema, const Item *owner);
 
 // Makes module `index` current; returns the previous one.
 uint32_t sema_enter(Sema *sema, uint32_t index);

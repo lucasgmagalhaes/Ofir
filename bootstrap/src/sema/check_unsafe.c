@@ -64,7 +64,12 @@ void check_c_signature(Checker *c, FnDecl *fn) {
 
 // Whether calling `fn` needs `unsafe`: it is declared in an extern block or
 // with `unsafe fn`.
+bool is_intrinsic(const Def *def) {
+    return def->kind == DEF_FN && def->item && def->item->kind == ITEM_EXTERN &&
+           sv_eq(def->item->as.extern_.abi, SV("intrinsic"));
+}
+
 bool is_unsafe_fn(const Def *def) {
-    return def->kind == DEF_FN && (def->fn->is_unsafe ||
-                                   (def->item && def->item->kind == ITEM_EXTERN));
+    return def->kind == DEF_FN && !is_intrinsic(def) &&
+           (def->fn->is_unsafe || (def->item && def->item->kind == ITEM_EXTERN));
 }

@@ -66,6 +66,9 @@ TypeId check_deref(Checker *c, Expr *e, TypeId expected);
 bool pointer_cast(Checker *c, TypeId from, TypeId to, Span span);
 void check_c_signature(Checker *c, FnDecl *fn);                  // E0804
 bool is_unsafe_fn(const Def *def);
+// A function of an `extern "intrinsic"` block: an operation the compiler
+// generates (ADR 0019); safe to call.
+bool is_intrinsic(const Def *def);
 
 // check_user_method.c
 bool type_name_of(Checker *c, const Expr *e, DefId *out);
@@ -79,6 +82,7 @@ TypeId check_tuple_field(Checker *c, Expr *e);
 TypeId check_constructor(Checker *c, Expr *call, DefId id);
 TypeId check_struct_literal(Checker *c, Expr *e);
 void check_not_recursive(Checker *c, TypeId type, Span span);
+void check_lang_layout(Checker *c, const Def *lang, TypeId type);   // E0806
 
 // enums.c
 EnumInfo *enum_variants(Checker *c, DefId id);   // NULL for generic enums
