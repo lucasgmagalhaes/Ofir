@@ -209,7 +209,10 @@ void resolve_expr(Resolver *r, Expr *e) {
         resolve_expr(r, e->as.index.base);
         resolve_expr(r, e->as.index.index);
         break;
-    case EXPR_FIELD: resolve_expr(r, e->as.field.base); break;   // the name needs types
+    case EXPR_FIELD:   // a field or method name needs types; a module member is resolved now
+        resolve_expr(r, e->as.field.base);
+        resolve_qualified(r, e);
+        break;
     case EXPR_TUPLE_FIELD: resolve_expr(r, e->as.tuple_field.base); break;
     case EXPR_TRY: resolve_expr(r, e->as.inner); break;
     case EXPR_STRUCT: resolve_struct_literal(r, e); break;

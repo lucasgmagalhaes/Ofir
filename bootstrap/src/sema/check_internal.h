@@ -34,6 +34,10 @@ const char *type_name(Checker *c, TypeId type);
 // check_types.c
 TypeId resolve_type(Checker *c, const TypeExpr *type);
 TypeId fn_signature(Checker *c, FnDecl *fn);   // the TY_FN type, cached in the Def
+// A declaration of another module named in a type or pattern (E0200, E0202).
+DefId module_type(Checker *c, uint32_t module, Symbol name, Span span);
+// Reports E0202 when a field or method of another module is not `pub`.
+void check_visible(Checker *c, uint32_t module, bool is_pub, Symbol name, Span span);
 bool types_compatible(TypeId found, TypeId expected);
 
 // check_expr.c

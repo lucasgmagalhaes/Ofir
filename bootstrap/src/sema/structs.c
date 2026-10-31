@@ -73,12 +73,14 @@ StructInfo *struct_fields(Checker *c, DefId id) {
     info->defaults = ARENA_ARRAY(arena, Expr *, info->count + 1);
     info->is_tuple = item->kind == ITEM_TUPLE_STRUCT;
     info->is_copy = item->as.struct_.is_copy;
+    uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
     c->self_type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
     def->checking = true;
     fill_fields(c, def, info);
     def->checking = false;
     c->self_type = saved_self;
+    sema_enter(c->sema, saved_module);
     def->fields = info;
     return info;
 }
@@ -116,6 +118,8 @@ TypeId check_struct_field(Checker *c, Expr *e, TypeId base) {
         return type_id(TID_ERROR);
     }
     e->as.field.res = (Res){RES_FIELD, (uint32_t)index};
+    check_visible(c, def->module, def->item->as.struct_.fields.items[index].is_pub,
+                  e->as.field.name, e->span);
     return info->types[index];
 }
 
@@ -153,7 +157,8 @@ TypeId check_constructor(Checker *c, Expr *call, DefId id) {
     return check_args(c, call, &sig);
 }
 
-static void check_literal_fields(Checker *c, Expr *e, const StructInfo *info, bool *given) {
+static void check_literal_fields(Checker *c, Expr *e, const Def *def, const StructInfo *info,
+                                 bool *given) {
     for (uint32_t i = 0; i < e->as.struct_.fields.len; i++) {
         FieldInit *init = &e->as.struct_.fields.items[i];
         int64_t index = field_index(info, init->name);
@@ -163,6 +168,8 @@ static void check_literal_fields(Checker *c, Expr *e, const StructInfo *info, bo
             check_expr(c, init->value, NO_TYPE);
             continue;
         }
+        check_visible(c, def->module, def->item->as.struct_.fields.items[index].is_pub,
+                      init->name, init->value->span);
         if (given[index]) {
             check_error(c, "E0201", init->value->span, "field `" SV_FMT "` is given twice",
                         SV_ARG(name_of(c, init->name)));
@@ -189,7 +196,7 @@ TypeId check_struct_literal(Checker *c, Expr *e) {
     TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
     name->type = type;
     bool *given = ARENA_ARRAY(&c->sema->session->arena, bool, info->count + 1);
-    check_literal_fields(c, e, info, given);
+    check_literal_fields(c, e, def, info, given);
     if (e->as.struct_.base) {
         coerce(c, e->as.struct_.base, type);
         return type;

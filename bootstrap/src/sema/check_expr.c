@@ -303,6 +303,7 @@ TypeId check_const(Checker *c, Def *def) {
         return type_id(TID_ERROR);
     }
     def->checking = true;
+    uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeExpr *annotation = def->item->as.const_.type;
     Expr *value = def->item->as.const_.value;
     TypeId type = annotation ? resolve_type(c, annotation) : NO_TYPE;
@@ -311,6 +312,7 @@ TypeId check_const(Checker *c, Def *def) {
     if (def->kind == DEF_CONST) {
         def->value = const_eval(c, value);   // while `checking` is set: catches cycles
     }
+    sema_enter(c->sema, saved_module);
     def->checking = false;
     def->typed = true;
     return def->type;

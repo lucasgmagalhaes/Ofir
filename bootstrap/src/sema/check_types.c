@@ -9,10 +9,12 @@ static TypeId resolve_alias(Checker *c, Def *def, Span span) {
         return type_id(TID_ERROR);
     }
     if (!def->typed) {
+        uint32_t saved = sema_enter(c->sema, def->module);
         def->checking = true;
         def->type = resolve_type(c, def->item->as.alias.type);
         def->checking = false;
         def->typed = true;
+        sema_enter(c->sema, saved);
     }
     return def->type;
 }
@@ -30,15 +32,47 @@ static TypeId named_type(Checker *c, Def *def, DefId id, Span span) {
     }
 }
 
-static TypeId resolve_path(Checker *c, const TypeExpr *type) {
-    if (type->as.path.segments.len > 1) {
-        return unsupported(c, type->span, "module paths in types are");
+DefId module_type(Checker *c, uint32_t module, Symbol name, Span span) {
+    DefId id = scope_module_in(&c->sema->scope, module, name);
+    const Def *def = id.id ? sema_def(c->sema, id) : NULL;
+    StrView module_name = c->sema->program.items[module].name;
+    if (!def || def->in_prelude || def->module != module) {
+        check_error(c, "E0200", span, "cannot find `" SV_FMT "` in module `" SV_FMT "`",
+                    SV_ARG(symbol_name(&c->sema->session->names, name)), SV_ARG(module_name));
+        return (DefId){0};
     }
+    if (!def->is_pub) {
+        check_error(c, "E0202", span, "`" SV_FMT "` is private to module `" SV_FMT "`",
+                    SV_ARG(symbol_name(&c->sema->session->names, name)), SV_ARG(module_name));
+    }
+    return id;
+}
+
+// `Name` or `module.Name`.
+static DefId path_target(Checker *c, const TypeExpr *type, Symbol *name) {
+    SymbolList segments = type->as.path.segments;
+    *name = segments.items[segments.len - 1];
+    DefId id = scope_module(&c->sema->scope, segments.items[0]);
+    if (segments.len == 1 || id.id == 0) {
+        return segments.len == 1 ? id : (DefId){0};
+    }
+    const Def *module = sema_def(c->sema, id);
+    if (segments.len > 2 || module->kind != DEF_MODULE) {
+        unsupported(c, type->span, "nested module paths in types are");
+        return (DefId){0};
+    }
+    return module_type(c, module->target, *name, type->span);
+}
+
+static TypeId resolve_path(Checker *c, const TypeExpr *type) {
     if (type->as.path.args.len > 0) {
         return unsupported(c, type->span, "generic types are");
     }
-    Symbol name = type->as.path.segments.items[0];
-    DefId id = scope_module(&c->sema->scope, name);
+    Symbol name;
+    DefId id = path_target(c, type, &name);
+    if (id.id == 0 && type->as.path.segments.len > 1) {
+        return type_id(TID_ERROR);   // reported by module_type
+    }
     if (id.id == 0) {
         check_error(c, "E0200", type->span, "cannot find type `" SV_FMT "` in this scope",
                     SV_ARG(symbol_name(&c->sema->session->names, name)));
@@ -110,8 +144,9 @@ TypeId fn_signature(Checker *c, FnDecl *fn) {
     if (def->typed) {
         return def->type;
     }
-    // A method's signature may be needed by a caller elsewhere: `Self` is
-    // the method's own type, whatever is being checked.
+    // A signature may be needed by a caller elsewhere: its names are looked
+    // up in its own module, and `Self` is a method's own type.
+    uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
     const Item *owner = def->item;
     if (owner && owner->kind != ITEM_FN && owner->kind != ITEM_EXTERN) {
@@ -125,6 +160,7 @@ TypeId fn_signature(Checker *c, FnDecl *fn) {
     }
     TypeId ret = fn->ret ? resolve_type(c, fn->ret) : type_id(TID_UNIT);
     c->self_type = saved_self;
+    sema_enter(c->sema, saved_module);
     def->type = type_fn(c->types, params, count, ret);
     def->typed = true;
     return def->type;

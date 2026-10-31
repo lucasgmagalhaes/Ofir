@@ -44,32 +44,6 @@ static bool output_path(const Options *opts, char out[PATH_SIZE]) {
     return snprintf(out, PATH_SIZE, "%s/%.*s", dir, (int)len, base) < PATH_SIZE;
 }
 
-// The runtime library: $ASTRA_RUNTIME, else next to the compiler
-// (build/stage0/astra -> build/libastra_rt.a), else in ../lib/astra.
-static bool runtime_path(const char *argv0, char out[PATH_SIZE]) {
-    const char *env = getenv("ASTRA_RUNTIME");
-    if (env && env[0]) {
-        return snprintf(out, PATH_SIZE, "%s", env) < PATH_SIZE;
-    }
-    char self[PATH_SIZE];
-    ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);   // Linux
-    if (n > 0) {
-        self[n] = '\0';
-    } else if (!realpath(argv0, self)) {   // macOS: the path the compiler was started with
-        return false;
-    }
-    char *slash = strrchr(self, '/');
-    *slash = '\0';
-    static const char *const CANDIDATES[] = {"../libastra_rt.a", "../lib/astra/libastra_rt.a"};
-    for (size_t i = 0; i < ARRAY_LEN(CANDIDATES); i++) {
-        int n_out = snprintf(out, PATH_SIZE, "%s/%s", self, CANDIDATES[i]);
-        if (n_out > 0 && n_out < PATH_SIZE && access(out, R_OK) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 static int spawn_wait(char *const argv[]) {
     pid_t pid;
     int err = posix_spawnp(&pid, argv[0], NULL, NULL, argv, environ);
@@ -94,7 +68,8 @@ int run_program(const char *exe) {
 
 static Next link_program(const Options *opts, const char *ll, const char *exe) {
     char runtime[PATH_SIZE];
-    if (!runtime_path(opts->argv0, runtime)) {
+    static const char *const PLACES[] = {"../libastra_rt.a", "../lib/astra/libastra_rt.a"};
+    if (!find_installed(opts->argv0, "ASTRA_RUNTIME", PLACES, ARRAY_LEN(PLACES), runtime)) {
         fprintf(stderr, "error[E0902]: cannot find the runtime library libastra_rt.a "
                         "(set ASTRA_RUNTIME)\n");
         return STOP_FAIL;
@@ -140,7 +115,7 @@ static bool write_llvm(Pipeline *p, Sema *sema, const char *ll) {
     }
     timer_start(p->timer);
     Sink sink = {.sema = sema, .gen = llvm_begin(sema, out)};
-    lower_module(sema, take_body, &sink);
+    lower_program(sema, take_body, &sink);
     llvm_end(sink.gen);
     fclose(out);
     timer_report(p->timer, "llvm", ll);
@@ -173,7 +148,7 @@ static Next generate(Pipeline *p, Sema *sema) {
 Next run_backend(Pipeline *p, Sema *sema) {
     if (p->opts->emit == EMIT_AIR) {
         Sink sink = {.sema = sema};
-        lower_module(sema, take_body, &sink);
+        lower_program(sema, take_body, &sink);
         return STOP;
     }
     return generate(p, sema);
