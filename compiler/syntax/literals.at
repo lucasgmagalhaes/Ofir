@@ -1,0 +1,284 @@
+//! Numbers, strings and byte literals (spec 1.7).
+
+import diag.Diagnostics
+import syntax.cursor.Cursor
+import syntax.cursor.digitValue
+import syntax.cursor.isDigit
+import syntax.cursor.isLetter
+import syntax.token.Token
+import syntax.token.TokenKind
+
+// ---------------------------------------------------------------------------
+// Numbers
+
+pub fn scanNumber(cur: mut Cursor, src: str, diags: mut Diagnostics) Token {
+    let start = cur.pos
+    let base = numberBase(cur, src)
+    if base != 10 {
+        cur.pos += 2
+    }
+    let value = scanDigits(cur, src, base)
+    if base == 10 && atFractionOrExponent(cur, src) {
+        return floatRest(cur, src, start, diags)
+    }
+    if isLetter(cur.peek(src, 0)) {
+        diags.error("E0001", cur.spanAt(cur.pos), "unexpected character after number")
+    }
+    let .Some(v) = value else {
+        diags.error("E0005", cur.spanFrom(start), "integer literal is too large")
+        return cur.tokenWith(.Int, start, .Int(0))
+    }
+    return cur.tokenWith(.Int, start, .Int(v))
+}
+
+fn numberBase(cur: Cursor, src: str) int {
+    return match (cur.peek(src, 0), cur.peek(src, 1)) {
+        (b'0', b'x') => 16
+        (b'0', b'o') => 8
+        (b'0', b'b') => 2
+        _ => 10
+    }
+}
+
+// Reads digits of `base` and `_` separators; `None` if the value overflows.
+fn scanDigits(cur: mut Cursor, src: str, base: int) Option<u64> {
+    var value: Option<u64> = .Some(0)
+    for !cur.atEnd(src) {
+        let c = src[cur.pos]
+        let digit = digitValue(c)
+        if c != b'_' && digit >= base {
+            break
+        }
+        cur.pos += 1
+        if c != b'_' {
+            value = accumulate(value, base, digit)
+        }
+    }
+    return value
+}
+
+fn accumulate(value: Option<u64>, base: int, digit: int) Option<u64> {
+    let v = value?
+    let shifted = v.checkedMul(base as u64)?
+    return shifted.checkedAdd(digit as u64)
+}
+
+// `1.5` and `2e10` are floats; `0..10` is a range and `x.0` a tuple field.
+fn atFractionOrExponent(cur: Cursor, src: str) bool {
+    let c = cur.peek(src, 0)
+    if c == b'.' {
+        return isDigit(cur.peek(src, 1))
+    }
+    if c == b'e' || c == b'E' {
+        let next = cur.peek(src, 1)
+        return isDigit(next) || (next == b'+' || next == b'-') && isDigit(cur.peek(src, 2))
+    }
+    return false
+}
+
+fn floatRest(cur: mut Cursor, src: str, start: int, diags: mut Diagnostics) Token {
+    if cur.eat(src, b'.') {
+        skipDigits(cur, src)
+    }
+    if cur.eat(src, b'e') || cur.eat(src, b'E') {
+        if !cur.eat(src, b'+') {
+            cur.eat(src, b'-')
+        }
+        skipDigits(cur, src)
+    }
+    let text = src[start..cur.pos].replace("_", "")
+    let .Ok(v) = float.parse(text) else {
+        diags.error("E0005", cur.spanFrom(start), "invalid float literal")
+        return cur.tokenWith(.Float, start, .Float(0.0))
+    }
+    return cur.tokenWith(.Float, start, .Float(v))
+}
+
+fn skipDigits(cur: mut Cursor, src: str) {
+    for !cur.atEnd(src) && (isDigit(src[cur.pos]) || src[cur.pos] == b'_') {
+        cur.pos += 1
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Strings
+
+// Lexes string text up to the closing quote or the next interpolation.
+// `opening` is true right after the opening quote and false after the `}`
+// that ends an interpolation. The result is Str or StrEnd after a quote,
+// StrStart or StrMid before an interpolation: the lexer then records that
+// an interpolation is open.
+pub fn scanStringPart(
+    cur: mut Cursor,
+    src: str,
+    start: int,
+    opening: bool,
+    diags: mut Diagnostics,
+) Token {
+    var text = str.new()
+    for {
+        let c = cur.peek(src, 0)
+        if cur.atEnd(src) || c == b'\n' {
+            diags.error("E0002", cur.spanFrom(start), "unterminated string literal")
+            return cur.tokenWith(if opening { .Str } else { .StrEnd }, start, .Str(text))
+        }
+        if c == b'"' || c == b'{' {
+            cur.pos += 1
+            let kind: TokenKind = match (c == b'"', opening) {
+                (true, true) => .Str
+                (true, false) => .StrEnd
+                (false, true) => .StrStart
+                (false, false) => .StrMid
+            }
+            return cur.tokenWith(kind, start, .Str(text))
+        }
+        stringPiece(cur, src, text, diags)
+    }
+}
+
+// Consumes one piece of string text: an escape, a stray `}` or a run of
+// ordinary bytes.
+fn stringPiece(cur: mut Cursor, src: str, text: mut str, diags: mut Diagnostics) {
+    let c = cur.peek(src, 0)
+    if c == b'}' {
+        diags.error("E0006", cur.spanAt(cur.pos), "unescaped `}` in string literal; write `\}`")
+        cur.pos += 1
+    } else if c == b'\\' {
+        escape(cur, src, text, diags)
+    } else {
+        copyRun(cur, src, text)
+    }
+}
+
+// Copies a run of ordinary bytes. Runs stop only at ASCII bytes, so each run
+// of the (valid UTF-8) source is itself valid UTF-8.
+fn copyRun(cur: mut Cursor, src: str, text: mut str) {
+    let run = cur.pos
+    for !cur.atEnd(src) && !isStringSpecial(src[cur.pos]) {
+        cur.pos += 1
+    }
+    text.push(src[run..cur.pos])
+}
+
+fn isStringSpecial(c: u8) bool {
+    return c == b'"' || c == b'\\' || c == b'{' || c == b'}' || c == b'\n'
+}
+
+// check-sizes: table
+fn escape(cur: mut Cursor, src: str, out: mut str, diags: mut Diagnostics) {
+    let start = cur.pos
+    cur.pos += 1                                  // the backslash
+    let c = cur.peek(src, 0)
+    cur.pos += 1
+    match c {
+        b'n' => out.push("\n")
+        b't' => out.push("\t")
+        b'r' => out.push("\r")
+        b'0' => out.push("\0")
+        b'\\' => out.push("\\")
+        b'"' => out.push("\"")
+        b'{' => out.push("\{")
+        b'}' => out.push("\}")
+        b'x' | b'u' => numericEscape(cur, src, c, out, diags)
+        _ => diags.error("E0004", cur.spanFrom(start), "invalid escape sequence")
+    }
+}
+
+// `\xHH` (ASCII only in strings) or `\u{H...}`, after the letter.
+fn numericEscape(cur: mut Cursor, src: str, kind: u8, out: mut str, diags: mut Diagnostics) {
+    let start = cur.pos - 2
+    if kind == b'x' {
+        let value = hexDigits(cur, src, 2)
+        if value < 0 || value > 0x7f {
+            let message = "`\\x` escapes in strings must be between \\x00 and \\x7f"
+            diags.error("E0004", cur.spanFrom(start), message)
+            return
+        }
+        out.pushChar(value as u32)
+        return
+    }
+    let value = unicodeEscape(cur, src)
+    if value < 0 || value > 0x10ffff || value >= 0xd800 && value <= 0xdfff {
+        diags.error("E0004", cur.spanFrom(start), "invalid unicode escape")
+        return
+    }
+    out.pushChar(value as u32)
+}
+
+// Reads exactly `count` hex digits; returns -1 if they are missing.
+fn hexDigits(cur: mut Cursor, src: str, count: int) int {
+    var value = 0
+    for _ in 0..count {
+        let d = digitValue(cur.peek(src, 0))
+        if d >= 16 {
+            return -1
+        }
+        value = value * 16 + d
+        cur.pos += 1
+    }
+    return value
+}
+
+// Reads `{H...}` after `\u`; returns -1 if malformed.
+fn unicodeEscape(cur: mut Cursor, src: str) int {
+    if !cur.eat(src, b'{') {
+        return -1
+    }
+    var value = 0
+    var digits = 0
+    for digitValue(cur.peek(src, 0)) < 16 {
+        if digits == 6 {
+            return -1
+        }
+        value = value * 16 + digitValue(cur.peek(src, 0))
+        digits += 1
+        cur.pos += 1
+    }
+    if digits == 0 || !cur.eat(src, b'}') {
+        return -1
+    }
+    return value
+}
+
+// ---------------------------------------------------------------------------
+// Bytes
+
+// `b'a'`, `b'\n'`, `b'\xff'`: any byte value, unlike `\x` in strings.
+pub fn scanByteLiteral(cur: mut Cursor, src: str, diags: mut Diagnostics) Token {
+    let start = cur.pos
+    cur.pos += 2                                  // b'
+    var value = cur.peek(src, 0) as int
+    cur.pos += 1
+    if value == b'\\' as int {
+        value = byteEscape(cur, src)
+    }
+    if value < 0 || !cur.eat(src, b'\'') {
+        diags.error("E0004", cur.spanFrom(start), "invalid byte literal")
+        skipToQuote(cur, src)
+        return cur.tokenWith(.Byte, start, .Byte(0))
+    }
+    return cur.tokenWith(.Byte, start, .Byte(value as u8))
+}
+
+fn byteEscape(cur: mut Cursor, src: str) int {
+    let e = cur.peek(src, 0)
+    cur.pos += 1
+    return match e {
+        b'n' => 10
+        b't' => 9
+        b'r' => 13
+        b'0' => 0
+        b'\\' => 92
+        b'\'' => 39
+        b'x' => hexDigits(cur, src, 2)
+        _ => -1
+    }
+}
+
+// Skips to just after the closing quote on this line, if any.
+fn skipToQuote(cur: mut Cursor, src: str) {
+    for !cur.atEnd(src) && src[cur.pos] != b'\'' && src[cur.pos] != b'\n' {
+        cur.pos += 1
+    }
+    cur.eat(src, b'\'')
+}
