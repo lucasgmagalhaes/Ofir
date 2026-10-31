@@ -93,18 +93,18 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 2.1 | All integer types, `float`, `bool`; `as` conversions with checks; `wrappingCast`/`saturatingCast`/`checkedCast` | M | `tests/run/numbers/*` and `tests/panic/cast*` pass |
-| 2.2 | Checked arithmetic (`llvm.*.with.overflow`), division semantics, shifts | S | `tests/panic/overflow*` pass |
-| 2.3 | Comparison, logic (short-circuit), bitwise operators | S | `tests/run/operators/*` pass |
-| 2.4 | `if`/`else` as statement and expression | S | `tests/run/control/if*` pass |
-| 2.5 | `for` (infinite, condition, ranges), `break`, `continue` | S | `examples/fibonacci.at` runs |
-| 2.6 | Missing-return analysis, `!` type, `panic`, `assert` | S | `tests/compile_fail/missing_return*` pass |
-| 2.7 | `const` declarations with compile-time evaluation | S | tests pass |
-| 2.8 | `str`: literals, `+`, `+=`, `==`, comparison, `len`, byte indexing, `push` | M | `tests/run/strings/*` pass |
-| 2.9 | Interpolation of all primitive types; shortest round-trip float formatting (spec 2.1) | M | `tests/run/strings/float_format*` pass |
-| 2.10 | Structs: declaration, literals, field access and assignment, nested structs, `copy struct`, default field values, tuple structs | M | `tests/run/structs/*` pass |
-| 2.11 | Methods and associated functions declared inside structs and enums, `self` | M | `tests/run/methods/*` pass |
-| 2.12 | Parameter modes (borrow, `mut`, `move`) for parameters and `self`, `for mut`, `[T]`/`str` view parameters; explicit `&T`/`&mut T` locals, auto-deref, `*` | M | `tests/run/modes/*` pass |
+| 2.1 | All integer types, `float`, `bool`; `as` conversions with checks; `wrappingCast`/`saturatingCast`/`checkedCast` | M | **done** except `checkedCast` (needs `Option`, 2.22): `tests/run/numbers/*`, `tests/panic/cast*` pass |
+| 2.2 | Checked arithmetic (`llvm.*.with.overflow`), division semantics, shifts | S | **done**: `tests/panic/*overflow*`, `div_*`, `shift` pass |
+| 2.3 | Comparison, logic (short-circuit), bitwise operators | S | **done**: covered by `tests/run/basics/*` |
+| 2.4 | `if`/`else` as statement and expression | S | **done**: `tests/run/basics/control` |
+| 2.5 | `for` (infinite, condition, ranges), `break`, `continue` | S | **done**: `examples/fibonacci.at` runs |
+| 2.6 | Missing-return analysis, `!` type, `panic`, `assert` | S | **done**: `tests/compile_fail/types/returns`, `tests/panic/assert`, `explicit` |
+| 2.7 | `const` declarations with compile-time evaluation | S | **done**: `tests/run/basics/constants`, `tests/compile_fail/types/constants` |
+| 2.8 | `str`: literals, `+`, `+=`, `==`, comparison, `len`, byte indexing, `push` | M | **done**: `tests/run/strings/*` pass |
+| 2.9 | Interpolation of all primitive types; shortest round-trip float formatting (spec 2.1) | M | **done**: `tests/run/basics/strings`, `numbers/methods` |
+| 2.10 | Structs: declaration, literals, field access and assignment, nested structs, `copy struct`, default field values, tuple structs | M | **done**: `tests/run/structs/*` pass |
+| 2.11 | Methods and associated functions declared inside structs and enums, `self` | M | **done** for structs (enums with 2.14): `tests/run/methods/*` pass |
+| 2.12 | Parameter modes (borrow, `mut`, `move`) for parameters and `self`, `for mut`, `[T]`/`str` view parameters; explicit `&T`/`&mut T` locals, auto-deref, `*` | M | **in progress**: modes of parameters and `self` done (`mut` by reference); `for mut` done; views, `&T` locals and `*` remain |
 | 2.13 | Tuples and destructuring `let` | S | tests pass |
 | 2.14 | Enums: layout, construction, `.Variant` shorthand | M | tests pass |
 | 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards; Copy bindings through references | L | `examples/shapes.at` runs |
@@ -128,7 +128,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 3.4 | Modules: multiple files, `mod.at`, `import`, aliases, `pub`, module-qualified names | L | multi-file tests pass |
 | 3.5 | Prelude and standard library loading from `std/` | M | `Option`/`Result` helpers live in `std/core` |
 | 3.6 | `extern "C"` blocks, `unsafe` blocks, raw pointers | M | calling `strlen` works |
-| 3.7 | `std.strings` and `str` S0 methods, including the borrowing iterators `split`, `splitWhitespace`, `lines`, `bytes` | M | `tests/run/strings/*` pass |
+| 3.7 | `std.strings` and `str` S0 methods, including the borrowing iterators `split`, `splitWhitespace`, `lines`, `bytes` | M | **done**: `tests/run/strings/*` pass |
 | 3.8 | `std.io` and `std.fs` S0 entries, `IoError` | M | `examples/word_count.at` runs |
 | 3.9 | `std.os` S0 entries: args, env, exit, `run` | M | a test program runs `clang --version` |
 | 3.10 | Runtime: stack overflow detection | S | `tests/panic/stack_overflow*` pass |
@@ -231,8 +231,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Phase 1 is done (milestone M1). Next is phase 2, the stage 0 core
-   language, starting with the integer types and conversions (2.1) and
-   structs (2.10).
+1. Phase 2 in progress: tasks 2.1 to 2.11 are done; next are references
+   and views (rest of 2.12), tuples (2.13), enums (2.14) and `match` (2.15).
 
 See also the [risk register](risks.md).
