@@ -21,6 +21,9 @@ void arena_free(Arena *arena);
 // Returns `size` bytes aligned to `align` (a power of two), zero-initialized.
 void *arena_alloc(Arena *arena, size_t size, size_t align);
 
+// Like arena_alloc, without zeroing: for memory that is overwritten at once.
+void *arena_alloc_uninit(Arena *arena, size_t size, size_t align);
+
 // Copies `len` bytes and appends a terminating zero byte.
 char *arena_strndup(Arena *arena, const char *src, size_t len);
 

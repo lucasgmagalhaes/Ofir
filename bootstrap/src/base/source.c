@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void source_map_init(SourceMap *map, Arena *arena) {
     map->arena = arena;
@@ -16,7 +17,25 @@ void source_map_free(SourceMap *map) {
     map->count = map->cap = 0;
 }
 
-FileId source_map_add(SourceMap *map, StrView path, StrView text) {
+// Records the start of every line of `text` with memchr, which scans many
+// bytes per instruction.
+static void index_lines(SourceMap *map, SourceFile *file) {
+    const char *text = file->text.ptr, *end = text + file->text.len;
+    uint32_t lines = 1;
+    for (const char *p = text; (p = memchr(p, '\n', (size_t)(end - p))) != NULL; p++) {
+        lines++;
+    }
+    file->line_starts = ARENA_ARRAY(map->arena, uint32_t, lines);
+    file->line_starts[0] = 0;
+    uint32_t line = 1;
+    for (const char *p = text; (p = memchr(p, '\n', (size_t)(end - p))) != NULL; p++) {
+        file->line_starts[line++] = (uint32_t)(p - text) + 1;
+    }
+    file->line_count = lines;
+}
+
+// Adds a file whose text is already in the arena.
+static FileId add_owned(SourceMap *map, StrView path, StrView text) {
     if (text.len > UINT32_MAX - 1) {
         fatal("source file too large: " SV_FMT, SV_ARG(path));
     }
@@ -24,44 +43,34 @@ FileId source_map_add(SourceMap *map, StrView path, StrView text) {
         map->cap = map->cap ? map->cap * 2 : 16;
         map->files = xrealloc(map->files, sizeof(SourceFile) * map->cap);
     }
-
     SourceFile *file = &map->files[map->count];
     file->path = (StrView){arena_strndup(map->arena, path.ptr, path.len), path.len};
-    file->text = (StrView){arena_strndup(map->arena, text.ptr, text.len), text.len};
-
-    uint32_t lines = 1;
-    for (size_t i = 0; i < text.len; i++) {
-        lines += text.ptr[i] == '\n';
-    }
-    file->line_starts = ARENA_ARRAY(map->arena, uint32_t, lines);
-    file->line_starts[0] = 0;
-    uint32_t line = 1;
-    for (size_t i = 0; i < text.len; i++) {
-        if (text.ptr[i] == '\n') {
-            file->line_starts[line++] = (uint32_t)i + 1;
-        }
-    }
-    file->line_count = lines;
+    file->text = text;
+    index_lines(map, file);
     return (FileId){map->count++};
 }
 
+FileId source_map_add(SourceMap *map, StrView path, StrView text) {
+    StrView copy = {arena_strndup(map->arena, text.ptr, text.len), text.len};
+    return add_owned(map, path, copy);
+}
+
+// Reads the whole file into the arena with a single allocation.
 bool source_map_load(SourceMap *map, const char *path, FileId *out) {
     FILE *f = fopen(path, "rb");
     if (!f) {
         return false;
     }
-    StrBuf buf = {0};
-    char chunk[16384];
-    size_t n;
-    while ((n = fread(chunk, 1, sizeof chunk, f)) > 0) {
-        strbuf_append(&buf, (StrView){chunk, n});
-    }
-    bool ok = !ferror(f);
+    bool ok = fseek(f, 0, SEEK_END) == 0;
+    long size = ok ? ftell(f) : -1;
+    ok = size >= 0 && fseek(f, 0, SEEK_SET) == 0;
+    char *text = ok ? arena_alloc_uninit(map->arena, (size_t)size + 1, 1) : NULL;
+    ok = ok && fread(text, 1, (size_t)size, f) == (size_t)size;
     fclose(f);
     if (ok) {
-        *out = source_map_add(map, sv_from_cstr(path), strbuf_view(&buf));
+        text[size] = '\0';
+        *out = add_owned(map, sv_from_cstr(path), (StrView){text, (size_t)size});
     }
-    strbuf_free(&buf);
     return ok;
 }
 
