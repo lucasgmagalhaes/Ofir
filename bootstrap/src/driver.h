@@ -10,12 +10,19 @@ typedef enum {
     EMIT_TOKENS,   // print the tokens and stop
 } Emit;
 
+typedef enum {
+    STOP_NEVER,        // run every phase
+    STOP_AFTER_LEX,    // --stop-after=lex: for benchmarks, no output
+} StopAfter;
+
 typedef struct {
     const char *command;   // "build" or "run"
     const char *input;
     const char *output;    // -o
     Emit emit;
+    StopAfter stop_after;
     DiagFormat format;
+    bool time_passes;      // --time-passes: report the time spent in each phase
 } Options;
 
 // Returns the process exit status: 0 on success, 1 on compile errors.
