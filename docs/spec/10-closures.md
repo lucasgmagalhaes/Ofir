@@ -6,7 +6,9 @@ scope where it is created.
 ## 10.1 Syntax
 
 ```astra
-let double = fn(x: int) int { return x * 2 }
+let double = fn(x: int) int {
+    return x * 2
+}
 let add = fn(a: int, b: int) int => a + b         // expression body
 let names = users.map(fn(u) => u.name.clone())    // types inferred
 let greet = move fn() => println("hi {name}")     // captures by value
@@ -63,7 +65,9 @@ from how the body uses it:
 
 ```astra
 var count = 0
-let increment = fn() { count += 1 }    // captures `count` by &mut
+let increment = fn() {   // captures `count` by &mut
+    count += 1
+}
 increment()
 increment()
 println("{count}")                      // 2: the borrow ended at the last call

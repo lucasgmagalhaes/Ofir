@@ -136,7 +136,9 @@ struct Lexer {
         for !self.cur.atEnd(src) && src[self.cur.pos] != b'\n' {
             self.cur.pos += 1
         }
-        let .Some(k) = kind else { return .None }
+        let .Some(k) = kind else {
+            return .None
+        }
         let text = src[start + 3..self.cur.pos].trim().toOwned()
         return .Some(self.cur.tokenWith(k, start, .Str(text)))
     }
@@ -255,7 +257,9 @@ struct Lexer {
     }
 
     fn closesInterpolation(mut self) bool {
-        let .Some(depth) = self.interpolations.last() else { return false }
+        let .Some(depth) = self.interpolations.last() else {
+            return false
+        }
         if depth != self.brackets.len() {
             return false
         }

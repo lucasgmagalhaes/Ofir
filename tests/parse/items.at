@@ -26,15 +26,25 @@ pub struct Point {
         return Point { x, y: y, z: 0.0 }
     }
 
-    fn norm(self) float { return self.x }
-    fn scale(mut self, by: float) { self.x *= by }
-    fn into(move self) (float, float) { return (self.x, self.y) }
+    fn norm(self) float {
+        return self.x
+    }
+
+    fn scale(mut self, by: float) {
+        self.x *= by
+    }
+
+    fn into(move self) (float, float) {
+        return (self.x, self.y)
+    }
 }
 
 copy struct Meters(float)
 
 struct Pair<A, B>(pub A, B) {
-    fn first(self) &A { return &self.0 }
+    fn first(self) &A {
+        return &self.0
+    }
 }
 
 ref struct Node {
@@ -51,7 +61,9 @@ enum Tree<T> {
     Leaf
     Branch(left: Tree<T>, T, right: Tree<T>)
 
-    fn isLeaf(self) bool { return false }
+    fn isLeaf(self) bool {
+        return false
+    }
 }
 
 const MAX_SIZE: int = 1 << 16

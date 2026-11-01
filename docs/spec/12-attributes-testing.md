@@ -6,7 +6,9 @@ Attributes attach metadata to a declaration. They start with `@`:
 
 ```astra
 @inline
-fn square(x: int) int { return x * x }
+fn square(x: int) int {
+    return x * x
+}
 
 @repr(C)
 struct Header {
@@ -80,10 +82,14 @@ per iteration.
 
 ```astra
 @cfg(os == "linux")
-fn pageSize() int { return 4096 }
+fn pageSize() int {
+    return 4096
+}
 
 @cfg(debug)
-fn trace(msg: str) { eprintln(msg) }
+fn trace(msg: str) {
+    eprintln(msg)
+}
 ```
 
 Available conditions: `os` (`"linux"`, `"macos"`, `"windows"`), `arch`

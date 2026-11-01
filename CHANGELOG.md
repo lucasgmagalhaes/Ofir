@@ -6,6 +6,12 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Style: no inline blocks (`[fmt] inline-blocks = false`). Function and
+  statement bodies always go on their own lines; `make check-format`
+  (`tools/check_format.py`, with `--fix`) enforces it in `make test`.
+
 ## [0.1.0] - 2026-11-01
 
 Milestone M2: stage 0 is complete.

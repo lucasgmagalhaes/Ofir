@@ -5,8 +5,13 @@ fn helper() {}   // error[E0201]: `helper` is defined more than once
 struct Point {
     x: int
 
-    fn len(self) int { return self.x }
-    fn len(self) int { return 0 }   // error[E0201]: `len` is defined more than once
+    fn len(self) int {
+        return self.x
+    }
+
+    fn len(self) int {   // error[E0201]: `len` is defined more than once
+        return 0
+    }
 }
 
 const LIMIT = 1
