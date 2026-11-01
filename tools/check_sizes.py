@@ -144,19 +144,10 @@ def python_functions(lines: list[str]) -> list[Function]:
     return functions
 
 
-def counted_lines(path: Path, lines: list[str]) -> int:
-    """File length, not counting the `@test` section at the end of Astra files."""
-    if path.suffix == ".at":
-        for i, line in enumerate(lines):
-            if line.startswith("@test"):
-                return i
-    return len(lines)
-
-
 def check(path: Path, report) -> None:
     lines = path.read_text().splitlines()
     rel = path.relative_to(ROOT)
-    report((rel, 1), "file", counted_lines(path, lines), FILE_LINES, "lines")
+    report((rel, 1), "file", len(lines), FILE_LINES, "lines")
     for number, line in enumerate(lines, start=1):
         report((rel, number), "line", len(line), (LINE_WIDTH, LINE_WIDTH), "characters")
     if path.suffix == ".py":

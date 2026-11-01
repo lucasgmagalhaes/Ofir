@@ -239,13 +239,14 @@ Astra lives in `std/`.
 ## `std/` — standard library (Astra)
 
 Module paths follow directories (spec 7.1): `std/collections/map.at` is the
-module `std.collections.map`, and a directory's `mod.at` file is the module
-named after the directory (`std/fs/mod.at` is `std.fs`).
+module `std.collections.map`, and a directory's `index.at` file is the
+module named after the directory (`std/fs/index.at` is `std.fs`). The tests
+of `x.at` are in `x_test.at` next to it (`std/core/list_test.at`).
 
 ```
 std/
 ├── core/                     std.core, the prelude: imported into every module (spec 7.4)
-│   ├── mod.at                the prelude's own declarations (Ordering) and imports
+│   ├── index.at              the prelude's own declarations (Ordering) and imports
 │   ├── str.at                `@lang("str")`: the methods of str
 │   ├── split.at              StrSplit and StrBytes, the iterators of str
 │   ├── print.at              eprint and eprintln

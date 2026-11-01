@@ -145,23 +145,3 @@ pub struct StrBytes {
 fn isSpace(b: u8) bool {
     return b == b' ' || (b >= 9 && b <= 13)
 }
-
-@test
-fn splitKeepsEmptyParts() {
-    var parts = "a,,b".split(",")
-    assert((parts.next() ?? "?") == "a")
-    assert((parts.next() ?? "?") == "")
-    assert((parts.next() ?? "?") == "b")
-    assert(parts.next().isNone())
-}
-
-@test
-fn linesDropTheCarriageReturn() {
-    var lines = "one\r\ntwo\n".lines()
-    assert((lines.next() ?? "?") == "one")
-    assert((lines.next() ?? "?") == "two")
-    assert(lines.next().isNone())
-    var words = "  a  bc ".splitWhitespace()
-    assert((words.next() ?? "?") == "a" && (words.next() ?? "?") == "bc")
-    assert(words.next().isNone())
-}

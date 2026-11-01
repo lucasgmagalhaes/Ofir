@@ -46,12 +46,3 @@ pub fn swap<T>(a: mut T, b: mut T) {
         *pb = saved
     }
 }
-
-@test
-fn replaceReturnsTheOldValue() {
-    var names = ["ana".toOwned(), "bob".toOwned()]
-    let old = replace(names[0], "cy".toOwned())
-    assert(old == "ana" && names[0] == "cy")
-    swap(names[0], names[1])
-    assert(names[0] == "bob" && names[1] == "cy")
-}

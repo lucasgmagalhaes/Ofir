@@ -4,8 +4,10 @@
 
 - Every `.at` file is a module. The module name is the file name.
 - A directory groups modules into a package: `src/parser/lexer.at` is the
-  module `parser.lexer`. A file named `mod.at` inside a directory is the
-  module named after the directory itself (`src/parser/mod.at` is `parser`).
+  module `parser.lexer`. A file named `index.at` inside a directory is the
+  module named after the directory itself (`src/parser/index.at` is `parser`).
+- A file `name_test.at` next to `name.at` holds that module's tests
+  (chapter 12.2): it is part of the module, not a module of its own.
 - A program is built from a root file containing `fn main()`.
 
 ## 7.2 Imports

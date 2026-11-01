@@ -1,0 +1,27 @@
+// The tests of `std.strings` (spec 12.2): `astra test std/strings/index.at` runs them.
+
+@test
+fn joinPutsTheSeparatorBetweenParts() {
+    assert(join(["a", "b", "c"], ", ") == "a, b, c")
+    let none: List<str> = []
+    assert(join(none, ",") == "")
+}
+
+@test
+fn fromUtf8RejectsInvalidSequences() {
+    assert(fromUtf8([0x68, 0xC3, 0xA9]).unwrapOr("") == "hé")
+    let cases: List<List<u8>> = [[0xFF], [0xC0, 0x80], [0xED, 0xA0, 0x80], [0xE2, 0x82]]
+    for i in 0..cases.len() {
+        assert(fromUtf8(cases[i].clone()).isErr())
+    }
+}
+
+@test
+fn builderCollectsPieces() {
+    var b = Builder.new()
+    b.push("n = ")
+    b.pushChar(0x31)
+    b.pushChar(0x20AC)
+    assert(b.len() == 8)
+    assert(b.finish() == "n = 1€")
+}

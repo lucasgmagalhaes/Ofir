@@ -1,6 +1,8 @@
 // The front end: loading, lexing, parsing and checking. The back end is in
 // driver_backend.c.
 
+#define _XOPEN_SOURCE 700   // access
+
 #include "driver_internal.h"
 
 #include "base/clock.h"
@@ -9,6 +11,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 void timer_start(Timer *timer) {
     timer->start = clock_now_ms();
@@ -94,7 +97,25 @@ static bool run_phases(Pipeline *p) {
     return next != STOP_FAIL && !diags_has_errors(&p->session->diags);
 }
 
-int driver_build(const Options *opts) {
+// `astra test a/b_test.at` tests the module `a/b.at`, which loads its test file.
+static const char *test_root(const Options *opts, char buf[PATH_SIZE]) {
+    size_t len = strlen(opts->input);
+    const char *suffix = "_test.at";
+    if (strcmp(opts->command, "test") != 0 || len <= strlen(suffix) ||
+        strcmp(opts->input + len - strlen(suffix), suffix) != 0 ||
+        snprintf(buf, PATH_SIZE, "%.*s.at", (int)(len - strlen(suffix)), opts->input) >=
+            PATH_SIZE ||
+        access(buf, R_OK) != 0) {
+        return opts->input;
+    }
+    return buf;
+}
+
+int driver_build(const Options *given) {
+    char root[PATH_SIZE];
+    Options copy = *given;
+    copy.input = test_root(given, root);
+    const Options *opts = &copy;
     Timer total = {.enabled = opts->time_passes};
     Timer phase = total;
     timer_start(&total);
