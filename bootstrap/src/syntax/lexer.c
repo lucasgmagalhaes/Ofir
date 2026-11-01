@@ -3,6 +3,8 @@
 
 #include "syntax/lexer_internal.h"
 
+#include <string.h>
+
 // Keywords are interned first in every session (see intern_keywords), so
 // the symbol of keyword `i` has id `i + 1` and a word needs a single hash
 // lookup to be classified.
@@ -57,23 +59,68 @@ static StrView trimmed_copy(Lexer *lx, uint32_t start, uint32_t end) {
     return (StrView){arena_strndup(&lx->session->arena, lx->src + start, end - start), end - start};
 }
 
-// Skips a `//` comment; `///` and `//!` become doc comment tokens.
+// Skips a `//` comment.
 static void line_comment(Lexer *lx) {
-    uint32_t start = lx->pos;
-    bool doc = peek(lx, 2) == '/' && peek(lx, 3) != '/';
-    bool module_doc = peek(lx, 2) == '!';
     while (!at_end(lx) && lx->src[lx->pos] != '\n') {
         lx->pos++;
     }
-    if (doc || module_doc) {
-        Token *t = emit(lx, doc ? TOK_DOC_COMMENT : TOK_MODULE_DOC, start);
-        t->as.text = trimmed_copy(lx, start + 3, lx->pos);
-    }
 }
 
-// Skips `/* ... */`. Returns true if the comment contained a newline.
+// The text of a documentation comment (spec 1.8): each line without its
+// indentation and leading `*`, blank lines at both ends removed.
+static StrView doc_text(Lexer *lx, uint32_t start, uint32_t end) {
+    StrBuf text = {0};
+    uint32_t pos = start;
+    while (pos < end) {
+        uint32_t line_end = pos;
+        while (line_end < end && lx->src[line_end] != '\n') {
+            line_end++;
+        }
+        uint32_t from = pos;
+        while (from < line_end && (lx->src[from] == ' ' || lx->src[from] == '\t')) {
+            from++;
+        }
+        if (from < line_end && lx->src[from] == '*') {
+            from += from + 1 < line_end && lx->src[from + 1] == ' ' ? 2 : 1;
+        }
+        StrView line = trimmed_copy(lx, from, line_end);
+        if (line.len > 0 || text.len > 0) {   // no blank lines at the start
+            strbuf_append(&text, line);
+            strbuf_push(&text, '\n');
+        }
+        pos = line_end + 1;
+    }
+    while (text.len > 0 && text.data[text.len - 1] == '\n') {   // nor at the end
+        text.data[--text.len] = '\0';
+    }
+    StrView out = {arena_strndup(&lx->session->arena, text.data ? text.data : "", text.len),
+                   text.len};
+    strbuf_free(&text);
+    return out;
+}
+
+// `/** ... */` documents the next declaration, or the file when its text
+// starts with `@module` (spec 1.8).
+static void doc_comment(Lexer *lx, uint32_t start) {
+    StrView text = doc_text(lx, start + 3, lx->pos - 2);
+    bool module = text.len >= 7 && memcmp(text.ptr, "@module", 7) == 0;
+    while (module && text.len > 0 && (text.ptr[0] == '@' || text.ptr[0] > ' ')) {
+        text.ptr++;   // the tag itself is not part of the text
+        text.len--;
+    }
+    while (module && text.len > 0 && (text.ptr[0] == '\n' || text.ptr[0] == ' ')) {
+        text.ptr++;
+        text.len--;
+    }
+    Token *t = emit(lx, module ? TOK_MODULE_DOC : TOK_DOC_COMMENT, start);
+    t->as.text = text;
+}
+
+// Skips `/* ... */`; `/** ... */` is a documentation comment. Returns true
+// if the comment contained a newline.
 static bool block_comment(Lexer *lx) {
     uint32_t start = lx->pos;
+    bool doc = peek(lx, 2) == '*' && peek(lx, 3) != '/' && peek(lx, 3) != '*';
     lx->pos += 2;
     bool newline = false;
     for (;;) {
@@ -84,6 +131,9 @@ static bool block_comment(Lexer *lx) {
         }
         if (lx->src[lx->pos] == '*' && peek(lx, 1) == '/') {
             lx->pos += 2;
+            if (doc) {
+                doc_comment(lx, start);
+            }
             return newline;
         }
         newline |= lx->src[lx->pos] == '\n';

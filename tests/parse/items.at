@@ -1,9 +1,12 @@
-//! Items: every declaration form of the stage 0 subset.
+/**
+ * @module
+ * Items: every declaration form of the stage 0 subset.
+ */
 
 import std.io
 import std.collections.Map as Dict
 
-/// Dropped by the parser for now.
+/** Dropped by the parser for now. */
 @inline
 pub fn add(a: int, b: int = 1) int {
     return a + b

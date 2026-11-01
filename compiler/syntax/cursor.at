@@ -1,4 +1,7 @@
-//! A position in a source file, shared by the lexer and the literal scanners.
+/**
+ * @module
+ * A position in a source file, shared by the lexer and the literal scanners.
+ */
 
 import base.span.FileId
 import base.span.Span
