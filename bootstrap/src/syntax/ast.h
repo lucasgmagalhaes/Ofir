@@ -297,6 +297,12 @@ struct FnDecl {
     DefId def;
     List(Local) locals;
     TypeId *local_types;    // set by the type checker, indexed by LocalId
+    // Set by the checker when the function returns a reference (spec 5.6):
+    // the parameter it borrows from, -1 for `self`. That parameter is
+    // passed by address, so that the reference outlives the call.
+    bool returns_borrow;
+    int32_t borrow_source;
+    bool source_by_ref;     // the source is a borrowed value, not a reference
 };
 
 typedef struct {

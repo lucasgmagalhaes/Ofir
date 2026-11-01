@@ -21,8 +21,8 @@ TypeId check_deref(Checker *c, Expr *e, TypeId expected) {
         return ty->inner;
     }
     (void)expected;
-    if (ty->kind == TY_REF) {
-        return unsupported(c, e->span, "references are");
+    if (ty->kind == TY_REF) {   // `*r`: the referenced value, safe
+        return ty->inner;
     }
     if (type.id != TID_ERROR) {
         check_error(c, "E0313", e->span, "type `%s` cannot be dereferenced", type_name(c, type));

@@ -39,8 +39,10 @@ TypeId adt_instance(Checker *c, DefId id, const TypeId *args, uint32_t count, Sp
                     SV_ARG(symbol_name(&c->sema->session->names, def->name)), expected, count);
         return type_id(TID_ERROR);
     }
-    return type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id, .arg_count = count,
-                                      .args = args});
+    TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id,
+                                             .arg_count = count, .args = args});
+    check_instance_storable(c, type, span);
+    return type;
 }
 
 // Whether a type parameter named `name` is in scope; its type goes to `out`.
@@ -148,11 +150,20 @@ static void resolve_list(Checker *c, TypeList list, TypeId *out) {
     }
 }
 
+// `[T]` and `&[T]`: the std `Slice<T>`, a pointer and a length (spec 2.12).
+static TypeId slice_of(Checker *c, TypeId elem, Span span) {
+    if (c->sema->slice.id == 0) {
+        return unsupported(c, span, "slices without the standard library are");
+    }
+    return type_intern(c->types, (Ty){.kind = TY_ADT, .data = c->sema->slice.id,
+                                      .arg_count = 1, .args = &elem});
+}
+
 static TypeId resolve_array(Checker *c, const TypeExpr *type) {
     TypeId elem = resolve_type(c, type->as.array.elem);
     const Expr *len = type->as.array.len;
     if (!len) {
-        return type_slice(c->types, elem);
+        return slice_of(c, elem, type->span);
     }
     if (len->kind != EXPR_INT || len->as.int_value > UINT32_MAX) {
         return unsupported(c, len->span, "array lengths other than integer literals are");
@@ -169,6 +180,21 @@ static TypeId resolve_fn_type(Checker *c, const TypeExpr *type) {
     return type_fn(c->types, params, count, ret);
 }
 
+// `&T`, `&mut T`; `&str` and `&[T]` are views (check_ref.c, slices).
+static TypeId resolve_ref(Checker *c, const TypeExpr *type) {
+    TypeId inner = resolve_type(c, type->as.ref.inner);
+    if (inner.id == TID_STR && !type->as.ref.mutable) {
+        return inner;   // stage 0: `&str` is a `str` view
+    }
+    if (type->as.ref.inner->kind == TYPE_SLICE) {   // `&[T]` is the slice itself
+        if (type->as.ref.mutable) {
+            return unsupported(c, type->span, "mutable slices `&mut [T]` are");
+        }
+        return inner;
+    }
+    return type_ref(c->types, inner, type->as.ref.mutable);
+}
+
 // check-sizes: table
 TypeId resolve_type(Checker *c, const TypeExpr *type) {
     switch (type->kind) {
@@ -178,8 +204,7 @@ TypeId resolve_type(Checker *c, const TypeExpr *type) {
             check_error(c, "E0200", type->span, "`Self` is only available inside a type");
         }
         return c->self_type;
-    case TYPE_REF:
-        return type_ref(c->types, resolve_type(c, type->as.ref.inner), type->as.ref.mutable);
+    case TYPE_REF: return resolve_ref(c, type);
     case TYPE_PTR: {
         TypeId inner = resolve_type(c, type->as.ref.inner);
         return type_intern(c->types,

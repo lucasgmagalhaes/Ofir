@@ -39,8 +39,9 @@ static TypeId float_literal(Checker *c, TypeId expected) {
 
 static TypeId interpolation(Checker *c, Expr *e) {
     for (uint32_t i = 0; i < e->as.parts.len; i++) {
+        TypeId type = check_expr(c, e->as.parts.items[i], NO_TYPE);
+        type = auto_deref(c, &e->as.parts.items[i], type);   // `"{r}"` shows `*r`
         Expr *part = e->as.parts.items[i];
-        TypeId type = check_expr(c, part, NO_TYPE);
         TyKind kind = type_get(c->types, type)->kind;
         bool printable = kind == TY_INT || kind == TY_FLOAT || kind == TY_BOOL ||
                          kind == TY_STR || kind == TY_ERROR;
@@ -104,7 +105,7 @@ static TypeId unary(Checker *c, Expr *e, TypeId expected) {
         return check_deref(c, e, expected);
     }
     if (op == OP_REF || op == OP_REF_MUT) {
-        return unsupported(c, e->span, "references are");
+        return check_ref(c, e, expected);
     }
     TypeId type = op == OP_NEG && operand->kind == EXPR_INT
                       ? int_literal(c, operand, expected, true)
@@ -361,6 +362,9 @@ void require_type(Checker *c, const Expr *e, TypeId found, TypeId expected) {
 TypeId coerce(Checker *c, Expr *e, TypeId expected) {
     TypeId found = check_expr(c, e, expected);
     if (!types_compatible(found, expected)) {   // the common case stays inline
+        if (coerce_to_slice(c, e, found, expected)) {
+            return expected;
+        }
         require_type(c, e, found, expected);
     }
     return found;

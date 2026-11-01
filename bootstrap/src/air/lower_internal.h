@@ -76,6 +76,9 @@ LocalId to_local(Lowerer *l, Operand operand);   // a local holding the operand
 Operand lower_expr(Lowerer *l, Expr *e);
 Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver);
 bool type_is_value(TypeId type);   // false for () and !
+// Whether parameter `index` of `fn` (-1 for `self`) is passed by address: a
+// `mut` parameter, or the borrowed value a returned reference points into.
+bool by_address(const FnDecl *fn, int32_t index);
 
 // mono.c: monomorphization (docs/design/compiler-architecture.md, 10)
 // Queues `fn` with the type arguments `targs` (a tuple, `()` if it is not

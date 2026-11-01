@@ -92,6 +92,7 @@ typedef struct {
     DefId box;           // `@lang("box") struct Box<T>`, which the compiler dereferences
     DefId list;          // `@lang("list") struct List<T>`: literals, indexing, `for`
     DefId option, result;   // `@lang("option")`, `@lang("result")`: `?`, `??`, bare variants
+    DefId slice;         // `@lang("slice") ref struct Slice<T>`: the type `&[T]`
 } Sema;
 
 void sema_init(Sema *sema, Session *session, Program program);
