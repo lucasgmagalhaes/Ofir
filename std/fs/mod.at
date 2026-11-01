@@ -1,0 +1,155 @@
+/**
+ * @module
+ * `std.fs`: reading and writing files and directories
+ * (docs/std/system.md). Paths are strings; they cannot hold a NUL byte
+ * (`InvalidInput`).
+ */
+
+import std.io.Buffer
+import std.io.IoError
+import std.io
+
+extern "C" {
+    fn astra_read_file(path: *u8, len: int, out: *mut Buffer) i32
+    fn astra_write_file(path: *u8, len: int, data: *u8, n: int) i32
+    fn astra_path_exists(path: *u8, len: int) bool
+    fn astra_remove_file(path: *u8, len: int) i32
+    fn astra_create_dir_all(path: *u8, len: int) i32
+    fn astra_read_dir(path: *u8, len: int, out: *mut Buffer) i32
+}
+
+/**
+ * The contents of a file.
+ *
+ * @param path the file to read
+ * @returns its bytes
+ * @example
+ * ```astra
+ * import std.fs
+ *
+ * let bytes = fs.read("data.bin")?
+ * ```
+ */
+pub fn read(path: str) Result<List<u8>, IoError> {
+    var out = Buffer.new()
+    io.check(unsafe { astra_read_file(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
+    return .Ok(unsafe { out.intoList() })
+}
+
+/**
+ * The contents of a text file.
+ *
+ * @param path the file to read
+ * @returns its text
+ * @example
+ * ```astra
+ * import std.fs
+ *
+ * let text = fs.readToString("notes.txt")?
+ * ```
+ */
+pub fn readToString(path: str) Result<str, IoError> {
+    var out = Buffer.new()
+    io.check(unsafe { astra_read_file(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
+    return .Ok(unsafe { out.intoStr() })
+}
+
+/**
+ * Writes bytes to a file, which is created or truncated.
+ *
+ * @param path the file to write
+ * @param data its new contents
+ * @returns `Ok(())` once everything is written
+ */
+pub fn write(path: str, data: [u8]) Result<(), IoError> {
+    return io.check(unsafe {
+        astra_write_file(path.asPtr(), path.len(), data.asPtr(), data.len())
+    })
+}
+
+/**
+ * Writes text to a file, which is created or truncated.
+ *
+ * @param path the file to write
+ * @param text its new contents
+ * @returns `Ok(())` once everything is written
+ * @example
+ * ```astra
+ * import std.fs
+ *
+ * fs.writeString("out.txt", "hello\n")?
+ * ```
+ */
+pub fn writeString(path: str, text: str) Result<(), IoError> {
+    return io.check(unsafe {
+        astra_write_file(path.asPtr(), path.len(), text.asPtr(), text.len())
+    })
+}
+
+/**
+ * Whether a file or directory exists at `path`.
+ *
+ * @param path the path to look at
+ * @returns true if it exists and can be reached
+ */
+pub fn exists(path: str) bool {
+    return unsafe { astra_path_exists(path.asPtr(), path.len()) }
+}
+
+/**
+ * Creates a directory and the missing directories above it.
+ *
+ * @param path the directory to create
+ * @returns `Ok(())`, also when it exists already
+ */
+pub fn createDirAll(path: str) Result<(), IoError> {
+    return io.check(unsafe { astra_create_dir_all(path.asPtr(), path.len()) })
+}
+
+/**
+ * Removes a file.
+ *
+ * @param path the file to remove
+ * @returns `Ok(())` once it is gone
+ */
+pub fn removeFile(path: str) Result<(), IoError> {
+    return io.check(unsafe { astra_remove_file(path.asPtr(), path.len()) })
+}
+
+/**
+ * An entry of a directory.
+ */
+pub struct DirEntry {
+    /** The name of the entry, without the directory. */
+    pub name: str
+    /** The directory and the name, joined by `/`. */
+    pub path: str
+}
+
+/**
+ * The entries of a directory, sorted by name so that programs behave the
+ * same everywhere; `.` and `..` are left out.
+ *
+ * @param path the directory to read
+ * @returns its entries
+ * @example
+ * ```astra
+ * import std.fs
+ *
+ * for entry in fs.readDir(".")? {   // stage 0: iterate with an index
+ *     println(entry.name)
+ * }
+ * ```
+ */
+pub fn readDir(path: str) Result<List<DirEntry>, IoError> {
+    var out = Buffer.new()
+    io.check(unsafe { astra_read_dir(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
+    let names = unsafe { out.intoStr() }
+    var entries: List<DirEntry> = []
+    for name in names.split("\0") {
+        if name.len() > 0 {
+            entries.push(DirEntry{name: name.toOwned(), path: "{path}/{name}"})
+        }
+    }
+    return .Ok(entries)
+}

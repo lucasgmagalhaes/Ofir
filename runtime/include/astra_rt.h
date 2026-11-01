@@ -79,6 +79,41 @@ bool astra_str_eq(const AstraStr *a, const AstraStr *b);
 int32_t astra_str_cmp(const AstraStr *a, const AstraStr *b);   // <0, 0 or >0, bytewise
 
 
+// ---------------------------------------------------------------------------
+// The system (std.os, std.fs, std.io): 0 or an errno value. Buffers are
+// allocated with astra_alloc; std takes them over as strings or lists.
+
+typedef struct {
+    uint8_t *ptr;
+    int64_t len;
+} AstraBuf;
+
+typedef struct {
+    int64_t status;   // the exit status, or -1 if a signal ended the process
+    AstraBuf out, err;
+} AstraRun;
+
+void astra_set_args(int argc, char **argv);
+int64_t astra_arg_count(void);
+const uint8_t *astra_arg(int64_t i, int64_t *len);
+const uint8_t *astra_env(const uint8_t *name, int64_t len, int64_t *value_len);   // NULL: unset
+_Noreturn void astra_exit(int64_t code);
+int32_t astra_run(const uint8_t *args, int64_t len, int64_t count, AstraRun *run);
+char *astra_c_string(const uint8_t *ptr, int64_t len);   // NULL if it holds a NUL
+
+int32_t astra_read_file(const uint8_t *path, int64_t len, AstraBuf *out);
+int32_t astra_write_file(const uint8_t *path, int64_t len, const uint8_t *data, int64_t n);
+bool astra_path_exists(const uint8_t *path, int64_t len);
+int32_t astra_remove_file(const uint8_t *path, int64_t len);
+int32_t astra_create_dir_all(const uint8_t *path, int64_t len);
+int32_t astra_read_dir(const uint8_t *path, int64_t len, AstraBuf *out);
+int32_t astra_read_line(AstraBuf *out);
+int32_t astra_read_stdin(AstraBuf *out);
+int32_t astra_current_dir(AstraBuf *out);
+int32_t astra_executable_path(AstraBuf *out);
+int32_t astra_error_kind(int32_t code);
+const uint8_t *astra_error_message(int32_t code, int64_t *len);
+
 // Formats into `buf` (ASTRA_FORMAT_SIZE bytes) and returns the length.
 #define ASTRA_FORMAT_SIZE 48
 int astra_format_int(char *buf, int64_t value);
