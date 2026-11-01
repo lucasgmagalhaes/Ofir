@@ -38,6 +38,7 @@ Operand lower_try(Lowerer *l, Expr *e) {
     Operand returned = variant_value(l, ret, variant_named(l, ret, option ? "None" : "Err"),
                                      &payload, option ? 0 : 1);
     emit_assign(l, (LocalId){0}, (Rvalue){.kind = RV_USE, .a = returned});
+    drop_temps(l, 0);
     drop_scopes(l, 0);
     terminate(l, (Terminator){.kind = TERM_RETURN});
     switch_to(l, next);
@@ -63,7 +64,9 @@ Operand lower_coalesce(Lowerer *l, Expr *e) {
     emit_assign(l, dest, (Rvalue){.kind = RV_USE, .a = content});
     emit_goto(l, join);
     switch_to(l, other);
+    temp_scope_enter(l);   // evaluated on one path only
     emit_assign(l, dest, (Rvalue){.kind = RV_USE, .a = lower_expr(l, e->as.binary.rhs)});
+    temp_scope_leave(l);
     emit_goto(l, join);
     switch_to(l, join);
     return op_copy(dest, e->type);

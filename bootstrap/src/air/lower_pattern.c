@@ -173,7 +173,7 @@ static Operand arm_value(Lowerer *l, Expr *body, bool as_value) {
     if (body->kind == EXPR_BLOCK || body->kind == EXPR_UNSAFE) {
         return lower_block(l, body->as.block, as_value);
     }
-    return lower_expr(l, body);
+    return lower_tail(l, body);
 }
 
 Operand lower_match(Lowerer *l, Expr *e) {
@@ -186,7 +186,11 @@ Operand lower_match(Lowerer *l, Expr *e) {
         BlockId next = air_new_block(l->body);
         lower_pattern(l, arm->pattern, place, next);
         if (arm->guard) {
-            test(l, lower_expr(l, arm->guard), next);
+            temp_scope_enter(l);
+            Operand guard = lower_expr(l, arm->guard);
+            guard = op_copy(to_local(l, guard), guard.type);
+            temp_scope_leave(l);
+            test(l, guard, next);
         }
         drop_scope_enter(l);   // the arm's bindings own what they took
         own_bindings(l, arm->pattern);
