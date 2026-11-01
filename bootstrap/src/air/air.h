@@ -70,6 +70,7 @@ typedef enum {
     RV_FLOAT_FN,      // fn(a) or fn(a, b): sqrt, fabs, floor, ceil, minnum, maxnum
     RV_AGGREGATE,     // a struct value from its fields, in declaration order
     RV_PTR_ADD,       // the pointer a moved by b elements
+    RV_SIZE_OF,       // the size in bytes of a value of type `to` (an int)
 } RvalueKind;
 
 typedef enum { FF_SQRT, FF_FABS, FF_FLOOR, FF_CEIL, FF_MINNUM, FF_MAXNUM, FF_COUNT } FloatFn;
