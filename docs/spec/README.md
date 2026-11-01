@@ -23,6 +23,7 @@ This specification describes the Astra language. Sections marked
 13. [Memory layout and ABI](13-memory-layout.md)
 14. [Concurrency](14-concurrency.md) **[planned]**
 15. [Compile-time code](15-compile-time.md) **[planned]**
+16. [Type operators](16-type-operators.md) **[planned]**: `keyof`, `T[K]`, mapped and conditional types
 
 Appendices:
 

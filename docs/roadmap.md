@@ -199,6 +199,10 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.13 | Debug info (DWARF) | M | stepping through code in `lldb` works |
 | 5.14 | Optimization: `noalias`/`readonly` (stage 1 only), niche layouts, field reordering, AIR check elimination | M | benchmarks within 10% of C |
 | 5.15 | Generated-code benchmark suite with C/Rust/Go baselines (started at M2 with the first programs) | M | results in `bench/HISTORY.md` per release |
+| 5.16 | Generic type aliases (`type Pair<T> = (T, T)`) | S | tests pass |
+| 5.17 | Key types (spec 16.1-16.3): `keyof`, key literals, `\|` `&` `-` on keys, key-bounded parameters (erased, instantiated per key), `T[K]` and `value[key]` | M | `tests/run/type_operators/keys*` pass; E0340-E0343 tested |
+| 5.18 | Mapped types (16.4) with `?:` and `if` filters; conditional types with `infer` (16.5) | L | `Partial`, `Pick`, `Omit`, `Record`, `Required` work in tests |
+| 5.19 | `comptime for` over keys (16.6, after chapter 15) and the standard aliases in `std.core` (16.7) | M | `merge(base, patch)` written in Astra |
 
 **M5** is reached when every chapter of the specification not marked
 **[planned]** is implemented and tested → release 0.5.

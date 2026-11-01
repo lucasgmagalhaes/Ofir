@@ -67,6 +67,11 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0322 | type `T` cannot be cloned: a part of it has `drop` but no `clone` | stage 0 |
 | E0330 | cannot infer the type parameter `T`: write the type arguments | stage 0 |
 | E0331 | instantiating `f` nests types more than 64 levels deep | stage 0 |
+| E0340 | `keyof` needs a struct or tuple type (spec 16) | planned |
+| E0341 | `T` has no field `.k` (spec 16) | planned |
+| E0342 | the fields of these keys have different types (spec 16) | planned |
+| E0343 | a key must be known at compile time (spec 16) | planned |
+| E0344 | the condition of a conditional type is not decided for this instantiation (spec 16) | planned |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0501 | refutable pattern in `let` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
