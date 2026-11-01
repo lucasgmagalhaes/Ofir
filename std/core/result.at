@@ -1,0 +1,58 @@
+//! `Result<T, E>`: a value or an error (spec 6.1, docs/std/core.md). `Ok`
+//! and `Err` are in scope everywhere; an unused Result is an error (E0305).
+
+@lang("result")
+pub enum Result<T, E> {
+    Ok(value: T)
+    Err(error: E)
+
+    pub fn isOk(self) bool {
+        return match self {
+            Ok(_) => true
+            Err(_) => false
+        }
+    }
+
+    pub fn isErr(self) bool {
+        return !self.isOk()
+    }
+
+    /// The value; panics on `Err` (stage 0 does not print the error).
+    pub fn unwrap(move self) T {
+        return match self {
+            Ok(value) => value
+            Err(_) => panic("called `unwrap` on an `Err` value")
+        }
+    }
+
+    /// The value; panics with `message` on `Err`.
+    pub fn expect(move self, message: str) T {
+        return match self {
+            Ok(value) => value
+            Err(_) => panic(message)
+        }
+    }
+
+    pub fn unwrapOr(move self, fallback: move T) T {
+        return match self {
+            Ok(value) => value
+            Err(_) => fallback
+        }
+    }
+
+    /// The value, or `None` for an error.
+    pub fn ok(move self) Option<T> {
+        return match self {
+            Ok(value) => Some(value)
+            Err(_) => None
+        }
+    }
+
+    /// The error, or `None` for a value.
+    pub fn err(move self) Option<E> {
+        return match self {
+            Ok(_) => None
+            Err(error) => Some(error)
+        }
+    }
+}

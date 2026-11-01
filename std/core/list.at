@@ -83,6 +83,15 @@ pub struct List<T> {
         self.len += 1
     }
 
+    /// Removes and returns the last element, or `None` if the list is empty.
+    pub fn pop(mut self) Option<T> {
+        if self.len == 0 {
+            return None
+        }
+        self.len -= 1
+        return Some(unsafe { *self.ptr.add(self.len) })
+    }
+
     /// Inserts `x` at `i`, shifting the later elements; panics if `i > len`.
     pub fn insert(mut self, i: int, x: move T) {
         if i < 0 || i > self.len {
