@@ -91,7 +91,8 @@ bootstrap/
 │   │   ├── check_expr.c      expressions
 │   │   ├── check_stmt.c      statements, blocks and `if`
 │   │   ├── check_pattern.c   patterns
-│   │   ├── check_match.c     `match` and exhaustiveness
+│   │   ├── check_match.c     `match` arms and their types
+│   │   ├── exhaustive.c      exhaustiveness and unreachable arms (usefulness)
 │   │   ├── check_method.c    method calls on primitives (std methods, then built-ins)
 │   │   ├── check_user_method.c method calls on user types
 │   │   ├── check_box.c       `Box<T>`: `*b`, fields and methods through a box
