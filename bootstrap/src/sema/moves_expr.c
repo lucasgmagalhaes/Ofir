@@ -96,10 +96,12 @@ static bool is_place(const Expr *e) {
 
 // `p = value`: `p` holds a value again. A field of a moved struct cannot be
 // assigned: the struct as a whole is gone.
-static void assign_place(Moves *m, const Place *p, State *s, Span span) {
+static void assign_place(Moves *m, Expr *e, const Place *p, State *s, Span span) {
     if (!p->local) {
         return;
     }
+    // The old value of a part that may have been moved out is not dropped.
+    e->moves = e->moves || moved_part(s, &p->part);
     if (p->part.len > 0 && bit(s->moved, p->part.local)) {
         use_place(m, &(Place){.local = true, .part = {.local = p->part.local}}, s, span);
     }
@@ -109,12 +111,13 @@ static void assign_place(Moves *m, const Place *p, State *s, Span span) {
 static void place_expr(Moves *m, Expr *e, State *s, Use use) {
     Place p = place_of(m, e, s);
     if (use == USE_ASSIGN) {   // the target of `=`: overwritten, not read
-        assign_place(m, &p, s, e->span);
+        assign_place(m, e, &p, s, e->span);
         return;
     }
     use_place(m, &p, s, e->span);
     if (use == USE_MOVE && !is_copy(m, e->type)) {
         move_place(m, &p, s, e->span);
+        e->moves = e->moves || (p.local && p.via == VIA_NOTHING);   // for the drop flags
     }
 }
 
@@ -235,6 +238,7 @@ static bool scrutinee(Moves *m, Expr *e, State *s, bool by_move) {
     bool owned = p.local && p.via == VIA_NOTHING && !bit(m->borrowed, p.part.local);
     if (by_move && owned) {
         move_part(m, s, &p.part);
+        e->moves = true;
     }
     return !owned && p.via != VIA_RAW;
 }

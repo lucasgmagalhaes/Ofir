@@ -53,6 +53,7 @@ typedef struct {
     Span span;
     bool mutable;
     bool used;          // set by the resolver: some expression names it
+    bool borrows;       // set by the move analysis: it borrows a place, so it is not dropped
 } Local;
 
 // ---------------------------------------------------------------------------
@@ -185,6 +186,7 @@ struct Expr {
     ExprKind kind;
     Span span;
     TypeId type;            // set by the type checker
+    bool moves;             // set by the move analysis: the value of this local is moved out
     union {
         uint64_t int_value;
         double float_value;
