@@ -41,7 +41,8 @@ The specification declares methods inside the body of their type (ADR
   The declaration does not create a type: its body is attached to the
   primitive. For `str`, the fields give its layout, which the compiler
   checks against the one it uses; numeric types declare no fields.
-  `@lang` is allowed only in `std`.
+  `@lang` is allowed only in `std`. `@lang("box")` instead marks an
+  ordinary generic struct, `Box<T>`, which the compiler dereferences.
 - Operations that only the compiler can generate (arithmetic without the
   overflow check, LLVM intrinsics such as `llvm.sqrt`, saturating casts)
   are functions without a body in an `extern "intrinsic"` block, allowed

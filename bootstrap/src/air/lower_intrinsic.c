@@ -35,8 +35,19 @@ static const Intrinsic *find(StrView name) {
     return NULL;
 }
 
+// `sizeOf<T>()`: its type argument is substituted with the instance's.
+static Operand size_of(Lowerer *l, Expr *call) {
+    TypeId type = type_get(l->types, call->as.call.type_args)->args[0];
+    Rvalue rv = {.kind = RV_SIZE_OF, .to = type};
+    return op_copy(emit_temp(l, type_id(TID_INT), rv), type_id(TID_INT));
+}
+
 Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn) {
-    const Intrinsic *op = find(symbol_name(&l->sema->session->names, fn->name));
+    StrView name = symbol_name(&l->sema->session->names, fn->name);
+    if (sv_eq(name, SV("sizeOf"))) {
+        return size_of(l, call);
+    }
+    const Intrinsic *op = find(name);
     if (!op) {
         diag_error(&l->sema->session->diags, "E0805", fn->span, "unknown intrinsic");
         return op_unit();

@@ -11,6 +11,10 @@ void require_unsafe(Checker *c, Span span, const char *what) {
 // `*p`: the value a raw pointer points to.
 TypeId check_deref(Checker *c, Expr *e, TypeId expected) {
     TypeId type = check_expr(c, e->as.unary.operand, NO_TYPE);
+    TypeId inner;
+    if (box_inner(c, type, &inner)) {   // `*b` reads the value of a box: safe
+        return box_deref(c, e, type);
+    }
     const Ty *ty = type_get(c->types, type);
     if (ty->kind == TY_PTR) {
         require_unsafe(c, e->span, "dereferencing a raw pointer");
