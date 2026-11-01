@@ -310,6 +310,9 @@ void check_moves(Checker *c, FnDecl *fn) {
     State s = state_new(&m);
     moves_block(&m, fn->body, &s, USE_READ);
     check_mut_params(&m, &s, fn->span);
+    for (uint32_t i = 0; i < fn->locals.len; i++) {   // what the drops need
+        fn->locals.items[i].borrows = bit(m.borrowed, i);
+    }
     VEC_FREE(m.loops);
     arena_free(&m.arena);
 }
