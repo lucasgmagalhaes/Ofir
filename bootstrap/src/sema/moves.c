@@ -257,8 +257,11 @@ static State iteration(Moves *m, Stmt *s, const State *entry) {
         moves_expr(m, s->as.for_.expr, &st, USE_READ);
         exit = state_copy(m, &st);   // the condition was false
     } else if (s->as.for_.kind == FOR_IN) {
-        if (s->as.for_.expr->kind == EXPR_RANGE) {
+        TypeId item;
+        if (s->as.for_.expr->kind == EXPR_RANGE ||
+            iterator_item(m->c, s->as.for_.expr->type, &item)) {   // the variable owns
             exit = state_copy(m, &st);
+            init_part(m, &st, &(Part){.local = s->as.for_.first_local.id});   // a new item
         } else {   // the variables borrow the elements
             set_bit(m->borrowed, s->as.for_.first_local.id, true);
             if (s->as.for_.second.id != 0) {

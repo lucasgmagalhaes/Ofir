@@ -43,6 +43,22 @@ pub struct str {
     }
 
     /**
+     * An empty string with room for `n` bytes, to avoid reallocations
+     * when the final length is known.
+     *
+     * @param n the number of bytes to make room for
+     * @returns `""`, with a capacity of at least `n`
+     * @panics when the system is out of memory
+     */
+    pub fn withCapacity(n: int) str {
+        var s = ""
+        if n > 0 {
+            s.reserve(n)
+        }
+        return s
+    }
+
+    /**
      * The length in bytes, not in characters: `"é".len()` is 2.
      *
      * @returns the number of bytes
@@ -81,6 +97,39 @@ pub struct str {
             memcpy(self.ptr.add(self.len) as *mut u8, t.ptr, t.len as u64)
         }
         self.len += t.len
+    }
+
+    /**
+     * Appends a Unicode scalar value, encoded as UTF-8 (1 to 4 bytes).
+     *
+     * @param c the scalar value
+     * @panics when `c` is above `0x10FFFF` or a surrogate (`0xD800` to
+     * `0xDFFF`)
+     * @example
+     * ```astra
+     * var s = "caf"
+     * s.pushChar(0xE9)   // "café", 5 bytes
+     * ```
+     */
+    pub fn pushChar(mut self, c: u32) {
+        if c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF) {
+            panic("pushChar: {c} is not a Unicode scalar value")
+        }
+        if c < 0x80 {
+            self.pushByte(c as u8)
+        } else if c < 0x800 {
+            self.pushByte((0xC0 | (c >> 6)) as u8)
+            self.pushByte((0x80 | (c & 0x3F)) as u8)
+        } else if c < 0x10000 {
+            self.pushByte((0xE0 | (c >> 12)) as u8)
+            self.pushByte((0x80 | ((c >> 6) & 0x3F)) as u8)
+            self.pushByte((0x80 | (c & 0x3F)) as u8)
+        } else {
+            self.pushByte((0xF0 | (c >> 18)) as u8)
+            self.pushByte((0x80 | ((c >> 12) & 0x3F)) as u8)
+            self.pushByte((0x80 | ((c >> 6) & 0x3F)) as u8)
+            self.pushByte((0x80 | (c & 0x3F)) as u8)
+        }
     }
 
     /**
@@ -203,6 +252,153 @@ pub struct str {
     }
 
     /**
+     * The offset of the first occurrence of `part`.
+     *
+     * @param part the bytes to look for
+     * @returns `Some(offset)` of the first match, `None` when there is none;
+     * `Some(0)` for `""`
+     * @example
+     * ```astra
+     * let at = "key=value".find("=") ?? -1   // 3
+     * ```
+     */
+    pub fn find(self, part: str) Option<int> {
+        return findFrom(self, part, 0)
+    }
+
+    /**
+     * A view without the ASCII whitespace at both ends (space, `\t`, `\n`,
+     * `\r`, form feed and vertical tab).
+     *
+     * @returns the trimmed bytes, borrowed from this string
+     * @example
+     * ```astra
+     * assert("  hi \n".trim() == "hi")
+     * ```
+     */
+    pub fn trim(self) str {
+        return self.trimStart().trimEnd()
+    }
+
+    /**
+     * A view without the ASCII whitespace at the start.
+     *
+     * @returns the trimmed bytes, borrowed from this string
+     */
+    pub fn trimStart(self) str {
+        var lo = 0
+        for lo < self.len && isSpace(self[lo]) {
+            lo += 1
+        }
+        return self.sliceFrom(lo)
+    }
+
+    /**
+     * A view without the ASCII whitespace at the end.
+     *
+     * @returns the trimmed bytes, borrowed from this string
+     */
+    pub fn trimEnd(self) str {
+        var hi = self.len
+        for hi > 0 && isSpace(self[hi - 1]) {
+            hi -= 1
+        }
+        return self.slice(0, hi)
+    }
+
+    /**
+     * A copy with every occurrence of `from` replaced by `to`, scanning
+     * left to right without overlaps.
+     *
+     * @param from the bytes to replace; `""` replaces nothing
+     * @param to the replacement
+     * @returns the new string
+     * @example
+     * ```astra
+     * assert("a-b-c".replace("-", ", ") == "a, b, c")
+     * ```
+     */
+    pub fn replace(self, from: str, to: str) str {
+        var out = ""
+        var at = 0
+        for from.len > 0 {
+            let .Some(i) = findFrom(self, from, at) else {
+                break
+            }
+            out.push(self.slice(at, i))
+            out.push(to)
+            at = i + from.len
+        }
+        out.push(self.sliceFrom(at))
+        return out
+    }
+
+    /**
+     * The parts between the occurrences of `sep`, as views of this string.
+     * Separators next to each other give empty parts.
+     *
+     * @param sep the separator
+     * @returns an iterator over the parts: one part `""` for `""`
+     * @panics when `sep` is `""`
+     * @example
+     * ```astra
+     * for field in "a,b,,c".split(",") {
+     *     println("[{field}]")   // [a] [b] [] [c]
+     * }
+     * ```
+     */
+    pub fn split(self, sep: str) StrSplit {
+        return StrSplit.on(self, sep)
+    }
+
+    /**
+     * The words: the parts between runs of ASCII whitespace, never empty.
+     *
+     * @returns an iterator over the words, as views of this string
+     * @example
+     * ```astra
+     * for word in "  to be  or\tnot ".splitWhitespace() {
+     *     println(word)   // to, be, or, not
+     * }
+     * ```
+     */
+    pub fn splitWhitespace(self) StrSplit {
+        return StrSplit.words(self)
+    }
+
+    /**
+     * The lines: the parts between `\n`, without a `\r` at their end. A
+     * final `\n` does not start another line.
+     *
+     * @returns an iterator over the lines, as views of this string
+     * @example
+     * ```astra
+     * for line in "one\r\ntwo\n".lines() {
+     *     println(line)   // one, two
+     * }
+     * ```
+     */
+    pub fn lines(self) StrSplit {
+        return StrSplit.lines(self)
+    }
+
+    /**
+     * The bytes, in order.
+     *
+     * @returns an iterator over the bytes
+     * @example
+     * ```astra
+     * var sum = 0
+     * for b in "abc".bytes() {
+     *     sum += b as int   // 97 + 98 + 99
+     * }
+     * ```
+     */
+    pub fn bytes(self) StrBytes {
+        return StrBytes.of(self)
+    }
+
+    /**
      * A copy with the ASCII letters in lower case; other bytes, including
      * non-ASCII letters, are unchanged.
      *
@@ -262,6 +458,14 @@ pub struct str {
         return i == self.len || unsafe { *self.ptr.add(i) } & 0xC0 != 0x80
     }
 
+    fn pushByte(mut self, b: u8) {
+        self.reserve(1)
+        unsafe {
+            *(self.ptr.add(self.len) as *mut u8) = b
+        }
+        self.len += 1
+    }
+
     // Makes room for `extra` more bytes; a literal moves to the heap.
     fn reserve(mut self, extra: int) {
         let needed = self.len + extra
@@ -304,4 +508,19 @@ pub struct str {
 // Whether the `n` bytes at `a` and `b` are equal.
 fn sameBytes(a: *u8, b: *u8, n: int) bool {
     return n == 0 || unsafe { memcmp(a, b, n as u64) } == 0
+}
+
+// The offset of the first `part` at or after `from`, or None.
+fn findFrom(text: str, part: str, from: int) Option<int> {
+    for i in from..=text.len - part.len {
+        if sameBytes(unsafe { text.ptr.add(i) }, part.ptr, part.len) {
+            return .Some(i)
+        }
+    }
+    return .None
+}
+
+// ASCII whitespace: space, \t, \n, vertical tab, form feed, \r.
+fn isSpace(b: u8) bool {
+    return b == b' ' || (b >= 9 && b <= 13)
 }

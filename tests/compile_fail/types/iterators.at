@@ -1,0 +1,29 @@
+// `for x in it` needs an iterator: a type with `fn next(mut self) Option<T>`.
+
+struct Numbers {
+    n: int
+
+    fn next(mut self) Option<int> {
+        self.n -= 1
+        return if self.n < 0 { .None } else { .Some(self.n) }
+    }
+}
+
+struct NotIter {
+    n: int
+}
+
+fn main() {
+    let fixed = Numbers{n: 3}
+    for x in fixed {             // error[E0315]: this value cannot be modified: declare it with `var`
+        println("{x}")
+    }
+    var pairs = Numbers{n: 2}
+    for i, x in pairs {          // error[E0300]: an iterator gives one value at a time: `for item in iterator`
+        println("{i + x}")
+    }
+    let other = NotIter{n: 1}
+    for y in other {             // error[E0300]: mismatched types: `for` needs a range, a list, a slice, a map or an iterator, found NotIter
+        println("{y}")
+    }
+}
