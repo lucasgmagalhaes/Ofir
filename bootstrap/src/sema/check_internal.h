@@ -183,6 +183,8 @@ TypeId check_prelude_variant(Checker *c, Expr *e, const Def *def, const ArgList 
 
 // check_match.c
 TypeId check_match(Checker *c, Expr *e, TypeId expected, bool as_value);
+// exhaustive.c: E0500 for a non-exhaustive match, W0004 for unreachable arms
+void check_exhaustive(Checker *c, Expr *e, TypeId type);
 
 // check_pattern.c
 // Checks `p` against a value of `type` and gives its bindings their types.
