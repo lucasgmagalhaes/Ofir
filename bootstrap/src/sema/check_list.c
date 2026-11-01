@@ -43,7 +43,7 @@ TypeId check_list_literal(Checker *c, Expr *e, TypeId expected) {
         return unsupported(c, e->span, "list literals without the standard library are");
     }
     TypeId elem = NO_TYPE;
-    bool known = list_elem(c, expected, &elem);
+    bool known = sequence_elem(c, expected, &elem);   // a List or a `[T]` parameter
     ExprList items = e->as.elems;
     for (uint32_t i = 0; i < items.len; i++) {
         if (known) {

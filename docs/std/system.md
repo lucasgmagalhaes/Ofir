@@ -14,13 +14,15 @@ pub copy enum IoErrorKind {
 }
 ```
 
-`IoError` satisfies `Display` and `Debug`.
+`IoError` satisfies `Display` and `Debug` (once interfaces exist, roadmap
+5.1). `IoError.fromErrno(code)` builds one from a C `errno` value and
+`IoError.new(kind, message)` from a message of the caller's.
 
 ## `std.io`
 
 | Item | Description | S0 |
 |------|-------------|:--:|
-| `fn stdout() Stdout`, `fn stderr() Stderr` | handles to the runtime-buffered streams | ✓ |
+| `fn stdout() Stdout`, `fn stderr() Stderr` | handles to the runtime-buffered streams | |
 | `fn stdin() Stdin` | | ✓ |
 | `fn readLine(mut self, buf: mut str) Result<int, IoError>` | returns bytes read, `0` at end of input | ✓ |
 | `fn readToString(mut self) Result<str, IoError>` | | ✓ |
@@ -35,14 +37,15 @@ pub copy enum IoErrorKind {
 | `fn readToString(path: str) Result<str, IoError>` | | ✓ |
 | `fn read(path: str) Result<List<u8>, IoError>` | | ✓ |
 | `fn write(path: str, data: [u8]) Result<(), IoError>` | creates or truncates | ✓ |
+| `fn writeString(path: str, text: str) Result<(), IoError>` | the same, for text | ✓ |
 | `fn exists(path: str) bool` | | ✓ |
 | `fn createDirAll(path: str) Result<(), IoError>` | | ✓ |
 | `fn removeFile(path: str) Result<(), IoError>` | | ✓ |
-| `fn readDir(path: str) Result<List<DirEntry>, IoError>` | sorted by name, for determinism | ✓ |
+| `fn readDir(path: str) Result<List<DirEntry>, IoError>` | sorted by name, for determinism; `DirEntry` has `name` and `path` | ✓ |
 | `struct File` with `open`, `create`, `read`, `write`, closed on drop | | |
 
 `std.fs.path`: `join(a: str, b: str) str`, `parent(p: str) Option<&str>`,
-`fileName(p: str) Option<&str>`, `extension(p: str) Option<&str>` — all S0.
+`fileName(p: str) Option<&str>`, `extension(p: str) Option<&str>` — planned.
 
 ## `std.os`
 
@@ -63,3 +66,9 @@ pub struct Output {
     pub stderr: str
 }
 ```
+
+Stage 0: `std.io`, `std.fs` and `std.os` are written in Astra over the C
+runtime's `os.c` and `fs.c` (docs/design/runtime.md); `std.io.Buffer` is
+the runtime's result buffer and `io.check(code)` turns a returned `errno`
+value into a `Result`. `eprint` and `eprintln` are prelude functions
+(std/core/print.at) that flush standard output first.

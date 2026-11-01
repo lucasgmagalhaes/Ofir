@@ -1,0 +1,53 @@
+// std.fs and std.io errors (roadmap 3.8): a directory tree in the
+// temporary directory, written, read, listed and removed.
+
+import std.fs
+import std.io
+import std.os
+
+fn check(what: str, result: Result<(), io.IoError>) {
+    match result {
+        .Ok(_) => println("{what}: ok")
+        .Err(e) => println("{what}: {e.message}")
+    }
+}
+
+fn main() {
+    let base = "{os.env("TMPDIR") ?? "/tmp"}/astra-fs-test"
+    let dir = "{base}/a/b"
+    check("createDirAll", fs.createDirAll(dir))
+    check("createDirAll again", fs.createDirAll(dir))
+    println("exists {fs.exists(dir)} {fs.exists("{dir}/none")}")
+    check("write b", fs.writeString("{dir}/b.txt", "second\n"))
+    check("write a", fs.writeString("{dir}/a.txt", "one\r\ntwo\n"))
+    check("write bytes", fs.write("{dir}/c.bin", [0, 1, 2, 255]))
+    match fs.readToString("{dir}/a.txt") {
+        .Ok(text) => {
+            for line in text.lines() {
+                println("line [{line}]")
+            }
+        }
+        .Err(e) => println("read: {e.message}")
+    }
+    match fs.read("{dir}/c.bin") {
+        .Ok(bytes) => println("bytes {bytes.len()} {bytes[3]}")
+        .Err(e) => println("read: {e.message}")
+    }
+    match fs.readDir(dir) {
+        .Ok(entries) => {
+            for i in 0..entries.len() {
+                println("entry {entries[i].name} {entries[i].path.endsWith("/b/{entries[i].name}")}")
+            }
+        }
+        .Err(e) => println("readDir: {e.message}")
+    }
+    for name in ["a.txt", "b.txt", "c.bin"] {
+        check("remove {name}", fs.removeFile("{dir}/{name}"))
+    }
+    match fs.readToString("{dir}/a.txt") {
+        .Ok(_) => println("still there")
+        .Err(e) => println("gone {e.kind == io.IoErrorKind.NotFound}")
+    }
+    check("remove missing", fs.removeFile("{dir}/a.txt"))
+    check("bad path", fs.writeString("a\0b", ""))
+}
