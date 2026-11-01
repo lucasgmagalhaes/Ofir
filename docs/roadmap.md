@@ -189,7 +189,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.4 | `dyn`: vtables, fat pointers, type switches, unsized types | M | `examples/interfaces.at` runs |
 | 5.5 | Built-in interfaces derived automatically (`Eq`, `Ord`, `Hash`, `Clone`, `Debug`); `From` in `?` | M | `==` on structs, structs as map keys |
 | 5.6 | Rewrite `List`, `Map`, `Option`, `Result`, `Box` as generic Astra code in `std/` | L | built-in special cases removed from the compiler |
-| 5.7 | Closures: `fn` and `move fn` types, captures, stack and heap environments | L | `tests/run/closures/*` pass |
+| 5.7 | Closures: arrow syntax (`x => ...`, `move () => ...`, ADR 0023), `fn` and `move fn` types, captures, stack and heap environments | L | `tests/run/closures/*` pass |
 | 5.8 | Iterator interface and `for` over iterators | M | tests pass |
 | 5.9 | Interior mutability: `UnsafeCell`, `Cell` | S | tests pass |
 | 5.10 | Format specifiers, raw strings, multi-line strings, byte strings | M | tests pass |

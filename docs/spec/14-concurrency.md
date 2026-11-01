@@ -18,7 +18,7 @@ import std.thread
 
 fn main() {
     let data = [1, 2, 3]
-    let handle = thread.spawn(move fn() int {
+    let handle = thread.spawn(move () int => {
         var sum = 0
         for x in data {
             sum += x
@@ -49,7 +49,7 @@ when all its fields are `Send`. `thread.spawn` requires its closure to be
 
 ```astra
 let (tx, rx) = channel<int>()
-thread.spawn(move fn() { tx.send(42) })
+thread.spawn(move () => tx.send(42))
 println("{rx.recv().unwrap()}")
 ```
 
