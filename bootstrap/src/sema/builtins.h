@@ -9,8 +9,8 @@
 #include "sema/types.h"
 #include "syntax/ast.h"
 
-// What stays built in until generics: casts with a type argument and
-// pointer offsets (ADR 0019). Everything else is written in std.
+// What stays built in until generic bounds: casts to an integer type
+// argument and pointer offsets (ADR 0019). Everything else is in std.
 typedef enum {
     BM_WRAPPING_CAST,
     BM_SATURATING_CAST,

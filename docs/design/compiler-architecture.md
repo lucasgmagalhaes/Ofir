@@ -294,6 +294,17 @@ Drop glue and vtables are instantiated in the same pass.
 Symbol names are mangled deterministically:
 `_A` + module path + item name + encoded type arguments.
 
+**Stage 0** (`bootstrap/src/air/mono.c`). There are no bounds yet, so a
+generic body lowers the same way for every instance: each instance is
+lowered from the generic function, with TY_PARAM types, and its type
+arguments are then substituted into every type of the AIR body. A call
+records its callee's type arguments, in terms of the caller's parameters;
+after the substitution they are concrete, and the callee instance is
+reached. Instances are keyed by `(DefId, TypeId of the argument tuple)`
+in a hash set. Names stay readable for profiling: the instance's
+arguments, qualified by module outside the root, follow the item name
+(`@"astra.boxes.wrapped<geo.Point>"`, `%"Pair<int, str>.5"`).
+
 ## 11. Code generation
 
 AIR is translated to **textual LLVM IR** (`.ll`), see ADR 0001.

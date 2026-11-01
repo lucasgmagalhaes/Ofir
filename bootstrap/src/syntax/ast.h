@@ -197,7 +197,9 @@ struct Expr {
         struct { Op op; Expr *lhs; Expr *rhs; } binary;
         struct { Expr *value; TypeExpr *type; } cast;
         struct { Expr *lo; Expr *hi; bool inclusive; } range;    // lo, hi may be NULL
-        struct { Expr *callee; ArgList args; } call;
+        // `type_args` is set by the checker when the callee is generic: its
+        // type arguments, as a tuple (spec 8.6).
+        struct { Expr *callee; ArgList args; TypeId type_args; } call;
         struct { Expr *base; Expr *index; } index;
         // `res` is set by the checker for a method: RES_DEF (a user method) or
         // RES_BUILTIN (a BuiltinMethod of a primitive type).

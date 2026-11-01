@@ -47,6 +47,11 @@ static bool c_compatible(Checker *c, TypeId type) {
 }
 
 void check_c_signature(Checker *c, FnDecl *fn) {
+    if (fn->type_params.len > 0) {
+        check_error(c, "E0804", fn->span, "a function that crosses the C boundary cannot be "
+                    "generic: C has one copy of each function");
+        return;
+    }
     const Ty *sig = type_get(c->types, fn_signature(c, fn));
     for (uint32_t i = 0; i < sig->arg_count; i++) {
         if (!c_compatible(c, sig->args[i])) {

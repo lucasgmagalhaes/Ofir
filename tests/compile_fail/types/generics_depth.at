@@ -1,0 +1,13 @@
+// Each call nests the type one level deeper: the instances never end.
+struct Wrap<T>(T)
+
+fn grow<T>(n: int, x: move T) int {   // error[E0331]: instantiating `grow` nests types more than 64 levels deep: does it call itself with a larger type?
+    if n == 0 {
+        return 0
+    }
+    return grow(n - 1, Wrap(x))
+}
+
+fn main() {
+    let n = grow(3, 1)
+}

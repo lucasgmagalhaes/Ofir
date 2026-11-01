@@ -15,7 +15,9 @@ rm -rf "$WORK"
 git -C "$ROOT" worktree add --detach --force "$WORK/src" "$BASE" >/dev/null
 trap 'git -C "$ROOT" worktree remove --force "$WORK/src"' EXIT
 
-make -C "$WORK/src/bootstrap" release BUILD="$WORK/build" >/dev/null
+# Each compiler is built two levels below its own tree, as `build/release`,
+# so that it finds that tree's standard library at `../../std`.
+make -C "$WORK/src/bootstrap" release BUILD="$WORK/src/build/release" >/dev/null
 make -C "$ROOT/bootstrap" release BUILD="$ROOT/build/release" >/dev/null
 python3 "$ROOT/bench/run_bench.py" --compiler "$ROOT/build/release/astra" \
-    --compare "$WORK/build/astra" --json "$ROOT/build/bench-results.json"
+    --compare "$WORK/src/build/release/astra" --json "$ROOT/build/bench-results.json"

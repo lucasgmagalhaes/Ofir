@@ -21,23 +21,16 @@ TypeId unsupported(Checker *c, Span span, const char *what) {
     return type_id(TID_ERROR);
 }
 
-static StrView adt_name(const void *context, uint32_t def) {
-    Sema *sema = (Sema *)context;
-    return symbol_name(&sema->session->names, sema_def(sema, (DefId){def})->name);
-}
-
 const char *type_name(Checker *c, TypeId type) {
     static StrBuf buf;
     strbuf_clear(&buf);
-    ty_text(&buf, c->types, type, adt_name, c->sema);
+    ty_text(&buf, c->types, type, sema_type_name, c->sema);
     return buf.data;
 }
 
 static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
-    if (fn->type_params.len > 0) {
-        unsupported(c, fn->span, "generic functions are");
-        return;
-    }
+    Generics outer = enter_generics(c, (Generics){.owner = c->generics.owner,
+                                                  .fn = fn->type_params});
     const Ty *sig = type_get(c->types, fn_signature(c, fn));
     c->fn = fn;
     c->ret = sig->inner;
@@ -51,6 +44,7 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
         c->local_types[fn->params.items[i].local.id] = sig->args[i];
     }
     if (!fn->body) {
+        enter_generics(c, outer);
         return;
     }
     c->unsafe_depth = fn->is_unsafe ? 1 : 0;
@@ -61,19 +55,16 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
         check_error(c, "E0303", fn->span,
                     "function may reach its end without returning a value");
     }
+    enter_generics(c, outer);
 }
 
 static void check_methods(Checker *c, const Item *item, FnList methods) {
-    SymbolList params = item->kind == ITEM_ENUM ? item->as.enum_.type_params
-                                                : item->as.struct_.type_params;
-    if (params.len > 0) {
-        unsupported(c, item->span, "generic types are");
-        return;
-    }
     TypeId self_type = owner_type(c->sema, item);
+    Generics outer = enter_generics(c, (Generics){.owner = item_type_params(item)});
     for (uint32_t i = 0; i < methods.len; i++) {
         check_fn(c, methods.items[i], self_type);
     }
+    enter_generics(c, outer);
 }
 
 // `extern "C"` blocks cross the C boundary; `extern "intrinsic"` blocks,
@@ -107,23 +98,18 @@ static void check_item(Checker *c, Item *item) {
         check_fn(c, item->as.fn, NO_TYPE);
         break;
     case ITEM_EXTERN: check_extern(c, item); break;
-    case ITEM_STRUCT: case ITEM_TUPLE_STRUCT:
-        if (item->as.struct_.type_params.len == 0) {
-            TypeId owner = owner_type(c->sema, item);
-            Def *lang = lang_def(c->sema, owner);
-            DefId id = lang ? c->sema->lang[owner.id]
-                            : (DefId){type_get(c->types, owner)->data};
-            struct_fields(c, id);
-            if (lang) {
-                check_lang_layout(c, lang, owner);
-            }
+    case ITEM_STRUCT: case ITEM_TUPLE_STRUCT: {
+        TypeId owner = owner_type(c->sema, item);
+        Def *lang = lang_def(c->sema, owner);
+        struct_fields(c, lang ? c->sema->lang[owner.id] : (DefId){type_get(c->types, owner)->data});
+        if (lang) {
+            check_lang_layout(c, lang, owner);
         }
         check_methods(c, item, item->as.struct_.methods);
         break;
+    }
     case ITEM_ENUM:
-        if (item->as.enum_.type_params.len == 0) {
-            enum_variants(c, scope_module(&c->sema->scope, item->name));
-        }
+        enum_variants(c, scope_module(&c->sema->scope, item->name));
         check_methods(c, item, item->as.enum_.methods);
         break;
     case ITEM_CONST: case ITEM_GLOBAL:

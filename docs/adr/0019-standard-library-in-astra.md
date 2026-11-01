@@ -56,8 +56,9 @@ The specification declares methods inside the body of their type (ADR
   }
   ```
 
-- Until generics, three methods stay built into the compiler because their
-  signature needs a type argument or a pointer element type:
+- Until generic bounds (roadmap 5.2), three methods stay built into the
+  compiler because their signature needs a type argument restricted to
+  integers, or any pointer element type:
   `x.wrappingCast<T>()`, `x.saturatingCast<T>()` and `p.add(n)`; the
   constants `I.MIN`, `I.MAX`, `F.NAN`, `F.INFINITY` and `F.EPSILON` too.
 

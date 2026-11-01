@@ -13,11 +13,31 @@ static bool is_copy_type(Checker *c, TypeId type) {
         const Def *def = sema_def(c->sema, (DefId){ty->data});
         return def->kind == DEF_STRUCT && def->item->as.struct_.is_copy;
     }
-    return ty->kind != TY_STR;   // the primitive types except str
+    // The primitive types except str. A type parameter without bounds may
+    // stand for any type, so it is not Copy.
+    return ty->kind != TY_STR && ty->kind != TY_PARAM;
+}
+
+// The fields of an instance of a generic type hold its type arguments by
+// value: `Wrap<Node>` inside `Node` contains `Node`.
+static void check_instance_fields(Checker *c, TypeId type, Span span) {
+    const Ty *ty = type_get(c->types, type);
+    const Def *def = sema_def(c->sema, (DefId){ty->data});
+    if (def->kind == DEF_STRUCT && def->fields) {
+        for (uint32_t i = 0; i < def->fields->count; i++) {
+            check_not_recursive(c, struct_field_type(c->sema, type, i), span);
+        }
+    }
+    for (uint32_t v = 0; def->kind == DEF_ENUM && def->variants && v < def->variants->count;
+         v++) {
+        for (uint32_t i = 0; i < def->variants->variants[v].count; i++) {
+            check_not_recursive(c, variant_field_type(c->sema, type, v, i), span);
+        }
+    }
 }
 
 // A field of a struct or enum type that is still being laid out contains
-// itself. Tuples are looked into.
+// itself. Tuples and the type arguments of instances are looked into.
 void check_not_recursive(Checker *c, TypeId type, Span span) {
     const Ty *ty = type_get(c->types, type);
     for (uint32_t i = 0; ty->kind == TY_TUPLE && i < ty->arg_count; i++) {
@@ -26,14 +46,21 @@ void check_not_recursive(Checker *c, TypeId type, Span span) {
     if (ty->kind != TY_ADT) {
         return;
     }
-    Def *inner = sema_def(c->sema, (DefId){ty->data});
+    DefId id = {ty->data};
+    Def *inner = sema_def(c->sema, id);
+    bool instance = ty->arg_count > 0;
     if (inner->checking) {
         check_error(c, "E0318", span,
                     "a type cannot contain itself by value; use Box<T> or a collection");
-    } else if (inner->kind == DEF_STRUCT) {
-        struct_fields(c, (DefId){ty->data});
+        return;
+    }
+    if (inner->kind == DEF_STRUCT) {
+        struct_fields(c, id);
     } else if (inner->kind == DEF_ENUM) {
-        enum_variants(c, (DefId){ty->data});
+        enum_variants(c, id);
+    }
+    if (instance) {
+        check_instance_fields(c, type, span);
     }
 }
 
@@ -62,9 +89,6 @@ StructInfo *struct_fields(Checker *c, DefId id) {
         return def->fields;
     }
     const Item *item = def->item;
-    if (item->as.struct_.type_params.len > 0) {
-        return NULL;   // generic structs come with roadmap 2.18
-    }
     Arena *arena = &c->sema->session->arena;
     StructInfo *info = ARENA_NEW(arena, StructInfo);
     info->count = item->as.struct_.fields.len;
@@ -75,11 +99,12 @@ StructInfo *struct_fields(Checker *c, DefId id) {
     info->is_copy = item->as.struct_.is_copy;
     uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
-    TypeId adt = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
-    c->self_type = def->lang ? def->type : adt;
+    Generics outer = enter_generics(c, (Generics){.owner = item->as.struct_.type_params});
+    c->self_type = def->lang ? def->type : owner_type(c->sema, item);
     def->checking = true;
     fill_fields(c, def, info);
     def->checking = false;
+    enter_generics(c, outer);
     c->self_type = saved_self;
     sema_enter(c->sema, saved_module);
     def->fields = info;
@@ -126,7 +151,7 @@ TypeId check_struct_field(Checker *c, Expr *e, TypeId base) {
     e->as.field.res = (Res){RES_FIELD, (uint32_t)index};
     check_visible(c, def->module, def->item->as.struct_.fields.items[index].is_pub,
                   e->as.field.name, e->span);
-    return info->types[index];
+    return struct_field_type(c->sema, base, (uint32_t)index);
 }
 
 TypeId check_tuple_field(Checker *c, Expr *e) {
@@ -146,13 +171,14 @@ TypeId check_tuple_field(Checker *c, Expr *e) {
         }
         return type_id(TID_ERROR);
     }
-    return info->types[index];
+    return struct_field_type(c->sema, base, index);
 }
 
-// `Name(a, b)` for a tuple struct.
-TypeId check_constructor(Checker *c, Expr *call, DefId id) {
+// `Name(a, b)` or `Name<T>(a, b)` for a tuple struct.
+TypeId check_constructor(Checker *c, Expr *call, DefId id, TypeList explicit, TypeId expected) {
     StructInfo *info = struct_fields(c, id);
-    TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
+    const Item *item = sema_def(c->sema, id)->item;
+    TypeId type = owner_type(c->sema, item);
     if (!info || !info->is_tuple) {
         check_error(c, "E0310", call->span, "expected a value, found type `" SV_FMT "`; "
                     "build a struct with `Name{field: value}`",
@@ -160,11 +186,21 @@ TypeId check_constructor(Checker *c, Expr *call, DefId id) {
         return type_id(TID_ERROR);
     }
     Ty sig = {.kind = TY_FN, .inner = type, .arg_count = info->count, .args = info->types};
-    return check_args(c, call, &sig);
+    Generics params = {.owner = item->as.struct_.type_params};
+    if (params.owner.len == 0 && explicit.len == 0) {
+        return check_args(c, call, &sig);
+    }
+    Infer inf = infer_new(c, params);
+    if (explicit.len > 0) {
+        infer_explicit(c, &inf, true, explicit, call->as.call.callee->span);
+    }
+    return check_generic_args(c, call, &sig, &inf, expected);
 }
 
-static void check_literal_fields(Checker *c, Expr *e, const Def *def, const StructInfo *info,
-                                 bool *given) {
+// Checks the field values; with `inf`, a generic struct's type parameters
+// are bound from their types, which are checked by require_fields after.
+static void check_literal_fields(Checker *c, Expr *e, const Def *def, bool *given, Infer *inf) {
+    const StructInfo *info = def->fields;
     for (uint32_t i = 0; i < e->as.struct_.fields.len; i++) {
         FieldInit *init = &e->as.struct_.fields.items[i];
         int64_t index = field_index(info, init->name);
@@ -181,17 +217,51 @@ static void check_literal_fields(Checker *c, Expr *e, const Def *def, const Stru
                         SV_ARG(name_of(c, init->name)));
         }
         given[index] = true;
-        coerce(c, init->value, info->types[index]);
+        if (!inf) {
+            coerce(c, init->value, info->types[index]);
+            continue;
+        }
+        TypeId found = check_expr(c, init->value, infer_hint(c, inf, info->types[index]));
+        infer_from(c, inf, info->types[index], found);
     }
 }
 
-// `Point{x: 1, y}`, `Config{}`, `User{age: 31, ..u}`.
-TypeId check_struct_literal(Checker *c, Expr *e) {
-    Expr *name = e->as.struct_.type;
-    if (name->kind != EXPR_IDENT || name->as.ident.res.kind != RES_DEF) {
-        return unsupported(c, name->span, "struct literals of generic types are");
+static void require_fields(Checker *c, Expr *e, const StructInfo *info, const Infer *inf) {
+    for (uint32_t i = 0; i < e->as.struct_.fields.len; i++) {
+        FieldInit *init = &e->as.struct_.fields.items[i];
+        int64_t index = field_index(info, init->name);
+        if (index >= 0) {
+            require_type(c, init->value, init->value->type,
+                         infer_apply(c, inf, info->types[index]));
+        }
     }
-    DefId id = {name->as.ident.res.index};
+}
+
+// The type of a literal of a generic struct, `Pair{a: 1, b: "x"}` or
+// `Pair<int, str>{...}`: its arguments come from the name, the expected
+// type, then the field values.
+static TypeId generic_literal(Checker *c, Expr *e, const Def *def, bool *given, TypeId expected) {
+    Expr *name = e->as.struct_.type;
+    Infer inf = infer_new(c, (Generics){.owner = def->item->as.struct_.type_params});
+    if (name->kind == EXPR_GENERIC) {
+        infer_explicit(c, &inf, true, name->as.generic.args, name->span);
+    }
+    infer_from(c, &inf, owner_type(c->sema, def->item), expected);
+    check_literal_fields(c, e, def, given, &inf);
+    infer_finish(c, &inf, name->span);
+    require_fields(c, e, def->fields, &inf);
+    return infer_apply(c, &inf, owner_type(c->sema, def->item));
+}
+
+// `Point{x: 1, y}`, `Config{}`, `User{age: 31, ..u}`, `Pair<int, str>{...}`.
+TypeId check_struct_literal(Checker *c, Expr *e, TypeId expected) {
+    Expr *name = e->as.struct_.type;
+    Res res = name->kind == EXPR_IDENT ? name->as.ident.res
+              : name->kind == EXPR_GENERIC ? name->as.generic.res : (Res){0};
+    if (res.kind != RES_DEF) {
+        return unsupported(c, name->span, "this struct literal is");
+    }
+    DefId id = {res.index};
     const Def *def = sema_def(c->sema, id);
     StructInfo *info = def->kind == DEF_STRUCT ? struct_fields(c, id) : NULL;
     if (!info || info->is_tuple) {
@@ -199,10 +269,14 @@ TypeId check_struct_literal(Checker *c, Expr *e) {
                     SV_ARG(name_of(c, def->name)));
         return type_id(TID_ERROR);
     }
-    TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
-    name->type = type;
     bool *given = ARENA_ARRAY(&c->sema->session->arena, bool, info->count + 1);
-    check_literal_fields(c, e, def, info, given);
+    bool generic = def->item->as.struct_.type_params.len > 0 || name->kind == EXPR_GENERIC;
+    TypeId type = generic ? generic_literal(c, e, def, given, expected)
+                          : type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
+    name->type = type;
+    if (!generic) {
+        check_literal_fields(c, e, def, given, NULL);
+    }
     if (e->as.struct_.base) {
         coerce(c, e->as.struct_.base, type);
         return type;
