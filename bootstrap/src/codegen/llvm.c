@@ -179,6 +179,7 @@ Gen *llvm_begin(Sema *sema, FILE *file) {
     out_to_file(&g->out, file);
     out_to_memory(&g->globals);
     out_to_memory(&g->type_defs);
+    out_to_memory(&g->fn_text);
     FileId root = sema->program.items[0].module->file;
     const SourceFile *source = source_file(&sema->session->sources, root);
     out_to_memory(&g->path);
@@ -205,19 +206,23 @@ Gen *llvm_begin(Sema *sema, FILE *file) {
     return g;
 }
 
-// LLVM sizes a struct type at each `alloca`, so the instances of generic
-// types a function uses are defined before it. Each such type is the type
-// of a local, or nested in one.
+// LLVM needs a struct type's definition before an instruction that sizes
+// it, and the instances of generic types are defined as functions use
+// them. So a function is generated into a buffer; the types it defined are
+// written first, then the function.
 void llvm_function(Gen *g, const AirBody *body) {
-    for (size_t i = 0; i < body->locals.len; i++) {
-        llvm_type(g, body->locals.data[i].type);
-    }
+    Out file = g->out;
+    g->out = g->fn_text;
+    g->out.len = 0;
+    gen_body(g, body);
+    g->fn_text = g->out;
+    g->out = file;
     if (g->type_defs.len > 0) {
         out_write(&g->out, g->type_defs.buf, g->type_defs.len);
         out_char(&g->out, '\n');
         g->type_defs.len = 0;
     }
-    gen_body(g, body);
+    out_write(&g->out, g->fn_text.buf, g->fn_text.len);
 }
 
 void mark_c_used(Gen *g, DefId def) {
@@ -266,6 +271,7 @@ void llvm_end(Gen *g) {
     out_char(&g->out, '\n');
     out_write(&g->out, g->globals.buf, g->globals.len);
     out_free(&g->type_defs);
+    out_free(&g->fn_text);
     free(g->adt_types);
     out_free(&g->path);
     out_free(&g->globals);
