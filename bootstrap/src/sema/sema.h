@@ -19,6 +19,7 @@ typedef enum {
     DEF_GLOBAL,
     DEF_TYPE_ALIAS,
     DEF_MODULE,      // an imported module: `target` is its index in the program
+    DEF_VARIANT,     // `Some`, `None`, `Ok`, `Err`: variant `variant` of the enum `target`
 } DefKind;
 
 typedef enum { BUILTIN_PRINT, BUILTIN_PRINTLN, BUILTIN_PANIC, BUILTIN_ASSERT } Builtin;
@@ -59,7 +60,8 @@ typedef struct {
     bool is_pub;
     bool lang;           // a `@lang` declaration: `type` is the primitive it describes
     uint32_t module;     // the module that declares it (index in the program)
-    uint32_t target;     // DEF_MODULE: the imported module
+    uint32_t target;     // DEF_MODULE: the imported module; DEF_VARIANT: the enum's DefId
+    uint32_t variant;    // DEF_VARIANT: the variant's position
     bool typed;          // `type` is set (signatures, constants)
     bool checking;       // a constant whose type is being computed (cycle guard)
     const struct ConstValue *value;   // a constant's value, NULL if it could not be computed
@@ -89,6 +91,7 @@ typedef struct {
     DefId lang[TID_BUILTIN_COUNT];   // the `@lang` declaration of each primitive type
     DefId box;           // `@lang("box") struct Box<T>`, which the compiler dereferences
     DefId list;          // `@lang("list") struct List<T>`: literals, indexing, `for`
+    DefId option, result;   // `@lang("option")`, `@lang("result")`: `?`, `??`, bare variants
 } Sema;
 
 void sema_init(Sema *sema, Session *session, Program program);

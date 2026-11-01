@@ -7,22 +7,29 @@ static StrView name_of(Checker *c, Symbol name) {
     return symbol_name(&c->sema->session->names, name);
 }
 
-// Spec 2.9. A type parameter without bounds may stand for any type, so it
-// is not Copy.
+static bool args_are_copy(Checker *c, const Ty *ty) {
+    for (uint32_t i = 0; i < ty->arg_count; i++) {
+        if (!type_is_copy(c, ty->args[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Spec 2.9: Option<T> and Result<T, E> are Copy when their arguments are;
+// other structs and enums when declared `copy`. A type parameter without
+// bounds may stand for any type, so it is not Copy.
 bool type_is_copy(Checker *c, TypeId type) {
     const Ty *ty = type_get(c->types, type);
     switch (ty->kind) {
     case TY_ADT: {
+        if (ty->data == c->sema->option.id || ty->data == c->sema->result.id) {
+            return args_are_copy(c, ty);
+        }
         const Item *item = sema_def(c->sema, (DefId){ty->data})->item;
         return item->kind == ITEM_ENUM ? item->as.enum_.is_copy : item->as.struct_.is_copy;
     }
-    case TY_TUPLE:
-        for (uint32_t i = 0; i < ty->arg_count; i++) {
-            if (!type_is_copy(c, ty->args[i])) {
-                return false;
-            }
-        }
-        return true;
+    case TY_TUPLE: return args_are_copy(c, ty);
     case TY_ARRAY: return type_is_copy(c, ty->inner);
     case TY_STR: case TY_PARAM: case TY_SLICE: return false;
     default: return true;
