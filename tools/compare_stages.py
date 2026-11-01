@@ -24,7 +24,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 from fuzz_frontend import mutate  # noqa: E402
 
 # stage 1 command -> the stage 0 option that it must match
-COMMANDS = {"tokens": "--emit=tokens", "ast": "--emit=ast", "names": "--emit=names"}
+COMMANDS = {"tokens": "--emit=tokens", "ast": "--emit=ast", "names": "--emit=names",
+            "types": "--emit=types"}
 SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 
 

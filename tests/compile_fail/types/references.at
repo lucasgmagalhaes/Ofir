@@ -20,6 +20,29 @@ fn dangling(xs: List<int>) &int {
     return &local                // error[E0702]: cannot return a reference to `local`, which ends with the function
 }
 
+enum Wrapped {
+    One(List<int>)
+    Two(List<int>)
+}
+
+// A binding of a `match` on a borrowed value is a copy that ends with the
+// function; the elements it points to outlive it.
+fn inside(w: &Wrapped) &List<int> {
+    return match *w {
+        .One(list) => &list      // error[E0702]: cannot return a reference to `list`, which ends with the function
+        .Two(list) => {
+            &list                // error[E0702]: cannot return a reference to `list`, which ends with the function
+        }
+    }
+}
+
+fn element(w: &Wrapped) &int {
+    return match *w {
+        .One(list) => &list[0]
+        .Two(list) => &list[1]
+    }
+}
+
 fn main() {
     let n = 1
     let r = &mut n               // error[E0315]: this value cannot be modified: declare it with `var`

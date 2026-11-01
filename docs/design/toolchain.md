@@ -25,6 +25,7 @@ A single file can be compiled without a project: `astra run hello.at`.
 |------|--------|
 | `--emit=tokens` | print tokens and stop |
 | `--emit=ast` | print the AST and stop |
+| `--emit=types` | print the types of the root module's declarations and locals, without the move analysis, and stop |
 | `--emit=names` | print what the root module's names resolve to (locals, declarations, imports) and stop |
 | `--emit=air` | print AIR after drop elaboration |
 | `--emit=llvm` | write the `.ll` file next to the output |

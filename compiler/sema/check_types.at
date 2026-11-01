@@ -1,0 +1,379 @@
+/**
+ * @module
+ * Type expressions to types, function signatures and the types of
+ * declarations (stage 0: bootstrap/src/sema/check_types.c).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.check.Checker
+import sema.check.Generics
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check.itemTypeParams
+import sema.check.noGenerics
+import sema.check_list.checkMapKey
+import sema.check_ref.checkInstanceStorable
+import sema.program.Program
+import sema.types.ERROR
+import sema.types.NEVER
+import sema.types.STR
+import sema.types.UNIT
+import syntax.ast.ExprKind
+import syntax.ast.ItemKind
+import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
+
+/**
+ * The type `self` and `Self` stand for in the methods of item `index` of
+ * module `m`: the struct or enum applied to its own parameters
+ * (`Stack<T>`), or the primitive of a `@lang` declaration.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param m a module
+ * @param index an item of it
+ * @returns the type
+ */
+pub fn ownerTypeOf(c: mut Checker, p: Program, m: int, index: int) int {
+    for t in 0..c.r.lang.len() {
+        let lang = c.r.lang[t]
+        if lang != 0 && c.def(lang).module == m && c.def(lang).item == index {
+            return t
+        }
+    }
+    let id = c.itemDefs[m][index]
+    let params = itemTypeParams(&p.modules[m].module.items[index])
+    var args: List<int> = []
+    for i in 0..params.len() {
+        args.push(c.types.param(i, params[i].0))
+    }
+    return c.types.adt(id, args)
+}
+
+/**
+ * The type `self` stands for in the methods of a declaration's item.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id a struct, enum or `@lang` declaration
+ * @returns the type
+ */
+pub fn ownerType(c: mut Checker, p: Program, id: int) int {
+    return ownerTypeOf(c, p, c.def(id).module, c.def(id).item)
+}
+
+// The type of a type alias, computed once.
+fn resolveAlias(c: mut Checker, p: Program, id: int, span: Span) int {
+    if c.info[id].checking {
+        c.error("E0310", span, "the type alias `{c.text(c.def(id).name)}` refers to itself")
+        return ERROR
+    }
+    let item = itemOf(p, c.loc(id))
+    return match item.kind {
+        .TypeAlias(typeParams, aliased) => aliasType(c, p, id, &typeParams, &aliased, span)
+        _ => ERROR
+    }
+}
+
+fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
+             aliased: &TypeExpr, span: Span) int {
+    if typeParams.len() > 0 {
+        return c.unsupported(span, "generic type aliases are")
+    }
+    if !c.info[id].typed {
+        let saved = c.enter(c.def(id).module)
+        let outer = c.enterGenerics(noGenerics())
+        c.info[id].checking = true
+        let ty = resolveType(c, p, aliased)
+        c.info[id].ty = ty
+        c.info[id].checking = false
+        c.enterGenerics(outer)
+        c.info[id].typed = true
+        c.enter(saved)
+    }
+    return c.info[id].ty
+}
+
+/**
+ * `Name<args>` for a struct or enum, checking the number of arguments (E0302).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id its `DefId`
+ * @param args its type arguments
+ * @param span where it is named
+ * @returns the type
+ */
+pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span) int {
+    let expected = itemTypeParams(itemOf(p, c.loc(id))).len()
+    if args.len() != expected {
+        c.error("E0302", span, "wrong number of type arguments for `{c.text(c.def(id).name)}`: "
+                + "expected {expected}, found {args.len()}")
+        return ERROR
+    }
+    let ty = c.types.adt(id, args)
+    checkInstanceStorable(c, p, ty, span)
+    checkMapKey(c, p, ty, span)
+    return ty
+}
+
+// The type parameter named `name`, if it is in scope.
+fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
+    for i in 0..c.generics.fnParams.len() {
+        if c.generics.fnParams[i].0 == name.0 {
+            return .Some(c.types.param(c.generics.owner.len() + i, name.0))
+        }
+    }
+    for i in 0..c.generics.owner.len() {
+        if c.generics.owner[i].0 == name.0 {
+            return .Some(c.types.param(i, name.0))
+        }
+    }
+    return .None
+}
+
+fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
+    let kind = c.def(id).kind
+    if args.len() > 0 && kind != .Struct && kind != .Enum {
+        c.error("E0302", span, "`{c.text(c.def(id).name)}` takes no type arguments")
+        return ERROR
+    }
+    return match kind {
+        .Primitive => c.def(id).primitive
+        .TypeAlias => resolveAlias(c, p, id, span)
+        .Struct | .Enum => {
+            if c.def(id).lang {
+                return c.def(id).primitive   // a `@lang` body names its primitive
+            }
+            var types: List<int> = []
+            for i in 0..args.len() {
+                types.push(resolveType(c, p, &args[i]))
+            }
+            adtInstance(c, p, id, types, span)
+        }
+        _ => {
+            c.error("E0310", span, "expected a type, found `{c.text(c.def(id).name)}`")
+            ERROR
+        }
+    }
+}
+
+/**
+ * A declaration of another module named in a type or a pattern; reports
+ * E0200 when it is missing and E0202 when it is private.
+ *
+ * @param c the checker
+ * @param m the module
+ * @param name the name
+ * @param span where it is used
+ * @returns its `DefId`, or 0
+ */
+pub fn moduleType(c: mut Checker, m: int, name: Symbol, span: Span) int {
+    let id = c.r.scope.moduleIn(m, name)
+    let moduleName = c.r.moduleNames[m].clone()
+    if id == 0 || c.def(id).inPrelude || c.def(id).module != m {
+        c.error("E0200", span, "cannot find `{c.text(name)}` in module `{moduleName}`")
+        return 0
+    }
+    if !c.def(id).isPub {
+        c.error("E0202", span, "`{c.text(name)}` is private to module `{moduleName}`")
+    }
+    return id
+}
+
+// `Name` or `module.Name`: its `DefId`, or 0.
+fn pathTarget(c: mut Checker, segments: &List<Symbol>, span: Span) int {
+    let first = c.r.scope.module(segments[0])
+    c.r.noteImportUse(segments[0])
+    if segments.len() == 1 {
+        return first
+    }
+    if first == 0 {   // `nowhere.Name`
+        c.error("E0200", span, "cannot find `{c.text(segments[0])}` in this scope")
+        return 0
+    }
+    if segments.len() > 2 || c.def(first).kind != .Module {
+        c.unsupported(span, "nested module paths in types are")
+        return 0
+    }
+    return moduleType(c, c.def(first).target, segments[segments.len() - 1], span)
+}
+
+fn resolvePath(c: mut Checker, p: Program, segments: &List<Symbol>, args: &List<TypeExpr>,
+               span: Span) int {
+    if segments.len() == 1 {
+        if let .Some(param) = typeParameter(c, segments[0]) {
+            if args.len() > 0 {
+                c.error("E0302", span, "a type parameter takes no type arguments".toOwned())
+            }
+            return param
+        }
+    }
+    let id = pathTarget(c, segments, span)
+    if id == 0 && segments.len() > 1 {
+        return ERROR   // reported by moduleType
+    }
+    if id == 0 {
+        let name = segments[segments.len() - 1]
+        c.error("E0200", span, "cannot find type `{c.text(name)}` in this scope")
+        return ERROR
+    }
+    return namedType(c, p, id, args, span)
+}
+
+// `[T]` and `&[T]`: the std `Slice<T>`, a pointer and a length (spec 2.12).
+fn sliceOf(c: mut Checker, elem: int, span: Span) int {
+    let slice = c.r.langItems[4]
+    if slice == 0 {
+        return c.unsupported(span, "slices without the standard library are")
+    }
+    return c.types.adt(slice, [elem])
+}
+
+/**
+ * Whether a type is the built-in `str` view or a reference written `&[T]`:
+ * the kinds `resolveRef` passes through.
+ *
+ * @param t a type as written
+ * @returns true for `[T]`
+ */
+fn isSliceType(t: &TypeExpr) bool {
+    return match t.kind {
+        .Slice(_) => true
+        _ => false
+    }
+}
+
+/**
+ * The type a type expression names, in the current module and generics.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param t the type as written
+ * @returns the type
+ */
+pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
+    return match t.kind {
+        .Path(segments, args) => resolvePath(c, p, &segments, &args, t.span)
+        .SelfType => {
+            if c.selfType == ERROR {
+                c.error("E0200", t.span, "`Self` is only available inside a type".toOwned())
+            }
+            c.selfType
+        }
+        .Ref(mutable, inner) => {
+            let target = resolveType(c, p, &*inner)
+            if target == STR && !mutable {
+                return STR   // stage 0: `&str` is a `str` view
+            }
+            if isSliceType(&*inner) {   // `&[T]` is the slice itself
+                if mutable {
+                    return c.unsupported(t.span, "mutable slices `&mut [T]` are")
+                }
+                return target
+            }
+            c.types.ref(target, mutable)
+        }
+        .Ptr(mutable, inner) => {
+            let target = resolveType(c, p, &*inner)
+            c.types.ptr(target, mutable)
+        }
+        .Slice(elem) => {
+            let item = resolveType(c, p, &*elem)
+            sliceOf(c, item, t.span)
+        }
+        .Array(elem, len) => {
+            let item = resolveType(c, p, &*elem)
+            match len.kind {
+                .Int(n) => {
+                    if n > 4294967295 {
+                        return c.unsupported(len.span,
+                                             "array lengths other than integer literals are")
+                    }
+                    c.types.intern(.Array, n as int, item, [])
+                }
+                _ => c.unsupported(len.span, "array lengths other than integer literals are")
+            }
+        }
+        .Tuple(items) => {
+            var types: List<int> = []
+            for i in 0..items.len() {
+                types.push(resolveType(c, p, &items[i]))
+            }
+            c.types.tuple(types)
+        }
+        .Fn(params, _, ret, _) => {
+            var types: List<int> = []
+            for i in 0..params.len() {
+                types.push(resolveType(c, p, &params[i]))
+            }
+            let result = match ret {
+                .Some(r) => resolveType(c, p, &*r)
+                .None => UNIT
+            }
+            c.types.fnType(types, result)
+        }
+        .Never => NEVER
+        .Dyn(_) => c.unsupported(t.span, "`dyn` types are")
+        .Optional(_) => c.unsupported(t.span, "optional types (`T?`) are")
+    }
+}
+
+/**
+ * The signature of a function, computed once: its names are looked up in
+ * its own module, and `Self` is a method's own type.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the function's `DefId`
+ * @returns its `fn` type, without `self`
+ */
+pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
+    if c.info[id].typed {
+        return c.info[id].ty
+    }
+    let def = c.def(id)
+    let module = def.module
+    let decl = fnOf(p, c.loc(id))
+    let item = itemOf(p, c.loc(id))
+    let isMethod = match item.kind {
+        .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
+        _ => false
+    }
+    let saved = c.enter(module)
+    let savedSelf = c.selfType
+    let outer = c.enterGenerics(Generics{owner: itemTypeParams(item),
+                                         fnParams: decl.typeParams.clone()})
+    if isMethod {
+        c.selfType = ownerTypeOf(c, p, module, c.def(id).item)
+    }
+    var params: List<int> = []
+    for i in 0..decl.params.len() {
+        params.push(resolveType(c, p, &decl.params[i].ty))
+    }
+    let ret = match decl.ret {
+        .Some(t) => resolveType(c, p, &t)
+        .None => UNIT
+    }
+    c.enterGenerics(outer)
+    c.selfType = savedSelf
+    c.enter(saved)
+    let sig = c.types.fnType(params, ret)
+    c.info[id].ty = sig
+    c.info[id].typed = true
+    return sig
+}
+
+/**
+ * Whether `found` fits `expected`: `!` converts to every type, and the
+ * error type is compatible with everything, so that one mistake is
+ * reported once.
+ *
+ * @param found the type found
+ * @param expected the type expected
+ * @returns true if compatible
+ */
+pub fn compatible(found: int, expected: int) bool {
+    return found == expected || found == ERROR || expected == ERROR || found == NEVER
+}

@@ -79,7 +79,8 @@ pub struct Def {
     pub member: int
     /** A module: the imported one; a variant: the `DefId` of its enum. */
     pub target: int
-    /** A primitive: its type number (`uint` and `u64` share one). */
+    /** A primitive: its type id (`uint` and `u64` share one); a builtin: 0 `print`,
+     * 1 `println`, 2 `panic`, 3 `assert`; a `@lang` body: its primitive's type id. */
     pub primitive: int
 }
 

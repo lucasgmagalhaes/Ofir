@@ -113,8 +113,13 @@ static DefId path_target(Checker *c, const TypeExpr *type, Symbol *name) {
     *name = segments.items[segments.len - 1];
     DefId id = scope_module(&c->sema->scope, segments.items[0]);
     note_import_use(c->sema, segments.items[0]);
-    if (segments.len == 1 || id.id == 0) {
-        return segments.len == 1 ? id : (DefId){0};
+    if (segments.len == 1) {
+        return id;
+    }
+    if (id.id == 0) {   // `nowhere.Name`
+        check_error(c, "E0200", type->span, "cannot find `" SV_FMT "` in this scope",
+                    SV_ARG(symbol_name(&c->sema->session->names, segments.items[0])));
+        return (DefId){0};
     }
     const Def *module = sema_def(c->sema, id);
     if (segments.len > 2 || module->kind != DEF_MODULE) {

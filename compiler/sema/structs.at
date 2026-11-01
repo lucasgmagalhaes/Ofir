@@ -1,0 +1,332 @@
+/**
+ * @module
+ * Struct fields, literals, tuple struct constructors and field access
+ * (spec 3.4; stage 0: bootstrap/src/sema/structs.c).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.check.Checker
+import sema.check.Loc
+import sema.check.Generics
+import sema.check.itemOf
+import sema.check.itemTypeParams
+import sema.check_ref.checkStorable
+import sema.check_types.ownerType
+import sema.check_types.resolveType
+import sema.enums.enumVariants
+import sema.expr_check.coerce
+import sema.program.Program
+import sema.types.ERROR
+import sema.types.I64
+import sema.types.STR
+import sema.types.U8
+import syntax.ast.FieldDecl
+import syntax.ast.ItemKind
+
+/**
+ * The fields of a struct.
+ */
+pub struct StructInfo {
+    /** Their names; for a tuple struct, unused. */
+    pub names: List<Symbol>
+    /** Their types, with the struct's own type parameters. */
+    pub types: List<int>
+    /** Whether each has a default value. */
+    pub defaults: List<bool>
+    /** A tuple struct. */
+    pub isTuple: bool
+    /** A `copy struct`. */
+    pub isCopy: bool
+}
+
+// The flags of a struct: (copy, ref, tuple), and its number of fields.
+fn declaredFlags(p: Program, at: Loc) (bool, bool, bool, int) {
+    return match itemOf(p, at).kind {
+        .Struct(isCopy, isRef, isTuple, _, fields, _) => (isCopy, isRef, isTuple, fields.len())
+        _ => (false, false, false, 0)
+    }
+}
+
+// Field `i` as written.
+fn fieldDeclAt(p: Program, at: Loc, i: int) &FieldDecl {
+    return match itemOf(p, at).kind {
+        .Struct(_, _, _, _, fields, _) => &fields[i]
+        _ => {
+            panic("fieldDeclAt: not a struct")
+        }
+    }
+}
+
+/**
+ * Whether a type is Copy (spec 2.9): Option and Result when their
+ * arguments are, other structs and enums when declared `copy`. A type
+ * parameter without bounds may stand for any type, so it is not Copy.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @returns true for Copy types
+ */
+pub fn isCopy(c: Checker, p: Program, ty: int) bool {
+    let t = c.types.get(ty)
+    return match t.kind {
+        .Adt => {
+            if t.data == c.r.langItems[2] || t.data == c.r.langItems[3] {
+                return argsAreCopy(c, p, &t.args)
+            }
+            match itemOf(p, c.loc(t.data)).kind {
+                .Struct(isCopyType, _, _, _, _, _) => isCopyType
+                .Enum(isCopyType, _, _, _) => isCopyType
+                _ => false
+            }
+        }
+        .Tuple => argsAreCopy(c, p, &t.args)
+        .Array => isCopy(c, p, t.inner)
+        .Str | .Param | .Slice => false
+        _ => true
+    }
+}
+
+fn argsAreCopy(c: Checker, p: Program, args: &List<int>) bool {
+    for i in 0..args.len() {
+        if !isCopy(c, p, args[i]) {
+            return false
+        }
+    }
+    return true
+}
+
+/**
+ * The type of field `i` of a struct instance (or of a primitive's `@lang`
+ * declaration), with its type arguments substituted.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the struct type
+ * @param i the field
+ * @returns its type
+ */
+pub fn structFieldType(c: mut Checker, p: Program, ty: int, i: int) int {
+    if c.types.kind(ty) != .Adt {
+        let lang = c.r.lang[ty]
+        return fieldsOf(c, lang).types[i]
+    }
+    let def = c.types.get(ty).data
+    let field = fieldsOf(c, def).types[i]
+    let args = c.types.get(ty).args.clone()
+    return c.types.subst(field, args)
+}
+
+/**
+ * The fields of a struct, already computed.
+ *
+ * @param c the checker
+ * @param id the struct's `DefId`
+ * @returns its fields
+ * @panics before `structFields`
+ */
+pub fn fieldsOf(c: Checker, id: int) &StructInfo {
+    return match c.info[id].fields {
+        .Some(info) => &*info
+        .None => {
+            panic("fieldsOf: not computed")
+        }
+    }
+}
+
+// The fields of an instance of a generic type hold its type arguments by
+// value: `Wrap<Node>` inside `Node` contains `Node`.
+fn checkInstanceFields(c: mut Checker, p: Program, ty: int, span: Span) {
+    let def = c.types.get(ty).data
+    if c.def(def).kind == .Struct && c.info[def].fields.isSome() {
+        for i in 0..fieldsOf(c, def).types.len() {
+            checkNotRecursive(c, p, structFieldType(c, p, ty, i), span)
+        }
+    }
+    if c.def(def).kind == .Enum && c.info[def].variants.isSome() {
+        let count = variantCount(c, def)
+        for v in 0..count {
+            for i in 0..variantFieldCount(c, def, v) {
+                checkNotRecursive(c, p, variantFieldType(c, p, ty, v, i), span)
+            }
+        }
+    }
+}
+
+fn variantCount(c: Checker, def: int) int {
+    return match c.info[def].variants {
+        .Some(info) => info.variants.len()
+        .None => 0
+    }
+}
+
+fn variantFieldCount(c: Checker, def: int, v: int) int {
+    return match c.info[def].variants {
+        .Some(info) => info.variants[v].types.len()
+        .None => 0
+    }
+}
+
+/**
+ * The type of field `i` of variant `v` of an enum instance.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the enum type
+ * @param v the variant
+ * @param i the field
+ * @returns its type
+ */
+pub fn variantFieldType(c: mut Checker, p: Program, ty: int, v: int, i: int) int {
+    let def = c.types.get(ty).data
+    let field = match c.info[def].variants {
+        .Some(info) => info.variants[v].types[i]
+        .None => ERROR
+    }
+    let args = c.types.get(ty).args.clone()
+    return c.types.subst(field, args)
+}
+
+/**
+ * Reports E0318 when a field's type contains a struct or enum that is
+ * still being laid out; tuples and the type arguments of instances are
+ * looked into.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the field's type
+ * @param span the field
+ */
+pub fn checkNotRecursive(c: mut Checker, p: Program, ty: int, span: Span) {
+    if c.types.kind(ty) == .Tuple {
+        let items = c.types.get(ty).args.clone()
+        for i in 0..items.len() {
+            checkNotRecursive(c, p, items[i], span)
+        }
+    }
+    if c.types.kind(ty) != .Adt {
+        return
+    }
+    let id = c.types.get(ty).data
+    if c.info[id].checking {
+        c.error("E0318", span,
+                "a type cannot contain itself by value; use Box<T> or a collection".toOwned())
+        return
+    }
+    if c.def(id).kind == .Struct {
+        structFields(c, p, id)
+    } else if c.def(id).kind == .Enum {
+        enumVariants(c, p, id)
+    }
+    if c.types.get(ty).args.len() > 0 {
+        checkInstanceFields(c, p, ty, span)
+    }
+}
+
+/**
+ * Computes the fields of a struct (or of a `@lang` declaration), once.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id its `DefId`
+ * @returns whether they are known (false while they are being computed)
+ */
+pub fn structFields(c: mut Checker, p: Program, id: int) bool {
+    if c.info[id].fields.isSome() {
+        return true
+    }
+    if c.info[id].checking {
+        return false
+    }
+    let declared = declaredFlags(p, c.loc(id))
+    let saved = c.enter(c.def(id).module)
+    let savedSelf = c.selfType
+    let outer = c.enterGenerics(Generics{owner: itemTypeParams(itemOf(p, c.loc(id))),
+                                         fnParams: []})
+    c.selfType = if c.def(id).lang { c.def(id).primitive } else { ownerType(c, p, id) }
+    c.info[id].checking = true
+    var info = StructInfo{names: [], types: [], defaults: [], isTuple: declared.2,
+                          isCopy: declared.0}
+    for i in 0..declared.3 {
+        let field = fieldDeclAt(p, c.loc(id), i)
+        let ty = resolveType(c, p, &field.ty)
+        info.names.push(field.name ?? Symbol(-1))
+        info.types.push(ty)
+        info.defaults.push(field.defaultValue.isSome())
+        if !declared.1 {
+            checkStorable(c, p, ty, field.span, "a struct field")
+        }
+        checkNotRecursive(c, p, ty, field.span)
+        if let .Some(value) = field.defaultValue {
+            coerce(c, p, &value, ty)
+        }
+        if info.isCopy && !isCopy(c, p, ty) && ty != ERROR {
+            c.error("E0317", field.span, "a `copy struct` can only have fields of Copy types, "
+                    + "not `{c.typeName(ty)}`")
+        }
+    }
+    c.info[id].checking = false
+    c.enterGenerics(outer)
+    c.selfType = savedSelf
+    c.enter(saved)
+    c.info[id].fields = .Some(Box.new(info))
+    return true
+}
+
+/**
+ * The position of a named field.
+ *
+ * @param info the fields
+ * @param name the name
+ * @returns its index, or -1
+ */
+pub fn fieldIndex(info: &StructInfo, name: Symbol) int {
+    if info.isTuple {
+        return -1
+    }
+    for i in 0..info.names.len() {
+        if info.names[i].0 == name.0 {
+            return i
+        }
+    }
+    return -1
+}
+
+/**
+ * The checks of the layouts the compiler relies on: `@lang("str")` is
+ * `{ptr: *u8, len: int, cap: int}`, a numeric `@lang` type declares no
+ * fields, and `@lang("list")` starts with `ptr: *mut T, len: int`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id a struct or `@lang` declaration whose fields are computed
+ */
+pub fn checkStructLayouts(c: mut Checker, p: Program, id: int) {
+    if c.info[id].fields.isNone() {
+        return
+    }
+    if c.def(id).lang {
+        let ty = c.def(id).primitive
+        let span = c.def(id).span
+        let types = fieldsOf(c, id).types.clone()
+        if ty == STR {
+            let bytes = c.types.ptr(U8, false)
+            let ok = types.len() == 3 && types[0] == bytes && types[1] == I64 && types[2] == I64
+            if !ok {
+                c.error("E0806", span, "`@lang(\"str\")` must declare `ptr: *u8`, `len: int`, "
+                        + "`cap: int`")
+            }
+        } else if types.len() > 0 {
+            c.error("E0806", span, "a `@lang` numeric type declares no fields".toOwned())
+        }
+    }
+    if id == c.r.langItems[1] {
+        let types = fieldsOf(c, id).types.clone()
+        let ok = types.len() == 3 && c.types.kind(types[0]) == .Ptr && types[1] == I64
+        if !ok {
+            c.error("E0806", c.def(id).span, "`@lang(\"list\")` must declare `ptr: *mut T`, "
+                    + "`len: int`, `cap: int`")
+        }
+    }
+}

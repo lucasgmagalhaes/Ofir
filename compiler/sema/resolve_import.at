@@ -11,6 +11,7 @@ import base.span.Span
 import sema.def.Def
 import sema.def.Res
 import sema.program.Program
+import sema.resolve.ImportUse
 import sema.resolve.Resolver
 import sema.trace.traceUse
 import syntax.ast.Expr
@@ -96,6 +97,7 @@ fn bind(r: mut Resolver, name: Symbol, id: int, span: Span) {
 pub fn resolveImport(r: mut Resolver, program: Program, path: &List<Symbol>,
                      alias: Option<Symbol>, span: Span) {
     let name = alias ?? path[path.len() - 1]
+    r.imports.push(ImportUse{module: r.current, name, span, used: false})
     bindImport(r, path, name, span)
     traceUse(r, "import", name, span, .Def(r.scope.module(name)))
 }

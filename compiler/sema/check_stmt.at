@@ -1,0 +1,432 @@
+/**
+ * @module
+ * Type checking of statements, blocks, `if` and `match` (spec 3.1 and 4;
+ * stage 0: bootstrap/src/sema/check_stmt.c and check_match.c).
+ */
+
+import base.span.Span
+import sema.check.Checker
+import sema.check_list.checkForCollection
+import sema.check_option.checkUnusedResult
+import sema.check_pattern.checkPattern
+import sema.check_pattern.irrefutable
+import sema.check_place.placeRoot
+import sema.check_place.requireMutable
+import sema.check_ref.checkReturnedRef
+import sema.check_types.compatible
+import sema.check_types.resolveType
+import sema.def.Res
+import sema.exhaustive.checkExhaustive
+import sema.expr_check.checkBinary
+import sema.expr_check.checkExpr
+import sema.expr_check.checkUnsafeBlock
+import sema.expr_check.coerce
+import sema.expr_check.nameRes
+import sema.expr_check.requireTypeAt
+import sema.program.Program
+import sema.types.BOOL
+import sema.types.ERROR
+import sema.types.NEVER
+import sema.types.UNIT
+import syntax.ast.Block
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.ForKind
+import syntax.ast.Op
+import syntax.ast.Stmt
+import syntax.ast.StmtKind
+
+fn unitUnlessNever(ty: int) int {
+    return if ty == NEVER { ty } else { UNIT }
+}
+
+fn letStmt(c: mut Checker, p: Program, s: &Stmt) int {
+    match s.kind {
+        .Let(pattern, annotation, value, otherwise) => {
+            var ty = ERROR
+            var found = ERROR
+            if let .Some(t) = annotation {
+                ty = resolveType(c, p, &t)
+                found = coerce(c, p, &value, ty)
+            } else {
+                found = checkExpr(c, p, &value, ERROR)
+                ty = found
+            }
+            checkPattern(c, p, &pattern, ty)
+            if let .Some(block) = otherwise {   // `let pattern = value else { ... }` (spec 4.6)
+                if checkBlock(c, p, &block, ERROR, false) != NEVER {
+                    c.error("E0307", block.span, "the `else` block of `let ... else` must not fall "
+                            + "through: end it with `return`, `break`, `continue` or a panic")
+                }
+            } else if !irrefutable(c, &pattern) {
+                c.error("E0501", pattern.span,
+                        "this pattern does not match every value: use `match` or `if let`"
+                            .toOwned())
+            }
+            return unitUnlessNever(found)
+        }
+        _ => {
+            return UNIT
+        }
+    }
+}
+
+fn varStmt(c: mut Checker, p: Program, s: &Stmt) int {
+    match s.kind {
+        .Var(_, annotation, value) => {
+            var ty = ERROR
+            if let .Some(t) = annotation {
+                ty = resolveType(c, p, &t)
+            }
+            var found = ERROR
+            if let .Some(init) = value {
+                found = if annotation.isSome() { coerce(c, p, &init, ty) } else {
+                    checkExpr(c, p, &init, ERROR)
+                }
+            }
+            let local = c.localAt(s.id.0)
+            if local >= 0 {
+                c.localTypes[local] = if annotation.isSome() { ty } else { found }
+            }
+            return unitUnlessNever(found)
+        }
+        _ => {
+            return UNIT
+        }
+    }
+}
+
+// The left side of `=` must be a mutable place (spec 4.2).
+fn checkPlace(c: mut Checker, p: Program, target: &Expr) {
+    let Some(root) = placeRoot(c, target) else {
+        c.unsupported(target.span, "assigning to elements is")
+        return
+    }
+    let isUnary = match root.0.kind {
+        .Unary(_, _) => true
+        _ => false
+    }
+    if root.0.id.0 != target.id.0 || root.1 > 0 || isUnary {   // a field or `*p`
+        requireMutable(c, p, target)
+        return
+    }
+    match nameRes(c, target) {
+        .Local(id) => {
+            if !c.locals[id].mutable {
+                c.error("E0304", target.span, "cannot assign twice to immutable variable "
+                        + "`{c.text(c.locals[id].name)}`")
+            }
+        }
+        .Def(id) => {
+            if c.def(id).kind != .Global {
+                c.error("E0304", target.span, "cannot assign to `{c.text(c.def(id).name)}`")
+            }
+        }
+        _ => {}
+    }
+}
+
+fn assignStmt(c: mut Checker, p: Program, s: &Stmt, op: Op, target: &Expr, value: &Expr) int {
+    let ty = checkExpr(c, p, target, ERROR)
+    checkPlace(c, p, target)
+    if op == .Assign {
+        coerce(c, p, value, ty)
+        return UNIT
+    }
+    // `x op= y` checks like `x op y`.
+    let found = checkBinary(c, p, s.span, op, target, value, ty)
+    if !compatible(found, ty) {
+        requireTypeAt(c, s.span, found, ty)
+    }
+    return UNIT
+}
+
+fn loopBody(c: mut Checker, p: Program, body: &Block, infinite: bool) int {
+    c.loops.push(false)
+    checkBlock(c, p, body, ERROR, false)
+    let broken = c.loops.pop() ?? false
+    // An infinite loop without `break` never finishes.
+    return if infinite && !broken { NEVER } else { UNIT }
+}
+
+fn forIn(c: mut Checker, p: Program, s: &Stmt, iterable: &Expr, two: bool, body: &Block) int {
+    match iterable.kind {   // a list, a map or an iterator
+        .Range(lo, hi, _) => {
+            if two {
+                c.error("E0300", iterable.span,
+                        "a range gives one variable: `for i in a..b`".toOwned())
+                return UNIT
+            }
+            if lo.isNone() || hi.isNone() {
+                c.unsupported(iterable.span, "`for` over ranges without both bounds is")
+                return UNIT
+            }
+            let low = match lo {
+                .Some(l) => &*l
+                .None => iterable
+            }
+            let high = match hi {
+                .Some(h) => &*h
+                .None => iterable
+            }
+            // A literal bound takes the type of the other one: `for i in 0..n` with `n: u8`.
+            let lowInt = match low.kind {
+                .Int(_) => true
+                _ => false
+            }
+            let highInt = match high.kind {
+                .Int(_) => true
+                _ => false
+            }
+            let swap = lowInt && !highInt
+            let first = if swap { high } else { low }
+            let second = if swap { low } else { high }
+            let ty = checkExpr(c, p, first, ERROR)
+            coerce(c, p, second, ty)
+            if !c.types.isInteger(ty) && ty != ERROR {
+                c.error("E0300", iterable.span, "mismatched types: expected an integer, "
+                        + "found {c.typeName(ty)}")
+            }
+            c.setType(iterable.id.0, ty)
+            let local = c.localAt(s.id.0)
+            if local >= 0 {
+                c.localTypes[local] = ty
+            }
+            return loopBody(c, p, body, false)
+        }
+        _ => {
+            checkForCollection(c, p, s, iterable, two)
+            return loopBody(c, p, body, false)
+        }
+    }
+}
+
+fn forStmt(c: mut Checker, p: Program, s: &Stmt) int {
+    match s.kind {
+        .For(kind, _, _, second, expr, body) => {
+            return match kind {
+                .Infinite => loopBody(c, p, &body, true)
+                .Cond => {
+                    if let .Some(cond) = expr {
+                        coerce(c, p, &cond, BOOL)
+                    }
+                    loopBody(c, p, &body, false)
+                }
+                .In => match expr {
+                    .Some(iterable) => forIn(c, p, s, &iterable, second.isSome(), &body)
+                    .None => UNIT
+                }
+            }
+        }
+        _ => {
+            return UNIT
+        }
+    }
+}
+
+fn returnStmt(c: mut Checker, p: Program, s: &Stmt, value: &Option<Expr>) int {
+    if let .Some(v) = *value {
+        coerce(c, p, &v, c.ret)
+        checkReturnedRef(c, p, c.fnDef, &v)
+    } else if !compatible(UNIT, c.ret) {
+        c.error("E0300", s.span, "mismatched types: expected {c.typeName(c.ret)}, found ()")
+    }
+    return NEVER
+}
+
+fn jumpStmt(c: mut Checker, s: &Stmt, isBreak: bool) int {
+    if c.loops.len() == 0 {
+        c.error("E0309", s.span, "`{if isBreak { "break" } else { "continue" }}` outside of a "
+                + "loop")
+    } else if isBreak {
+        let last = c.loops.len() - 1
+        c.loops[last] = true
+    }
+    return NEVER
+}
+
+// An `if`, `match` or block used as a statement: its branches are not values.
+fn exprStmt(c: mut Checker, p: Program, e: &Expr) int {
+    let ty = match e.kind {
+        .Match(_, _) => checkMatch(c, p, e, ERROR, false)
+        .If(_, _, _, _) => checkIf(c, p, e, ERROR, false)
+        .Unsafe(block) => checkUnsafeBlock(c, p, &block, ERROR, false)
+        .Block(block) => checkBlock(c, p, &block, ERROR, false)
+        _ => {
+            let found = checkExpr(c, p, e, ERROR)
+            checkUnusedResult(c, e)
+            found
+        }
+    }
+    c.setType(e.id.0, ty)
+    return unitUnlessNever(ty)
+}
+
+fn checkStmt(c: mut Checker, p: Program, s: &Stmt) int {
+    return match s.kind {
+        .Let(_, _, _, _) => letStmt(c, p, s)
+        .Var(_, _, _) => varStmt(c, p, s)
+        .Assign(op, target, value) => assignStmt(c, p, s, op, &target, &value)
+        .For(_, _, _, _, _, _) => forStmt(c, p, s)
+        .Return(value) => returnStmt(c, p, s, &value)
+        .Break => jumpStmt(c, s, true)
+        .Continue => jumpStmt(c, s, false)
+        .ExprStmt(expr) => exprStmt(c, p, &expr)
+    }
+}
+
+/**
+ * Checks a block. As a value, a block is worth its last expression (spec
+ * 4.1); a block that cannot finish has type `!`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param block the block
+ * @param expected the type the context expects
+ * @param asValue whether its value is used
+ * @returns its type
+ */
+pub fn checkBlock(c: mut Checker, p: Program, block: &Block, expected: int, asValue: bool) int {
+    let stmts = &block.stmts
+    var diverges = false
+    var warned = false
+    for i in 0..stmts.len() {
+        let s = &stmts[i]
+        if diverges && !warned {   // W0004 once per block (spec 12.6)
+            c.r.diags.warning("W0004", s.span,
+                              "unreachable code: the statement before it never finishes"
+                                  .toOwned())
+            warned = true
+        }
+        if asValue && i + 1 == stmts.len() {
+            if let StmtKind.ExprStmt(tail) = s.kind {
+                let ty = checkExpr(c, p, &tail, expected)
+                return if diverges { NEVER } else { ty }
+            }
+        }
+        let ty = checkStmt(c, p, s)
+        diverges = diverges || ty == NEVER
+    }
+    return if diverges { NEVER } else { UNIT }
+}
+
+fn join(c: mut Checker, span: Span, then: int, other: int) int {
+    if then == NEVER {
+        return other
+    }
+    if other != NEVER && !compatible(other, then) {
+        c.error("E0300", span, "mismatched types: expected {c.typeName(then)}, "
+                + "found {c.typeName(other)}")
+    }
+    return then
+}
+
+/**
+ * Checks `if cond { } else { }` and `if let pattern = value { }`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the `if`
+ * @param expected the type the context expects
+ * @param asValue whether its value is used
+ * @returns its type
+ */
+pub fn checkIf(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: bool) int {
+    match e.kind {
+        .If(letPattern, cond, then, otherwise) => {
+            if let .Some(pattern) = letPattern {
+                let ty = checkExpr(c, p, &*cond, ERROR)
+                checkPattern(c, p, &pattern, ty)
+            } else {
+                coerce(c, p, &*cond, BOOL)
+            }
+            let thenType = checkBlock(c, p, &then, expected, asValue)
+            if otherwise.isNone() {
+                return UNIT   // as a value, `if` without `else` is ()
+            }
+            let other = match otherwise {
+                .Some(o) => &*o
+                .None => e
+            }
+            let otherType = match other.kind {
+                .If(_, _, _, _) => checkIf(c, p, other, expected, asValue)
+                .Block(block) => checkBlock(c, p, &block, expected, asValue)
+                _ => checkExpr(c, p, other, expected)
+            }
+            c.setType(other.id.0, otherType)
+            if !asValue {
+                return if thenType == NEVER && otherType == NEVER { NEVER } else { UNIT }
+            }
+            return join(c, other.span, thenType, otherType)
+        }
+        _ => {
+            return ERROR
+        }
+    }
+}
+
+fn armBody(c: mut Checker, p: Program, body: &Expr, expected: int, asValue: bool) int {
+    if !asValue {
+        match body.kind {
+            .Unsafe(block) => {
+                let ty = checkUnsafeBlock(c, p, &block, ERROR, false)
+                c.setType(body.id.0, ty)
+                return unitUnlessNever(ty)
+            }
+            .Block(block) => {
+                let ty = checkBlock(c, p, &block, ERROR, false)
+                c.setType(body.id.0, ty)
+                return unitUnlessNever(ty)
+            }
+            .If(_, _, _, _) => {
+                let ty = checkIf(c, p, body, ERROR, false)
+                c.setType(body.id.0, ty)
+                return ty
+            }
+            _ => {}
+        }
+    }
+    let ty = checkExpr(c, p, body, expected)
+    return if asValue || ty == NEVER { ty } else { UNIT }
+}
+
+/**
+ * Checks a `match` (spec 4.5): its arms have one type, like the branches
+ * of `if`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the `match`
+ * @param expected the type the context expects
+ * @param asValue whether its value is used
+ * @returns its type
+ */
+pub fn checkMatch(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: bool) int {
+    match e.kind {
+        .Match(scrutinee, arms) => {
+            let ty = checkExpr(c, p, &*scrutinee, ERROR)
+            var result = NEVER
+            for i in 0..arms.len() {
+                let arm = &arms[i]
+                checkPattern(c, p, &arm.pattern, ty)
+                if let .Some(guard) = arm.guard {
+                    coerce(c, p, &guard, BOOL)
+                }
+                let hint = if result == NEVER { expected } else { result }
+                let found = armBody(c, p, &arm.body, hint, asValue)
+                if result == NEVER {
+                    result = found
+                } else if found != NEVER && !compatible(found, result) {
+                    c.error("E0300", arm.body.span, "mismatched types: expected "
+                            + "{c.typeName(result)}, "
+                            + "found {c.typeName(found)}")
+                }
+            }
+            checkExhaustive(c, p, e, &arms, ty)
+            return if asValue { result } else { unitUnlessNever(result) }
+        }
+        _ => {
+            return ERROR
+        }
+    }
+}

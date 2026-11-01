@@ -15,10 +15,18 @@ project uses [Semantic Versioning](https://semver.org/).
 - Stage 1 module loading and name resolution (roadmap 4.5), checked against
   stage 0's new `--emit=names` trace by `make compare-stages`.
 - `fs.canonicalize`.
+- Stage 1 type checker (roadmap 4.6), checked against stage 0's new
+  `--emit=types` trace by `make compare-stages`.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 
 ### Fixed
+
+- A reference to a binding of a `match` could be returned from a function
+  (`return match x { .A(v) => &v }`): it pointed to a copy that ends with
+  the function (E0702).
+- A type path with an unknown module (`nowhere.T`) was an error type
+  without a message (E0200).
 
 - Matching the value in a box bound its parts by move and freed them twice.
 - A `let` in a loop kept the parts moved out in the previous iteration.

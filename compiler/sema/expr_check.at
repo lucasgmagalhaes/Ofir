@@ -1,0 +1,614 @@
+/**
+ * @module
+ * Type checking of expressions (spec 2 and 4.8; stage 0:
+ * bootstrap/src/sema/check_expr.c): literals, names, operators, calls,
+ * tuples, and the conversions of `coerce`.
+ */
+
+import base.span.Span
+import sema.check.Checker
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check.noGenerics
+import sema.check_box.autoDeref
+import sema.check_generic.checkGenericArgs
+import sema.check_generic.fnGenerics
+import sema.check_generic.inferExplicit
+import sema.check_generic.inferNew
+import sema.check_list.checkListLiteral
+import sema.check_list.checkListRepeat
+import sema.check_list.coerceToSlice
+import sema.check_methods.checkField
+import sema.check_methods.checkIndex
+import sema.check_methods.checkMethodCall
+import sema.check_methods.checkMutArgs
+import sema.check_option.checkCoalesce
+import sema.check_option.checkTry
+import sema.check_ref.checkRef
+import sema.check_stmt.checkBlock
+import sema.check_stmt.checkIf
+import sema.check_stmt.checkMatch
+import sema.check_types.compatible
+import sema.check_types.fnSignature
+import sema.check_types.resolveType
+import sema.check_unsafe.checkDeref
+import sema.check_unsafe.isUnsafeFn
+import sema.check_unsafe.pointerCast
+import sema.check_unsafe.requireUnsafe
+import sema.const_eval.constEval
+import sema.def.Res
+import sema.enums.enumOf
+import sema.enums.variantsOf
+import sema.program.Program
+import sema.struct_exprs.checkConstructor
+import sema.struct_exprs.checkStructLiteral
+import sema.struct_exprs.checkTupleField
+import sema.types.BOOL
+import sema.types.ERROR
+import sema.types.F64
+import sema.types.I64
+import sema.types.NEVER
+import sema.types.STR
+import sema.types.U8
+import sema.types.UNIT
+import sema.types.kindNumber
+import sema.variant_exprs.checkPreludeVariant
+import sema.variant_exprs.checkVariantShorthand
+import syntax.ast.Arg
+import syntax.ast.Block
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.Op
+import syntax.ast.TypeExpr
+
+/**
+ * What a name expression resolves to: an identifier, `self`, `Name<T>`, or
+ * a module member `m.x`.
+ *
+ * @param c the checker
+ * @param e an expression
+ * @returns its resolution, `None` for other expressions
+ */
+pub fn nameRes(c: Checker, e: &Expr) Res {
+    return match e.kind {
+        .Ident(_) | .SelfValue | .SelfType | .Generic(_, _) | .Field(_, _, _) => c.res(e.id.0)
+        _ => .None
+    }
+}
+
+/**
+ * Whether `e` is `m.x` for a module `m`: a name, not a field.
+ *
+ * @param c the checker
+ * @param e an expression
+ * @returns true for a module member
+ */
+pub fn isModuleMember(c: Checker, e: &Expr) bool {
+    return match e.kind {
+        .Field(_, _, _) => match c.res(e.id.0) {
+            .None => false
+            _ => true
+        }
+        _ => false
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Literals
+
+fn intFits(c: Checker, ty: int, value: u64, negative: bool) bool {
+    let kind = c.types.get(ty).data
+    let maxima: List<u64> = [127, 32767, 2147483647, 9223372036854775807, 255, 65535,
+                             4294967295, 18446744073709551615]
+    if negative {   // negating an unsigned value is reported by the `-` operator
+        return kind > 3 || value <= maxima[kind] + 1
+    }
+    return value <= maxima[kind]
+}
+
+// An integer literal takes the expected integer or float type, else `int`.
+fn intLiteral(c: mut Checker, e: &Expr, value: u64, expected: int, negative: bool) int {
+    let kind = c.types.kind(expected)
+    let ty = if kind == .Int || kind == .Float { expected } else { I64 }
+    if c.types.kind(ty) == .Int && !intFits(c, ty, value, negative) {
+        c.error("E0312", e.span, "integer literal out of range for `{c.typeName(ty)}`")
+    }
+    return ty
+}
+
+fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>) int {
+    for i in 0..parts.len() {
+        let found = checkExpr(c, p, &parts[i], ERROR)
+        let ty = autoDeref(c, p, &parts[i], found)   // `"{r}"` shows `*r`
+        let kind = c.types.kind(ty)
+        let printable = kind == .Int || kind == .Float || kind == .Bool || kind == .Str ||
+                        kind == .Error
+        if !printable {
+            c.error("E0314", parts[i].span, "a value of type `{c.typeName(ty)}` cannot be "
+                    + "interpolated into a string")
+        }
+    }
+    return STR
+}
+
+// ---------------------------------------------------------------------------
+// Names
+
+fn defValue(c: mut Checker, p: Program, id: int, span: Span) int {
+    return match c.def(id).kind {
+        .Const | .Global => checkConst(c, p, id)
+        .Fn | .Builtin => c.unsupported(span, "function values are")
+        _ => {
+            c.error("E0310", span, "expected a value, found type `{c.text(c.def(id).name)}`")
+            ERROR
+        }
+    }
+}
+
+/**
+ * The type of a name that is not a variant: a local, a constant or global.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param res what it resolves to
+ * @param span where it is used
+ * @returns its type
+ */
+pub fn checkName(c: mut Checker, p: Program, res: Res, span: Span) int {
+    return match res {
+        .Local(id) => c.localTypes[id]
+        .Def(id) => defValue(c, p, id, span)
+        _ => ERROR
+    }
+}
+
+fn nameValue(c: mut Checker, p: Program, e: &Expr, expected: int) int {
+    return match nameRes(c, e) {
+        .Local(id) => c.localTypes[id]
+        .Def(id) => {
+            if c.def(id).kind == .Variant {   // `None`
+                return checkPreludeVariant(c, p, e, id, .None, expected)
+            }
+            defValue(c, p, id, e.span)
+        }
+        _ => ERROR
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Operators
+
+fn isLiteral(e: &Expr) bool {
+    return match e.kind {
+        .Int(_) | .Float(_) => true
+        .Unary(op, operand) => op == .Neg && match operand.kind {
+            .Int(_) | .Float(_) => true
+            _ => false
+        }
+        _ => false
+    }
+}
+
+fn operatorError(c: mut Checker, span: Span, ty: int) int {
+    c.error("E0313", span, "operator cannot be applied to type `{c.typeName(ty)}`")
+    return ERROR
+}
+
+fn unary(c: mut Checker, p: Program, e: &Expr, op: Op, operand: &Expr, expected: int) int {
+    if op == .Deref {
+        return checkDeref(c, p, e, operand)
+    }
+    if op == .Ref || op == .RefMut {
+        return checkRef(c, p, e, operand, op == .RefMut, expected)
+    }
+    var ty = ERROR
+    if let ExprKind.Int(value) = operand.kind {
+        if op == .Neg {
+            ty = intLiteral(c, operand, value, expected, true)
+            c.setType(operand.id.0, ty)
+        } else {
+            ty = checkExpr(c, p, operand, expected)
+        }
+    } else {
+        ty = checkExpr(c, p, operand, expected)
+    }
+    let t = c.types.get(ty)
+    let ok = if op == .Neg {
+        t.kind == .Float || (t.kind == .Int && t.data <= 3)
+    } else {
+        t.kind == .Bool || t.kind == .Int
+    }
+    return if ok || t.kind == .Error { ty } else { operatorError(c, e.span, ty) }
+}
+
+// Which operand types an operator accepts.
+fn operandOk(c: Checker, ty: int, op: Op) bool {
+    let kind = c.types.kind(ty)
+    return match op {
+        .Add => kind == .Int || kind == .Float || kind == .Str
+        .Sub | .Mul | .Div | .Rem => kind == .Int || kind == .Float
+        .And | .Or | .Xor | .Shl | .Shr => kind == .Int
+        .Eq | .Ne => kindNumber(kind) <= 6 || kind == .Ptr
+        .Lt | .Le | .Gt | .Ge => kind == .Int || kind == .Float || kind == .Str
+        .LogicalAnd | .LogicalOr => kind == .Bool
+        _ => false
+    }
+}
+
+fn isComparison(op: Op) bool {
+    return op == .Eq || op == .Ne || op == .Lt || op == .Le || op == .Gt || op == .Ge
+}
+
+/**
+ * `a op b`: both operands have one type. A literal on the left takes the
+ * type of the right operand: `1 + x` with `x: u8` adds `u8`s.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param span the expression
+ * @param op the operator
+ * @param lhs the left operand
+ * @param rhs the right operand
+ * @param expected the type the context expects
+ * @returns the type of the result
+ */
+pub fn checkBinary(c: mut Checker, p: Program, span: Span, op: Op, lhs: &Expr, rhs: &Expr,
+                   expected: int) int {
+    if op == .Coalesce {
+        return checkCoalesce(c, p, lhs, rhs, expected)
+    }
+    let compares = isComparison(op)
+    let hint = if compares || op == .LogicalAnd || op == .LogicalOr { ERROR } else { expected }
+    let swap = isLiteral(lhs) && !isLiteral(rhs)
+    let first = if swap { rhs } else { lhs }
+    let second = if swap { lhs } else { rhs }
+    let ty = checkExpr(c, p, first, hint)
+    coerce(c, p, second, ty)
+    var fieldless = false
+    if op == .Eq || op == .Ne {
+        if let .Some(id) = enumOf(c, p, ty) {
+            fieldless = !variantsOf(c, id).hasPayload   // enums without payloads compare tags
+        }
+    }
+    if !fieldless && !operandOk(c, ty, op) && ty != ERROR {
+        return operatorError(c, span, ty)
+    }
+    return if compares { BOOL } else { ty }
+}
+
+fn cast(c: mut Checker, p: Program, e: &Expr, value: &Expr, to: &TypeExpr) int {
+    let from = checkExpr(c, p, value, ERROR)
+    let target = resolveType(c, p, to)
+    if pointerCast(c, from, target, e.span) {
+        return target
+    }
+    let ok = (c.types.isNumeric(from) && c.types.isNumeric(target)) || from == target ||
+             from == ERROR || target == ERROR
+    if !ok {
+        c.error("E0313", e.span, "cannot cast `{c.typeName(from)}` to `{c.typeName(target)}`")
+    }
+    return target
+}
+
+// ---------------------------------------------------------------------------
+// Calls
+
+/**
+ * Checks the arguments of a call against a signature that is not generic.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param span the call
+ * @param args the arguments
+ * @param params the parameter types
+ * @param ret the result type
+ * @returns the result type
+ */
+pub fn checkArgs(c: mut Checker, p: Program, span: Span, args: &List<Arg>, params: &List<int>,
+                 ret: int) int {
+    if args.len() != params.len() {
+        c.error("E0302", span, "wrong number of arguments: expected {params.len()}, "
+                + "found {args.len()}")
+    }
+    for i in 0..args.len() {
+        if args[i].name.isSome() {
+            c.unsupported(args[i].value.span, "named arguments are")
+        }
+        coerce(c, p, &args[i].value, if i < params.len() { params[i] } else { ERROR })
+    }
+    return ret
+}
+
+/**
+ * Checks the arguments of a call against a function type.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param span the call
+ * @param args the arguments
+ * @param sig a `fn` type
+ * @returns the result type
+ */
+pub fn checkArgsOf(c: mut Checker, p: Program, span: Span, args: &List<Arg>, sig: int) int {
+    let params = c.types.get(sig).args.clone()
+    let ret = c.types.get(sig).inner
+    return checkArgs(c, p, span, args, &params, ret)
+}
+
+// print(str), println(str), panic(str) ! and assert(bool).
+fn builtinCall(c: mut Checker, p: Program, span: Span, args: &List<Arg>, builtin: int) int {
+    let param = if builtin == 3 { BOOL } else { STR }
+    let ret = if builtin == 2 { NEVER } else { UNIT }
+    return checkArgs(c, p, span, args, &[param], ret)
+}
+
+fn checkFnCall(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<Arg>, id: int,
+               explicit: &List<TypeExpr>, expected: int) int {
+    if isUnsafeFn(c, p, id) {
+        requireUnsafe(c, e.span, "calling an `unsafe` or `extern` function")
+    }
+    let sig = fnSignature(c, p, id)
+    let generics = fnGenerics(c, p, id)
+    var ret = ERROR
+    if generics.owner.len() + generics.fnParams.len() == 0 {
+        if explicit.len() > 0 {
+            c.error("E0302", callee.span, "`{c.text(c.def(id).name)}` takes no type arguments")
+        }
+        ret = checkArgsOf(c, p, e.span, args, sig)
+    } else {
+        var inf = inferNew(generics)
+        if explicit.len() > 0 {
+            inferExplicit(c, p, inf, false, explicit, callee.span)
+        }
+        let params = c.types.get(sig).args.clone()
+        let result = c.types.get(sig).inner
+        ret = checkGenericArgs(c, p, e.id.0, e.span, args, &params, result, inf, expected)
+    }
+    checkMutArgs(c, p, id, callee, args)
+    return ret
+}
+
+fn notAFunction(c: mut Checker, p: Program, callee: &Expr, args: &List<Arg>, ty: int) int {
+    if ty != ERROR {
+        c.error("E0311", callee.span, "expression of type `{c.typeName(ty)}` is not a function")
+    }
+    for i in 0..args.len() {
+        checkExpr(c, p, &args[i].value, ERROR)
+    }
+    return ERROR
+}
+
+fn noTypes() List<TypeExpr> {
+    return []
+}
+
+fn call(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<Arg>,
+        expected: int) int {
+    let isField = match callee.kind {
+        .Field(_, _, _) => !isModuleMember(c, callee)
+        _ => false
+    }
+    if isField {
+        return checkMethodCall(c, p, e, callee, args, expected)
+    }
+    let Res.Def(id) = nameRes(c, callee) else {
+        let ty = checkExpr(c, p, callee, ERROR)
+        if c.types.kind(ty) == .Fn {
+            return checkArgsOf(c, p, e.span, args, ty)
+        }
+        return notAFunction(c, p, callee, args, ty)
+    }
+    let none = noTypes()
+    let explicit = match callee.kind {
+        .Generic(_, list) => &list
+        _ => &none
+    }
+    let kind = c.def(id).kind
+    if kind == .Builtin && explicit.len() == 0 {
+        return builtinCall(c, p, e.span, args, c.def(id).primitive)
+    }
+    if kind == .Struct {
+        c.setType(callee.id.0, UNIT)
+        return checkConstructor(c, p, e, id, explicit, args, expected)
+    }
+    if kind == .Variant && explicit.len() == 0 {   // `Some(x)`
+        c.setType(callee.id.0, UNIT)
+        return checkPreludeVariant(c, p, e, id, .Some(args), expected)
+    }
+    if kind == .Fn {
+        c.setType(callee.id.0, fnSignature(c, p, id))
+        return checkFnCall(c, p, e, callee, args, id, explicit, expected)
+    }
+    let ty = defValue(c, p, id, callee.span)
+    c.setType(callee.id.0, ty)
+    return notAFunction(c, p, callee, args, ty)
+}
+
+// ---------------------------------------------------------------------------
+
+// `(a, b)`: each element takes the matching element of the expected type.
+fn tuple(c: mut Checker, p: Program, elems: &List<Expr>, expected: int) int {
+    let hint = c.types.get(expected)
+    let hinted = hint.kind == .Tuple && hint.args.len() == elems.len()
+    let hints = hint.args.clone()
+    var types: List<int> = []
+    for i in 0..elems.len() {
+        types.push(checkExpr(c, p, &elems[i], if hinted { hints[i] } else { ERROR }))
+    }
+    return c.types.tuple(types)
+}
+
+fn synthesize(c: mut Checker, p: Program, e: &Expr, expected: int) int {
+    if isModuleMember(c, e) {
+        return nameValue(c, p, e, expected)
+    }
+    return match e.kind {
+        .Int(value) => intLiteral(c, e, value, expected, false)
+        .Float(_) => if c.types.kind(expected) == .Float { expected } else { F64 }
+        .Byte(_) => U8
+        .Bool(_) => BOOL
+        .Str(_) => STR
+        .Interp(parts) => interpolation(c, p, &parts)
+        .Ident(_) | .SelfValue => nameValue(c, p, e, expected)
+        .Unary(op, operand) => unary(c, p, e, op, &*operand, expected)
+        .Binary(op, lhs, rhs) => checkBinary(c, p, e.span, op, &*lhs, &*rhs, expected)
+        .Cast(value, to) => cast(c, p, e, &*value, &to)
+        .Call(callee, args) => call(c, p, e, &*callee, &args, expected)
+        .If(_, _, _, _) => checkIf(c, p, e, expected, true)
+        .Block(block) => checkBlock(c, p, &block, expected, true)
+        .Unsafe(block) => checkUnsafeBlock(c, p, &block, expected, true)
+        .Tuple(elems) => tuple(c, p, &elems, expected)
+        .SelfType => match c.res(e.id.0) {   // `Self` as a value: the type's name
+            .Def(id) => defValue(c, p, id, e.span)
+            _ => ERROR
+        }
+        .Generic(name, _) => {
+            c.error("E0310", e.span, "expected a value, found `{c.text(name)}` with type "
+                    + "arguments")
+            ERROR
+        }
+        .Range(_, _, _) => c.unsupported(e.span, "ranges outside of `for` are")
+        .Index(base, index) => checkIndex(c, p, e, &*base, &*index)
+        .Field(base, name, _) => checkField(c, p, e, &*base, name, expected)
+        .TupleField(base, index) => checkTupleField(c, p, e, &*base, index as int)
+        .Try(inner) => checkTry(c, p, e, &*inner)
+        .Struct(_, _, _) => checkStructLiteral(c, p, e, expected)
+        .Array(elems) => checkListLiteral(c, p, e, &elems, expected)
+        .Repeat(value, count) => checkListRepeat(c, p, e, &*value, &*count, expected)
+        .Variant(_, _, _) => checkVariantShorthand(c, p, e, expected)
+        .Match(_, _) => checkMatch(c, p, e, expected, true)
+    }
+}
+
+/**
+ * Checks an `unsafe { }` block.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param block its block
+ * @param expected the type the context expects
+ * @param asValue whether its value is used
+ * @returns its type
+ */
+pub fn checkUnsafeBlock(c: mut Checker, p: Program, block: &Block, expected: int,
+                        asValue: bool) int {
+    c.unsafeDepth += 1
+    let ty = checkBlock(c, p, block, expected, asValue)
+    c.unsafeDepth -= 1
+    return ty
+}
+
+/**
+ * Checks an expression and records its type.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the expression
+ * @param expected the type the context expects, or `ERROR`
+ * @returns the type found
+ */
+pub fn checkExpr(c: mut Checker, p: Program, e: &Expr, expected: int) int {
+    let ty = synthesize(c, p, e, expected)
+    c.setType(e.id.0, ty)
+    return ty
+}
+
+// `*mut T` converts to `*T`: giving up the right to write is always safe.
+fn weakensPointer(c: Checker, found: int, expected: int) bool {
+    let f = c.types.get(found)
+    let x = c.types.get(expected)
+    return f.kind == .Ptr && x.kind == .Ptr && f.data != 0 && x.data == 0 && f.inner == x.inner
+}
+
+/**
+ * Reports E0300 unless `found`, the type of the checked `e`, fits
+ * `expected`.
+ *
+ * @param c the checker
+ * @param e the expression
+ * @param found its type
+ * @param expected the type expected
+ */
+pub fn requireType(c: mut Checker, e: &Expr, found: int, expected: int) {
+    requireTypeAt(c, e.span, found, expected)
+}
+
+/**
+ * Reports E0300 at `span` unless `found` fits `expected`.
+ *
+ * @param c the checker
+ * @param span where
+ * @param found the type found
+ * @param expected the type expected
+ */
+pub fn requireTypeAt(c: mut Checker, span: Span, found: int, expected: int) {
+    if !compatible(found, expected) && !weakensPointer(c, found, expected) {
+        c.error("E0300", span, "mismatched types: expected {c.typeName(expected)}, "
+                + "found {c.typeName(found)}")
+    }
+}
+
+/**
+ * Checks an expression against the type it must have.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the expression
+ * @param expected the type
+ * @returns the type found (`expected` after a conversion to a slice)
+ */
+pub fn coerce(c: mut Checker, p: Program, e: &Expr, expected: int) int {
+    let found = checkExpr(c, p, e, expected)
+    if !compatible(found, expected) {
+        if coerceToSlice(c, p, e, found, expected) {
+            return expected
+        }
+        requireType(c, e, found, expected)
+    }
+    return found
+}
+
+/**
+ * The type of a constant or global, and a constant's value, computed once.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id its `DefId`
+ * @returns its type
+ */
+pub fn checkConst(c: mut Checker, p: Program, id: int) int {
+    if c.info[id].typed {
+        return c.info[id].ty
+    }
+    if c.info[id].checking {
+        c.error("E0800", c.def(id).span, "the constant `{c.text(c.def(id).name)}` depends on "
+                + "itself")
+        return ERROR
+    }
+    c.info[id].checking = true
+    let saved = c.enter(c.def(id).module)
+    let outer = c.enterGenerics(noGenerics())
+    let item = itemOf(p, c.loc(id))
+    let isConst = c.def(id).kind == .Const
+    match item.kind {
+        .Const(annotation, value) | .Global(annotation, value) => {
+            var ty = ERROR
+            if let .Some(t) = annotation {
+                ty = resolveType(c, p, &t)
+                coerce(c, p, &value, ty)
+            } else {
+                ty = checkExpr(c, p, &value, ERROR)
+            }
+            c.info[id].ty = ty
+            if isConst {
+                c.info[id].value = constEval(c, p, &value)   // while `checking`: catches cycles
+            }
+        }
+        _ => {}
+    }
+    c.enterGenerics(outer)
+    c.enter(saved)
+    c.info[id].checking = false
+    c.info[id].typed = true
+    return c.info[id].ty
+}

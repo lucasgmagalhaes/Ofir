@@ -434,7 +434,7 @@ pub struct Item {
  */
 pub enum ItemKind {
     /** `fn` */
-    Fn(decl: FnDecl)
+    Fn(decl: Box<FnDecl>)
     /** `struct`, also a tuple struct: `struct Id(int)` */
     Struct(isCopy: bool, isRef: bool, isTuple: bool, typeParams: List<Symbol>,
            fields: List<FieldDecl>, methods: List<FnDecl>)

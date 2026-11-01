@@ -1,0 +1,163 @@
+/**
+ * @module
+ * `unsafe`, raw pointers and the C interface (spec 11; stage 0:
+ * bootstrap/src/sema/check_unsafe.c).
+ */
+
+import base.span.Span
+import sema.check.Checker
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check_box.boxInner
+import sema.check_box.boxTarget
+import sema.check_types.fnSignature
+import sema.expr_check.checkExpr
+import sema.program.Program
+import sema.types.ERROR
+import sema.types.I64
+import sema.types.U64
+import syntax.ast.Expr
+
+/**
+ * Reports E0803 outside an `unsafe` block or function.
+ *
+ * @param c the checker
+ * @param span where
+ * @param what the operation, for the message
+ */
+pub fn requireUnsafe(c: mut Checker, span: Span, what: str) {
+    if c.unsafeDepth == 0 {
+        c.error("E0803", span, "{what} requires an `unsafe` block or function")
+    }
+}
+
+/**
+ * `*p`: the value a raw pointer, a reference or a box points to.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the dereference
+ * @param operand its operand
+ * @returns the type of the value
+ */
+pub fn checkDeref(c: mut Checker, p: Program, e: &Expr, operand: &Expr) int {
+    let ty = checkExpr(c, p, operand, ERROR)
+    if boxInner(c, ty).isSome() {   // `*b` reads the value of a box: safe
+        return boxTarget(c, p, ty)
+    }
+    let kind = c.types.kind(ty)
+    if kind == .Ptr {
+        requireUnsafe(c, e.span, "dereferencing a raw pointer")
+        return c.types.get(ty).inner
+    }
+    if kind == .Ref {   // `*r`: the referenced value, safe
+        return c.types.get(ty).inner
+    }
+    if ty != ERROR {
+        c.error("E0313", e.span, "type `{c.typeName(ty)}` cannot be dereferenced")
+    }
+    return ERROR
+}
+
+/**
+ * Pointer to pointer, reference to pointer, and pointer to or from
+ * `uint`/`int` (spec 11.1).
+ *
+ * @param c the checker
+ * @param from the operand's type
+ * @param to the target type
+ * @param span the cast
+ * @returns whether it is a pointer cast
+ */
+pub fn pointerCast(c: mut Checker, from: int, to: int, span: Span) bool {
+    let a = c.types.kind(from)
+    let b = c.types.kind(to)
+    let ptrPtr = (a == .Ptr || a == .Ref) && b == .Ptr
+    let ptrInt = (a == .Ptr && (to == U64 || to == I64)) || (b == .Ptr && (from == U64 ||
+                                                                         from == I64))
+    if ptrPtr || ptrInt {
+        requireUnsafe(c, span, "converting a raw pointer")
+        return true
+    }
+    return false
+}
+
+// Integers, floats, bool, raw pointers and () can cross the C boundary.
+fn cCompatible(c: Checker, ty: int) bool {
+    let kind = c.types.kind(ty)
+    return kind == .Int || kind == .Float || kind == .Bool || kind == .Ptr || kind == .Unit ||
+           kind == .Never || kind == .Error
+}
+
+/**
+ * Reports E0804 for a function crossing the C boundary with a generic
+ * signature or a type without a C layout.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the function's `DefId`
+ */
+pub fn checkCSignature(c: mut Checker, p: Program, id: int) {
+    let decl = fnOf(p, c.loc(id))
+    if decl.typeParams.len() > 0 {
+        c.error("E0804", decl.span, "a function that crosses the C boundary cannot be generic: "
+                + "C has one copy of each function")
+        return
+    }
+    let sig = fnSignature(c, p, id)
+    let params = c.types.get(sig).args.clone()
+    for i in 0..params.len() {
+        if !cCompatible(c, params[i]) {
+            c.error("E0804", decl.params[i].span, "type `{c.typeName(params[i])}` has no C "
+                    + "layout and cannot cross the C boundary")
+        }
+    }
+    let ret = c.types.get(sig).inner
+    if !cCompatible(c, ret) {
+        c.error("E0804", decl.span, "type `{c.typeName(ret)}` has no C layout and cannot cross "
+                + "the C boundary")
+    }
+}
+
+fn externAbi(c: Checker, p: Program, id: int) Option<str> {
+    let def = c.def(id)
+    if def.kind != .Fn || def.item < 0 {
+        return .None
+    }
+    return match itemOf(p, c.loc(id)).kind {
+        .Extern(abi, _) => .Some(abi.clone())
+        _ => .None
+    }
+}
+
+/**
+ * Whether a function is one of an `extern "intrinsic"` block: an
+ * operation the compiler generates (ADR 0019), safe to call.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id a `DefId`
+ * @returns true for an intrinsic
+ */
+pub fn isIntrinsic(c: Checker, p: Program, id: int) bool {
+    return match externAbi(c, p, id) {
+        .Some(abi) => abi == "intrinsic"
+        .None => false
+    }
+}
+
+/**
+ * Whether calling a function needs `unsafe`: it is declared in an extern
+ * block or with `unsafe fn`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id a `DefId`
+ * @returns true if it does
+ */
+pub fn isUnsafeFn(c: Checker, p: Program, id: int) bool {
+    if c.def(id).kind != .Fn || isIntrinsic(c, p, id) {
+        return false
+    }
+    return fnOf(p, c.loc(id)).isUnsafe || externAbi(c, p, id).isSome()
+}

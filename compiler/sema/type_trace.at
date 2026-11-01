@@ -1,0 +1,152 @@
+/**
+ * @module
+ * `--emit=types`: the declarations of the root module with their types,
+ * and the type of every local of its functions, as stage 0 prints them
+ * (bootstrap/src/sema/check_trace.c), to compare the two checkers (roadmap
+ * 4.6).
+ */
+
+import sema.check.Checker
+import sema.check.skippedTest
+import sema.const_eval.ConstValue
+import sema.program.Program
+import syntax.ast.FnDecl
+import syntax.ast.Item
+import syntax.token_print.formatG
+
+fn valueText(c: Checker, v: &ConstValue) str {
+    return match v.kind {
+        .Int => {
+            let kind = c.types.get(v.ty).data
+            if kind <= 3 {
+                let widths = [8, 16, 32, 64]
+                let width = widths[kind]
+                var bits = v.bits
+                if width < 64 && (bits >> (width - 1) as u64) & 1 == 1 {
+                    bits = bits | (18446744073709551615 ^ ((1 as u64 << width as u64) - 1))
+                }
+                "{bits.wrappingCast<int>()}"
+            } else {
+                "{v.bits}"
+            }
+        }
+        .Float => formatG(v.f)
+        .Bool => if v.b { "true" } else { "false" }
+        .Str => "\"{v.s}\""
+    }
+}
+
+fn fnLines(c: Checker, out: mut str, owner: str, decl: &FnDecl) {
+    let id = c.r.tables[0].fnDefs[decl.id.0]
+    out.push("fn {owner}{if owner.len() > 0 { "." } else { "" }}{c.text(decl.name)}: ")
+    if id != 0 && c.info[id].typed {
+        out.push(c.typeName(c.info[id].ty))
+    }
+    out.push("\n")
+    let Some(types) = c.localTypesOf[0].get(decl.id.0) else {
+        return
+    }
+    let Some(locals) = c.r.tables[0].fnLocals.get(decl.id.0) else {
+        return
+    }
+    for i in 0..locals.len() {
+        out.push("  local {i} {c.text(locals[i].name)}: {c.typeName(types[i])}\n")
+    }
+}
+
+fn methodLines(c: Checker, p: Program, out: mut str, item: &Item, methods: &List<FnDecl>) {
+    let owner = c.text(item.name).toOwned()
+    if !skippedTest(c, p, item) {
+        for i in 0..methods.len() {
+            fnLines(c, out, owner, &methods[i])
+        }
+    }
+}
+
+fn structLine(c: Checker, out: mut str, index: int, item: &Item) {
+    out.push("struct {c.text(item.name)} \{")
+    let id = c.itemDefs[0][index]
+    if id != 0 {
+        if let .Some(info) = c.info[id].fields {
+            for i in 0..info.types.len() {
+                out.push(if i > 0 { ", " } else { " " })
+                if !info.isTuple {
+                    out.push("{c.text(info.names[i])}: ")
+                }
+                out.push(c.typeName(info.types[i]))
+            }
+        }
+    }
+    out.push(" \}\n")
+}
+
+fn enumLine(c: Checker, out: mut str, index: int, item: &Item) {
+    out.push("enum {c.text(item.name)} \{")
+    let id = c.itemDefs[0][index]
+    if id != 0 {
+        if let .Some(info) = c.info[id].variants {
+            for v in 0..info.variants.len() {
+                let variant = &info.variants[v]
+                out.push("{if v > 0 { ", " } else { " " }}{c.text(variant.name)}")
+                for i in 0..variant.types.len() {
+                    out.push(if i > 0 { ", " } else { "(" })
+                    out.push(c.typeName(variant.types[i]))
+                }
+                out.push("{if variant.types.len() > 0 { ")" } else { "" }} = ")
+                out.push("{variant.discriminant}")
+            }
+        }
+    }
+    out.push(" \}\n")
+}
+
+fn constLine(c: Checker, out: mut str, index: int, item: &Item, isConst: bool) {
+    out.push("{if isConst { "const" } else { "var" }} {c.text(item.name)}: ")
+    let id = c.itemDefs[0][index]
+    if id != 0 && c.info[id].typed {
+        out.push(c.typeName(c.info[id].ty))
+        if let .Some(value) = c.info[id].value {
+            out.push(" = {valueText(c, &value)}")
+        }
+    }
+    out.push("\n")
+}
+
+/**
+ * The trace of the root module.
+ *
+ * @param c the checker, after `checkProgram`
+ * @param p the program
+ * @returns its text
+ */
+pub fn traceTypes(c: mut Checker, p: Program) str {
+    c.enter(0)
+    var out = ""
+    let items = &p.modules[0].module.items
+    for i in 0..items.len() {
+        let item = &items[i]
+        if skippedTest(c, p, item) {
+            continue
+        }
+        match item.kind {
+            .Fn(decl) => fnLines(c, out, "", &*decl)
+            .Extern(_, fns) => {
+                for f in 0..fns.len() {
+                    fnLines(c, out, "extern", &fns[f])
+                }
+            }
+            .Struct(_, _, _, _, _, methods) => {
+                structLine(c, out, i, item)
+                methodLines(c, p, out, item, &methods)
+            }
+            .Enum(_, _, _, methods) => {
+                enumLine(c, out, i, item)
+                methodLines(c, p, out, item, &methods)
+            }
+            .Const(_, _) => constLine(c, out, i, item, true)
+            .Global(_, _) => constLine(c, out, i, item, false)
+            .TypeAlias(_, _) | .Import(_, _) => {}
+        }
+    }
+    return out
+}

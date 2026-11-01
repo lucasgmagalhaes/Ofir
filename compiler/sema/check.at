@@ -1,0 +1,663 @@
+/**
+ * @module
+ * Type checking (design/compiler-architecture.md 6; stage 0:
+ * bootstrap/src/sema/check.c and check_internal.h): signatures first, then
+ * constants and function bodies, one function at a time. Expressions are
+ * checked bidirectionally: `checkExpr` receives the type the context
+ * expects (`ERROR` when there is none) as a hint and gives the type it
+ * finds, kept by `NodeId`; `coerce` then reports a mismatch. Divergence is
+ * a type: `return`, `break` and infinite loops have type `!`.
+ *
+ * The bodies of std functions are checked only when a program uses them
+ * (stage 0 checks them when the lowering reaches them): stage 1 checks
+ * those of the root module, and of every module outside std.
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import diag.noSpan
+import sema.check_ref.checkBorrowSource
+import sema.check_stmt.checkBlock
+import sema.check_unsafe.checkCSignature
+import sema.check_types.fnSignature
+import sema.check_types.ownerTypeOf
+import sema.check_types.resolveType
+import sema.const_eval.ConstValue
+import sema.def.Def
+import sema.def.DefKind
+import sema.def.Local
+import sema.def.Res
+import sema.enums.EnumInfo
+import sema.enums.checkEnumLayouts
+import sema.enums.enumVariants
+import sema.expr_check.checkConst
+import sema.program.Program
+import sema.resolve.Resolver
+import sema.resolve.findAttribute
+import sema.resolve.moduleInStd
+import sema.structs.StructInfo
+import sema.structs.checkStructLayouts
+import sema.structs.structFields
+import sema.types.ERROR
+import sema.types.NEVER
+import sema.types.TypeTable
+import sema.types.UNIT
+import syntax.ast.FnDecl
+import syntax.ast.Item
+import syntax.ast.ItemKind
+import syntax.ast.Mode
+import std.mem
+
+/**
+ * What the checker knows of a declaration.
+ */
+pub struct DefInfo {
+    /** A function's signature, a constant's type, an alias's type. */
+    pub ty: int
+    /** `ty` is known. */
+    pub typed: bool
+    /** Being computed: a cycle guard. */
+    pub checking: bool
+    /** A struct's fields, once computed. */
+    pub fields: Option<Box<StructInfo>>
+    /** An enum's variants, once computed. */
+    pub variants: Option<Box<EnumInfo>>
+    /** A constant's value, when it could be computed. */
+    pub value: Option<ConstValue>
+    /** A function that returns a reference (spec 5.6). */
+    pub returnsBorrow: bool
+    /** The parameter it borrows from; -1 for `self`. */
+    pub borrowSource: int
+    /** That parameter is borrowed, not a reference itself. */
+    pub sourceByRef: bool
+}
+
+/**
+ * The type parameters in scope: those of the type declaring the method,
+ * numbered first, then those of the function (spec 8.3).
+ */
+pub struct Generics {
+    /** The type's parameters. */
+    pub owner: List<Symbol>
+    /** The function's own parameters. */
+    pub fnParams: List<Symbol>
+}
+
+/**
+ * No type parameters.
+ *
+ * @returns the empty generics
+ */
+pub fn noGenerics() Generics {
+    return Generics{owner: [], fnParams: []}
+}
+
+/**
+ * The checker's state and results.
+ */
+pub struct Checker {
+    /** The resolver, with the declarations, the scopes and the tables. */
+    pub r: Resolver
+    /** Every type of the program. */
+    pub types: TypeTable
+    /** What is known of each declaration, by `DefId`. */
+    pub info: List<DefInfo>
+    /** The `DefId` of each item of each module, or 0. */
+    pub itemDefs: List<List<int>>
+    /** The type of each expression and pattern, by module and `NodeId`. */
+    pub nodeTypes: List<List<int>>
+    /** The types of the locals of each function, by module and the `NodeId` of the function. */
+    pub localTypesOf: List<Map<int, List<int>>>
+    /** The implicit dereferences of an expression's value, by module and `NodeId`: the
+     * type before each one (a `&T` or a `Box<T>`), in order (stage 0 inserts `*e`). */
+    pub derefs: List<Map<int, List<int>>>
+    /** The type of an expression's value after its implicit dereferences. */
+    pub adjusted: List<Map<int, int>>
+    /** By module and `NodeId`: the field of `a.f` and `a.0`, the variant of a variant
+     * expression or pattern, the method (`DefId`) of a method call's callee, or -1. */
+    pub members: List<List<int>>
+    /** The type arguments of each generic call, as a tuple type, by module and `NodeId`. */
+    pub callTypeArgs: List<Map<int, int>>
+    /** The values converted from `List<T>` to `&[T]` (`list.asSlice()`), by module:
+     * `NodeId` to the element type. */
+    pub sliceCoercions: List<Map<int, int>>
+    /** The type parameters in scope. */
+    pub generics: Generics
+    /** The locals of the function being checked. */
+    pub locals: List<Local>
+    /** Their types. */
+    pub localTypes: List<int>
+    /** The function's return type. */
+    pub ret: int
+    /** The type declaring the method, or `ERROR`. */
+    pub selfType: int
+    /** Per open loop: whether a `break` leaves it. */
+    pub loops: List<bool>
+    /** Above 0 inside an `unsafe` block or function. */
+    pub unsafeDepth: int
+    /** The `NodeId` of the function being checked, or -1. */
+    pub fnNode: int
+    /** Its `DefId`, or 0. */
+    pub fnDef: int
+    /** The struct literal being checked: where its shorthand fields `P\{x\}` are. */
+    pub shorthandSpan: Span
+
+    /**
+     * Reports an error.
+     *
+     * @param code its code
+     * @param span where
+     * @param message what
+     */
+    pub fn error(mut self, code: str, span: Span, message: move str) {
+        self.r.diags.error(code, span, message)
+    }
+
+    /**
+     * Reports a construct the checker does not implement (E0901).
+     *
+     * @param span where
+     * @param what what is not supported, ending with its verb (`"... are"`)
+     * @returns the error type
+     */
+    pub fn unsupported(mut self, span: Span, what: str) int {
+        self.error("E0901", span, "{what} not supported yet")
+        return ERROR
+    }
+
+    /**
+     * The text of a name.
+     *
+     * @param name the name
+     * @returns its text
+     */
+    pub fn text(self, name: Symbol) str {
+        return self.r.names.name(name)
+    }
+
+    /**
+     * A declaration.
+     *
+     * @param id its `DefId`
+     * @returns it
+     */
+    pub fn def(self, id: int) &Def {
+        return &self.r.defs[id]
+    }
+
+    /**
+     * Where a declaration is.
+     *
+     * @param id its `DefId`
+     * @returns its location
+     */
+    pub fn loc(self, id: int) Loc {
+        let def = &self.r.defs[id]
+        return Loc{module: def.module, item: def.item, member: def.member}
+    }
+
+    /**
+     * The module being checked.
+     *
+     * @returns its index
+     */
+    pub fn module(self) int {
+        return self.r.current
+    }
+
+    /**
+     * Makes module `m` the current one.
+     *
+     * @param m a module
+     * @returns the previous one
+     */
+    pub fn enter(mut self, m: int) int {
+        let previous = self.r.current
+        self.r.current = m
+        self.r.moduleName = self.r.moduleNames[m].clone()
+        self.r.scope.useModule(m)
+        return previous
+    }
+
+    /**
+     * What a node's name resolves to, in the current module.
+     *
+     * @param id the node's number
+     * @returns the resolution
+     */
+    pub fn res(self, id: int) Res {
+        return self.r.tables[self.r.current].res[id]
+    }
+
+    /**
+     * The local a node declares, in the current module.
+     *
+     * @param id the node's number
+     * @returns its index, or -1
+     */
+    pub fn localAt(self, id: int) int {
+        return self.r.tables[self.r.current].locals[id]
+    }
+
+    /**
+     * The type found for a node of the current module.
+     *
+     * @param id the node's number
+     * @returns its type
+     */
+    pub fn typeOf(self, id: int) int {
+        return self.nodeTypes[self.r.current][id]
+    }
+
+    /**
+     * Records the type of a node of the current module.
+     *
+     * @param id the node's number
+     * @param ty its type
+     */
+    pub fn setType(mut self, id: int, ty: int) {
+        self.nodeTypes[self.r.current][id] = ty
+    }
+
+    /**
+     * Records the field, variant or method of a node of the current module.
+     *
+     * @param id the node's number
+     * @param member its index or `DefId`
+     */
+    pub fn setMember(mut self, id: int, member: int) {
+        self.members[self.r.current][id] = member
+    }
+
+    /**
+     * Makes `generics` the type parameters in scope.
+     *
+     * @param generics the new ones
+     * @returns the previous ones
+     */
+    pub fn enterGenerics(mut self, generics: move Generics) Generics {
+        return mem.replace(self.generics, generics)
+    }
+
+    /**
+     * The spelling of a type for messages: `&mut List<int>`.
+     *
+     * @param ty the type
+     * @returns its text
+     */
+    pub fn typeName(self, ty: int) str {
+        var out = ""
+        self.appendType(out, ty)
+        return out
+    }
+
+    fn appendList(self, out: mut str, args: &List<int>) {
+        for i in 0..args.len() {
+            if i > 0 {
+                out.push(", ")
+            }
+            self.appendType(out, args[i])
+        }
+    }
+
+    fn appendType(self, out: mut str, ty: int) {
+        let t = self.types.get(ty)
+        match t.kind {
+            .Error => out.push("\{error\}")
+            .Unit => out.push("()")
+            .Never => out.push("!")
+            .Bool => out.push("bool")
+            .Int => out.push(intName(t.data))
+            .Float => out.push(if t.data == 64 { "float" } else { "f32" })
+            .Str => out.push("str")
+            .Ref | .Ptr => {
+                out.push(if t.kind == .Ref { "&" } else { "*" })
+                out.push(if t.data != 0 { "mut " } else { "" })
+                self.appendType(out, t.inner)
+            }
+            .Slice | .Array => {
+                out.push("[")
+                self.appendType(out, t.inner)
+                if t.kind == .Array {
+                    out.push("; {t.data}")
+                }
+                out.push("]")
+            }
+            .Tuple => {
+                out.push("(")
+                self.appendList(out, &t.args)
+                out.push(if t.args.len() == 1 { ",)" } else { ")" })
+            }
+            .Fn => {
+                out.push("fn(")
+                self.appendList(out, &t.args)
+                out.push(")")
+                if t.inner != UNIT {
+                    out.push(" ")
+                    self.appendType(out, t.inner)
+                }
+            }
+            .Adt => {
+                out.push(self.text(self.r.defs[t.data].name))
+                if t.args.len() > 0 {
+                    out.push("<")
+                    self.appendList(out, &t.args)
+                    out.push(">")
+                }
+            }
+            .Param => out.push(self.text(Symbol(t.inner)))
+        }
+    }
+}
+
+// The 64-bit types are printed with their usual alias names.
+fn intName(kind: int) str {
+    let names = ["i8", "i16", "i32", "int", "u8", "u16", "u32", "uint"]
+    return names[kind].sliceFrom(0)
+}
+
+/**
+ * Where a declaration is: its module, item and member.
+ */
+pub copy struct Loc {
+    /** The module. */
+    pub module: int
+    /** The item in it. */
+    pub item: int
+    /** The method, `extern` function or variant in the item, or -1. */
+    pub member: int
+}
+
+/**
+ * The item a declaration comes from.
+ *
+ * @param p the program
+ * @param def the declaration
+ * @returns its item
+ */
+pub fn itemOf(p: Program, def: Loc) &Item {
+    return &p.modules[def.module].module.items[def.item]
+}
+
+/**
+ * The type parameters of a struct or enum; none for other items.
+ *
+ * @param item the item
+ * @returns their names
+ */
+pub fn itemTypeParams(item: &Item) List<Symbol> {
+    return match item.kind {
+        .Struct(_, _, _, typeParams, _, _) => typeParams.clone()
+        .Enum(_, typeParams, _, _) => typeParams.clone()
+        _ => []
+    }
+}
+
+/**
+ * The function a function declaration comes from: an item, a method or a
+ * function of an `extern` block.
+ *
+ * @param p the program
+ * @param def a declaration of kind `Fn`
+ * @returns the function
+ */
+pub fn fnOf(p: Program, def: Loc) &FnDecl {
+    let item = &p.modules[def.module].module.items[def.item]
+    return match item.kind {
+        .Fn(decl) => &*decl
+        .Struct(_, _, _, _, _, methods) => &methods[def.member]
+        .Enum(_, _, _, methods) => &methods[def.member]
+        .Extern(_, fns) => &fns[def.member]
+        _ => {
+            panic("fnOf: not a function")
+        }
+    }
+}
+
+fn emptyInfo() DefInfo {
+    return DefInfo{ty: ERROR, typed: false, checking: false, fields: .None, variants: .None,
+                   value: .None, returnsBorrow: false, borrowSource: -1, sourceByRef: false}
+}
+
+/**
+ * A checker for a resolved program.
+ *
+ * @param p the program
+ * @param r the resolver, with its results
+ * @returns the checker
+ */
+pub fn newChecker(p: Program, r: move Resolver) Checker {
+    var info: List<DefInfo> = []
+    var itemDefs: List<List<int>> = []
+    var nodeTypes: List<List<int>> = []
+    var localTypesOf: List<Map<int, List<int>>> = []
+    var derefs: List<Map<int, List<int>>> = []
+    var adjusted: List<Map<int, int>> = []
+    var members: List<List<int>> = []
+    var callTypeArgs: List<Map<int, int>> = []
+    var sliceCoercions: List<Map<int, int>> = []
+    for m in 0..p.modules.len() {
+        itemDefs.push(List.filled(0, p.modules[m].module.items.len()))
+        nodeTypes.push(List.filled(ERROR, p.modules[m].module.nodeCount))
+        localTypesOf.push(Map.new())
+        derefs.push(Map.new())
+        adjusted.push(Map.new())
+        members.push(List.filled(-1, p.modules[m].module.nodeCount))
+        callTypeArgs.push(Map.new())
+        sliceCoercions.push(Map.new())
+    }
+    for id in 0..r.defs.len() {
+        info.push(emptyInfo())
+        let def = &r.defs[id]
+        let named = def.kind != .Module && def.kind != .Variant && def.member < 0
+        if id > 0 && named && def.item >= 0 && itemDefs[def.module][def.item] == 0 {
+            itemDefs[def.module][def.item] = id
+        }
+    }
+    return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
+                   adjusted,
+                   members, callTypeArgs, sliceCoercions,
+                   generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
+                   selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
+                   shorthandSpan: noSpan()}
+}
+
+// ---------------------------------------------------------------------------
+// Functions
+
+/**
+ * Checks a function's signature and, unless it is a std function outside
+ * the root, its body.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the function's `DefId`
+ * @param selfType the type declaring the method, or `ERROR`
+ */
+pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
+    let decl = fnOf(p, c.loc(id))
+    let outer = c.enterGenerics(Generics{owner: c.generics.owner.clone(),
+                                         fnParams: decl.typeParams.clone()})
+    let sig = fnSignature(c, p, id)
+    checkBorrowSource(c, p, id, sig, selfType)   // what callers need, now
+    c.enterGenerics(outer)
+    if decl.body.isSome() && c.module() != 0 && moduleInStd(p, c.module()) {
+        return   // a program uses few std functions: the lowering checks them
+    }
+    checkBody(c, p, id, selfType)
+}
+
+fn checkBody(c: mut Checker, p: Program, id: int, selfType: int) {
+    let decl = fnOf(p, c.loc(id))
+    let outer = c.enterGenerics(Generics{owner: c.generics.owner.clone(),
+                                         fnParams: decl.typeParams.clone()})
+    let sig = fnSignature(c, p, id)
+    let locals = c.r.tables[c.module()].fnLocals.get(decl.id.0)
+    c.locals = match locals {
+        .Some(list) => list.clone()
+        .None => []
+    }
+    c.localTypes = List.filled(ERROR, c.locals.len())
+    c.ret = c.types.get(sig).inner
+    c.selfType = selfType
+    c.fnNode = decl.id.0
+    c.fnDef = id
+    if decl.hasSelf && c.localTypes.len() > 0 {
+        c.localTypes[0] = selfType
+    }
+    for i in 0..decl.params.len() {
+        let local = c.localAt(decl.params[i].id.0)
+        if local >= 0 {
+            c.localTypes[local] = c.types.get(sig).args[i]
+        }
+    }
+    if decl.body.isNone() {
+        c.enterGenerics(outer)
+        return
+    }
+    c.unsafeDepth = if decl.isUnsafe { 1 } else { 0 }
+    var found = UNIT
+    if let .Some(body) = decl.body {
+        found = checkBlock(c, p, &body, ERROR, false)
+    }
+    c.unsafeDepth = 0
+    if c.ret != UNIT && c.ret != ERROR && found != NEVER {
+        c.error("E0303", decl.span,
+                "function may reach its end without returning a value".toOwned())
+    }
+    let types = mem.replace(c.localTypes, [])
+    c.localTypesOf[c.module()].insert(decl.id.0, types)
+    c.enterGenerics(outer)
+}
+
+// ---------------------------------------------------------------------------
+// Items
+
+fn checkMethods(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>) {
+    let item = &p.modules[c.module()].module.items[index]
+    let selfType = ownerTypeOf(c, p, c.module(), index)
+    let outer = c.enterGenerics(Generics{owner: itemTypeParams(item), fnParams: []})
+    for i in 0..methods.len() {
+        let def = c.r.tables[c.module()].fnDefs[methods[i].id.0]
+        if def != 0 {
+            checkFn(c, p, def, selfType)
+        }
+    }
+    c.enterGenerics(outer)
+}
+
+// `extern "C"` blocks cross the C boundary; `extern "intrinsic"` blocks,
+// reserved to std, declare operations the compiler generates.
+fn checkExtern(c: mut Checker, p: Program, item: &Item, abi: str, fns: &List<FnDecl>) {
+    if abi == "intrinsic" {
+        if !c.r.moduleName.startsWith("std") {
+            c.error("E0805", item.span,
+                    "intrinsics are reserved to the standard library".toOwned())
+        }
+        for i in 0..fns.len() {
+            fnSignature(c, p, c.r.tables[c.module()].fnDefs[fns[i].id.0])
+        }
+        return
+    }
+    if abi != "C" {
+        c.error("E0804", item.span, "unknown ABI: only `extern \"C\"` is supported".toOwned())
+    }
+    for i in 0..fns.len() {
+        checkCSignature(c, p, c.r.tables[c.module()].fnDefs[fns[i].id.0])
+    }
+}
+
+fn checkItem(c: mut Checker, p: Program, index: int) {
+    let item = &p.modules[c.module()].module.items[index]
+    let id = c.itemDefs[c.module()][index]
+    match item.kind {
+        .Fn(decl) => {
+            let def = c.r.tables[c.module()].fnDefs[decl.id.0]
+            if def == 0 {
+                return
+            }
+            if decl.abi.len() > 0 {   // `extern "C" fn` with a body, called from C
+                checkCSignature(c, p, def)
+            }
+            checkFn(c, p, def, ERROR)
+        }
+        .Extern(abi, fns) => checkExtern(c, p, item, abi, &fns)
+        .Struct(_, _, _, _, _, methods) => {
+            if id != 0 {
+                structFields(c, p, id)
+                checkStructLayouts(c, p, id)
+            }
+            checkMethods(c, p, index, &methods)
+        }
+        .Enum(_, _, _, methods) => {
+            if id != 0 {
+                enumVariants(c, p, id)
+                checkEnumLayouts(c, p, id)
+            }
+            checkMethods(c, p, index, &methods)
+        }
+        .Const(_, _) | .Global(_, _) => {
+            if id != 0 {
+                checkConst(c, p, id)
+            }
+        }
+        .TypeAlias(_, _) | .Import(_, _) => {}
+    }
+}
+
+/**
+ * A `@test` function that this build does not check (spec 12.2).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param item an item of the current module
+ * @returns true to skip it
+ */
+pub fn skippedTest(c: Checker, p: Program, item: &Item) bool {
+    let isFn = match item.kind {
+        .Fn(_) => true
+        _ => false
+    }
+    if !isFn || findAttribute(c.r, item.attributes, "test").isNone() {
+        return false
+    }
+    let tested = c.module() == 0 || !moduleInStd(p, c.module())
+    return !c.r.testing || !tested
+}
+
+/**
+ * Checks every module of a program.
+ *
+ * @param p the program
+ * @param r the resolver, with its results
+ * @returns the checker, with its results
+ */
+pub fn checkProgram(p: Program, r: move Resolver) Checker {
+    var c = newChecker(p, r)
+    for m in 0..p.modules.len() {
+        c.enter(m)
+        for i in 0..p.modules[m].module.items.len() {
+            if !skippedTest(c, p, &p.modules[m].module.items[i]) {
+                checkItem(c, p, i)
+            }
+        }
+    }
+    c.enter(0)
+    warnUnusedImports(c, p)
+    return c
+}
+
+fn warnUnusedImports(c: mut Checker, p: Program) {
+    for i in 0..c.r.imports.len() {
+        let use = &c.r.imports[i]
+        // std modules other than the root are checked in part: they are
+        // checked whole as roots.
+        let partlyChecked = use.module != 0 && moduleInStd(p, use.module)
+        let preludeRoot = c.r.moduleNames[use.module] == "std.core"
+        if !use.used && !preludeRoot && !partlyChecked {
+            let span = use.span
+            let name = c.text(use.name).toOwned()
+            c.r.diags.warning("W0002", span, "unused import `{name}`")
+        }
+    }
+}
