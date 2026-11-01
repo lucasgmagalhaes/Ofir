@@ -32,7 +32,31 @@ Expr *place_root(Expr *e) {
     }
 }
 
+// Whether the place goes through an element of a `&[T]`, which is read-only.
+static bool through_slice(Checker *c, const Expr *e) {
+    for (;;) {
+        if (e->kind == EXPR_FIELD) {
+            e = e->as.field.base;
+        } else if (e->kind == EXPR_TUPLE_FIELD) {
+            e = e->as.tuple_field.base;
+        } else if (e->kind == EXPR_INDEX) {
+            const Ty *ty = type_get(c->types, e->as.index.base->type);
+            if (ty->kind == TY_ADT && ty->data == c->sema->slice.id && ty->data != 0) {
+                return true;
+            }
+            e = e->as.index.base;
+        } else {
+            return false;
+        }
+    }
+}
+
 void require_mutable(Checker *c, Expr *place) {
+    if (through_slice(c, place)) {
+        check_error(c, "E0315", place->span, "this value cannot be modified: the elements of "
+                    "a `&[T]` are read-only");
+        return;
+    }
     Expr *e = place_root(place);
     if (!e) {
         if (place->type.id != TID_ERROR) {
@@ -45,12 +69,14 @@ void require_mutable(Checker *c, Expr *place) {
         require_mutable(c, e->as.unary.operand->as.field.base);
         return;
     }
-    if (e->kind == EXPR_UNARY) {   // `*p`: writable through a `*mut T`
+    if (e->kind == EXPR_UNARY) {   // `*p`: writable through a `*mut T` or a `&mut T`
         const Ty *ptr = type_get(c->types, e->as.unary.operand->type);
-        ok = (ptr->kind == TY_PTR && ptr->data) || e->type.id == TID_ERROR;
+        ok = ((ptr->kind == TY_PTR || ptr->kind == TY_REF) && ptr->data) ||
+             e->type.id == TID_ERROR;
         if (!ok) {
             check_error(c, "E0315", e->span, "this value cannot be modified: it is reached "
-                        "through a `*T`, not a `*mut T`");
+                        "through a `%s`, not a `%s`", ptr->kind == TY_REF ? "&T" : "*T",
+                        ptr->kind == TY_REF ? "&mut T" : "*mut T");
         }
         return;
     }
@@ -207,10 +233,7 @@ TypeId check_method_call(Checker *c, Expr *call, TypeId expected) {
         return no_method(c, call, type_name_def->type);
     }
     TypeId self = check_expr(c, base, NO_TYPE);
-    TypeId inner;
-    if (box_inner(c, self, &inner) && !has_method(c, c->sema->box, field->as.field.name)) {
-        self = deref_box(c, &field->as.field.base, self);   // a method of the boxed value
-    }
+    self = method_receiver(c, &field->as.field.base, self, field->as.field.name);
     if (type_get(c->types, self)->kind == TY_ADT) {
         DefId id = {type_get(c->types, self)->data};
         return check_user_method(c, call, id, false, (TypeHints){self, expected});
@@ -238,7 +261,7 @@ TypeId check_field(Checker *c, Expr *e, TypeId expected) {
     const Def *primitive = primitive_name(c, e->as.field.base);
     if (!primitive) {
         TypeId type = check_expr(c, e->as.field.base, NO_TYPE);
-        return check_struct_field(c, e, deref_box(c, &e->as.field.base, type));
+        return check_struct_field(c, e, auto_deref(c, &e->as.field.base, type));
     }
     e->as.field.base->type = primitive->type;
     const Ty *ty = type_get(c->types, primitive->type);
@@ -252,11 +275,14 @@ TypeId check_field(Checker *c, Expr *e, TypeId expected) {
 
 // `s[i]` is the byte at offset i of a str (spec 2.3); `l[i]` an element.
 TypeId check_index(Checker *c, Expr *e) {
+    if (e->as.index.index->kind == EXPR_RANGE) {
+        return check_range_index(c, e);
+    }
     TypeId base = check_expr(c, e->as.index.base, NO_TYPE);
-    base = deref_box(c, &e->as.index.base, base);
+    base = auto_deref(c, &e->as.index.base, base);
     coerce(c, e->as.index.index, type_id(TID_INT));
     TypeId elem;
-    if (list_elem(c, base, &elem)) {
+    if (sequence_elem(c, base, &elem)) {
         return elem;
     }
     if (base.id == TID_STR) {
