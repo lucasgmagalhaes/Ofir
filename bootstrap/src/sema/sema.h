@@ -166,4 +166,9 @@ void check_program(Sema *sema);
 // functions are analyzed only if the program uses them (sema/check.c).
 void sema_moves_late(Sema *sema, FnDecl *fn);
 
+// Checks the body of a std function the lowering reached, which the checker
+// left for later (only the root module and the modules outside std are
+// checked whole).
+void sema_check_late(Sema *sema, FnDecl *fn);
+
 #endif

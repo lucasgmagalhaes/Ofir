@@ -91,6 +91,7 @@ static void own_params(Lowerer *l, FnDecl *fn) {
 
 static void lower_fn(Lowerer *l, Instance inst, BodySink sink, void *context) {
     FnDecl *fn = inst.fn;
+    sema_check_late(l->sema, fn);   // a std body is checked when it is reached
     sema_moves_late(l->sema, fn);   // what the drops need
     Def *def = sema_def(l->sema, fn->def);
     Ty sig = *type_get(l->types, def->type);

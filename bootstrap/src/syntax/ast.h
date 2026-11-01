@@ -314,6 +314,12 @@ struct FnDecl {
     // A std function whose move analysis waits until the lowering reaches
     // it: a program uses few of them (sema_moves_late).
     bool moves_pending;
+    // A std function whose body is checked only when the lowering reaches
+    // it (sema_check_late): the type it is a method of, and that type's
+    // parameters.
+    bool check_pending;
+    TypeId pending_self;
+    SymbolList pending_owner_params;
 };
 
 enum { PART_DEPTH = 7 };

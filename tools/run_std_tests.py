@@ -2,7 +2,9 @@
 """Runs the `@test` functions of the standard library (roadmap 3.11) and
 of the stage 1 compiler in `compiler/` (roadmap phase 4).
 
-Every module with tests (in its `_test.at` file) is compiled with `astra test`, which
+Every std module is also checked whole, as the root: other programs check
+only the std bodies they use. Every module with tests (in its `_test.at`
+file) is compiled with `astra test`, which
 runs each test in a process of its own. Fails if any test fails. Then
 checks `astra test` itself: the standard output of each
 `tests/astra_test/*.at` must match its `.out` file.
@@ -52,7 +54,24 @@ def main() -> int:
     modules = len(modules_with_tests())
     print(f"unit tests (std, compiler): {total} tests in {modules} modules, "
           f"{len(failed)} modules with failures")
-    return 1 if failed or not check_fixtures(args.compiler) else 0
+    checked = check_std_whole(args.compiler)
+    return 1 if failed or not checked or not check_fixtures(args.compiler) else 0
+
+
+def check_std_whole(compiler: str) -> bool:
+    """Checks each std module as the root, where every body is checked: a
+    program checks only the std bodies it uses (sema_check_late)."""
+    ok = True
+    paths = [p for p in sorted((ROOT / "std").rglob("*.at")) if not p.stem.endswith("_test")]
+    for path in paths:
+        result = subprocess.run([compiler, "build", str(path), "--stop-after=check",
+                                 "--deny-warnings"], capture_output=True, text=True)
+        if result.returncode != 0:
+            ok = False
+            print(f"FAIL {path.relative_to(ROOT)}: does not check as a root module")
+            sys.stderr.write(result.stderr)
+    print(f"std modules checked whole: {len(paths)}, {'all' if ok else 'not all'} clean")
+    return ok
 
 
 def check_fixtures(compiler: str) -> bool:

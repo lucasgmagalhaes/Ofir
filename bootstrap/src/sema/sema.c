@@ -177,8 +177,11 @@ void note_import_use(Sema *sema, Symbol name) {
 void warn_unused_imports(Sema *sema) {
     for (size_t i = 0; i < sema->imports.len; i++) {
         const ImportUse *use = &sema->imports.data[i];
+        // std modules other than the root are checked only in part (their
+        // bodies wait for the lowering): they are checked whole as roots.
+        bool partly_checked = use->module != 0 && module_in_std(sema, use->module);
         bool prelude_root = sv_eq(sema->program.items[use->module].name, SV("std.core"));
-        if (!use->used && !prelude_root) {
+        if (!use->used && !prelude_root && !partly_checked) {
             diag_warning(&sema->session->diags, "W0002", use->span,
                          "unused import `" SV_FMT "`",
                          SV_ARG(symbol_name(&sema->session->names, use->name)));
