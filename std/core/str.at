@@ -165,6 +165,43 @@ pub struct str {
     }
 
     /**
+     * A view of part of the string: `s[lo..hi]`. Nothing is copied: the
+     * view has no capacity of its own, so modifying it copies it first.
+     *
+     * @param lo the offset of the first byte
+     * @param hi the offset after the last byte
+     * @returns the bytes `lo` to `hi - 1`
+     * @panics unless `0 <= lo <= hi <= len()`, or when `lo` or `hi` is not
+     * on a character boundary of the UTF-8 text
+     * @example
+     * ```astra
+     * let s = "hello, world"
+     * assert(s[0..5] == "hello")
+     * ```
+     */
+    pub fn slice(self, lo: int, hi: int) str {
+        checkRange(lo, hi, self.len)
+        if !self.isBoundary(lo) || !self.isBoundary(hi) {
+            panic("byte range {lo}..{hi} is not on character boundaries")
+        }
+        var view = ""
+        view.ptr = unsafe { self.ptr.add(lo) }
+        view.len = hi - lo
+        return view
+    }
+
+    /**
+     * A view of the end of the string: `s[lo..]`.
+     *
+     * @param lo the offset of the first byte
+     * @returns the bytes from `lo` to the end
+     * @panics unless `0 <= lo <= len()` and `lo` is on a character boundary
+     */
+    pub fn sliceFrom(self, lo: int) str {
+        return self.slice(lo, self.len)
+    }
+
+    /**
      * A copy with the ASCII letters in lower case; other bytes, including
      * non-ASCII letters, are unchanged.
      *
@@ -197,6 +234,12 @@ pub struct str {
         var out = ""
         out.push(self)
         return out
+    }
+
+    // Whether a character starts at byte `i` (or `i` is the end): UTF-8
+    // continuation bytes are 0b10xxxxxx.
+    fn isBoundary(self, i: int) bool {
+        return i == self.len || unsafe { *self.ptr.add(i) } & 0xC0 != 0x80
     }
 
     // Makes room for `extra` more bytes; a literal moves to the heap.
