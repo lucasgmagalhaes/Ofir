@@ -1,0 +1,53 @@
+struct Pair<A, B> {
+    first: A
+    second: B
+}
+
+enum Opt<T> {
+    None
+    Some(T)
+}
+
+fn identity<T>(x: move T) T {
+    return x
+}
+
+fn none<T>() Opt<T> {
+    return .None
+}
+
+fn add<T>(a: T, b: T) T {
+    return a + b                 // error[E0313]: operator cannot be applied to type `T`
+}
+
+fn show<T>(x: T) str {
+    return "{x}"                 // error[E0314]: a value of type `T` cannot be interpolated into a string
+}
+
+fn same<T>(x: T) int {
+    return x                     // error[E0300]: mismatched types: expected int, found T
+}
+
+copy struct Both<T> {
+    value: T                     // error[E0317]: a `copy struct` can only have fields of Copy types, not `T`
+}
+
+struct Node {
+    inner: Pair<Node, int>       // error[E0318]: a type cannot contain itself by value; use Box<T> or a collection
+}
+
+extern "C" fn callback<T>(x: int) int {   // error[E0804]: a function that crosses the C boundary cannot be generic: C has one copy of each function
+    return x
+}
+
+fn main() {
+    let a = none()               // error[E0330]: cannot infer the type parameter `T`: write the type arguments, as in `f<int>(x)`
+    let b = Opt.None             // error[E0330]: cannot infer the type parameter `T`: write the type arguments, as in `f<int>(x)`
+    let c = identity<int, str>(1)   // error[E0302]: wrong number of type arguments: expected 1, found 2
+    let d: Pair<int> = Pair{first: 1, second: 2}   // error[E0302]: wrong number of type arguments for `Pair`: expected 2, found 1
+    let e: int = identity("text")   // error[E0300]: mismatched types: expected int, found str
+    let f = Pair<int, str>{first: 1, second: 2}   // error[E0300]: mismatched types: expected str, found int
+    let g: Opt<str> = .Some(3)   // error[E0300]: mismatched types: expected str, found int
+    let h = main<int>()          // error[E0302]: `main` takes no type arguments
+    let i: int<u8> = 1           // error[E0302]: `int` takes no type arguments
+}

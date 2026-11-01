@@ -1,0 +1,92 @@
+// Generic structs and enums: literals, fields, methods, associated
+// functions, variants, patterns and instances nested in each other.
+
+struct Pair<A, B> {
+    first: A
+    second: B
+
+    fn new(first: move A, second: move B) Pair<A, B> {
+        return Pair{first, second}
+    }
+
+    fn swapped(move self) Pair<B, A> {
+        return Pair{first: self.second, second: self.first}
+    }
+
+    fn withFirst<C>(move self, first: move C) Pair<C, B> {
+        return Pair{first, second: self.second}
+    }
+}
+
+struct Wrap<T>(T)
+
+enum Opt<T> {
+    None
+    Some(T)
+
+    fn getOr(move self, fallback: move T) T {
+        return match self {
+            .Some(value) => value
+            .None => fallback
+        }
+    }
+
+    fn isSome(self) bool {
+        if let .Some(_) = self {
+            return true
+        }
+        return false
+    }
+}
+
+enum Either<L, R> {
+    Left(L)
+    Right(R)
+}
+
+fn describe(e: Either<int, str>) str {
+    return match e {
+        .Left(n) => "left {n}"
+        .Right(s) => "right {s}"
+    }
+}
+
+fn find(values: (int, int, int), wanted: int) Opt<int> {
+    let (a, b, c) = values
+    if a == wanted {
+        return .Some(0)
+    }
+    if b == wanted {
+        return Opt.Some(1)
+    }
+    if c == wanted {
+        return Opt<int>.Some(2)
+    }
+    return .None
+}
+
+fn main() {
+    let p = Pair{first: 1, second: "one"}
+    println("{p.first} {p.second}")
+    let q = p.swapped()
+    println("{q.first} {q.second}")
+    let r = Pair.new(2.5, true).withFirst("two")
+    println("{r.first} {r.second}")
+    let typed = Pair<u8, i8>{first: 255, second: -1}
+    println("{typed.first} {typed.second}")
+
+    let w = Wrap(Wrap("nested"))
+    let Wrap(inner) = w
+    println(inner.0)
+
+    println("{find((4, 5, 6), 6).getOr(-1)} {find((4, 5, 6), 9).getOr(-1)}")
+    let none: Opt<str> = .None
+    println("{none.isSome()} {Opt.Some("x").isSome()}")
+    println(describe(.Left(3)))
+    println(describe(Either.Right("r")))
+
+    let deep = Opt.Some(Pair{first: Opt.Some(7), second: Wrap(8)})
+    if let .Some(Pair{first: .Some(seven), second: Wrap(eight)}) = deep {
+        println("{seven + eight}")
+    }
+}
