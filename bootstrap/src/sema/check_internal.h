@@ -146,6 +146,7 @@ TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type, Typ
 
 // structs.c
 StructInfo *struct_fields(Checker *c, DefId id);   // NULL while it is being computed
+bool type_is_copy(Checker *c, TypeId type);
 TypeId check_struct_field(Checker *c, Expr *e, TypeId base);
 TypeId check_tuple_field(Checker *c, Expr *e);
 TypeId check_constructor(Checker *c, Expr *call, DefId id, TypeList explicit, TypeId expected);
