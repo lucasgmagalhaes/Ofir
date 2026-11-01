@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 runtime unit runner-selftest test check-codes check-sizes check-docs bench bench-compare clean
+.PHONY: all stage0 runtime unit runner-selftest test check-codes check-sizes check-docs check-leaks bench bench-compare clean
 
 all: stage0 runtime
 
@@ -28,6 +28,10 @@ check-sizes:
 
 check-docs:
 	$(PYTHON) tools/check_docs.py
+
+# Every run test and example under valgrind: no leaks, no invalid accesses.
+check-leaks: stage0 runtime
+	$(PYTHON) tools/check_leaks.py --compiler $(BUILD)/stage0/astra
 
 test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/astra
