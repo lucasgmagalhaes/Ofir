@@ -112,6 +112,23 @@ TypeArgs      = "<" Type { "," Type } [ "," ] ">" .
 A one-element tuple type is written `(T,)`. `[T]` without a length is only
 valid behind a reference (`&[T]`, `&mut [T]`).
 
+Type operators (chapter 16) **[planned]**: `keyof` and `infer` are
+contextual keywords in types.
+
+```ebnf
+Type          = ...
+              | "keyof" Type                    (* the key type of a struct or tuple *)
+              | KeyLiteral
+              | Type "[" Type "]"               (* indexed access: Point[.x] *)
+              | Type ( "|" | "&" | "-" ) Type   (* operations on key types *)
+              | MappedType
+              | "if" Type "is" Type "{" Type "}" "else" "{" Type "}"
+              | "infer" identifier .            (* only in the pattern after `is` *)
+
+KeyLiteral    = "." ( identifier | int_lit ) .
+MappedType    = "{" "[" identifier "in" Type [ "if" Type ] "]" [ "?" ] ":" Type "}" .
+```
+
 ## A.5 Statements
 
 ```ebnf
