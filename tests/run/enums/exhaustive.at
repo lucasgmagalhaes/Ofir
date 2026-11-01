@@ -1,0 +1,39 @@
+// Matches that are exhaustive only through nested patterns.
+
+enum Error {
+    Empty
+    BadDigit(u8)
+    TooLarge
+}
+
+fn describe(r: Result<int, Error>) str {
+    return match r {
+        Ok(n) => "ok {n}"
+        Err(.Empty) => "empty"
+        Err(.BadDigit(b)) => "bad {b}"
+        Err(.TooLarge) => "large"
+    }
+}
+
+fn both(a: bool, b: bool) str {
+    return match (a, b) {
+        (true, true) => "tt"
+        (true, false) => "tf"
+        (false, true) => "ft"
+        (false, false) => "ff"
+    }
+}
+
+fn depth(o: Option<Option<int>>) int {
+    return match o {
+        Some(Some(n)) => n
+        Some(None) => -1
+        None => -2
+    }
+}
+
+fn main() {
+    println("{describe(Ok(1))} {describe(Err(.Empty))} {describe(Err(.BadDigit(7)))} {describe(Err(.TooLarge))}")
+    println("{both(true, false)} {both(false, true)}")
+    println("{depth(Some(Some(3)))} {depth(Some(None))} {depth(None)}")
+}

@@ -33,13 +33,13 @@ fn extraPayload() {
 }
 
 fn nonExhaustive(s: Shape) int {
-    return match s {          // error[E0500]: non-exhaustive `match`: missing `.Empty`
+    return match s {          // error[E0500]: non-exhaustive `match`: `.Empty` is not covered
         .Circle(_) => 1
     }
 }
 
 fn guardedOnly(n: int) int {
-    return match n {          // error[E0500]: non-exhaustive `match`: add a `_` arm
+    return match n {          // error[E0500]: non-exhaustive `match`: `_` is not covered
         x if x > 0 => 1
     }
 }

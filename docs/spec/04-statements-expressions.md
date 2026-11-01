@@ -86,7 +86,8 @@ match code {
   alternatives (`p | q`).
 - A guard may follow a pattern: `.Some(n) if n > 0 => ...`
 - `match` **must be exhaustive**; a missing case is a compile error that
-  lists the missing patterns.
+  shows a value no arm matches (`Err(.TooLarge)`). An arm that the arms
+  before it already cover is a warning (W0004).
 - Matching an owned value moves its fields into the bindings.
 - Matching a place the function does not own (a borrowed parameter, a field
   or element of one) borrows the matched parts instead; Copy parts are
