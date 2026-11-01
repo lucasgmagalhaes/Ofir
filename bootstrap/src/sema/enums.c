@@ -55,15 +55,13 @@ EnumInfo *enum_variants(Checker *c, DefId id) {
         return def->variants;
     }
     const Item *item = def->item;
-    if (item->as.enum_.type_params.len > 0) {
-        return NULL;   // generic enums come with roadmap 2.18
-    }
     EnumInfo *info = ARENA_NEW(&c->sema->session->arena, EnumInfo);
     info->count = item->as.enum_.variants.len;
     info->variants = ARENA_ARRAY(&c->sema->session->arena, VariantInfo, info->count + 1);
     uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
-    c->self_type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
+    Generics outer = enter_generics(c, (Generics){.owner = item->as.enum_.type_params});
+    c->self_type = owner_type(c->sema, item);
     def->checking = true;
     int64_t next = 0;
     for (uint32_t i = 0; i < info->count; i++) {
@@ -71,6 +69,7 @@ EnumInfo *enum_variants(Checker *c, DefId id) {
         info->has_payload = info->has_payload || info->variants[i].count > 0;
     }
     def->checking = false;
+    enter_generics(c, outer);
     c->self_type = saved_self;
     sema_enter(c->sema, saved_module);
     def->variants = info;
@@ -97,26 +96,54 @@ EnumInfo *enum_of(Checker *c, TypeId type, DefId *id) {
     return enum_variants(c, *id);
 }
 
-// Checks the payload of a variant built with `args` (NULL for `.Empty`).
-static TypeId build(Checker *c, Expr *at, const ArgList *args, DefId id, int64_t index) {
-    const EnumInfo *info = enum_variants(c, id);
-    TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
-    const VariantInfo *v = &info->variants[index];
-    if (!args) {
-        if (v->count > 0) {
-            check_error(c, "E0302", at->span, "the variant `" SV_FMT "` takes %u values",
-                        SV_ARG(name_of(c, v->name)), v->count);
-        }
+// A variant being built: `.Circle(1.0)`, `Shape.Circle(1.0)` or `.Empty`.
+typedef struct {
+    Expr *at;
+    const ArgList *args;   // NULL without parentheses
+    DefId id;
+    int64_t index;
+} VariantUse;
+
+// The payload of a variant of a generic enum: its type arguments come from
+// `hints.self` (`Opt<int>.None`), the expected type or the payload.
+static TypeId build_generic(Checker *c, VariantUse use, const VariantInfo *v, TypeHints hints) {
+    const Item *item = sema_def(c->sema, use.id)->item;
+    Infer inf = infer_new(c, (Generics){.owner = item->as.enum_.type_params});
+    infer_from_self(&inf, type_get(c->types, hints.self), inf.count);
+    Ty sig = {.kind = TY_FN, .inner = owner_type(c->sema, item), .arg_count = v->count,
+              .args = v->types};
+    Expr call = {.kind = EXPR_CALL, .span = use.at->span};
+    if (use.args && v->count > 0) {
+        call.as.call.args = *use.args;
+    } else {
+        sig.arg_count = 0;
+    }
+    return check_generic_args(c, &call, &sig, &inf, hints.expected);
+}
+
+// Checks the payload of a variant.
+static TypeId build(Checker *c, VariantUse use, TypeHints hints) {
+    const EnumInfo *info = enum_variants(c, use.id);
+    TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = use.id.id});
+    const VariantInfo *v = &info->variants[use.index];
+    if (!use.args && v->count > 0) {
+        check_error(c, "E0302", use.at->span, "the variant `" SV_FMT "` takes %u values",
+                    SV_ARG(name_of(c, v->name)), v->count);
+    }
+    if (use.args && v->count == 0) {
+        check_error(c, "E0302", use.at->span, "the variant `" SV_FMT "` takes no values: "
+                    "write it without parentheses", SV_ARG(name_of(c, v->name)));
+    }
+    if (sema_def(c->sema, use.id)->item->as.enum_.type_params.len > 0) {
+        return build_generic(c, use, v, hints);
+    }
+    if (!use.args || v->count == 0) {
         return type;
     }
-    if (v->count == 0) {
-        check_error(c, "E0302", at->span, "the variant `" SV_FMT "` takes no values: write it "
-                    "without parentheses", SV_ARG(name_of(c, v->name)));
-    }
     Ty sig = {.kind = TY_FN, .inner = type, .arg_count = v->count, .args = v->types};
-    Expr call = {.kind = EXPR_CALL, .span = at->span};
-    call.as.call.args = *args;
-    return v->count > 0 ? check_args(c, &call, &sig) : type;
+    Expr call = {.kind = EXPR_CALL, .span = use.at->span};
+    call.as.call.args = *use.args;
+    return check_args(c, &call, &sig);
 }
 
 static TypeId no_variant(Checker *c, Span span, Symbol name, TypeId type) {
@@ -140,19 +167,22 @@ TypeId check_variant_shorthand(Checker *c, Expr *e, TypeId expected) {
         return no_variant(c, e->span, e->as.variant.name, expected);
     }
     e->as.variant.index = (uint32_t)index;
-    return build(c, e, e->as.variant.has_args ? &e->as.variant.args : NULL, id, index);
+    VariantUse use = {e, e->as.variant.has_args ? &e->as.variant.args : NULL, id, index};
+    return build(c, use, (TypeHints){expected, expected});
 }
 
 // `Shape.Circle(1.0)` (call) or `Shape.Empty` (field); false if `name` is
 // not a variant, so that the caller looks for a method.
-bool check_qualified_variant(Checker *c, Expr *e, DefId id, Symbol name, TypeId *out) {
+bool check_qualified_variant(Checker *c, Expr *e, DefId id, TypeHints hints, TypeId *out) {
+    Expr *field = e->kind == EXPR_CALL ? e->as.call.callee : e;
+    Symbol name = field->as.field.name;
     EnumInfo *info = enum_variants(c, id);
     int64_t index = info ? variant_index(info, name) : -1;
     if (index < 0) {
         return false;
     }
-    Expr *field = e->kind == EXPR_CALL ? e->as.call.callee : e;
     field->as.field.res = (Res){RES_VARIANT, (uint32_t)index};
-    *out = build(c, e, e->kind == EXPR_CALL ? &e->as.call.args : NULL, id, index);
+    VariantUse use = {e, e->kind == EXPR_CALL ? &e->as.call.args : NULL, id, index};
+    *out = build(c, use, hints);
     return true;
 }

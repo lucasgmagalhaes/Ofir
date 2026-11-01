@@ -133,21 +133,22 @@ static bool has_lang_method(Checker *c, TypeId type, Symbol name) {
     return false;
 }
 
-static TypeId lang_associated(Checker *c, Expr *call, TypeId type) {
+static TypeId lang_associated(Checker *c, Expr *call, TypeId type, TypeId expected) {
     call->as.call.callee->as.field.base->type = type;
-    return check_user_method(c, call, c->sema->lang[type.id], true);
+    return check_user_method(c, call, c->sema->lang[type.id], true, (TypeHints){type, expected});
 }
 
-// `Point.new()` or `Shape.Circle(1.0)`.
-static TypeId call_on_type(Checker *c, Expr *call, DefId owner) {
+// `Point.new()`, `Stack<int>.new()` or `Shape.Circle(1.0)`.
+static TypeId call_on_type(Checker *c, Expr *call, DefId owner, TypeList args, TypeId expected) {
     Expr *field = call->as.call.callee;
-    field->as.field.base->type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
+    TypeHints hints = {named_instance(c, owner, args, field->as.field.base->span), expected};
+    field->as.field.base->type = hints.self;
     TypeId variant;
     if (sema_def(c->sema, owner)->kind == DEF_ENUM &&
-        check_qualified_variant(c, call, owner, field->as.field.name, &variant)) {
+        check_qualified_variant(c, call, owner, hints, &variant)) {
         return variant;
     }
-    return check_user_method(c, call, owner, true);
+    return check_user_method(c, call, owner, true, hints);
 }
 
 static TypeId no_method(Checker *c, Expr *call, TypeId self) {
@@ -164,10 +165,11 @@ static TypeId no_method(Checker *c, Expr *call, TypeId self) {
 
 // `value.m(args)` on a primitive: a `@lang` method from std, else one of
 // the few built-in ones.
-static TypeId primitive_method(Checker *c, Expr *call, TypeId self) {
+static TypeId primitive_method(Checker *c, Expr *call, TypeId self, TypeId expected) {
     Symbol name = call->as.call.callee->as.field.name;
     if (has_lang_method(c, self, name)) {
-        return check_user_method(c, call, c->sema->lang[self.id], false);
+        return check_user_method(c, call, c->sema->lang[self.id], false,
+                                 (TypeHints){self, expected});
     }
     bool known;
     Receiver receiver = receiver_of(type_get(c->types, self), &known);
@@ -176,41 +178,45 @@ static TypeId primitive_method(Checker *c, Expr *call, TypeId self) {
     return info ? call_builtin(c, call, info, self) : no_method(c, call, self);
 }
 
-TypeId check_method_call(Checker *c, Expr *call) {
+TypeId check_method_call(Checker *c, Expr *call, TypeId expected) {
     Expr *field = call->as.call.callee;
     Expr *base = field->as.field.base;
     DefId owner;
-    if (type_name_of(c, base, &owner)) {
-        return call_on_type(c, call, owner);
+    TypeList args;
+    if (type_name_of(c, base, &owner, &args)) {
+        return call_on_type(c, call, owner, args, expected);
     }
     const Def *type_name_def = primitive_name(c, base);
     if (type_name_def) {   // an associated function: `str.new()`
         base->type = type_name_def->type;
         if (has_lang_method(c, type_name_def->type, field->as.field.name)) {
-            return lang_associated(c, call, type_name_def->type);
+            return lang_associated(c, call, type_name_def->type, expected);
         }
         return no_method(c, call, type_name_def->type);
     }
     TypeId self = check_expr(c, base, NO_TYPE);
     if (type_get(c->types, self)->kind == TY_ADT) {
-        return check_user_method(c, call, (DefId){type_get(c->types, self)->data}, false);
+        DefId id = {type_get(c->types, self)->data};
+        return check_user_method(c, call, id, false, (TypeHints){self, expected});
     }
-    return primitive_method(c, call, self);
+    return primitive_method(c, call, self, expected);
 }
 
 // `p.x` on a struct, or `i32.MAX`, `float.NAN`, ... on a primitive type.
-TypeId check_field(Checker *c, Expr *e) {
+TypeId check_field(Checker *c, Expr *e, TypeId expected) {
     DefId owner;
-    if (type_name_of(c, e->as.field.base, &owner)) {   // `Shape.Empty`
+    TypeList args;
+    Expr *base = e->as.field.base;
+    if (type_name_of(c, base, &owner, &args)) {   // `Shape.Empty`, `Opt<int>.None`
         TypeId variant;
-        e->as.field.base->type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
+        base->type = named_instance(c, owner, args, base->span);
         if (sema_def(c->sema, owner)->kind == DEF_ENUM &&
-            check_qualified_variant(c, e, owner, e->as.field.name, &variant)) {
+            check_qualified_variant(c, e, owner, (TypeHints){base->type, expected}, &variant)) {
             return variant;
         }
-        check_error(c, "E0320", e->span, "no variant `" SV_FMT "` in `%s`",
+        check_error(c, "E0320", e->span, "no variant `" SV_FMT "` in `" SV_FMT "`",
                     SV_ARG(name_of(c, e->as.field.name)),
-                    type_name(c, e->as.field.base->type));
+                    SV_ARG(name_of(c, sema_def(c->sema, owner)->name)));
         return type_id(TID_ERROR);
     }
     const Def *primitive = primitive_name(c, e->as.field.base);

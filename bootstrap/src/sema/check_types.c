@@ -8,23 +8,79 @@ static TypeId resolve_alias(Checker *c, Def *def, Span span) {
                     SV_ARG(symbol_name(&c->sema->session->names, def->name)));
         return type_id(TID_ERROR);
     }
+    if (def->item->as.alias.type_params.len > 0) {
+        return unsupported(c, span, "generic type aliases are");
+    }
     if (!def->typed) {
         uint32_t saved = sema_enter(c->sema, def->module);
+        Generics outer = enter_generics(c, (Generics){0});
         def->checking = true;
         def->type = resolve_type(c, def->item->as.alias.type);
         def->checking = false;
+        enter_generics(c, outer);
         def->typed = true;
         sema_enter(c->sema, saved);
     }
     return def->type;
 }
 
-static TypeId named_type(Checker *c, Def *def, DefId id, Span span) {
+Generics enter_generics(Checker *c, Generics generics) {
+    Generics saved = c->generics;
+    c->generics = generics;
+    return saved;
+}
+
+TypeId adt_instance(Checker *c, DefId id, const TypeId *args, uint32_t count, Span span) {
+    const Def *def = sema_def(c->sema, id);
+    uint32_t expected = item_type_params(def->item).len;
+    if (count != expected) {
+        check_error(c, "E0302", span, "wrong number of type arguments for `" SV_FMT "`: "
+                    "expected %u, found %u",
+                    SV_ARG(symbol_name(&c->sema->session->names, def->name)), expected, count);
+        return type_id(TID_ERROR);
+    }
+    return type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id, .arg_count = count,
+                                      .args = args});
+}
+
+// Whether a type parameter named `name` is in scope; its type goes to `out`.
+static bool type_parameter(Checker *c, Symbol name, TypeId *out) {
+    for (uint32_t i = 0; i < c->generics.fn.len; i++) {
+        if (symbol_eq(c->generics.fn.items[i], name)) {
+            *out = type_param(c->types, c->generics.owner.len + i, name);
+            return true;
+        }
+    }
+    for (uint32_t i = 0; i < c->generics.owner.len; i++) {
+        if (symbol_eq(c->generics.owner.items[i], name)) {
+            *out = type_param(c->types, i, name);
+            return true;
+        }
+    }
+    return false;
+}
+
+static void resolve_list(Checker *c, TypeList list, TypeId *out);
+
+static TypeId named_type(Checker *c, Def *def, DefId id, const TypeExpr *type) {
+    TypeList list = type->as.path.args;
+    if (list.len > 0 && def->kind != DEF_STRUCT && def->kind != DEF_ENUM) {
+        check_error(c, "E0302", type->span, "`" SV_FMT "` takes no type arguments",
+                    SV_ARG(symbol_name(&c->sema->session->names, def->name)));
+        return type_id(TID_ERROR);
+    }
+    Span span = type->span;
     switch (def->kind) {
     case DEF_PRIMITIVE: return def->type;
     case DEF_TYPE_ALIAS: return resolve_alias(c, def, span);
-    case DEF_STRUCT: case DEF_ENUM:
-        return type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
+    case DEF_STRUCT: case DEF_ENUM: {
+        if (list.len == 0) {
+            return adt_instance(c, id, NULL, 0, span);
+        }
+        TypeId *args = ARENA_ARRAY(&c->sema->session->arena, TypeId, list.len);
+        resolve_list(c, list, args);
+        return adt_instance(c, id, args, list.len, span);
+    }
     default:
         check_error(c, "E0310", span, "expected a type, found `" SV_FMT "`",
                     SV_ARG(symbol_name(&c->sema->session->names, def->name)));
@@ -65,8 +121,13 @@ static DefId path_target(Checker *c, const TypeExpr *type, Symbol *name) {
 }
 
 static TypeId resolve_path(Checker *c, const TypeExpr *type) {
-    if (type->as.path.args.len > 0) {
-        return unsupported(c, type->span, "generic types are");
+    TypeId param;
+    SymbolList segments = type->as.path.segments;
+    if (segments.len == 1 && type_parameter(c, segments.items[0], &param)) {
+        if (type->as.path.args.len > 0) {
+            check_error(c, "E0302", type->span, "a type parameter takes no type arguments");
+        }
+        return param;
     }
     Symbol name;
     DefId id = path_target(c, type, &name);
@@ -78,7 +139,7 @@ static TypeId resolve_path(Checker *c, const TypeExpr *type) {
                     SV_ARG(symbol_name(&c->sema->session->names, name)));
         return type_id(TID_ERROR);
     }
-    return named_type(c, sema_def(c->sema, id), id, type->span);
+    return named_type(c, sema_def(c->sema, id), id, type);
 }
 
 static void resolve_list(Checker *c, TypeList list, TypeId *out) {
@@ -149,6 +210,9 @@ TypeId fn_signature(Checker *c, FnDecl *fn) {
     uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
     const Item *owner = def->item;
+    Generics outer = enter_generics(c, (Generics){.owner = owner ? item_type_params(owner)
+                                                                 : (SymbolList){0},
+                                                  .fn = fn->type_params});
     if (owner && owner->kind != ITEM_FN && owner->kind != ITEM_EXTERN) {
         c->self_type = owner_type(c->sema, owner);
     }
@@ -158,16 +222,10 @@ TypeId fn_signature(Checker *c, FnDecl *fn) {
         params[i] = resolve_type(c, fn->params.items[i].type);
     }
     TypeId ret = fn->ret ? resolve_type(c, fn->ret) : type_id(TID_UNIT);
+    enter_generics(c, outer);
     c->self_type = saved_self;
     sema_enter(c->sema, saved_module);
     def->type = type_fn(c->types, params, count, ret);
     def->typed = true;
     return def->type;
-}
-
-// `!` converts to every type; the error type is compatible with everything
-// so that one mistake is reported once.
-bool types_compatible(TypeId found, TypeId expected) {
-    return type_eq(found, expected) || found.id == TID_ERROR || expected.id == TID_ERROR ||
-           found.id == TID_NEVER;
 }

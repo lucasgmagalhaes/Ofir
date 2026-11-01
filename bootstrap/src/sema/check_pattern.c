@@ -51,6 +51,17 @@ static bool same_adt(TypeId type, const Ty *ty, DefId id) {
     return type.id != TID_ERROR && ty->kind == TY_ADT && ty->data == id.id;
 }
 
+// The field types of a struct, or of variant `v` of an enum (v < 0 for a
+// struct), in the instance `type`.
+static const TypeId *field_types(Checker *c, TypeId type, int64_t v, uint32_t count) {
+    TypeId *types = ARENA_ARRAY(&c->sema->session->arena, TypeId, count + 1);
+    for (uint32_t i = 0; i < count; i++) {
+        types[i] = v < 0 ? struct_field_type(c->sema, type, i)
+                         : variant_field_type(c->sema, type, (uint32_t)v, i);
+    }
+    return types;
+}
+
 static void variant_pattern(Checker *c, Pattern *p, TypeId type) {
     DefId id;
     EnumInfo *info = enum_of(c, type, &id);
@@ -75,7 +86,8 @@ static void variant_pattern(Checker *c, Pattern *p, TypeId type) {
     p->as.variant.index = (uint32_t)index;
     const VariantInfo *v = &info->variants[index];
     if (p->as.variant.has_args || v->count > 0) {
-        check_list(c, p->as.variant.args, v->types, v->count, p->span);
+        check_list(c, p->as.variant.args, field_types(c, type, index, v->count), v->count,
+                   p->span);
     }
 }
 
@@ -103,7 +115,7 @@ static void struct_pattern(Checker *c, Pattern *p, TypeId type) {
             continue;
         }
         listed++;
-        check_pattern(c, f->pattern, info->types[index]);
+        check_pattern(c, f->pattern, struct_field_type(c->sema, type, index));
     }
     if (!p->as.struct_.rest && listed < info->count) {
         check_error(c, "E0308", p->span, "the pattern does not list every field: add `..` to "
@@ -125,7 +137,8 @@ static void tuple_struct_pattern(Checker *c, Pattern *p, TypeId type) {
         mismatch(c, p->span, "a tuple struct", type);
         return;
     }
-    check_list(c, p->as.tuple_struct.args, info->types, info->count, p->span);
+    check_list(c, p->as.tuple_struct.args, field_types(c, type, -1, info->count), info->count,
+               p->span);
 }
 
 static void literal_pattern(Checker *c, Pattern *p, TypeId type) {
@@ -158,7 +171,7 @@ void check_pattern(Checker *c, Pattern *p, TypeId type) {
     case PAT_STRUCT: struct_pattern(c, p, type); break;
     case PAT_TUPLE_STRUCT: tuple_struct_pattern(c, p, type); break;
     case PAT_TUPLE:
-        if (ty->kind == TY_TUPLE) {
+        if (ty->kind == TY_TUPLE || (type.id == TID_UNIT && p->as.tuple.len == 0)) {   // `()`
             check_list(c, p->as.tuple, ty->args, ty->arg_count, p->span);
         } else {
             mismatch(c, p->span, "a tuple", type);

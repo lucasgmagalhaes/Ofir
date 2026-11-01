@@ -62,6 +62,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0318 | a type cannot contain itself by value | stage 0 |
 | E0319 | invalid or duplicate enum discriminant | stage 0 |
 | E0320 | no variant `V` in enum `E`, or the enum of `.V` is unknown | stage 0 |
+| E0330 | cannot infer the type parameter `T`: write the type arguments | stage 0 |
+| E0331 | instantiating `f` nests types more than 64 levels deep | stage 0 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0501 | refutable pattern in `let` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |

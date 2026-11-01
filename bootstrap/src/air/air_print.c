@@ -11,14 +11,13 @@ typedef struct {
     StrBuf buf;
 } AirPrinter;
 
-static StrView def_name(const void *context, uint32_t def) {
-    const Sema *sema = context;
+static StrView def_name(const Sema *sema, uint32_t def) {
     return symbol_name(&sema->session->names, sema->defs.data[def].name);
 }
 
 static const char *type_str(AirPrinter *p, TypeId type) {
     strbuf_clear(&p->buf);
-    ty_text(&p->buf, &p->sema->types, type, def_name, p->sema);
+    ty_text(&p->buf, &p->sema->types, type, sema_type_name, p->sema);
     return p->buf.data;
 }
 
