@@ -1,0 +1,57 @@
+//! `Option<T>`: a value that may be absent (spec 6.1, docs/std/core.md).
+//! `Some` and `None` are in scope everywhere.
+
+@lang("option")
+pub enum Option<T> {
+    Some(value: T)
+    None
+
+    pub fn isSome(self) bool {
+        return match self {
+            Some(_) => true
+            None => false
+        }
+    }
+
+    pub fn isNone(self) bool {
+        return !self.isSome()
+    }
+
+    /// The content; panics on `None`.
+    pub fn unwrap(move self) T {
+        return match self {
+            Some(value) => value
+            None => panic("called `unwrap` on a `None` value")
+        }
+    }
+
+    /// The content; panics with `message` on `None`.
+    pub fn expect(move self, message: str) T {
+        return match self {
+            Some(value) => value
+            None => panic(message)
+        }
+    }
+
+    pub fn unwrapOr(move self, fallback: move T) T {
+        return match self {
+            Some(value) => value
+            None => fallback
+        }
+    }
+
+    /// Moves the content out, leaving `None` behind.
+    pub fn take(mut self) Option<T> {
+        let taken = self
+        self = None
+        return taken
+    }
+
+    /// `Ok` with the content, or `Err(error)` on `None`.
+    pub fn okOr<E>(move self, error: move E) Result<T, E> {
+        return match self {
+            Some(value) => Ok(value)
+            None => Err(error)
+        }
+    }
+}
