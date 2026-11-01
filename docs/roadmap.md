@@ -149,7 +149,7 @@ earlier accordingly).
 | 3.8 | `std.io` and `std.fs` S0 entries, `IoError` | M | **done**: `examples/word_count.at` runs; runtime `fs.c`, `std/io`, `std/fs`, `eprint`/`eprintln`; `tests/run/system/fs.at`; `main` still returns nothing |
 | 3.9 | `std.os` S0 entries: args, env, exit, `run` | M | **done**: `tests/run/system/os.at` runs `clang --version`; runtime `os.c` (`posix_spawnp`, both streams captured) |
 | 3.10 | Runtime: stack overflow detection | S | **done**: `runtime/src/stack.c` (`sigaltstack` + `SIGSEGV`/`SIGBUS` handler); `tests/panic/stack_overflow*` pass |
-| 3.11 | `@test` functions and `astra test` | M | `std` tests run in CI |
+| 3.11 | `@test` functions and `astra test` | M | **done**: `astra test` (`air/lower_test.c`, `driver_test.c`), one process per test; `make test-std` (`tools/run_std_tests.py`) in `make test`; `tests/astra_test/` |
 | 3.11a | First generated-code benchmarks (`fib`, `nbody`, `binary_trees`) against C | M | ratio to C recorded in `bench/HISTORY.md` |
 | 3.12 | Freeze review: all suites under ASan/UBSan, fix leaks and crashes | M | **M2: stage 0 complete** → release 0.1 |
 

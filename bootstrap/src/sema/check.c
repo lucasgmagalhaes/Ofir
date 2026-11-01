@@ -165,7 +165,9 @@ void check_program(Sema *sema) {
     for (uint32_t m = 0; m < sema->program.len; m++) {
         sema_enter(sema, m);
         for (uint32_t i = 0; i < sema->module->items.len; i++) {
-            check_item(&c, sema->module->items.items[i]);
+            if (!skipped_test(sema, sema->module->items.items[i])) {
+                check_item(&c, sema->module->items.items[i]);
+            }
         }
     }
     sema_enter(sema, 0);

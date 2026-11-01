@@ -146,3 +146,20 @@ pub enum Option<T> {
         }
     }
 }
+
+@test
+fn unwrapOrGivesTheValueOrTheFallback() {
+    let some: Option<int> = .Some(3)
+    let none: Option<int> = .None
+    assert(some.unwrapOr(0) == 3)
+    assert(none.unwrapOr(7) == 7)
+    assert(some.isSome() && none.isNone())
+}
+
+@test
+fn takeLeavesNone() {
+    var name: Option<str> = .Some("ada".toOwned())
+    let taken = name.take()
+    assert(name.isNone())
+    assert((taken ?? "") == "ada")
+}

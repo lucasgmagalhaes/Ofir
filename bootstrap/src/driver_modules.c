@@ -6,9 +6,13 @@
 // std.collections.Map`), its module `a` is loaded. Imports that match no
 // file are reported by the resolver (E0204).
 
+#define _XOPEN_SOURCE 700   // realpath
+
 #include "driver_internal.h"
 
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -92,15 +96,48 @@ static void load_import(Loader *ld, const Item *item) {
     }
 }
 
-// The module name of the root file: its name without the directory and `.at`.
+// The module name of the root file: its name without the directory and
+// `.at`; the directory's name for a `mod.at` (spec 7.1).
 static StrView root_name(Loader *ld, const char *input) {
-    const char *base = strrchr(input, '/');
-    base = base ? base + 1 : input;
+    const char *slash = strrchr(input, '/');
+    const char *base = slash ? slash + 1 : input;
     size_t len = strlen(base);
-    if (len > 3 && strcmp(base + len - 3, ".at") == 0) {
+    if (strcmp(base, "mod.at") == 0 && slash) {
+        const char *dir = slash;
+        while (dir > input && dir[-1] != '/') {
+            dir--;
+        }
+        base = dir;
+        len = (size_t)(slash - dir);
+    } else if (len > 3 && strcmp(base + len - 3, ".at") == 0) {
         len -= 3;
     }
     return (StrView){arena_strndup(&ld->p->session->arena, base, len), len};
+}
+
+// A root file inside the standard library is that std module (`astra
+// test std/core/str.at` tests `std.core.str`), so the prelude does not
+// load it a second time.
+static bool std_name(Loader *ld, const char *input, StrView *name) {
+    char file[PATH_MAX], dir[PATH_MAX];
+    if (!ld->has_std || !realpath(input, file) || !realpath(ld->std_dir, dir)) {
+        return false;
+    }
+    size_t n = strlen(dir);
+    if (strncmp(file, dir, n) != 0 || file[n] != '/') {
+        return false;
+    }
+    char dotted[PATH_SIZE];
+    int len = snprintf(dotted, sizeof dotted, "std.%s", file + n + 1);
+    if (len < 7 || len >= (int)sizeof dotted) {
+        return false;
+    }
+    len -= len > 11 && strcmp(dotted + len - 7, "/mod.at") == 0 ? 7 : 3;   // or `.at`
+    for (int i = 0; i < len; i++) {
+        dotted[i] = dotted[i] == '/' ? '.' : dotted[i];
+    }
+    *name = (StrView){arena_strndup(&ld->p->session->arena, dotted, (size_t)len), (size_t)len};
+    return true;
 }
 
 Program load_program(Pipeline *p, Module *root) {
@@ -110,9 +147,14 @@ Program load_program(Pipeline *p, Module *root) {
     snprintf(ld.root_dir, sizeof ld.root_dir, "%.*s", dir_len, slash ? p->opts->input : ".");
     static const char *const STD[] = {"../../std", "../lib/astra/std"};
     ld.has_std = find_installed(p->opts->argv0, "ASTRA_STD", STD, ARRAY_LEN(STD), ld.std_dir);
-    VEC_PUSH(ld.modules, ((ProgramModule){.module = root, .name = root_name(&ld, p->opts->input)}));
+    StrView name;
+    if (!std_name(&ld, p->opts->input, &name)) {
+        name = root_name(&ld, p->opts->input);
+    }
+    VEC_PUSH(ld.modules, ((ProgramModule){.module = root, .name = name}));
     char core[PATH_SIZE];
-    if (module_file(&ld, SV("std.core"), core)) {   // the prelude, in every program
+    // The prelude, in every program.
+    if (!is_loaded(&ld, SV("std.core")) && module_file(&ld, SV("std.core"), core)) {
         load(&ld, SV("std.core"), core);
     }
     for (size_t m = 0; m < ld.modules.len; m++) {   // grows while it is walked

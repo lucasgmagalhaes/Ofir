@@ -13,6 +13,7 @@ static void print_usage(FILE *out) {
           "commands:\n"
           "  build <file.at>   compile a program\n"
           "  run <file.at>     compile and run a program\n"
+          "  test <file.at>    compile and run the `@test` functions\n"
           "  version           print the compiler version\n"
           "\n"
           "options:\n"
@@ -101,7 +102,8 @@ int main(int argc, char **argv) {
         print_usage(stdout);
         return 0;
     }
-    if (strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
+    if (strcmp(command, "build") == 0 || strcmp(command, "run") == 0 ||
+        strcmp(command, "test") == 0) {
         Options opts;
         return parse_options(argc, argv, &opts) ? driver_build(&opts) : 2;
     }

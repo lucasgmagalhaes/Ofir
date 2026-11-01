@@ -1,0 +1,30 @@
+// `astra test` (spec 12.2): each test runs in its own process, so the
+// failing one does not stop the others; `main` is not run.
+
+fn add(a: int, b: int) int {
+    return a + b
+}
+
+@test
+fn addWorks() {
+    assert(add(2, 2) == 4)
+}
+
+@test
+fn addFails() {
+    println("printed before the failure")
+    assert(add(2, 2) == 5)
+}
+
+@test
+fn stillRuns() {
+    var total = 0
+    for i in 1..=10 {
+        total = add(total, i)
+    }
+    assert(total == 55)
+}
+
+fn main() {
+    println("main is not a test")
+}

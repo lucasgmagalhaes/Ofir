@@ -41,6 +41,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0202 | `x` is private | stage 0 |
 | E0203 | the program has no valid `main` function | stage 0 |
 | E0204 | cannot find module `m` | stage 0 |
+| E0205 | a `@test` function takes no parameters and returns nothing | stage 0 |
 | E0300 | mismatched types: expected X, found Y | stage 0 |
 | E0301 | no method `m` on type `T` | stage 0 |
 | E0302 | wrong number of arguments | stage 0 |

@@ -2,6 +2,8 @@
 
 #include "sema/sema.h"
 
+#include <string.h>
+
 typedef struct {
     const char *name;
     DefKind kind;
@@ -60,6 +62,7 @@ uint32_t sema_enter(Sema *sema, uint32_t index) {
 }
 
 void sema_free(Sema *sema) {
+    VEC_FREE(sema->tests);
     VEC_FREE(sema->imports);
     types_free(&sema->types);
     VEC_FREE(sema->defs);
@@ -75,6 +78,21 @@ const Attribute *find_attribute(const Sema *sema, AttributeList attributes, cons
         }
     }
     return NULL;
+}
+
+bool module_in_std(const Sema *sema, uint32_t module) {
+    StrView name = sema->program.items[module].name;
+    return name.len >= 3 && memcmp(name.ptr, "std", 3) == 0 &&
+           (name.len == 3 || name.ptr[3] == '.');
+}
+
+bool skipped_test(const Sema *sema, const Item *item) {
+    if (item->kind != ITEM_FN || item->attributes.len == 0 ||
+        !find_attribute(sema, item->attributes, "test")) {
+        return false;
+    }
+    bool tested = sema->current == 0 || !module_in_std(sema, sema->current);
+    return !sema->testing || !tested;
 }
 
 Def *lang_def(Sema *sema, TypeId type) {

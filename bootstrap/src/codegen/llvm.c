@@ -149,6 +149,7 @@ static const char RUNTIME_DECLS[] =
     "declare void @astra_print_f32(float) nounwind\n"
     "declare void @astra_print_bool(i1 zeroext) nounwind\n"
     "declare void @astra_print_newline() nounwind\n"
+    "declare i64 @astra_test_index() nounwind\n"
     "declare void @astra_str_push_str(ptr, ptr) nounwind\n"
     "declare void @astra_str_push_int(ptr, i64) nounwind\n"
     "declare void @astra_str_push_uint(ptr, i64) nounwind\n"

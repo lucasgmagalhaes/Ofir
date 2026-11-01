@@ -32,7 +32,7 @@ static bool output_path(const Options *opts, char out[PATH_SIZE]) {
     if (len > 3 && strcmp(base + len - 3, ".at") == 0) {
         len -= 3;
     }
-    if (strcmp(opts->command, "run") != 0) {
+    if (strcmp(opts->command, "run") != 0 && strcmp(opts->command, "test") != 0) {
         return snprintf(out, PATH_SIZE, "%.*s", (int)len, base) < PATH_SIZE;
     }
     const char *tmp = getenv("TMPDIR");
@@ -60,8 +60,8 @@ static int spawn_wait(char *const argv[]) {
     return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
 }
 
-int run_program(const char *exe) {
-    char *argv[] = {(char *)exe, NULL};
+int run_program(const char *exe, const char *arg) {
+    char *argv[] = {(char *)exe, (char *)arg, NULL};
     int status = spawn_wait(argv);
     return status < 0 ? 1 : status;
 }

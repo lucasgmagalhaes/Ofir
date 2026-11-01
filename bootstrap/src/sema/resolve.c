@@ -207,10 +207,27 @@ static void resolve_item(Resolver *r, Item *item) {
     }
 }
 
+// `@test fn name() { ... }` (spec 12.2): `astra test` calls it with nothing.
+// Checked in every build, although only `astra test` compiles the body.
+static void check_test_signature(Resolver *r, const Item *item) {
+    const FnDecl *fn = item->as.fn;
+    if (fn->params.len > 0 || fn->ret || fn->type_params.len > 0) {
+        resolve_error(r, "E0205", fn->span,
+                      "a `@test` function takes no parameters and returns nothing");
+    }
+}
+
 static void resolve_pass(Resolver *r, int pass) {
     ItemList items = r->sema->module->items;
     for (uint32_t i = 0; i < items.len; i++) {
         Item *item = items.items[i];
+        if (pass == 0 && item->kind == ITEM_FN && item->attributes.len > 0 &&
+            find_attribute(r->sema, item->attributes, "test")) {
+            check_test_signature(r, item);
+        }
+        if (skipped_test(r->sema, item)) {
+            continue;
+        }
         if (pass == 0) {
             collect_item(r, item);
         } else if (pass == 1 && item->kind == ITEM_IMPORT) {
