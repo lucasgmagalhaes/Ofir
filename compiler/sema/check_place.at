@@ -8,6 +8,7 @@ import sema.check.Checker
 import sema.check_box.adjustedType
 import sema.check_box.boxInner
 import sema.check_box.derefsOf
+import sema.expr_check.isModuleMember
 import sema.program.Program
 import sema.types.ERROR
 import sema.types.STR
@@ -27,6 +28,9 @@ import syntax.ast.ExprKind
 pub fn placeRoot(c: mut Checker, p: Program, e: &Expr) Option<(&Expr, int)> {
     var at = e
     for {
+        if isModuleMember(c, at) {
+            return .Some((at, 0))   // `m.global`
+        }
         let base = match at.kind {
             .Field(base, _, _) => &*base
             .TupleField(base, _) => &*base

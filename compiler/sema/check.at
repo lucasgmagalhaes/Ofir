@@ -15,6 +15,7 @@
 
 import base.intern.Symbol
 import base.span.Span
+import diag.noSpan
 import sema.check_ref.checkBorrowSource
 import sema.check_stmt.checkBlock
 import sema.check_unsafe.checkCSignature
@@ -130,8 +131,12 @@ pub struct Checker {
     pub loops: List<bool>
     /** Above 0 inside an `unsafe` block or function. */
     pub unsafeDepth: int
-    /** The function being checked: its module and `NodeId`, or -1. */
+    /** The `NodeId` of the function being checked, or -1. */
     pub fnNode: int
+    /** Its `DefId`, or 0. */
+    pub fnDef: int
+    /** The struct literal being checked: where its shorthand fields `P\{x\}` are. */
+    pub shorthandSpan: Span
 
     /**
      * Reports an error.
@@ -423,7 +428,8 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
                    members, callTypeArgs, sliceCoercions,
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
-                   selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1}
+                   selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
+                   shorthandSpan: noSpan()}
 }
 
 // ---------------------------------------------------------------------------
@@ -465,6 +471,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int) {
     c.ret = c.types.get(sig).inner
     c.selfType = selfType
     c.fnNode = decl.id.0
+    c.fnDef = id
     if decl.hasSelf && c.localTypes.len() > 0 {
         c.localTypes[0] = selfType
     }

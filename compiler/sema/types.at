@@ -337,7 +337,13 @@ pub struct TypeTable {
     }
 }
 
-fn kindNumber(kind: TyKind) int {
+/**
+ * The position of a kind in `TyKind`, for ordered comparisons.
+ *
+ * @param kind a kind
+ * @returns its number
+ */
+pub fn kindNumber(kind: TyKind) int {
     return match kind {
         .Error => 0
         .Unit => 1
