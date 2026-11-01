@@ -1,0 +1,24 @@
+fn sortAny<T>(values: List<T>) {
+    var sorted = values
+    sorted.sort()                // error[E0313]: `sort` needs elements of type int, float or str in stage 0, not `T`
+}
+
+fn main() {
+    let xs = [1, 2]
+    xs[0] = 3                    // error[E0315]: this value cannot be modified: declare it with `var`
+    let a = [1, "two"]           // error[E0300]: mismatched types: expected int, found str
+    let b = []                   // error[E0330]: cannot infer the element type of `[]`: write the type, as in `let names: List<str> = []`
+    let c = ["s"; 3]             // error[E0321]: `[value; count]` needs a value of a Copy type, not `str`
+    for w in ["x", "y"] {        // error[E0321]: `for x in list` needs a value of a Copy type, not `str`
+    }
+    for n in 5 {                 // error[E0300]: mismatched types: `for` needs a range or a list, found int
+    }
+    let d: str = xs[0]           // error[E0300]: mismatched types: expected str, found int
+    var bools = [true]
+    bools.sort()                 // error[E0313]: `sort` needs elements of type int, float or str in stage 0, not `bool`
+}
+
+copy enum Token {
+    Word(str)                    // error[E0317]: a `copy enum` can only have fields of Copy types, not `str`
+    Number(int)
+}

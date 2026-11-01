@@ -133,6 +133,15 @@ TypeId deref_box(Checker *c, Expr **place, TypeId type);
 // Whether the dereference `e` reads through a box (`*(b.ptr)`).
 bool is_box_deref(Checker *c, const Expr *e);
 
+// check_list.c: `List<T>` literals, indexing and loops
+bool list_elem(Checker *c, TypeId type, TypeId *elem);   // whether `type` is List<elem>
+void require_copy(Checker *c, Span span, TypeId type, const char *what);   // E0321
+TypeId check_list_literal(Checker *c, Expr *e, TypeId expected);
+TypeId check_list_repeat(Checker *c, Expr *e, TypeId expected);
+TypeId check_for_list(Checker *c, Expr *list);   // the type of the loop variable
+void check_list_sort(Checker *c, Expr *call);
+void check_list_layout(Checker *c, const Def *def);
+
 // check_user_method.c
 // The struct or enum named by `e`, `Point` or `Pair<int, str>`; its type
 // arguments go to `args`.
@@ -146,6 +155,7 @@ TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type, Typ
 
 // structs.c
 StructInfo *struct_fields(Checker *c, DefId id);   // NULL while it is being computed
+bool type_is_copy(Checker *c, TypeId type);
 TypeId check_struct_field(Checker *c, Expr *e, TypeId base);
 TypeId check_tuple_field(Checker *c, Expr *e);
 TypeId check_constructor(Checker *c, Expr *call, DefId id, TypeList explicit, TypeId expected);

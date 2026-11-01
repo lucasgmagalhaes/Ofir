@@ -23,6 +23,8 @@ Expr *place_root(Expr *e) {
             e = e->as.field.base;
         } else if (e->kind == EXPR_TUPLE_FIELD) {
             e = e->as.tuple_field.base;
+        } else if (e->kind == EXPR_INDEX && e->as.index.base->type.id != TID_STR) {
+            e = e->as.index.base;   // an element of a list
         } else {
             bool deref = e->kind == EXPR_UNARY && e->as.unary.op == OP_DEREF;
             return e->kind == EXPR_IDENT || e->kind == EXPR_SELF || deref ? e : NULL;
@@ -242,10 +244,15 @@ TypeId check_field(Checker *c, Expr *e, TypeId expected) {
     return primitive->type;
 }
 
-// `s[i]` is the byte at offset i of a str (spec 2.3).
+// `s[i]` is the byte at offset i of a str (spec 2.3); `l[i]` an element.
 TypeId check_index(Checker *c, Expr *e) {
     TypeId base = check_expr(c, e->as.index.base, NO_TYPE);
+    base = deref_box(c, &e->as.index.base, base);
     coerce(c, e->as.index.index, type_id(TID_INT));
+    TypeId elem;
+    if (list_elem(c, base, &elem)) {
+        return elem;
+    }
     if (base.id == TID_STR) {
         return type_id(TID_U8);
     }

@@ -1,4 +1,4 @@
-enum Shape {
+copy enum Shape {
     Circle(radius: float)
     Rect(width: float, height: float)
     Empty
