@@ -208,5 +208,7 @@ Unicode scalar values are `u32` (see `str.chars()` in the standard library).
 
 ## 1.8 Documentation comments
 
-`///` documents the next declaration and `//!` documents the enclosing
-module (chapter 12.5).
+`/** ... */` documents the next declaration; a `/** ... */` comment whose
+text starts with `@module` documents the file's module (chapter 12.5, ADR
+0020). The leading `*` of each line is not part of the text. `/***` and
+`/**/` are ordinary block comments.

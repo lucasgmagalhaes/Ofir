@@ -1,7 +1,15 @@
-//! Module documentation.
-//! Second line.
+/**
+ * @module
+ * Module documentation.
+ * Second line.
+ */
 
-/// Documents `main`.
-/// More details.
+/**
+ * Documents `main`.
+ *
+ * @example
+ * main()
+ */
 fn main() {} // ordinary comment
-//// not a doc comment
+/// a line comment, not documentation
+/* a block comment */ /**/ /*** stars */

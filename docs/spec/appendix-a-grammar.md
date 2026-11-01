@@ -13,12 +13,12 @@ A terminator before `}` may be omitted.
 
 ```ebnf
 File          = [ ModuleDoc ] { Import } { Item } EOF .
-ModuleDoc     = inner_doc_comment { inner_doc_comment } .   (* `//!` lines *)
+ModuleDoc     = doc_comment .            (* `/** @module ... */` *)
 Import        = "import" ModulePath [ "as" identifier ] NL .
 ModulePath    = identifier { "." identifier } .
 
 Item          = [ DocComment ] { Attribute } [ "pub" ] ItemKind .
-DocComment    = doc_comment { doc_comment } .               (* `///` lines *)
+DocComment    = doc_comment .            (* `/** ... */` *)
 ItemKind      = FnDecl
               | StructDecl
               | TupleStructDecl
