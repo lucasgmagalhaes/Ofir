@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 runtime unit runner-selftest test test-std check-codes check-sizes check-docs check-leaks bench bench-compare clean
+.PHONY: all stage0 runtime unit runner-selftest test test-std check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
 
 all: stage0 runtime
 
@@ -36,6 +36,10 @@ check-leaks: stage0 runtime
 # The `@test` functions of std (spec 12.2).
 test-std: stage0 runtime
 	$(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage0/astra
+
+# Every run and panic test and example under ASan and UBSan (needs gcc).
+check-asan: stage0 runtime
+	$(PYTHON) tools/check_asan.py --compiler $(BUILD)/stage0/astra
 
 test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs test-std
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/astra

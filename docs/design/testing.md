@@ -111,6 +111,17 @@ prints a summary. It accepts:
 The runner itself is tested by `tests/runner/selftest/run_selftest.py`,
 which drives it with a fake compiler (`make runner-selftest`).
 
+### Memory and robustness checks
+
+| Command | What it checks |
+|---------|----------------|
+| `make test` | the stage 0 compiler itself runs under ASan and UBSan (debug build) for every suite, and `make test-std` runs the `@test` functions of std |
+| `make check-leaks` | every program of `tests/run` and `examples` under valgrind: no leak, no invalid access |
+| `make check-asan` | the same programs and `tests/panic`, with the generated code (clang `-fsanitize=address`) and the runtime (ASan + UBSan) instrumented, linked by gcc; outputs must still match |
+| `python3 tools/fuzz_frontend.py --count N` | mutated sources (cut, spliced, extra tokens) must get diagnostics, never a crash, hang or sanitizer report |
+
+CI runs `check-leaks` and `check-asan` on Linux.
+
 ## 5. Rules
 
 1. Every bug fix comes with a test reproducing the bug.
