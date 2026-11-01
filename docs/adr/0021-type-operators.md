@@ -13,9 +13,9 @@ lets the copies drift apart.
 
 TypeScript answers with type operators: `keyof T`, indexed access `T[K]`,
 mapped types `{ [K in keyof T]: ... }` and conditional types, all erased
-before the program runs. Astra's types are nominal and it has no union
-types or runtime reflection (ADR 0017), so the operators must be adapted,
-not copied.
+before the program runs. Astra's types are nominal, its unions are tagged
+(ADR 0022) and it has no runtime reflection (ADR 0017), so the operators
+must be adapted, not copied.
 
 ## Decision
 

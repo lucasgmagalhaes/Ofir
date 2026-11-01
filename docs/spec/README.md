@@ -24,6 +24,7 @@ This specification describes the Astra language. Sections marked
 14. [Concurrency](14-concurrency.md) **[planned]**
 15. [Compile-time code](15-compile-time.md) **[planned]**
 16. [Type operators](16-type-operators.md) **[planned]**: `keyof`, `T[K]`, mapped and conditional types
+17. [Union types](17-union-types.md) **[planned]**: `A | B` as anonymous tagged enums
 
 Appendices:
 
