@@ -1,0 +1,173 @@
+/**
+ * @module
+ * Scopes: the names visible at a point of the program (stage 0:
+ * bootstrap/src/sema/scope.c). Every table is indexed by symbol, so a
+ * lookup is one list access. A module's table maps each name to a `DefId`
+ * (0 for none). Locals use a binding stack: declaring a local saves the
+ * binding it hides, and leaving a block restores the saved bindings.
+ */
+
+import base.intern.Symbol
+
+// A binding that a local declaration hid: the local index + 1, or 0.
+struct Shadowed {
+    name: Symbol
+    previous: int
+}
+
+/**
+ * The module tables and the locals of the function being resolved.
+ */
+pub struct Scope {
+    tables: List<List<int>>
+    current: int
+    symbolCount: int
+    local: List<int>
+    depth: List<int>
+    saved: List<Shadowed>
+    marks: List<int>
+
+    /**
+     * Empty tables for `moduleCount` modules and the symbols below
+     * `symbolCount`; symbols interned later are never bound.
+     *
+     * @param symbolCount the number of symbols
+     * @param moduleCount the number of modules
+     * @returns the scope, in module 0
+     */
+    pub fn new(symbolCount: int, moduleCount: int) Scope {
+        var tables: List<List<int>> = []
+        for _ in 0..moduleCount {
+            tables.push(List.filled(0, symbolCount))
+        }
+        return Scope{tables, current: 0, symbolCount, local: List.filled(0, symbolCount), depth: [],
+                     saved: [], marks: []}
+    }
+
+    /**
+     * Makes module `index` the current one.
+     *
+     * @param index a module of the program
+     */
+    pub fn useModule(mut self, index: int) {
+        self.current = index
+    }
+
+    /**
+     * What `name` is bound to in the current module.
+     *
+     * @param name the name
+     * @returns its `DefId`, or 0
+     */
+    pub fn module(self, name: Symbol) int {
+        return self.moduleIn(self.current, name)
+    }
+
+    /**
+     * What `name` is bound to in module `index`.
+     *
+     * @param index a module
+     * @param name the name
+     * @returns its `DefId`, or 0
+     */
+    pub fn moduleIn(self, index: int, name: Symbol) int {
+        return if name.0 < self.symbolCount { self.tables[index][name.0] } else { 0 }
+    }
+
+    /**
+     * Binds `name` in the current module.
+     *
+     * @param name the name
+     * @param def its `DefId`
+     */
+    pub fn setModule(mut self, name: Symbol, def: int) {
+        self.setIn(self.current, name, def)
+    }
+
+    /**
+     * Binds `name` in module `index`.
+     *
+     * @param index a module
+     * @param name the name
+     * @param def its `DefId`
+     */
+    pub fn setIn(mut self, index: int, name: Symbol, def: int) {
+        self.tables[index][name.0] = def
+    }
+
+    /**
+     * The number of symbols the tables hold.
+     *
+     * @returns the count
+     */
+    pub fn symbols(self) int {
+        return self.symbolCount
+    }
+
+    /**
+     * Opens a block.
+     */
+    pub fn enter(mut self) {
+        self.marks.push(self.saved.len())
+    }
+
+    /**
+     * Closes the innermost block: its locals are forgotten.
+     */
+    pub fn leave(mut self) {
+        let mark = self.marks.pop() ?? 0
+        for self.saved.len() > mark {
+            if let .Some(s) = self.saved.pop() {
+                self.local[s.name.0] = s.previous
+            }
+        }
+    }
+
+    /**
+     * Starts a function: forgets every local.
+     *
+     * @panics when a block is still open
+     */
+    pub fn resetLocals(mut self) {
+        assert(self.marks.len() == 0)
+        self.depth.clear()
+    }
+
+    /**
+     * The local bound to `name`.
+     *
+     * @param name the name
+     * @returns its index, if it is a local
+     */
+    pub fn localOf(self, name: Symbol) Option<int> {
+        let bound = if name.0 < self.symbolCount { self.local[name.0] } else { 0 }
+        return if bound == 0 { .None } else { .Some(bound - 1) }
+    }
+
+    /**
+     * Whether `name` is a local of the innermost block.
+     *
+     * @param name the name
+     * @returns true if it is
+     */
+    pub fn inCurrentBlock(self, name: Symbol) bool {
+        if let .Some(id) = self.localOf(name) {
+            return self.depth[id] == self.marks.len()
+        }
+        return false
+    }
+
+    /**
+     * Binds `name` to local `id` in the innermost block; ids are dense and
+     * increase within one function.
+     *
+     * @param name the name
+     * @param id the local's index
+     */
+    pub fn declare(mut self, name: Symbol, id: int) {
+        self.saved.push(Shadowed{name, previous: self.local[name.0]})
+        self.local[name.0] = id + 1
+        self.depth.push(self.marks.len())
+    }
+}
+

@@ -12,6 +12,9 @@ project uses [Semantic Versioning](https://semver.org/).
   and the parser, whose tokens and trees equal stage 0's on every source,
   `compiler/` included (milestone M3, `make compare-stages`); a project
   root is the nearest directory with an `astra.toml`.
+- Stage 1 module loading and name resolution (roadmap 4.5), checked against
+  stage 0's new `--emit=names` trace by `make compare-stages`.
+- `fs.canonicalize`.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 

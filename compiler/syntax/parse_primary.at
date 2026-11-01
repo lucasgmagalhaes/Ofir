@@ -79,7 +79,7 @@ fn interpolation(p: mut Parser) Expr {
         let text = textOf(p.token(0)).toOwned()
         let span = p.advance()
         if text.len() > 0 {   // "{x}" has empty text around `x`
-            parts.push(Expr{kind: .Str(text), span})
+            parts.push(Expr{id: p.newId(), kind: .Str(text), span})
         }
         if kind == .StrEnd || kind == .Eof {
             break
@@ -233,7 +233,7 @@ fn structLiteral(p: mut Parser, typeName: move Expr) Expr {
             p.skipNewlines()
             value = .Some(parseExpr(p))
         }
-        fields.push(FieldInit{name: field, value})
+        fields.push(FieldInit{id: p.newId(), name: field, value})
         let separated = p.acceptSeparator()
         p.skipNewlines()
         if !separated {
@@ -316,7 +316,7 @@ pub fn parseCallArgs(p: mut Parser) List<Arg> {
     return items
 }
 
-fn tupleField(p: Parser, base: move Expr, index: u64) Expr {
+fn tupleField(p: mut Parser, base: move Expr, index: u64) Expr {
     let start = base.span
     return newExpr(p, .TupleField(Box.new(base), index), start)
 }

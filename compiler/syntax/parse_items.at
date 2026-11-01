@@ -91,7 +91,7 @@ fn valueItem(p: mut Parser, isConst: bool) (Symbol, ItemKind) {
     if p.accept(.Colon) {
         ty = .Some(parseType(p))
     }
-    var value = Expr{kind: .Tuple([]), span: p.here()}
+    var value = Expr{id: p.newId(), kind: .Tuple([]), span: p.here()}
     if p.expect(.Eq, "`=` and a value") {
         value = parseExpr(p)
     }

@@ -21,6 +21,12 @@ StrView resolver_name(const Resolver *r, Symbol name);
 
 void declare_item(Resolver *r, Def def);
 
+// --emit=names (sema->trace): lines `line:col text` for the root module.
+bool tracing(const Resolver *r);
+void trace(Resolver *r, Span span, const char *format, ...) __attribute__((format(printf, 3, 4)));
+// `line:col what name -> resolution`
+void trace_use(Resolver *r, const char *what, Symbol name, Span span, Res res);
+
 // resolve_import.c
 void resolve_import(Resolver *r, const Item *item);
 void import_prelude(Resolver *r);   // after every module's declarations are known

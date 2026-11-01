@@ -1,0 +1,100 @@
+/**
+ * @module
+ * `--emit=names`: a trace of what the names of the root module resolve to,
+ * one line per declaration of a local or use of a name, as stage 0 prints
+ * it (bootstrap/src/sema/resolve.c), so that the two resolvers can be
+ * compared (roadmap 4.5).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.def.Res
+import sema.def.kindName
+import sema.resolve.Resolver
+
+/**
+ * The trace being written.
+ */
+pub struct Trace {
+    /** Whether `--emit=names` asked for it. */
+    pub enabled: bool
+    /** Whether the module being resolved is traced (the root). */
+    pub active: bool
+    /** The lines so far. */
+    pub out: str
+
+    /**
+     * A trace, off unless `enabled`.
+     *
+     * @param enabled whether to write it
+     * @returns the empty trace
+     */
+    pub fn new(enabled: bool) Trace {
+        return Trace{enabled, active: false, out: ""}
+    }
+
+    /**
+     * Adds a line when enabled, whatever the module.
+     *
+     * @param text the line, without `\n`
+     */
+    pub fn line(mut self, text: str) {
+        if self.enabled {
+            self.out.push(text)
+            self.out.push("\n")
+        }
+    }
+}
+
+/**
+ * Adds `line:col text` for the root module.
+ *
+ * @param r the resolver
+ * @param span where
+ * @param text what
+ */
+pub fn traceAt(r: mut Resolver, span: Span, text: str) {
+    if !r.trace.active {
+        return
+    }
+    let at = r.map.file(span.file).lineCol(span.start)
+    r.trace.line("{at.line}:{at.column} {text}")
+}
+
+/**
+ * Adds `line:col what name -> resolution` for the root module.
+ *
+ * @param r the resolver
+ * @param what `use`, `member`, `import`, ...
+ * @param name the name
+ * @param span where
+ * @param res what it resolves to
+ */
+pub fn traceUse(r: mut Resolver, what: str, name: Symbol, span: Span, res: Res) {
+    if r.trace.active {
+        traceAt(r, span, "{what} {r.text(name)} -> {resText(r, res)}")
+    }
+}
+
+// `local 3`, `fn std.core.str.len`, `module std.fs`, `primitive int`, `error`.
+fn resText(r: Resolver, res: Res) str {
+    let id = match res {
+        .Local(local) => {
+            return "local {local}"
+        }
+        .Def(id) => id
+        _ => 0
+    }
+    if id == 0 {
+        return "error"
+    }
+    let def = r.def(id)
+    let kind = kindName(def.kind)
+    if def.kind == .Module {
+        return "{kind} {r.programName(def.target)}"
+    }
+    if def.inPrelude {
+        return "{kind} {r.text(def.name)}"
+    }
+    return "{kind} {r.programName(def.module)}.{r.text(def.name)}"
+}

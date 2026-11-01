@@ -39,6 +39,7 @@ pub copy enum IoErrorKind {
 | `fn write(path: str, data: [u8]) Result<(), IoError>` | creates or truncates | ✓ |
 | `fn writeString(path: str, text: str) Result<(), IoError>` | the same, for text | ✓ |
 | `fn exists(path: str) bool` | | ✓ |
+| `fn canonicalize(path: str) Result<str, IoError>` | the absolute path, without `.`, `..` or symbolic links | ✓ |
 | `fn createDirAll(path: str) Result<(), IoError>` | | ✓ |
 | `fn removeFile(path: str) Result<(), IoError>` | | ✓ |
 | `fn readDir(path: str) Result<List<DirEntry>, IoError>` | sorted by name, for determinism; `DirEntry` has `name` and `path` | ✓ |

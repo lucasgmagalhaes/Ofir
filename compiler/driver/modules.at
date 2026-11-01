@@ -1,0 +1,296 @@
+/**
+ * @module
+ * Loading the modules of a program (spec 7.1 and 7.2; stage 0:
+ * bootstrap/src/driver_modules.c): the root file, then every module it
+ * imports, transitively. `import a.b` is the file `<root dir>/a/b.at` or
+ * `<root dir>/a/b/index.at`, where the root dir is the project's (the
+ * nearest directory with an `astra.toml`) or the root file's; `import
+ * std.x` is in the standard library, and `std.core` (the prelude) is always
+ * loaded. When `a.b` names a declaration rather than a module (`import
+ * std.collections.Map`), its module `a` is loaded. Imports that match no
+ * file are reported by the resolver (E0204).
+ *
+ * Stage 1 has no `astra test` yet: the `_test.at` files are not loaded.
+ */
+
+import base.intern.Interner
+import base.intern.Symbol
+import base.span.FileId
+import base.span.SourceMap
+import diag.Diagnostics
+import sema.program.Program
+import sema.program.ProgramModule
+import std.fs
+import std.mem
+import std.os
+import syntax.ast.ItemKind
+import syntax.ast.Module
+import syntax.lexer.tokenize
+import syntax.parser.parse
+
+/**
+ * The tables of a compilation: files, names and diagnostics.
+ */
+pub struct Front {
+    /** The files read so far. */
+    pub map: SourceMap
+    /** The interner of every file's names. */
+    pub names: Interner
+    /** The diagnostics of every phase. */
+    pub diags: Diagnostics
+
+    /**
+     * Reads a file into the source map.
+     *
+     * @param path its path
+     * @returns its id, or `None` when it cannot be read
+     */
+    pub fn load(mut self, path: str) Option<FileId> {
+        let Ok(text) = fs.readToString(path) else {
+            return .None
+        }
+        return .Some(self.map.add(path.toOwned(), text))
+    }
+
+    /**
+     * Lexes and parses a file, as stage 0 does: nothing is parsed once an
+     * error was reported, in this file or an earlier one.
+     *
+     * @param file a file of the source map
+     * @returns its tree, also when it has syntax errors
+     */
+    pub fn parseFile(mut self, file: FileId) Option<Module> {
+        let tokens = tokenize(self.map.file(file).text, file, self.names, self.diags)
+        if self.diags.hasErrors() {
+            return .None
+        }
+        let names = mem.replace(self.names, Interner.new())
+        let diags = mem.replace(self.diags, Diagnostics.new())
+        let parsed = parse(file, self.map.file(file).text, tokens, names, diags)
+        self.names = parsed.names
+        self.diags = parsed.diags
+        return .Some(parsed.module)
+    }
+}
+
+struct Loader {
+    modules: List<ProgramModule>
+    rootDir: str
+    stdDir: Option<str>
+}
+
+// The position of the last `/` of `path`, or -1.
+fn lastSlash(path: str) int {
+    var found = -1
+    var i = 0
+    for b in path.bytes() {
+        if b == b'/' {
+            found = i
+        }
+        i += 1
+    }
+    return found
+}
+
+fn isLoaded(ld: Loader, name: str) bool {
+    for i in 0..ld.modules.len() {
+        if ld.modules[i].name == name {
+            return true
+        }
+    }
+    return false
+}
+
+// The file of module `name`, if it exists.
+fn moduleFile(ld: Loader, name: str) Option<str> {
+    let inStd = name.startsWith("std.")
+    var dir = ld.rootDir.clone()
+    var rest = name.toOwned()
+    if inStd {
+        let Some(std) = ld.stdDir.clone() else {
+            return .None
+        }
+        dir = std.clone()
+        rest = name.sliceFrom(4).toOwned()
+    }
+    let relative = rest.replace(".", "/")
+    let file = "{dir}/{relative}.at"
+    if fs.exists(file) {
+        return .Some(file)
+    }
+    let index = "{dir}/{relative}/index.at"
+    if fs.exists(index) {
+        return .Some(index)
+    }
+    return .None
+}
+
+fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
+    let Some(file) = front.load(path) else {
+        return
+    }
+    if let .Some(module) = front.parseFile(file) {
+        ld.modules.push(ProgramModule{name: name.toOwned(), module})
+    }
+}
+
+fn dottedName(names: Interner, path: &List<Symbol>, count: int) str {
+    var out = ""
+    for i in 0..count {
+        if i > 0 {
+            out.push(".")
+        }
+        out.push(names.name(path[i]))
+    }
+    return out
+}
+
+// The module named by the path, then its parent.
+fn loadImport(ld: mut Loader, front: mut Front, path: &List<Symbol>) {
+    var count = path.len()
+    for count >= 1 && count + 1 >= path.len() {
+        let name = dottedName(front.names, path, count)
+        if isLoaded(ld, name) {
+            return
+        }
+        if let .Some(file) = moduleFile(ld, name) {
+            loadModule(ld, front, name, file)
+            return
+        }
+        count -= 1
+    }
+}
+
+// The module name of a root file outside std and the project: its name
+// without the directory and `.at`; the directory's name for an `index.at`.
+fn rootName(input: str) str {
+    let slash = lastSlash(input)
+    let base = input.sliceFrom(slash + 1)
+    if base == "index.at" && slash >= 0 {
+        let dir = input.slice(0, slash)
+        return dir.sliceFrom(lastSlash(dir) + 1).toOwned()
+    }
+    if base.len() > 3 && base.endsWith(".at") {
+        return base.slice(0, base.len() - 3).toOwned()
+    }
+    return base.toOwned()
+}
+
+// The dotted name of `input` relative to the directory `dir`, with `prefix`
+// (`std.` for the standard library), if `input` is inside it.
+fn nameUnder(input: str, dir: str, prefix: str) Option<str> {
+    let Ok(file) = fs.canonicalize(input) else {
+        return .None
+    }
+    let Ok(base) = fs.canonicalize(dir) else {
+        return .None
+    }
+    if !file.startsWith("{base}/") {
+        return .None
+    }
+    let dotted = "{prefix}{file.sliceFrom(base.len() + 1)}"
+    let min = prefix.len() + 4   // at least `x.at`
+    if dotted.len() < min {
+        return .None
+    }
+    let isIndex = dotted.len() > min + 5 && dotted.endsWith("/index.at")
+    let cut = dotted.len() - if isIndex { 9 } else { 3 }   // or `.at`
+    return .Some(dotted.slice(0, cut).replace("/", "."))
+}
+
+// The project root (spec 7.2): the nearest directory above the root file
+// that holds an `astra.toml`.
+fn projectDir(input: str) Option<str> {
+    let Ok(path) = fs.canonicalize(input) else {
+        return .None
+    }
+    var dir = path
+    for {
+        let slash = lastSlash(dir)
+        if slash <= 0 {
+            return .None
+        }
+        dir = dir.slice(0, slash).toOwned()
+        if fs.exists("{dir}/astra.toml") {
+            return .Some(dir)
+        }
+    }
+}
+
+// The standard library: `$ASTRA_STD`, or installed next to the compiler.
+fn findStd() Option<str> {
+    if let .Some(given) = os.env("ASTRA_STD") {
+        if given.len() > 0 {
+            return .Some(given)
+        }
+    }
+    let Ok(exe) = os.executablePath() else {
+        return .None
+    }
+    let dir = exe.slice(0, if lastSlash(exe) >= 0 { lastSlash(exe) } else { exe.len() })
+    let places = ["../../std", "../lib/astra/std"]
+    for i in 0..places.len() {
+        let place = "{dir}/{places[i]}"
+        if fs.exists(place) {
+            return .Some(place)
+        }
+    }
+    return .None
+}
+
+// The name of the root module: a file inside std is that std module, and a
+// file of a project is named from the project root (`base.intern`).
+fn rootModuleName(ld: Loader, input: str, inProject: bool) str {
+    if let .Some(std) = ld.stdDir.clone() {
+        if let .Some(name) = nameUnder(input, std, "std.") {
+            return name
+        }
+    }
+    if inProject {
+        if let .Some(name) = nameUnder(input, ld.rootDir, "") {
+            return name
+        }
+    }
+    return rootName(input)
+}
+
+/**
+ * The modules of the program whose root file is `input`.
+ *
+ * @param input the root file's path, as given
+ * @param root its tree
+ * @param front the tables, where the other files go
+ * @returns the program, the root first
+ */
+pub fn loadProgram(input: str, root: move Module, front: mut Front) Program {
+    let slash = lastSlash(input)
+    var rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
+    let project = projectDir(input)
+    let inProject = project.isSome()
+    if let .Some(dir) = project {
+        rootDir = dir
+    }
+    var ld = Loader{modules: [], rootDir, stdDir: findStd()}
+    let name = rootModuleName(ld, input, inProject)
+    ld.modules.push(ProgramModule{name, module: root})
+    if !isLoaded(ld, "std.core") {   // the prelude, in every program
+        if let .Some(core) = moduleFile(ld, "std.core") {
+            loadModule(ld, front, "std.core", core)
+        }
+    }
+    var m = 0
+    for m < ld.modules.len() {   // grows while it is walked
+        var imports: List<List<Symbol>> = []
+        let items = &ld.modules[m].module.items
+        for i in 0..items.len() {
+            if let ItemKind.Import(path, _) = items[i].kind {
+                imports.push(path.clone())
+            }
+        }
+        for i in 0..imports.len() {
+            loadImport(ld, front, &imports[i])
+        }
+        m += 1
+    }
+    return Program{modules: ld.modules}
+}

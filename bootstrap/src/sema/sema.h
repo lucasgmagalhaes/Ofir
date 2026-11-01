@@ -9,6 +9,8 @@
 #include "session.h"
 #include "syntax/ast.h"
 
+#include <stdio.h>
+
 typedef enum {
     DEF_FN,
     DEF_BUILTIN,     // print, println, panic, assert
@@ -103,6 +105,7 @@ typedef struct {
     DefId option, result;   // `@lang("option")`, `@lang("result")`: `?`, `??`, bare variants
     DefId slice;         // `@lang("slice") ref struct Slice<T>`: the type `&[T]`
     DefId map;           // `@lang("map") struct Map<K, V>`: `for key, value in map`
+    FILE *trace;         // --emit=names: where the root module's resolutions go
     bool testing;        // `astra test`: the `@test` functions are the roots, not `main`
     Vec(FnDecl *) tests; // filled by the lowering when testing, in program order
 } Sema;

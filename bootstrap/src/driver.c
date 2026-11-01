@@ -64,7 +64,12 @@ static Next run_sema(Pipeline *p, Program program) {
     Sema sema;
     sema_init(&sema, p->session, program);
     sema.testing = strcmp(p->opts->command, "test") == 0;
+    sema.trace = p->opts->emit == EMIT_NAMES ? stdout : NULL;
     resolve_program(&sema);
+    if (sema.trace) {
+        sema_free(&sema);
+        return STOP;
+    }
     if (!diags_has_errors(&p->session->diags)) {
         check_program(&sema);
     }

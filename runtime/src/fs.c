@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,6 +80,24 @@ bool astra_path_exists(const uint8_t *path, int64_t len) {
     bool found = name && stat(name, &info) == 0;
     astra_free(name);
     return found;
+}
+
+int32_t astra_canonicalize(const uint8_t *path, int64_t len, AstraBuf *out) {
+    char *name = astra_c_string(path, len);
+    char full[PATH_MAX];
+    *out = (AstraBuf){0};
+    if (!name) {
+        return EINVAL;
+    }
+    bool found = realpath(name, full) != NULL;
+    astra_free(name);
+    if (!found) {
+        return errno;
+    }
+    out->len = (int64_t)strlen(full);
+    out->ptr = astra_alloc(out->len);
+    memcpy(out->ptr, full, (size_t)out->len);
+    return 0;
 }
 
 int32_t astra_remove_file(const uint8_t *path, int64_t len) {

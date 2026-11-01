@@ -18,6 +18,14 @@ fn main() {
     check("createDirAll", fs.createDirAll(dir))
     check("createDirAll again", fs.createDirAll(dir))
     println("exists {fs.exists(dir)} {fs.exists("{dir}/none")}")
+    match fs.canonicalize("{dir}/../b/.") {
+        .Ok(path) => println("canonical {path.endsWith("/astra-fs-test/a/b")}")
+        .Err(e) => println("canonicalize: {e.message}")
+    }
+    match fs.canonicalize("{dir}/none") {
+        .Ok(_) => println("canonical none")
+        .Err(e) => println("canonicalize none: {e.message}")
+    }
     check("write b", fs.writeString("{dir}/b.txt", "second\n"))
     check("write a", fs.writeString("{dir}/a.txt", "one\r\ntwo\n"))
     check("write bytes", fs.write("{dir}/c.bin", [0, 1, 2, 255]))

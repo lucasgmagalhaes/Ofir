@@ -110,6 +110,7 @@ int32_t astra_read_file(const uint8_t *path, int64_t len, AstraBuf *out);
 int32_t astra_write_file(const uint8_t *path, int64_t len, const uint8_t *data, int64_t n);
 bool astra_path_exists(const uint8_t *path, int64_t len);
 int32_t astra_remove_file(const uint8_t *path, int64_t len);
+int32_t astra_canonicalize(const uint8_t *path, int64_t len, AstraBuf *out);
 int32_t astra_create_dir_all(const uint8_t *path, int64_t len);
 int32_t astra_read_dir(const uint8_t *path, int64_t len, AstraBuf *out);
 int32_t astra_read_line(AstraBuf *out);

@@ -1,0 +1,15 @@
+// The tests of `driver.modules` (spec 12.2).
+
+@test
+fn rootNames() {
+    assert(rootName("a/b/main.at") == "main")
+    assert(rootName("app/index.at") == "app")
+    assert(rootName("index.at") == "index")
+    assert(rootName("/x.at") == "x")
+    assert(rootName("noext") == "noext")
+}
+
+@test
+fn lastSlashFindsTheLastOne() {
+    assert(lastSlash("a/b/c") == 3 && lastSlash("abc") == -1 && lastSlash("/") == 0)
+}

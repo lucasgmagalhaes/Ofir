@@ -15,6 +15,7 @@ import concurrent.futures
 import random
 import subprocess
 import sys
+import os
 import tempfile
 from pathlib import Path
 
@@ -23,12 +24,16 @@ sys.path.insert(0, str(ROOT / "tools"))
 from fuzz_frontend import mutate  # noqa: E402
 
 # stage 1 command -> the stage 0 option that it must match
-COMMANDS = {"tokens": "--emit=tokens", "ast": "--emit=ast"}
+COMMANDS = {"tokens": "--emit=tokens", "ast": "--emit=ast", "names": "--emit=names"}
 SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 
 
+# Both stages read the same standard library, so that paths in messages agree.
+ENV = dict(os.environ, ASTRA_STD=str(ROOT / "std"))
+
+
 def run(argv: list) -> tuple:
-    result = subprocess.run(argv, capture_output=True, timeout=60)
+    result = subprocess.run(argv, capture_output=True, timeout=60, env=ENV)
     return result.returncode, result.stdout, result.stderr
 
 
