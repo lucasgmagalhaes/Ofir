@@ -76,6 +76,18 @@ LocalId to_local(Lowerer *l, Operand operand);   // a local holding the operand
 Operand lower_expr(Lowerer *l, Expr *e);
 Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver);
 bool type_is_value(TypeId type);   // false for () and !
+
+typedef struct {
+    Operand *items;
+    uint32_t count;
+} CallArgs;
+
+// Calls `fn` with the type arguments `targs` (a tuple, or ()); mono_body
+// reaches it. `dest` receives the result unless it is NULL.
+void emit_direct_call(Lowerer *l, const FnDecl *fn, TypeId targs, CallArgs args,
+                      LocalId *dest);
+// The function `name` of the std module `module` (`std.core.hash`).
+FnDecl *std_fn(Lowerer *l, const char *module, const char *name);
 // Whether parameter `index` of `fn` (-1 for `self`) is passed by address: a
 // `mut` parameter, or the borrowed value a returned reference points into.
 bool by_address(const FnDecl *fn, int32_t index);
@@ -136,6 +148,10 @@ Operand lower_match(Lowerer *l, Expr *e);
 
 // lower_intrinsic.c
 Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn);
+
+// lower_hash.c: `hashOf<K>` and `equals<K>` for the instance's key type
+Operand lower_hash_of(Lowerer *l, Expr *call);
+Operand lower_equals(Lowerer *l, Expr *call);
 
 // lower_struct.c
 Place lower_place(Lowerer *l, Expr *e);
