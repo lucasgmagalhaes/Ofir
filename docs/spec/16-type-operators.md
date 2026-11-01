@@ -23,7 +23,8 @@ type Both = .x | .y              // the same keys as keyof Point
 
 - Key literals are written `.name` (`.0`, `.1` for tuple indices).
 - `A | B` is the union of two key types, `A & B` their intersection and
-  `A - B` the keys of `A` not in `B`.
+  `A - B` the keys of `A` not in `B`. A `|` between other types is a
+  union type (chapter 17).
 - `keyof` applies to structs and tuples only (E0340). Outside the module of
   a struct, its private fields are not keys.
 - A key type with one key is a **single key**; with none it is the empty

@@ -122,7 +122,8 @@ enum Shape {
 ```
 
 A value of an enum type is exactly one of its variants. Enums are inspected
-with `match` (chapter 4), which must be exhaustive.
+with `match` (chapter 4), which must be exhaustive. A union type `A | B`
+(chapter 17) is an anonymous enum whose variants are its member types.
 
 ## 2.6 Built-in generic types
 

@@ -72,6 +72,10 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0342 | the fields of these keys have different types (spec 16) | planned |
 | E0343 | a key must be known at compile time (spec 16) | planned |
 | E0344 | the condition of a conditional type is not decided for this instantiation (spec 16) | planned |
+| E0350 | the members `A` and `B` of a union can be the same type (spec 17) | planned |
+| E0351 | type `T` cannot be a member of a union (spec 17) | planned |
+| E0352 | `T` is not a member of the union `U` (spec 17) | planned |
+| E0353 | the branches have different types: write the union type expected (spec 17) | planned |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0501 | refutable pattern in `let` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |

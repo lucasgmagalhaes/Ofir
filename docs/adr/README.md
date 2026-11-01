@@ -27,6 +27,7 @@ changed by writing a new record that supersedes the old one.
 | [0019](0019-standard-library-in-astra.md) | The standard library is written in Astra, from stage 0 on | Accepted |
 | [0020](0020-documentation-comments.md) | Documentation comments in the style of JSDoc | Accepted |
 | [0021](0021-type-operators.md) | Type operators: `keyof`, indexed access, mapped and conditional types | Accepted |
+| [0022](0022-union-types.md) | Union types as anonymous tagged enums | Accepted |
 
 ## Template
 

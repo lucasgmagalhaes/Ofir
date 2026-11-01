@@ -52,8 +52,9 @@ The function's return type must be compatible: `?` on a `Result<T, E>`
 requires the function to return `Result<U, E>`, and `?` on an `Option<T>`
 requires it to return `Option<U>`.
 
-If the error types differ, `?` converts the error when the function's error
-type `F` satisfies `From<E>` (`F.from(e)` is called). Otherwise the
+If the error types differ, `?` widens the error when `F` is a union type
+that contains `E` (chapter 17.3), and otherwise converts it when the
+function's error type `F` satisfies `From<E>` (`F.from(e)` is called). Otherwise the
 conversion is explicit with `.mapErr(...)`. Stage 0 requires both error
 types to be equal.
 

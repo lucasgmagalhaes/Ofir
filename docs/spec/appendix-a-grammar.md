@@ -129,6 +129,14 @@ KeyLiteral    = "." ( identifier | int_lit ) .
 MappedType    = "{" "[" identifier "in" Type [ "if" Type ] "]" [ "?" ] ":" Type "}" .
 ```
 
+Union types (chapter 17) **[planned]**: `A | B` between types that are not
+key types. `|` binds looser than `?`, so `A? | B` is `Option<A> | B`.
+
+```ebnf
+Type          = ...
+              | Type "|" Type .                 (* union type *)
+```
+
 ## A.5 Statements
 
 ```ebnf
@@ -234,7 +242,7 @@ PatternAtom   = "_"
               | TypePath "{" FieldPat { "," FieldPat } [ "," ".." ] "}"
               | TypePath "(" PatternList ")"                (* tuple struct *)
               | "(" PatternList ")"                     (* tuple *)
-              | identifier ":" Type .                   (* dyn type test *)
+              | ( identifier | "_" ) ":" Type .         (* type test: dyn or union *)
 PatternList   = Pattern { "," Pattern } [ "," ] .
 FieldPat      = identifier [ ":" Pattern ] .
 ```
@@ -250,5 +258,7 @@ FieldPat      = identifier [ ":" Pattern ] .
 - In a parameter `f: move fn(A) R`, `move` is read as the parameter mode.
   A parameter whose type is the owned function type is always taken in
   `move` mode, so this is the only spelling and has a single meaning.
+- In a type test pattern, a union type is written in parentheses
+  (`e: (A | B)`): a bare `|` there separates alternatives of the pattern.
 - Contextual keywords (chapter 1.5) are keywords only in the positions
   shown in this grammar.
