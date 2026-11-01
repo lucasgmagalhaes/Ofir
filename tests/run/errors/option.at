@@ -1,0 +1,66 @@
+// Option: bare Some/None, patterns, the std methods, `?` and `??`.
+
+fn find(values: List<int>, wanted: int) Option<int> {
+    for i in 0..values.len() {
+        if values[i] == wanted {
+            return Some(i)
+        }
+    }
+    return None
+}
+
+fn describe(o: Option<int>) str {
+    return match o {
+        Some(0) => "zero"
+        Some(n) if n < 0 => "negative"
+        Some(n) => "some {n}"
+        None => "none"
+    }
+}
+
+// `?` returns None from the function on None.
+fn sumOfPositions(values: List<int>, a: int, b: int) Option<int> {
+    let i = find(values, a)?
+    let j = find(values, b)?
+    return Some(i + j)
+}
+
+fn main() {
+    let xs = [10, 20, 30]
+    println("{describe(find(xs, 30))} {describe(find(xs, 99))} {describe(Some(-4))}")
+    println("{find(xs, 20).isSome()} {find(xs, 5).isNone()}")
+    println("{find(xs, 10).unwrap()} {find(xs, 7).unwrapOr(-1)} {find(xs, 30).expect("present")}")
+    println("{sumOfPositions(xs, 20, 30).unwrapOr(-1)} {sumOfPositions(xs, 20, 31).unwrapOr(-1)}")
+
+    let port = find(xs, 7) ?? 8080
+    let chained = find(xs, 1) ?? find(xs, 30) ?? 0
+    let fallback: Option<int> = find(xs, 1) ?? find(xs, 2)
+    println("{port} {chained} {fallback.isNone()}")
+
+    var slot = Some("token")
+    let taken = slot.take()
+    println("{taken.unwrap()} {slot.isNone()}")
+
+    if let Some(i) = find(xs, 20) {
+        println("found at {i}")
+    }
+    let Some(first) = find(xs, 10) else {
+        return
+    }
+    println("first {first}")
+
+    var stack = [1, 2, 3]
+    var total = 0
+    for {
+        let Some(top) = stack.pop() else {
+            break
+        }
+        total += top
+    }
+    println("{total} {stack.len()}")
+
+    let words: Option<str> = None
+    println(words ?? "empty")
+    let r: Result<int, str> = Some(5).okOr("missing")
+    println("{r.unwrap()}")
+}
