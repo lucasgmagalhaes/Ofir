@@ -1,0 +1,19 @@
+// The same generic function instantiated with two types named `Point`,
+// from two modules, gives two instances.
+
+import boxes
+
+struct Point {
+    y: str
+}
+
+fn holder(c: boxes.Cell<int>) int {
+    return c.value
+}
+
+fn main() {
+    let a = boxes.wrapped(Point{y: "local"}).get()
+    let b = boxes.wrapped(boxes.Point{x: 7}).get()
+    println("{a.y} {b.x}")
+    println("{holder(boxes.Cell.new(3))} {holder(boxes.Cell<int>{value: 4})}")
+}

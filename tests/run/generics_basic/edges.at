@@ -1,0 +1,60 @@
+// Instances with (), recursive instances and generic methods calling each
+// other.
+
+fn identity<T>(x: move T) T {
+    return x
+}
+
+fn depth<T>(n: int, x: move T) int {
+    if n == 0 {
+        return 0
+    }
+    return depth(n - 1, x) + 1
+}
+
+struct Box1<T> {
+    value: T
+
+    fn map<U>(move self, other: move U) Box1<U> {
+        return Box1.wrap(other)
+    }
+
+    fn wrap(value: move T) Box1<T> {
+        return Box1{value}
+    }
+
+    fn get(move self) T {
+        return self.value
+    }
+}
+
+enum Outcome<T, E> {
+    Ok(T)
+    Err(E)
+}
+
+fn check(n: int) Outcome<(), str> {
+    if n < 0 {
+        return .Err("negative")
+    }
+    return .Ok(())
+}
+
+fn report(o: Outcome<(), str>) str {
+    return match o {
+        .Ok(()) => "ok"
+        .Err(message) => message
+    }
+}
+
+fn main() {
+    let unit: () = identity(())
+    println(report(check(1)))
+    println(report(check(-1)))
+    println("{depth(5, "x")} {depth(3, (1, 2.0))}")
+    let b = Box1.wrap(1).map("mapped")
+    println(b.get())
+    let nothing: Box1<()> = Box1{value: unit}
+    let () = nothing.get()
+    println("done")
+}
