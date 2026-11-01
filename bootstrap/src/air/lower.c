@@ -183,6 +183,7 @@ void lower_program(Sema *sema, BodySink sink, void *context) {
     VEC_FREE(l.scopes);
     VEC_FREE(l.temps);
     VEC_FREE(l.part_flags);
+    VEC_FREE(l.drop_cache);
     VEC_FREE(l.temp_scopes);
     mono_free(&l);
 }

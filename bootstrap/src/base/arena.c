@@ -27,6 +27,20 @@ void arena_free(Arena *arena) {
     arena_init(arena);
 }
 
+void arena_reset(Arena *arena) {
+    ArenaChunk *chunk = arena->head;
+    while (chunk && chunk->prev) {   // keep the oldest chunk, for reuse
+        ArenaChunk *prev = chunk->prev;
+        free(chunk);
+        chunk = prev;
+    }
+    if (chunk) {
+        chunk->used = 0;
+    }
+    arena->head = chunk;
+    arena->total = 0;
+}
+
 static ArenaChunk *new_chunk(ArenaChunk *prev, size_t min_size) {
     size_t capacity = min_size > ARENA_CHUNK_SIZE ? min_size : ARENA_CHUNK_SIZE;
     ArenaChunk *chunk = xmalloc(sizeof(ArenaChunk) + capacity);

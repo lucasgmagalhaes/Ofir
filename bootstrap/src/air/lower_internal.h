@@ -54,6 +54,7 @@ typedef struct {
     const Local *fn_locals; // the function's locals: which ones borrow
     const FnDecl *fn;       // the function being lowered (NULL for drop glue)
     Vec(PartFlag) part_flags;   // of this function's partially moved locals
+    Vec(uint8_t) drop_cache;    // by TypeId: 0 unknown, 1 no drop, 2 drop, 3 computing
     Vec(Temp) temps;        // new values no one consumed, to drop
     Vec(uint32_t) temp_scopes;   // per open full expression: its first temporary
     bool forward;           // the next expression's value is the value of an `if`,

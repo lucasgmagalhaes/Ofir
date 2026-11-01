@@ -135,8 +135,10 @@ void check_for_collection(Checker *c, Stmt *s) {
                     "list, a slice or a map, found %s", type_name(c, type));
     }
     c->local_types[s->as.for_.first_local.id] = first;
+    note_owned(c, first);
     if (two) {
         c->local_types[s->as.for_.second_local.id] = second;
+        note_owned(c, second);
     }
 }
 

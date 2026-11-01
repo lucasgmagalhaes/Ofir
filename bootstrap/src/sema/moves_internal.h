@@ -34,7 +34,7 @@ typedef struct {
 typedef struct {
     Checker *c;
     FnDecl *fn;
-    Arena arena;         // states, freed with the function
+    Arena *arena;        // states: the checker's scratch arena, reset per function
     uint32_t words;      // 64-bit words per bitset
     bool report;         // false while a loop's fixpoint is computed
     uint64_t *borrowed;  // per local: borrows a place (borrowed parameter, `for` variable)
