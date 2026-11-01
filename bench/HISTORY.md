@@ -68,6 +68,9 @@ compilation: +4.4% on check-10k, +0.6% on check-100k, an accepted
 regression (ADR 0019). Most of it is `ints.at`, one copy of the methods per
 integer type; generic bounds (5.2) will reduce it to one declaration.
 
+`List<T>` in the prelude (`std/core/list.at`, 2.20) adds 0.7M instructions
+to every compilation: +1.7% on check-10k, +0.2% on check-100k.
+
 Until `2da11c2`, `make bench-compare` ran the base compiler without the
 prelude (it looked for `std` in the wrong place), which overstated every
 regression measured against a base that has one by about 2.6M
