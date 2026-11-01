@@ -128,3 +128,14 @@ pub enum Result<T, E> {
         }
     }
 }
+
+@test
+fn okAndErrSplitTheResult() {
+    let good: Result<int, str> = .Ok(1)
+    let bad: Result<int, str> = .Err("no")
+    assert(good.isOk() && bad.isErr())
+    assert(good.ok().unwrapOr(0) == 1)
+    assert(bad.err().unwrapOr("") == "no")
+    let fallback: Result<int, str> = .Err("x")
+    assert(fallback.unwrapOr(9) == 9)
+}

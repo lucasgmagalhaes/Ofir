@@ -138,3 +138,8 @@ int32_t astra_run(const uint8_t *args, int64_t len, int64_t count, AstraRun *run
     astra_free(copy);
     return code;
 }
+
+// `astra test` passes the index of the test to run as the only argument.
+int64_t astra_test_index(void) {
+    return arg_count > 1 ? strtoll(arg_values[1], NULL, 10) : -1;
+}

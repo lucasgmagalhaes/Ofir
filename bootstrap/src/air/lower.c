@@ -95,7 +95,8 @@ static void lower_fn(Lowerer *l, Instance inst, BodySink sink, void *context) {
     Def *def = sema_def(l->sema, fn->def);
     Ty sig = *type_get(l->types, def->type);
     AirBody body = {.def = fn->def, .targs = inst.targs, .name = fn->name};
-    body.is_main = l->sema->current == 0 && def->item && def->item->kind == ITEM_FN &&
+    body.is_main = !l->sema->testing && l->sema->current == 0 && def->item &&
+                   def->item->kind == ITEM_FN &&
                    sv_eq(symbol_name(&l->sema->session->names, fn->name), SV("main"));
     body.param_count = fn->params.len + (fn->has_self ? 1 : 0);
     l->body = &body;
@@ -146,7 +147,7 @@ static void find_roots(Lowerer *l, ItemList items) {
     for (uint32_t i = 0; i < items.len; i++) {
         Item *item = items.items[i];
         if (item->kind == ITEM_FN && item->as.fn->body) {
-            bool is_main = l->sema->current == 0 &&
+            bool is_main = !l->sema->testing && l->sema->current == 0 &&
                            sv_eq(symbol_name(&l->sema->session->names, item->name), SV("main"));
             if (is_main || item->as.fn->abi.len > 0) {
                 reach(l, item->as.fn, type_id(TID_UNIT));
@@ -158,15 +159,31 @@ static void find_roots(Lowerer *l, ItemList items) {
     }
 }
 
+// `main` (or, for `astra test`, the generated entry point and the tests)
+// and the `extern "C" fn` functions of every module.
+static void find_all_roots(Lowerer *l, BodySink sink, void *context) {
+    Sema *sema = l->sema;
+    if (!sema->testing) {
+        check_main(sema);
+    }
+    for (uint32_t m = 0; m < sema->program.len; m++) {
+        sema_enter(sema, m);
+        find_roots(l, sema->module->items);
+        if (sema->testing) {
+            find_tests(l, m);
+        }
+    }
+    if (sema->testing) {
+        sema_enter(sema, 0);
+        lower_test_main(l, sink, context);
+    }
+}
+
 // Lowers the functions reachable from the roots, in the order they are
 // reached, so that the output is deterministic.
 void lower_program(Sema *sema, BodySink sink, void *context) {
     Lowerer l = {.sema = sema, .types = &sema->types};
-    check_main(sema);
-    for (uint32_t m = 0; m < sema->program.len; m++) {
-        sema_enter(sema, m);
-        find_roots(&l, sema->module->items);
-    }
+    find_all_roots(&l, sink, context);
     for (size_t next = 0; next < l.pending.len; next++) {
         Instance inst = l.pending.data[next];
         if (!inst.fn) {   // glue

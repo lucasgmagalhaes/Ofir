@@ -521,3 +521,14 @@ fn mergeRuns<T>(src: *mut T, dst: *mut T, lo: int, mid: int, hi: int) {
         }
     }
 }
+
+@test
+fn removeAndInsertShiftElements() {
+    var l = [1, 2, 3, 4]
+    assert(l.remove(1) == 2)
+    l.insert(0, 9)
+    assert(l.len() == 4 && l[0] == 9 && l[1] == 1 && l[3] == 4)
+    assert(l.swapRemove(0) == 9 && l[0] == 4)
+    l.sort()
+    assert(l[0] == 1 && l[2] == 4)
+}

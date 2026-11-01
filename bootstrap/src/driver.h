@@ -21,7 +21,7 @@ typedef enum {
 } StopAfter;
 
 typedef struct {
-    const char *command;   // "build" or "run"
+    const char *command;   // "build", "run" or "test"
     const char *input;
     const char *output;    // -o
     Emit emit;

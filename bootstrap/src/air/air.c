@@ -17,6 +17,7 @@ static const char *const RUNTIME_NAMES[RT_COUNT] = {
     [RT_STR_CONCAT] = "astra_str_concat",
     [RT_STR_EQ] = "astra_str_eq",
     [RT_STR_CMP] = "astra_str_cmp",
+    [RT_TEST_INDEX] = "astra_test_index",
 };
 
 const char *runtime_fn_name(RuntimeFn fn) {

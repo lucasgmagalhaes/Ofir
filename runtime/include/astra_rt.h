@@ -102,6 +102,7 @@ int64_t astra_arg_count(void);
 const uint8_t *astra_arg(int64_t i, int64_t *len);
 const uint8_t *astra_env(const uint8_t *name, int64_t len, int64_t *value_len);   // NULL: unset
 _Noreturn void astra_exit(int64_t code);
+int64_t astra_test_index(void);   // the test `astra test` asked for, or -1
 int32_t astra_run(const uint8_t *args, int64_t len, int64_t count, AstraRun *run);
 char *astra_c_string(const uint8_t *ptr, int64_t len);   // NULL if it holds a NUL
 
