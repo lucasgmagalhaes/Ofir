@@ -105,30 +105,36 @@ void resolve_qualified(Resolver *r, Expr *e) {
     e->as.ident.res = member.id ? (Res){RES_DEF, member.id} : (Res){RES_ERROR, 0};
 }
 
-// The public declarations of `std.core` are visible in every module, below
-// the module's own declarations (spec 7.4).
-void import_prelude(Resolver *r) {
-    int64_t core = -1;
-    for (uint32_t m = 0; m < r->sema->program.len; m++) {
-        if (sv_eq(module_name(r, m), SV("std.core"))) {
-            core = m;
-        }
-    }
-    if (core < 0) {
-        return;
-    }
+// `std.core` and its submodules, `std.core.box`, ... form the prelude.
+static bool in_core(Resolver *r, uint32_t m) {
+    StrView name = module_name(r, m);
+    return sv_eq(name, SV("std.core")) ||
+           (name.len > 9 && memcmp(name.ptr, "std.core.", 9) == 0);
+}
+
+// Makes the public declarations of the prelude module `core` visible in
+// every other module, below the module's own declarations (spec 7.4).
+static void export_core(Resolver *r, uint32_t core) {
     Scope *scope = &r->sema->scope;
     for (uint32_t name = 1; name < scope->symbol_count; name++) {
         uint32_t id = scope->tables[core][name];
         const Def *def = id ? sema_def(r->sema, (DefId){id}) : NULL;
-        if (!def || !def->is_pub || def->module != (uint32_t)core) {
+        if (!def || !def->is_pub || def->module != core) {
             continue;
         }
         for (uint32_t m = 0; m < r->sema->program.len; m++) {
             uint32_t own = scope->tables[m][name];
-            if (m != (uint32_t)core && (own == 0 || sema_def(r->sema, (DefId){own})->in_prelude)) {
+            if (m != core && (own == 0 || sema_def(r->sema, (DefId){own})->in_prelude)) {
                 scope->tables[m][name] = id;
             }
+        }
+    }
+}
+
+void import_prelude(Resolver *r) {
+    for (uint32_t m = 0; m < r->sema->program.len; m++) {
+        if (in_core(r, m)) {
+            export_core(r, m);
         }
     }
 }
