@@ -29,6 +29,9 @@ static Operand def_value(Lowerer *l, Expr *e, Def *def) {
     if (def->kind == DEF_CONST) {   // evaluated by the checker (sema/const_eval.c)
         return const_operand(def->value, e->type);
     }
+    if (def->kind == DEF_VARIANT) {   // `None`
+        return build_variant(l, e->type, def->variant, (ArgList){0});
+    }
     diag_error(&l->sema->session->diags, "E0901", e->span,
                "global variables are not supported yet");
     return op_unit();
@@ -52,6 +55,9 @@ static Operand call(Lowerer *l, Expr *e) {
     ArgList args = e->as.call.args;
     if (def->kind == DEF_STRUCT) {
         return lower_constructor(l, e);
+    }
+    if (def->kind == DEF_VARIANT) {   // `Some(x)`
+        return build_variant(l, e->type, def->variant, args);
     }
     if (def->kind == DEF_BUILTIN) {
         if (def->builtin == BUILTIN_PANIC || def->builtin == BUILTIN_ASSERT) {
@@ -167,6 +173,9 @@ static Operand binary(Lowerer *l, Expr *e) {
     if (op == OP_LOGICAL_AND || op == OP_LOGICAL_OR) {
         return logical(l, e);
     }
+    if (op == OP_COALESCE) {
+        return lower_coalesce(l, e);
+    }
     Operand a = settle(l, lower_expr(l, e->as.binary.lhs), e->as.binary.rhs);
     Operand b = lower_expr(l, e->as.binary.rhs);
     return lower_binary_op(l, (Arith){.op = op, .type = e->as.binary.lhs->type, .a = a, .b = b,
@@ -202,6 +211,7 @@ Operand lower_expr(Lowerer *l, Expr *e) {
     case EXPR_STRUCT: return lower_struct_literal(l, e);
     case EXPR_INDEX: return lower_index(l, e);
     case EXPR_ARRAY: return lower_list_literal(l, e);
+    case EXPR_TRY: return lower_try(l, e);
     case EXPR_ARRAY_REPEAT: return lower_list_repeat(l, e);
     case EXPR_IF: return lower_if(l, e);
     case EXPR_BLOCK: case EXPR_UNSAFE:
