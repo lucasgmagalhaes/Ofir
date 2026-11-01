@@ -19,17 +19,23 @@ typedef struct {
 
 typedef struct {
     uint32_t symbol_count;   // size of the tables below
-    uint32_t *module;        // symbol id -> DefId (0 = none)
+    uint32_t **tables;       // per module: symbol id -> DefId (0 = none)
+    uint32_t table_count;
+    uint32_t *module;        // the current module's table
     uint32_t *local;         // symbol id -> local index + 1 (0 = none)
     Vec(uint32_t) depth;     // local index -> block depth where it was declared
     Vec(Shadowed) saved;     // undo log of local declarations
     Vec(size_t) marks;       // saved.len at the start of each open block
 } Scope;
 
-void scope_init(Scope *scope, uint32_t symbol_count);
+void scope_init(Scope *scope, uint32_t symbol_count, uint32_t module_count);
 void scope_free(Scope *scope);
 
+void scope_use_module(Scope *scope, uint32_t index);
+
+// Lookups in the current module's table, or in module `index`'s.
 DefId scope_module(const Scope *scope, Symbol name);
+DefId scope_module_in(const Scope *scope, uint32_t index, Symbol name);
 void scope_set_module(Scope *scope, Symbol name, DefId def);
 
 void scope_enter(Scope *scope);

@@ -24,6 +24,8 @@ typedef struct {
     AirBody *body;
     BlockId block;          // where the next statement goes
     Vec(Loop) loops;
+    Vec(FnDecl *) pending;  // functions reached by a call, still to lower
+    Vec(bool) reached;      // by DefId
 } Lowerer;
 
 static inline LocalId air_local_of(LocalId ast_local) {
@@ -61,6 +63,8 @@ LocalId to_local(Lowerer *l, Operand operand);   // a local holding the operand
 // lower_expr.c
 Operand lower_expr(Lowerer *l, Expr *e);
 Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver);
+// Queues `fn` to be lowered: only functions reachable from `main` are.
+void reach(Lowerer *l, FnDecl *fn);
 bool type_is_value(TypeId type);   // false for () and !
 
 // lower_ops.c
@@ -91,6 +95,9 @@ Operand lower_tuple(Lowerer *l, Expr *e);
 // match, else continues in the current block with the bindings assigned.
 void lower_pattern(Lowerer *l, Pattern *p, Place place, BlockId fail);
 Operand lower_match(Lowerer *l, Expr *e);
+
+// lower_intrinsic.c
+Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn);
 
 // lower_struct.c
 Place lower_place(Lowerer *l, Expr *e);

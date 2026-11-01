@@ -37,13 +37,28 @@ StrView def_name(Gen *g, DefId def) {
 
 // User functions are prefixed so they never clash with C symbols; `main`
 // becomes the entry point called by the runtime.
+bool is_c_function(const Def *def) {
+    return def->fn && (def->fn->abi.len > 0 || (def->item && def->item->kind == ITEM_EXTERN));
+}
+
 void function_name(Gen *g, Out *out, DefId def, bool is_main) {
     if (is_main) {
         out_str(out, "@astra_main");
         return;
     }
     const Def *d = sema_def(g->sema, def);
+    if (is_c_function(d)) {   // a C function keeps its name
+        StrView name = def_name(g, def);
+        out_char(out, '@');
+        out_write(out, name.ptr, name.len);
+        return;
+    }
     out_str(out, "@\"astra.");
+    if (d->module != 0) {   // qualified by its module, except in the root module
+        StrView module = g->sema->program.items[d->module].name;
+        out_write(out, module.ptr, module.len);
+        out_char(out, '.');
+    }
     bool method = d->item && d->item->kind != ITEM_FN && d->item->kind != ITEM_EXTERN;
     if (method) {   // a method: qualified by its type, `astra.Point.norm`
         StrView owner = symbol_name(&g->sema->session->names, d->item->name);
@@ -91,12 +106,28 @@ uint32_t string_global(Gen *g, StrView text) {
     return n;
 }
 
+// The name of a source file, for panic locations: `@.file.<FileId>`.
+static void file_global(Gen *g, FileId file) {
+    if (file.id < g->files_emitted.len && g->files_emitted.data[file.id]) {
+        return;
+    }
+    while (g->files_emitted.len <= file.id) {
+        VEC_PUSH(g->files_emitted, false);
+    }
+    g->files_emitted.data[file.id] = true;
+    StrView path = source_file(&g->sema->session->sources, file)->path;
+    out_fmt(&g->globals, "@.file.%u = private unnamed_addr constant [%zu x i8] c\"", file.id,
+            path.len + 1);
+    escaped_bytes(&g->globals, path);
+    out_str(&g->globals, "\\00\"\n");
+}
+
 uint32_t location_global(Gen *g, Span span) {
     LineCol pos = source_line_col(&g->sema->session->sources, span.file, span.start);
+    file_global(g, span.file);
     uint32_t n = g->loc_count++;
-    out_fmt(&g->globals,
-            "@.loc.%u = private unnamed_addr constant %%astra.loc { ptr @.file, i32 %u, i32 %u }\n",
-            n, pos.line, pos.column);
+    out_fmt(&g->globals, "@.loc.%u = private unnamed_addr constant %%astra.loc "
+            "{ ptr @.file.%u, i32 %u, i32 %u }\n", n, span.file.id, pos.line, pos.column);
     return n;
 }
 
@@ -123,15 +154,7 @@ static const char RUNTIME_DECLS[] =
     "declare void @astra_panic_cast(ptr) noreturn cold nounwind\n"
     "declare void @astra_panic_bounds(i64, i64, ptr) noreturn cold nounwind\n"
     "declare void @astra_panic_assert(ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_str(ptr, ptr) noreturn cold nounwind\n"
-    "declare void @astra_str_clear(ptr) nounwind\n"
-    "declare zeroext i1 @astra_str_starts_with(ptr, ptr) nounwind\n"
-    "declare zeroext i1 @astra_str_ends_with(ptr, ptr) nounwind\n"
-    "declare zeroext i1 @astra_str_contains(ptr, ptr) nounwind\n"
-    "declare void @astra_str_repeat(ptr, ptr, i64) nounwind\n"
-    "declare void @astra_str_to_lower(ptr, ptr) nounwind\n"
-    "declare void @astra_str_to_upper(ptr, ptr) nounwind\n"
-    "declare void @astra_str_to_owned(ptr, ptr) nounwind\n";
+    "declare void @astra_panic_str(ptr, ptr) noreturn cold nounwind\n";
 
 static void overflow_decls(Gen *g) {
     static const char *const OPS[] = {"add", "sub", "mul"};
@@ -152,7 +175,8 @@ Gen *llvm_begin(Sema *sema, FILE *file) {
     out_to_file(&g->out, file);
     out_to_memory(&g->globals);
     out_to_memory(&g->type_defs);
-    const SourceFile *source = source_file(&sema->session->sources, sema->module->file);
+    FileId root = sema->program.items[0].module->file;
+    const SourceFile *source = source_file(&sema->session->sources, root);
     out_to_memory(&g->path);
     escaped_bytes(&g->path, source->path);
     out_char(&g->path, '\0');
@@ -178,18 +202,45 @@ void llvm_function(Gen *g, const AirBody *body) {
     gen_body(g, body);
 }
 
+void mark_c_used(Gen *g, DefId def) {
+    while (g->c_used.len <= def.id) {
+        VEC_PUSH(g->c_used, false);
+    }
+    g->c_used.data[def.id] = true;
+}
+
+// `declare` for each function of an extern block that is called.
+static void c_decls(Gen *g) {
+    for (uint32_t id = 0; id < g->c_used.len; id++) {
+        if (!g->c_used.data[id]) {
+            continue;
+        }
+        const Ty *sig = type_get(g->types, sema_def(g->sema, (DefId){id})->type);
+        const char *ret = llvm_type(g, sig->inner);
+        out_fmt(&g->out, "declare %s%s ", strcmp(ret, "i1") ? "" : "zeroext ", ret);
+        function_name(g, &g->out, (DefId){id}, false);
+        out_char(&g->out, '(');
+        for (uint32_t i = 0; i < sig->arg_count; i++) {
+            const char *type = llvm_type(g, sig->args[i]);
+            out_fmt(&g->out, "%s%s%s", i ? ", " : "", type, strcmp(type, "i1") ? "" : " zeroext");
+        }
+        out_str(&g->out, ") nounwind\n");
+    }
+}
+
 void llvm_end(Gen *g) {
-    const SourceFile *source = source_file(&g->sema->session->sources, g->sema->module->file);
     out_str(&g->out, RUNTIME_DECLS);
     overflow_decls(g);
     gen_float_decls(g);
-    out_fmt(&g->out, "\n@.file = private unnamed_addr constant [%zu x i8] c\"%s\\00\"\n",
-            source->path.len + 1, g->path.buf);
+    c_decls(g);
+    out_char(&g->out, '\n');
     out_write(&g->out, g->globals.buf, g->globals.len);
     out_free(&g->type_defs);
     free(g->adt_types);
     out_free(&g->path);
     out_free(&g->globals);
+    VEC_FREE(g->files_emitted);
+    VEC_FREE(g->c_used);
     out_free(&g->out);
     free(g);
 }

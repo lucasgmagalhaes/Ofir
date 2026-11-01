@@ -76,6 +76,12 @@ static Operand argument(Lowerer *l, Expr *arg, bool by_ref, const Expr *next) {
 // A call of a user function or method; the receiver of a method is the
 // first argument.
 Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver) {
+    const Def *def = sema_def(l->sema, fn->def);
+    if (def->item && def->item->kind == ITEM_EXTERN &&
+        sv_eq(def->item->as.extern_.abi, SV("intrinsic"))) {
+        return lower_intrinsic(l, e, fn);
+    }
+    reach(l, fn);
     ArgList args = e->as.call.args;
     uint32_t first = receiver ? 1 : 0;
     AirStmt s = {.kind = AIR_CALL};

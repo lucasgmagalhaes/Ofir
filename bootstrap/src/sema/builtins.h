@@ -1,6 +1,6 @@
-// Built-in methods and constants of the primitive types (docs/std/core.md
-// and strings.md, the entries marked S0): `s.len()`, `x.wrappingAdd(y)`,
-// `x.wrappingCast<u8>()`, `str.new()`, `i32.MAX`, ...
+// The few methods and constants of the primitive types that std cannot
+// declare yet: `x.wrappingCast<u8>()`, `p.add(n)`, `i32.MAX`, ... The other
+// methods are `@lang` declarations in std/core (ADR 0019).
 
 #ifndef ASTRA_BUILTINS_H
 #define ASTRA_BUILTINS_H
@@ -9,16 +9,12 @@
 #include "sema/types.h"
 #include "syntax/ast.h"
 
+// What stays built in until generics: casts with a type argument and
+// pointer offsets (ADR 0019). Everything else is written in std.
 typedef enum {
-    // str
-    BM_STR_NEW, BM_STR_LEN, BM_STR_IS_EMPTY, BM_STR_PUSH, BM_STR_CLEAR, BM_STR_STARTS_WITH,
-    BM_STR_ENDS_WITH, BM_STR_CONTAINS, BM_STR_REPEAT, BM_STR_TO_LOWER, BM_STR_TO_UPPER,
-    BM_STR_TO_OWNED,
-    // integers
-    BM_WRAPPING_ADD, BM_WRAPPING_SUB, BM_WRAPPING_MUL, BM_ABS, BM_MIN, BM_MAX, BM_CLAMP, BM_POW,
-    BM_WRAPPING_CAST, BM_SATURATING_CAST,
-    // floats
-    BM_SQRT, BM_FABS, BM_FLOOR, BM_CEIL, BM_FMIN, BM_FMAX, BM_IS_NAN,
+    BM_WRAPPING_CAST,
+    BM_SATURATING_CAST,
+    BM_PTR_ADD,
     BM_COUNT,
 } BuiltinMethod;
 
@@ -26,15 +22,15 @@ typedef enum {
 typedef enum {
     BT_NONE,      // no value (no parameter / returns ())
     BT_SELF,      // the receiver type
-    BT_STR, BT_INT, BT_BOOL, BT_U32,
+    BT_INT,
     BT_TARGET,    // the type argument: x.wrappingCast<T>() returns T
 } BuiltinType;
 
-typedef enum { RECV_STR, RECV_INT, RECV_FLOAT, RECV_STR_TYPE } Receiver;
+typedef enum { RECV_INT, RECV_PTR } Receiver;
 
 typedef struct {
     const char *name;
-    Receiver receiver;     // RECV_STR_TYPE: an associated function, `str.new()`
+    Receiver receiver;
     BuiltinMethod method;
     Mode self_mode;        // MODE_MUT: the receiver must be a mutable place
     BuiltinType params[2];

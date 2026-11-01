@@ -83,14 +83,8 @@ static void operands(AirPrinter *p, const char *name, Operand a, const Operand *
 // check-sizes: table
 static void rvalue(AirPrinter *p, const Rvalue *rv) {
     switch (rv->kind) {
-    case RV_SELECT:
-        operands(p, "select", rv->cond, NULL);
-        fputs(" ? ", p->out);
-        operand(p, rv->a);
-        fputs(" : ", p->out);
-        operand(p, rv->b);
-        return;
     case RV_STR_LEN: operands(p, "str_len", rv->a, NULL); return;
+    case RV_PTR_ADD: operands(p, "ptr_add", rv->a, &rv->b); return;
     case RV_AGGREGATE:
         fputs("{", p->out);
         for (uint32_t i = 0; i < rv->count; i++) {

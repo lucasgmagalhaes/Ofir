@@ -5,6 +5,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 void check_error(Checker *c, const char *code, Span span, const char *format, ...) {
     char message[256];
@@ -52,7 +53,9 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     if (!fn->body) {
         return;
     }
+    c->unsafe_depth = fn->is_unsafe ? 1 : 0;
     TypeId body = check_block(c, fn->body, NO_TYPE, false);
+    c->unsafe_depth = 0;
     bool needs_value = c->ret.id != TID_UNIT && c->ret.id != TID_ERROR;
     if (needs_value && body.id != TID_NEVER) {
         check_error(c, "E0303", fn->span,
@@ -61,30 +64,59 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
 }
 
 static void check_methods(Checker *c, const Item *item, FnList methods) {
-    DefId owner = scope_module(&c->sema->scope, item->name);
     SymbolList params = item->kind == ITEM_ENUM ? item->as.enum_.type_params
                                                 : item->as.struct_.type_params;
     if (params.len > 0) {
         unsupported(c, item->span, "generic types are");
         return;
     }
-    TypeId self_type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
+    TypeId self_type = owner_type(c->sema, item);
     for (uint32_t i = 0; i < methods.len; i++) {
         check_fn(c, methods.items[i], self_type);
     }
 }
 
-static void check_item(Checker *c, Item *item) {
-    switch (item->kind) {
-    case ITEM_FN: check_fn(c, item->as.fn, NO_TYPE); break;
-    case ITEM_EXTERN:
+// `extern "C"` blocks cross the C boundary; `extern "intrinsic"` blocks,
+// reserved to std, declare operations the compiler generates.
+static void check_extern(Checker *c, Item *item) {
+    StrView abi = item->as.extern_.abi;
+    if (sv_eq(abi, SV("intrinsic"))) {
+        StrView module = c->sema->program.items[c->sema->current].name;
+        if (module.len < 3 || memcmp(module.ptr, "std", 3) != 0) {
+            check_error(c, "E0805", item->span, "intrinsics are reserved to the standard library");
+        }
         for (uint32_t i = 0; i < item->as.extern_.fns.len; i++) {
             fn_signature(c, item->as.extern_.fns.items[i]);
         }
+        return;
+    }
+    if (!sv_eq(abi, SV("C"))) {
+        check_error(c, "E0804", item->span, "unknown ABI: only `extern \"C\"` is supported");
+    }
+    for (uint32_t i = 0; i < item->as.extern_.fns.len; i++) {
+        check_c_signature(c, item->as.extern_.fns.items[i]);
+    }
+}
+
+static void check_item(Checker *c, Item *item) {
+    switch (item->kind) {
+    case ITEM_FN:
+        if (item->as.fn->abi.len > 0) {   // `extern "C" fn` with a body, called from C
+            check_c_signature(c, item->as.fn);
+        }
+        check_fn(c, item->as.fn, NO_TYPE);
         break;
+    case ITEM_EXTERN: check_extern(c, item); break;
     case ITEM_STRUCT: case ITEM_TUPLE_STRUCT:
         if (item->as.struct_.type_params.len == 0) {
-            struct_fields(c, scope_module(&c->sema->scope, item->name));
+            TypeId owner = owner_type(c->sema, item);
+            Def *lang = lang_def(c->sema, owner);
+            DefId id = lang ? c->sema->lang[owner.id]
+                            : (DefId){type_get(c->types, owner)->data};
+            struct_fields(c, id);
+            if (lang) {
+                check_lang_layout(c, lang, owner);
+            }
         }
         check_methods(c, item, item->as.struct_.methods);
         break;
@@ -102,10 +134,14 @@ static void check_item(Checker *c, Item *item) {
     }
 }
 
-void check_module(Sema *sema) {
+void check_program(Sema *sema) {
     Checker c = {.sema = sema, .types = &sema->types, .self_type = NO_TYPE};
-    for (uint32_t i = 0; i < sema->module->items.len; i++) {
-        check_item(&c, sema->module->items.items[i]);
+    for (uint32_t m = 0; m < sema->program.len; m++) {
+        sema_enter(sema, m);
+        for (uint32_t i = 0; i < sema->module->items.len; i++) {
+            check_item(&c, sema->module->items.items[i]);
+        }
     }
+    sema_enter(sema, 0);
     VEC_FREE(c.loops);
 }

@@ -181,6 +181,8 @@ static void step(Gen *g, Cursor *cur, uint32_t entry, char base[16]) {
         cur->type = cur->variant->types[entry];
     } else if (ty->kind == TY_TUPLE) {
         cur->type = ty->args[entry];
+    } else if (ty->kind != TY_ADT) {   // a primitive's fields, from its `@lang` declaration
+        cur->type = lang_def(g->sema, cur->type)->fields->types[entry];
     } else {
         const Def *def = sema_def(g->sema, (DefId){ty->data});
         cur->type = def->kind == DEF_STRUCT ? def->fields->types[entry] : type_id(TID_I32);
@@ -197,6 +199,10 @@ void place_address(Gen *g, LocalId local, FieldPath path, char text[16]) {
         out_fmt(&g->out, "  %s = load ptr, ptr %%l%u\n", base, local.id);
     }
     Cursor cur = {.type = g->body->locals.data[local.id].type};
+    const Ty *pointer = type_get(g->types, cur.type);
+    if (path.deref && pointer->kind == TY_PTR) {   // `*p`: start from the pointee
+        cur.type = pointer->inner;
+    }
     for (uint32_t i = 0; i < path.len; i++) {
         step(g, &cur, path.fields[i], base);
     }

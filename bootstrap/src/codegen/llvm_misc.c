@@ -10,14 +10,15 @@ static const char *const FLOAT_FNS[FF_COUNT] = {
 };
 
 static void float_fn(Gen *g, const Rvalue *rv, Value *result) {
+    bool binary = rv->fn == FF_MINNUM || rv->fn == FF_MAXNUM;
     Value a = gen_operand(g, rv->a);
+    Value b = binary ? gen_operand(g, rv->b) : a;   // both loads come before the call
     bool is_f64 = strcmp(a.type, "double") == 0;
     g->float_fn_used[rv->fn][is_f64] = true;
     next_temp(g, result->text);
     out_fmt(&g->out, "  %s = call %s @llvm.%s.%s(%s %s", result->text, a.type, FLOAT_FNS[rv->fn],
             is_f64 ? "f64" : "f32", a.type, a.text);
-    if (rv->fn == FF_MINNUM || rv->fn == FF_MAXNUM) {
-        Value b = gen_operand(g, rv->b);
+    if (binary) {
         out_fmt(&g->out, ", %s %s", b.type, b.text);
     }
     out_str(&g->out, ")\n");
@@ -56,14 +57,15 @@ static void aggregate(Gen *g, const Rvalue *rv, Value *result) {
 
 void gen_misc(Gen *g, const Rvalue *rv, Value *result) {
     switch (rv->kind) {
-    case RV_AGGREGATE: aggregate(g, rv, result); break;
-    case RV_SELECT: {
-        Value c = gen_operand(g, rv->cond), a = gen_operand(g, rv->a), b = gen_operand(g, rv->b);
+    case RV_PTR_ADD: {
+        Value p = gen_operand(g, rv->a), n = gen_operand(g, rv->b);
+        const Ty *ptr = type_get(g->types, rv->a.type);
         next_temp(g, result->text);
-        out_fmt(&g->out, "  %s = select i1 %s, %s %s, %s %s\n", result->text, c.text, a.type,
-                a.text, b.type, b.text);
+        out_fmt(&g->out, "  %s = getelementptr %s, ptr %s, i64 %s\n", result->text,
+                llvm_type(g, ptr->inner), p.text, n.text);
         break;
     }
+    case RV_AGGREGATE: aggregate(g, rv, result); break;
     case RV_STR_LEN: {
         Value s = gen_operand(g, rv->a);
         next_temp(g, result->text);

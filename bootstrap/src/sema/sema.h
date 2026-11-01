@@ -18,6 +18,7 @@ typedef enum {
     DEF_CONST,
     DEF_GLOBAL,
     DEF_TYPE_ALIAS,
+    DEF_MODULE,      // an imported module: `target` is its index in the program
 } DefKind;
 
 typedef enum { BUILTIN_PRINT, BUILTIN_PRINTLN, BUILTIN_PANIC, BUILTIN_ASSERT } Builtin;
@@ -55,6 +56,10 @@ typedef struct {
     TypeId type;         // primitive: the type; function: its signature (set by the checker)
     Builtin builtin;
     bool in_prelude;
+    bool is_pub;
+    bool lang;           // a `@lang` declaration: `type` is the primitive it describes
+    uint32_t module;     // the module that declares it (index in the program)
+    uint32_t target;     // DEF_MODULE: the imported module
     bool typed;          // `type` is set (signatures, constants)
     bool checking;       // a constant whose type is being computed (cycle guard)
     const struct ConstValue *value;   // a constant's value, NULL if it could not be computed
@@ -62,25 +67,52 @@ typedef struct {
     EnumInfo *variants;  // enums, once computed
 } Def;
 
+// The modules of a program; the root module (with `main`) comes first.
+typedef struct {
+    Module *module;
+    StrView name;        // "parser.lexer"; the root's is its file name without `.at`
+} ProgramModule;
+
+typedef struct {
+    ProgramModule *items;
+    uint32_t len;
+} Program;
+
 typedef struct {
     Session *session;
-    Module *module;
+    Program program;
+    uint32_t current;    // the module being resolved, checked or lowered
+    Module *module;      // program.items[current].module
     TypeTable types;
     Vec(Def) defs;       // defs.data[0] is unused: DefId 0 means "none"
-    Scope scope;
+    Scope scope;         // its module table is the current module's
+    DefId lang[TID_BUILTIN_COUNT];   // the `@lang` declaration of each primitive type
 } Sema;
 
-void sema_init(Sema *sema, Session *session, Module *module);
+void sema_init(Sema *sema, Session *session, Program program);
 void sema_free(Sema *sema);
+
+// The attribute `@name(...)` of a declaration, or NULL.
+const Attribute *find_attribute(const Sema *sema, AttributeList attributes, const char *name);
+
+// The `@lang` declaration of a primitive type, or NULL.
+Def *lang_def(Sema *sema, TypeId type);
+
+// The type a method's `self` and `Self` stand for: the struct or enum, or
+// the primitive of a `@lang` declaration.
+TypeId owner_type(Sema *sema, const Item *owner);
+
+// Makes module `index` current; returns the previous one.
+uint32_t sema_enter(Sema *sema, uint32_t index);
 
 static inline Def *sema_def(Sema *sema, DefId id) {
     return &sema->defs.data[id.id];
 }
 
-// Binds every name in the module (E0200, E0201).
-void resolve_module(Sema *sema);
+// Binds every name in the program (E0200, E0201, E0202, E0204).
+void resolve_program(Sema *sema);
 
-// Type checks the module after resolve_module.
-void check_module(Sema *sema);
+// Type checks the program after resolve_program.
+void check_program(Sema *sema);
 
 #endif

@@ -24,7 +24,8 @@ Expr *place_root(Expr *e) {
         } else if (e->kind == EXPR_TUPLE_FIELD) {
             e = e->as.tuple_field.base;
         } else {
-            return e->kind == EXPR_IDENT || e->kind == EXPR_SELF ? e : NULL;
+            bool deref = e->kind == EXPR_UNARY && e->as.unary.op == OP_DEREF;
+            return e->kind == EXPR_IDENT || e->kind == EXPR_SELF || deref ? e : NULL;
         }
     }
 }
@@ -38,6 +39,15 @@ void require_mutable(Checker *c, Expr *place) {
         return;
     }
     bool ok = false;
+    if (e->kind == EXPR_UNARY) {   // `*p`: writable through a `*mut T`
+        const Ty *ptr = type_get(c->types, e->as.unary.operand->type);
+        ok = (ptr->kind == TY_PTR && ptr->data) || e->type.id == TID_ERROR;
+        if (!ok) {
+            check_error(c, "E0315", e->span, "this value cannot be modified: it is reached "
+                        "through a `*T`, not a `*mut T`");
+        }
+        return;
+    }
     if ((e->kind == EXPR_IDENT || e->kind == EXPR_SELF) && e->as.ident.res.kind == RES_LOCAL) {
         ok = c->fn->locals.items[e->as.ident.res.index].mutable;
     } else if (e->kind == EXPR_IDENT && e->as.ident.res.kind == RES_DEF) {
@@ -53,10 +63,7 @@ void require_mutable(Checker *c, Expr *place) {
 static TypeId param_type(BuiltinType t, TypeId self, TypeId target) {
     switch (t) {
     case BT_SELF: return self;
-    case BT_STR: return type_id(TID_STR);
     case BT_INT: return type_id(TID_INT);
-    case BT_BOOL: return type_id(TID_BOOL);
-    case BT_U32: return type_id(TID_U32);
     case BT_TARGET: return target;
     case BT_NONE: return type_id(TID_UNIT);
     }
@@ -90,6 +97,9 @@ static TypeId call_builtin(Checker *c, Expr *call, const BuiltinInfo *info, Type
     if (info->self_mode == MODE_MUT) {
         require_mutable(c, field->as.field.base);
     }
+    if (info->receiver == RECV_PTR) {   // pointer arithmetic (spec 11.2)
+        require_unsafe(c, call->span, "offsetting a raw pointer");
+    }
     TypeId target = type_argument(c, field, info);
     TypeId params[2];
     uint32_t count = 0;
@@ -103,8 +113,29 @@ static TypeId call_builtin(Checker *c, Expr *call, const BuiltinInfo *info, Type
 }
 
 static Receiver receiver_of(const Ty *ty, bool *ok) {
-    *ok = ty->kind == TY_STR || ty->kind == TY_INT || ty->kind == TY_FLOAT;
-    return ty->kind == TY_STR ? RECV_STR : ty->kind == TY_INT ? RECV_INT : RECV_FLOAT;
+    *ok = ty->kind == TY_INT || ty->kind == TY_PTR;
+    return ty->kind == TY_INT ? RECV_INT : RECV_PTR;
+}
+
+// Whether std declares the method `name` for the primitive `type`; the
+// built-in table answers the others until they all move to std.
+static bool has_lang_method(Checker *c, TypeId type, Symbol name) {
+    const Def *lang = lang_def(c->sema, type);
+    if (!lang) {
+        return false;
+    }
+    FnList methods = lang->item->as.struct_.methods;
+    for (uint32_t i = 0; i < methods.len; i++) {
+        if (symbol_eq(methods.items[i]->name, name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static TypeId lang_associated(Checker *c, Expr *call, TypeId type) {
+    call->as.call.callee->as.field.base->type = type;
+    return check_user_method(c, call, c->sema->lang[type.id], true);
 }
 
 // `Point.new()` or `Shape.Circle(1.0)`.
@@ -119,43 +150,52 @@ static TypeId call_on_type(Checker *c, Expr *call, DefId owner) {
     return check_user_method(c, call, owner, true);
 }
 
+static TypeId no_method(Checker *c, Expr *call, TypeId self) {
+    Expr *field = call->as.call.callee;
+    if (self.id != TID_ERROR) {
+        check_error(c, "E0301", field->span, "no method `" SV_FMT "` on type `%s`",
+                    SV_ARG(name_of(c, field->as.field.name)), type_name(c, self));
+    }
+    for (uint32_t i = 0; i < call->as.call.args.len; i++) {
+        check_expr(c, call->as.call.args.items[i].value, NO_TYPE);
+    }
+    return type_id(TID_ERROR);
+}
+
+// `value.m(args)` on a primitive: a `@lang` method from std, else one of
+// the few built-in ones.
+static TypeId primitive_method(Checker *c, Expr *call, TypeId self) {
+    Symbol name = call->as.call.callee->as.field.name;
+    if (has_lang_method(c, self, name)) {
+        return check_user_method(c, call, c->sema->lang[self.id], false);
+    }
+    bool known;
+    Receiver receiver = receiver_of(type_get(c->types, self), &known);
+    const BuiltinInfo *info = known ? builtin_method(&c->sema->session->names, receiver, name)
+                                    : NULL;
+    return info ? call_builtin(c, call, info, self) : no_method(c, call, self);
+}
+
 TypeId check_method_call(Checker *c, Expr *call) {
     Expr *field = call->as.call.callee;
     Expr *base = field->as.field.base;
-    Symbol name = field->as.field.name;
     DefId owner;
     if (type_name_of(c, base, &owner)) {
         return call_on_type(c, call, owner);
     }
     const Def *type_name_def = primitive_name(c, base);
-    Receiver receiver = RECV_STR_TYPE;
-    TypeId self = type_id(TID_ERROR);
-    bool known = true;
     if (type_name_def) {   // an associated function: `str.new()`
-        self = type_name_def->type;
-        base->type = self;
-        known = self.id == TID_STR;
-    } else {
-        self = check_expr(c, base, NO_TYPE);
-        const Ty *ty = type_get(c->types, self);
-        if (ty->kind == TY_ADT) {
-            return check_user_method(c, call, (DefId){ty->data}, false);
+        base->type = type_name_def->type;
+        if (has_lang_method(c, type_name_def->type, field->as.field.name)) {
+            return lang_associated(c, call, type_name_def->type);
         }
-        receiver = receiver_of(ty, &known);
+        return no_method(c, call, type_name_def->type);
     }
-    const BuiltinInfo *info = known ? builtin_method(&c->sema->session->names, receiver, name)
-                                    : NULL;
-    if (!info) {
-        if (self.id != TID_ERROR) {
-            check_error(c, "E0301", field->span, "no method `" SV_FMT "` on type `%s`",
-                        SV_ARG(name_of(c, name)), type_name(c, self));
-        }
-        for (uint32_t i = 0; i < call->as.call.args.len; i++) {
-            check_expr(c, call->as.call.args.items[i].value, NO_TYPE);
-        }
-        return type_id(TID_ERROR);
+    TypeId self = check_expr(c, base, NO_TYPE);
+    if (type_get(c->types, self)->kind == TY_ADT) {
+        return check_user_method(c, call, (DefId){type_get(c->types, self)->data}, false);
     }
-    return call_builtin(c, call, info, self);
+    return primitive_method(c, call, self);
 }
 
 // `p.x` on a struct, or `i32.MAX`, `float.NAN`, ... on a primitive type.

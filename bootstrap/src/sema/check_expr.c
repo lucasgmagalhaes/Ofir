@@ -93,7 +93,10 @@ static TypeId operator_error(Checker *c, Span span, TypeId type) {
 static TypeId unary(Checker *c, Expr *e, TypeId expected) {
     Expr *operand = e->as.unary.operand;
     Op op = e->as.unary.op;
-    if (op == OP_DEREF || op == OP_REF || op == OP_REF_MUT) {
+    if (op == OP_DEREF) {
+        return check_deref(c, e, expected);
+    }
+    if (op == OP_REF || op == OP_REF_MUT) {
         return unsupported(c, e->span, "references are");
     }
     TypeId type = op == OP_NEG && operand->kind == EXPR_INT
@@ -113,7 +116,7 @@ static bool operand_ok(const Ty *ty, Op op) {
     case OP_SUB: case OP_MUL: case OP_DIV: case OP_REM:
         return ty->kind == TY_INT || ty->kind == TY_FLOAT;
     case OP_AND: case OP_OR: case OP_XOR: case OP_SHL: case OP_SHR: return ty->kind == TY_INT;
-    case OP_EQ: case OP_NE: return ty->kind <= TY_STR;   // the primitive types and ()
+    case OP_EQ: case OP_NE: return ty->kind <= TY_STR || ty->kind == TY_PTR;
     case OP_LT: case OP_LE: case OP_GT: case OP_GE:
         return ty->kind == TY_INT || ty->kind == TY_FLOAT || ty->kind == TY_STR;
     case OP_LOGICAL_AND: case OP_LOGICAL_OR: return ty->kind == TY_BOOL;
@@ -149,6 +152,9 @@ static TypeId binary(Checker *c, Expr *e, TypeId expected) {
 static TypeId cast(Checker *c, Expr *e) {
     TypeId from = check_expr(c, e->as.cast.value, NO_TYPE);
     TypeId to = resolve_type(c, e->as.cast.type);
+    if (pointer_cast(c, from, to, e->span)) {
+        return to;
+    }
     bool ok = (type_is_numeric(c->types, from) && type_is_numeric(c->types, to)) ||
               type_eq(from, to) || from.id == TID_ERROR || to.id == TID_ERROR;
     if (!ok) {
@@ -187,6 +193,9 @@ static TypeId builtin_call(Checker *c, Expr *call, Builtin builtin) {
 }
 
 static TypeId check_fn_call(Checker *c, Expr *e, const Def *def, const Ty *sig) {
+    if (is_unsafe_fn(def)) {
+        require_unsafe(c, e->span, "calling an `unsafe` or `extern` function");
+    }
     TypeId ret = check_args(c, e, sig);
     if (def->kind == DEF_FN) {
         check_mut_args(c, def->fn, e);
@@ -260,7 +269,8 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_CAST: return cast(c, e);
     case EXPR_CALL: return call(c, e);
     case EXPR_IF: return check_if(c, e, expected, true);
-    case EXPR_BLOCK: case EXPR_UNSAFE: return check_block(c, e->as.block, expected, true);
+    case EXPR_BLOCK: return check_block(c, e->as.block, expected, true);
+    case EXPR_UNSAFE: return check_unsafe_block(c, e, expected, true);
     case EXPR_TUPLE: return tuple(c, e, expected);
     case EXPR_SELF_TYPE: return type_id(TID_ERROR);   // replaced by the resolver
     case EXPR_GENERIC: return unsupported(c, e->span, "generic types are");
@@ -277,14 +287,28 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     return type_id(TID_ERROR);
 }
 
+TypeId check_unsafe_block(Checker *c, Expr *e, TypeId expected, bool as_value) {
+    c->unsafe_depth++;
+    TypeId type = check_block(c, e->as.block, expected, as_value);
+    c->unsafe_depth--;
+    return type;
+}
+
 TypeId check_expr(Checker *c, Expr *e, TypeId expected) {
     e->type = synthesize(c, e, expected);
     return e->type;
 }
 
+// `*mut T` converts to `*T`: giving up the right to write is always safe.
+static bool weakens_pointer(Checker *c, TypeId found, TypeId expected) {
+    const Ty *f = type_get(c->types, found), *x = type_get(c->types, expected);
+    return f->kind == TY_PTR && x->kind == TY_PTR && f->data && !x->data &&
+           type_eq(f->inner, x->inner);
+}
+
 TypeId coerce(Checker *c, Expr *e, TypeId expected) {
     TypeId found = check_expr(c, e, expected);
-    if (!types_compatible(found, expected)) {
+    if (!types_compatible(found, expected) && !weakens_pointer(c, found, expected)) {
         char expected_name[64];
         snprintf(expected_name, sizeof expected_name, "%s", type_name(c, expected));
         check_error(c, "E0300", e->span, "mismatched types: expected %s, found %s",
@@ -303,6 +327,7 @@ TypeId check_const(Checker *c, Def *def) {
         return type_id(TID_ERROR);
     }
     def->checking = true;
+    uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeExpr *annotation = def->item->as.const_.type;
     Expr *value = def->item->as.const_.value;
     TypeId type = annotation ? resolve_type(c, annotation) : NO_TYPE;
@@ -311,6 +336,7 @@ TypeId check_const(Checker *c, Def *def) {
     if (def->kind == DEF_CONST) {
         def->value = const_eval(c, value);   // while `checking` is set: catches cycles
     }
+    sema_enter(c->sema, saved_module);
     def->checking = false;
     def->typed = true;
     return def->type;

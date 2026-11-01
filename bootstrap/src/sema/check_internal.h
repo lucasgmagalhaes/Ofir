@@ -18,6 +18,7 @@ typedef struct {
     TypeId self_type;        // the type declaring the method, or TID_ERROR
     TypeId *local_types;     // indexed by LocalId
     Vec(bool) loops;         // per open loop: whether a `break` leaves it
+    uint32_t unsafe_depth;   // > 0 inside an `unsafe` block or function
 } Checker;
 
 #define NO_TYPE type_id(TID_ERROR)   // "no expected type" for check_expr
@@ -34,6 +35,10 @@ const char *type_name(Checker *c, TypeId type);
 // check_types.c
 TypeId resolve_type(Checker *c, const TypeExpr *type);
 TypeId fn_signature(Checker *c, FnDecl *fn);   // the TY_FN type, cached in the Def
+// A declaration of another module named in a type or pattern (E0200, E0202).
+DefId module_type(Checker *c, uint32_t module, Symbol name, Span span);
+// Reports E0202 when a field or method of another module is not `pub`.
+void check_visible(Checker *c, uint32_t module, bool is_pub, Symbol name, Span span);
 bool types_compatible(TypeId found, TypeId expected);
 
 // check_expr.c
@@ -41,6 +46,7 @@ TypeId check_expr(Checker *c, Expr *e, TypeId expected);
 TypeId coerce(Checker *c, Expr *e, TypeId expected);
 TypeId check_const(Checker *c, Def *def);   // the type of a constant or global
 TypeId check_args(Checker *c, Expr *call, const Ty *sig);
+TypeId check_unsafe_block(Checker *c, Expr *e, TypeId expected, bool as_value);
 
 // const_eval.c: the value of a constant's initializer, or NULL after an error
 struct ConstValue *const_eval(Checker *c, const Expr *e);
@@ -54,6 +60,16 @@ void require_mutable(Checker *c, Expr *e);
 // The variable at the root of a place: `p` in `p.pos.x`, or NULL.
 Expr *place_root(Expr *e);
 
+// check_unsafe.c
+void require_unsafe(Checker *c, Span span, const char *what);   // E0803
+TypeId check_deref(Checker *c, Expr *e, TypeId expected);
+bool pointer_cast(Checker *c, TypeId from, TypeId to, Span span);
+void check_c_signature(Checker *c, FnDecl *fn);                  // E0804
+bool is_unsafe_fn(const Def *def);
+// A function of an `extern "intrinsic"` block: an operation the compiler
+// generates (ADR 0019); safe to call.
+bool is_intrinsic(const Def *def);
+
 // check_user_method.c
 bool type_name_of(Checker *c, const Expr *e, DefId *out);
 void check_mut_args(Checker *c, const FnDecl *fn, Expr *call);
@@ -66,6 +82,7 @@ TypeId check_tuple_field(Checker *c, Expr *e);
 TypeId check_constructor(Checker *c, Expr *call, DefId id);
 TypeId check_struct_literal(Checker *c, Expr *e);
 void check_not_recursive(Checker *c, TypeId type, Span span);
+void check_lang_layout(Checker *c, const Def *lang, TypeId type);   // E0806
 
 // enums.c
 EnumInfo *enum_variants(Checker *c, DefId id);   // NULL for generic enums

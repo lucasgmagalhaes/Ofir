@@ -47,7 +47,7 @@ static TypeId var_stmt(Checker *c, Stmt *s) {
 // The left side of `=` must be a mutable place (spec 4.2).
 static void check_place(Checker *c, Expr *target) {
     Expr *root = place_root(target);
-    if (root && root != target) {   // a field: the variable must be mutable
+    if (root && (root != target || root->kind == EXPR_UNARY)) {   // a field or `*p`
         require_mutable(c, target);
         return;
     }
@@ -152,7 +152,9 @@ static TypeId expr_stmt(Checker *c, Expr *e) {
         e->type = check_match(c, e, NO_TYPE, false);
     } else if (e->kind == EXPR_IF) {
         e->type = check_if(c, e, NO_TYPE, false);
-    } else if (e->kind == EXPR_BLOCK || e->kind == EXPR_UNSAFE) {
+    } else if (e->kind == EXPR_UNSAFE) {
+        e->type = check_unsafe_block(c, e, NO_TYPE, false);
+    } else if (e->kind == EXPR_BLOCK) {
         e->type = check_block(c, e->as.block, NO_TYPE, false);
     } else {
         check_expr(c, e, NO_TYPE);

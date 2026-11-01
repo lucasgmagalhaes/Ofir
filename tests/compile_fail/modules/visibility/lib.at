@@ -1,0 +1,24 @@
+pub struct Account {
+    pub owner: str
+    balance: int
+
+    pub fn open(owner: str) Account {
+        return Account{owner, balance: 0}
+    }
+
+    fn audit(self) int {
+        return self.balance
+    }
+}
+
+struct Secret {
+    code: int
+}
+
+pub fn visible() int {
+    return hidden()
+}
+
+fn hidden() int {
+    return 1
+}

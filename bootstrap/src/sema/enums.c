@@ -61,6 +61,7 @@ EnumInfo *enum_variants(Checker *c, DefId id) {
     EnumInfo *info = ARENA_NEW(&c->sema->session->arena, EnumInfo);
     info->count = item->as.enum_.variants.len;
     info->variants = ARENA_ARRAY(&c->sema->session->arena, VariantInfo, info->count + 1);
+    uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
     c->self_type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id});
     def->checking = true;
@@ -71,6 +72,7 @@ EnumInfo *enum_variants(Checker *c, DefId id) {
     }
     def->checking = false;
     c->self_type = saved_self;
+    sema_enter(c->sema, saved_module);
     def->variants = info;
     check_discriminants(c, item, info);
     return info;

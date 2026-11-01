@@ -5,6 +5,7 @@
 
 #include "driver.h"
 #include "sema/sema.h"
+#include "syntax/ast.h"
 
 // Times each phase when `--time-passes` is given.
 typedef struct {
@@ -31,6 +32,18 @@ typedef struct {
     FileId file;
     char exe[PATH_SIZE];   // the executable, once built
 } Pipeline;
+
+// driver_paths.c: `$env`, else the first of `places` (relative to the
+// compiler's directory) that exists.
+bool find_installed(const char *argv0, const char *env, const char *const *places,
+                    size_t count, char out[PATH_SIZE]);
+
+// driver.c: lexes and parses one file; the root's tokens or AST are what
+// --emit prints. NULL when the phases stop here.
+Module *parse_file(Pipeline *p, FileId file, bool root, Next *next);
+
+// driver_modules.c: the root module and every module it imports.
+Program load_program(Pipeline *p, Module *root);
 
 // driver_backend.c: lowering, code generation and clang.
 Next run_backend(Pipeline *p, Sema *sema);

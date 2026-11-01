@@ -5,57 +5,11 @@
 
 #include <stdarg.h>
 #include <stdio.h>
-
-typedef struct {
-    const char *name;
-    DefKind kind;
-    uint32_t value;   // a TYPE_* constant or a Builtin
-} PreludeEntry;
-
-static const PreludeEntry PRELUDE[] = {
-    {"int", DEF_PRIMITIVE, TID_INT},     {"uint", DEF_PRIMITIVE, TID_U64},
-    {"i8", DEF_PRIMITIVE, TID_I8},       {"i16", DEF_PRIMITIVE, TID_I16},
-    {"i32", DEF_PRIMITIVE, TID_I32},     {"i64", DEF_PRIMITIVE, TID_I64},
-    {"u8", DEF_PRIMITIVE, TID_U8},       {"u16", DEF_PRIMITIVE, TID_U16},
-    {"u32", DEF_PRIMITIVE, TID_U32},     {"u64", DEF_PRIMITIVE, TID_U64},
-    {"float", DEF_PRIMITIVE, TID_FLOAT}, {"f32", DEF_PRIMITIVE, TID_F32},
-    {"f64", DEF_PRIMITIVE, TID_F64},     {"bool", DEF_PRIMITIVE, TID_BOOL},
-    {"str", DEF_PRIMITIVE, TID_STR},
-    {"print", DEF_BUILTIN, BUILTIN_PRINT}, {"println", DEF_BUILTIN, BUILTIN_PRINTLN},
-    {"panic", DEF_BUILTIN, BUILTIN_PANIC}, {"assert", DEF_BUILTIN, BUILTIN_ASSERT},
-};
+#include <string.h>
 
 static DefId add_def(Sema *sema, Def def) {
     VEC_PUSH(sema->defs, def);
     return (DefId){(uint32_t)sema->defs.len - 1};
-}
-
-void sema_init(Sema *sema, Session *session, Module *module) {
-    *sema = (Sema){.session = session, .module = module};
-    types_init(&sema->types, &session->arena);
-    VEC_PUSH(sema->defs, (Def){0});   // DefId 0 means "none"
-    Symbol names[ARRAY_LEN(PRELUDE)];
-    for (size_t i = 0; i < ARRAY_LEN(PRELUDE); i++) {
-        names[i] = intern(&session->names, sv_from_cstr(PRELUDE[i].name));
-    }
-    intern(&session->names, SV("self"));   // before the scope tables are sized
-    intern(&session->names, SV("_"));
-    scope_init(&sema->scope, session->names.count);
-    for (size_t i = 0; i < ARRAY_LEN(PRELUDE); i++) {
-        Def def = {.kind = PRELUDE[i].kind, .name = names[i], .in_prelude = true};
-        if (def.kind == DEF_PRIMITIVE) {
-            def.type = type_id(PRELUDE[i].value);
-        } else {
-            def.builtin = (Builtin)PRELUDE[i].value;
-        }
-        scope_set_module(&sema->scope, names[i], add_def(sema, def));
-    }
-}
-
-void sema_free(Sema *sema) {
-    types_free(&sema->types);
-    VEC_FREE(sema->defs);
-    scope_free(&sema->scope);
 }
 
 void resolve_error(Resolver *r, const char *code, Span span, const char *format, ...) {
@@ -72,7 +26,8 @@ StrView resolver_name(const Resolver *r, Symbol name) {
 }
 
 // Registers a top-level name; a module declaration may hide a prelude name.
-static void declare_item(Resolver *r, Def def) {
+void declare_item(Resolver *r, Def def) {
+    def.module = r->sema->current;
     DefId existing = scope_module(&r->sema->scope, def.name);
     if (existing.id != 0 && !sema_def(r->sema, existing)->in_prelude) {
         resolve_error(r, "E0201", def.span, "`" SV_FMT "` is defined more than once",
@@ -94,7 +49,8 @@ static DefKind item_def_kind(ItemKind kind) {
 }
 
 static void declare_fn(Resolver *r, const Item *item, FnDecl *fn, bool in_module) {
-    Def def = {.kind = DEF_FN, .name = fn->name, .span = fn->span, .item = item, .fn = fn};
+    Def def = {.kind = DEF_FN, .name = fn->name, .span = fn->span, .item = item, .fn = fn,
+               .is_pub = fn->is_pub, .module = r->sema->current};
     if (in_module) {
         declare_item(r, def);
         fn->def = scope_module(&r->sema->scope, fn->name);
@@ -118,7 +74,40 @@ static void check_members(Resolver *r, const Item *item) {
     }
 }
 
+// `@lang("str") struct str { ... }` in std: the body of a primitive type.
+// It declares no name; the primitive gets its fields and methods.
+static bool collect_lang(Resolver *r, const Item *item) {
+    const Attribute *attr = find_attribute(r->sema, item->attributes, "lang");
+    if (!attr) {
+        return false;
+    }
+    StrView module = r->sema->program.items[r->sema->current].name;
+    bool in_std = module.len >= 3 && memcmp(module.ptr, "std", 3) == 0;
+    const Expr *arg = attr->args.len == 1 ? attr->args.items[0] : NULL;
+    DefId primitive = arg && arg->kind == EXPR_STR
+                          ? scope_module(&r->sema->scope, intern(&r->sema->session->names,
+                                                                 arg->as.str))
+                          : (DefId){0};
+    const Def *prim = primitive.id ? sema_def(r->sema, primitive) : NULL;
+    if (!in_std || !prim || prim->kind != DEF_PRIMITIVE || r->sema->lang[prim->type.id].id) {
+        resolve_error(r, "E0805", attr->span, in_std ? "`@lang` needs the name of a primitive "
+                      "type, declared once: `@lang(\"str\")`" : "`@lang` is reserved to the "
+                      "standard library");
+        return true;
+    }
+    TypeId type = prim->type;   // `prim` points into `defs`, which the push may move
+    VEC_PUSH(r->sema->defs, ((Def){.kind = DEF_STRUCT, .name = item->name, .span = item->span,
+                                   .item = item, .is_pub = true, .lang = true,
+                                   .type = type, .module = r->sema->current}));
+    r->sema->lang[type.id] = (DefId){(uint32_t)r->sema->defs.len - 1};
+    check_members(r, item);
+    return true;
+}
+
 static void collect_item(Resolver *r, const Item *item) {
+    if ((item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT) && collect_lang(r, item)) {
+        return;
+    }
     switch (item->kind) {
     case ITEM_FN:
         declare_fn(r, item, item->as.fn, true);
@@ -128,12 +117,11 @@ static void collect_item(Resolver *r, const Item *item) {
             declare_fn(r, item, item->as.extern_.fns.items[i], true);
         }
         break;
-    case ITEM_IMPORT:
-        resolve_error(r, "E0901", item->span, "imports are not supported yet");
+    case ITEM_IMPORT:   // bound once every module's declarations are known
         break;
     default:
         declare_item(r, (Def){.kind = item_def_kind(item->kind), .name = item->name,
-                              .span = item->span, .item = item});
+                              .span = item->span, .item = item, .is_pub = item->is_pub});
         if (item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT ||
             item->kind == ITEM_ENUM) {
             check_members(r, item);
@@ -175,15 +163,35 @@ static void resolve_item(Resolver *r, Item *item) {
     }
 }
 
-void resolve_module(Sema *sema) {
+static void resolve_pass(Resolver *r, int pass) {
+    ItemList items = r->sema->module->items;
+    for (uint32_t i = 0; i < items.len; i++) {
+        Item *item = items.items[i];
+        if (pass == 0) {
+            collect_item(r, item);
+        } else if (pass == 1 && item->kind == ITEM_IMPORT) {
+            resolve_import(r, item);
+        } else if (pass == 2) {
+            resolve_item(r, item);
+        }
+    }
+}
+
+// Three passes over every module: declarations, imports, then bodies, so
+// that modules may refer to each other in any order (spec 7.2).
+void resolve_program(Sema *sema) {
     Resolver r = {.sema = sema};
     r.self_name = intern(&sema->session->names, SV("self"));
     r.wildcard = intern(&sema->session->names, SV("_"));
-    for (uint32_t i = 0; i < sema->module->items.len; i++) {
-        collect_item(&r, sema->module->items.items[i]);
+    for (int pass = 0; pass < 3; pass++) {
+        for (uint32_t m = 0; m < sema->program.len; m++) {
+            sema_enter(sema, m);
+            resolve_pass(&r, pass);
+        }
+        if (pass == 0) {
+            import_prelude(&r);
+        }
     }
-    for (uint32_t i = 0; i < sema->module->items.len; i++) {
-        resolve_item(&r, sema->module->items.items[i]);
-    }
+    sema_enter(sema, 0);
     VEC_FREE(r.locals);
 }
