@@ -40,7 +40,7 @@ fn check(n: int) Outcome<(), str> {
     return .Ok(())
 }
 
-fn report(o: Outcome<(), str>) str {
+fn report(o: move Outcome<(), str>) str {
     return match o {
         .Ok(()) => "ok"
         .Err(message) => message
