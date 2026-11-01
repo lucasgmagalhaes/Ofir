@@ -13,7 +13,7 @@
 
 struct Gen {
     Sema *sema;
-    const TypeTable *types;
+    TypeTable *types;        // instances add the types of their fields
     Out out;
     Out globals;             // string literals and locations, written at the end
     uint32_t str_count, loc_count;
@@ -24,7 +24,7 @@ struct Gen {
     Out path;                // the escaped source path of the root module
     Vec(bool) files_emitted; // by FileId: whether @.file.<id> exists
     Out type_defs;           // struct type definitions, written at the end
-    const char **adt_types;  // the LLVM name of each struct, by DefId (NULL until used)
+    const char **adt_types;  // the LLVM name of each struct or enum, by TypeId (NULL until used)
     size_t adt_count;
     Vec(bool) c_used;        // by DefId: functions of extern blocks to declare
 };
@@ -38,7 +38,7 @@ typedef struct {
 const char *llvm_type(Gen *g, TypeId type);
 bool llvm_has_value(TypeId type);   // false for () and !
 StrView def_name(Gen *g, DefId def);
-void function_name(Gen *g, Out *out, DefId def, bool is_main);
+void function_name(Gen *g, Out *out, DefId def, TypeId targs, bool is_main);
 bool is_c_function(const Def *def);   // in an extern block, or `extern "C" fn`
 void mark_c_used(Gen *g, DefId def);   // declare it at the end of the module
 
@@ -48,8 +48,10 @@ void next_temp(Gen *g, char text[16]);
 // llvm_types.c
 // The address of a place: `%l<N>` itself, or a getelementptr to the field.
 void place_address(Gen *g, LocalId local, FieldPath path, char text[16]);
-const char *adt_type(Gen *g, uint32_t def);          // defined at its first use
-const char *variant_type(Gen *g, uint32_t def, uint32_t v);
+const char *adt_type(Gen *g, TypeId type);          // defined at its first use
+const char *variant_type(Gen *g, TypeId adt, uint32_t v);
+// `<int, str>`: the type arguments of an instance, for its name.
+void type_args_text(Gen *g, Out *out, TypeId targs);
 const char *tuple_type(Gen *g, const Ty *ty);
 
 uint32_t string_global(Gen *g, StrView text);   // the N of @.str.N

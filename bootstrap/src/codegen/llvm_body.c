@@ -75,9 +75,13 @@ static void user_call(Gen *g, const AirStmt *s) {
     if (c && def->item->kind == ITEM_EXTERN) {
         mark_c_used(g, s->as.call.fn);
     }
-    const char *ret = llvm_type(g, type_get(g->types, def->type)->inner);
+    const Ty *targs = type_get(g->types, s->as.call.targs);
+    TypeId ret_type = type_subst(g->types, type_get(g->types, def->type)->inner, targs->args,
+                                 targs->arg_count);
+    const char *ret = llvm_type(g, ret_type);
+    bool has_dest = s->has_dest && llvm_has_value(ret_type);   // an instance may return ()
     char result[16] = "";
-    if (s->has_dest) {
+    if (has_dest) {
         next_temp(g, result);
         out_fmt(&g->out, "  %s = ", result);
     } else {
@@ -85,9 +89,9 @@ static void user_call(Gen *g, const AirStmt *s) {
     }
     bool zext = c && strcmp(ret, "i1") == 0;
     out_fmt(&g->out, "call %s%s%s ", c ? "" : "fastcc ", zext ? "zeroext " : "", ret);
-    function_name(g, &g->out, s->as.call.fn, false);
+    function_name(g, &g->out, s->as.call.fn, s->as.call.targs, false);
     call_args(g, values, count, c);
-    if (s->has_dest) {
+    if (has_dest) {
         Value v = {.type = ret};
         memcpy(v.text, result, sizeof result);
         store(g, s->dest, v);
@@ -171,7 +175,7 @@ static void header(Gen *g, const AirBody *body) {
     bool c = is_c_function(sema_def(g->sema, body->def));   // `extern "C" fn`: callable from C
     out_fmt(&g->out, "define %s%s ", body->is_main || c ? "" : "internal fastcc ",
             body->is_main ? "void" : llvm_type(g, ret));
-    function_name(g, &g->out, body->def, body->is_main);
+    function_name(g, &g->out, body->def, body->targs, body->is_main);
     out_char(&g->out, '(');
     bool first = true;
     for (uint32_t i = 1; i <= body->param_count; i++) {
