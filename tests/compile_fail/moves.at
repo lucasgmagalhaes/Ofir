@@ -1,0 +1,68 @@
+struct User {
+    name: str
+    age: int
+}
+
+fn consume(s: move str) {
+}
+
+fn useAfterMove() {
+    let a = "hello".toOwned()
+    let b = a
+    println(a)                   // error[E0600]: use of moved value `a`: it was moved before; clone it, or move a copy
+}
+
+fn conditional(flag: bool) {
+    let v = "x".toOwned()
+    if flag {
+        consume(v)
+    }
+    println(v)                   // error[E0600]: use of moved value `v`: it was moved before; clone it, or move a copy
+}
+
+fn inLoop() {
+    let s = "x".toOwned()
+    for _ in 0..3 {
+        consume(s)               // error[E0600]: use of moved value `s`: it was moved before; clone it, or move a copy
+    }
+}
+
+fn partial() {
+    let u = User{name: "ana", age: 3}
+    let n = u.name
+    println("{u.age}")
+    let whole = u                // error[E0600]: use of moved value `u`: it was moved before; clone it, or move a copy
+}
+
+fn fromBorrowed(u: User) str {
+    return u.name                // error[E0602]: cannot move out of `u`, which is borrowed: declare the parameter `move`, or call `.clone()`
+}
+
+fn fromElement(xs: List<str>) {
+    let first = xs[0]            // error[E0602]: cannot move out of an element of a collection: use `remove`, `swapRemove`, `mem.replace` or `.clone()`
+}
+
+fn fromReference(r: &User) {
+    let u = *r                   // error[E0602]: cannot move out of a reference: use `remove`, `swapRemove`, `mem.replace` or `.clone()`
+}
+
+fn mutNotRestored(s: mut str) {   // error[E0602]: `s` is moved out of and not given a new value before the function returns
+    consume(s)
+}
+
+fn uninitialized(flag: bool) {
+    var n: int
+    if flag {
+        n = 1
+    }
+    println("{n}")               // error[E0601]: use of possibly uninitialized variable `n`
+}
+
+fn fromForVariable(names: List<str>) {
+    for name in names {
+        consume(name)            // error[E0602]: cannot move out of `name`, which is borrowed: declare the parameter `move`, or call `.clone()`
+    }
+}
+
+fn main() {
+}

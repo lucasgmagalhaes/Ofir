@@ -1,4 +1,4 @@
-struct Point {
+copy struct Point {
     x: float
     y: float = 0.0
 }
