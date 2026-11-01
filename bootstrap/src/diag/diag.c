@@ -10,6 +10,7 @@ void diags_init(Diagnostics *diags, Arena *arena) {
     diags->items.data = NULL;
     diags->items.len = diags->items.cap = 0;
     diags->error_count = 0;
+    diags->deny_warnings = false;
 }
 
 void diags_free(Diagnostics *diags) {
