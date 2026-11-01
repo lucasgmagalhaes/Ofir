@@ -187,6 +187,7 @@ struct Expr {
     Span span;
     TypeId type;            // set by the type checker
     bool moves;             // set by the move analysis: the value of this local is moved out
+    bool consumed;          // set by the move analysis: a new value, moved into its user
     union {
         uint64_t int_value;
         double float_value;
@@ -306,7 +307,20 @@ struct FnDecl {
     bool returns_borrow;
     int32_t borrow_source;
     bool source_by_ref;     // the source is a borrowed value, not a reference
+    // Set by the move analysis: the field paths of locals moved out somewhere
+    // (`p.name`), which the drops track one by one.
+    struct MovedPart *moved_parts;
+    uint32_t moved_part_count;
 };
+
+enum { PART_DEPTH = 7 };
+
+// A part of a local moved out: `p.a.b` is local p with path [a, b].
+typedef struct MovedPart {
+    uint32_t local;
+    uint32_t len;
+    uint32_t fields[PART_DEPTH];
+} MovedPart;
 
 typedef struct {
     Symbol name;

@@ -17,14 +17,7 @@
 #include "base/arena.h"
 #include "sema/check_internal.h"
 
-enum { PART_DEPTH = 7 };
-
-// A part of a variable moved out: `p.name` is local p with path [name].
-typedef struct {
-    uint32_t local;
-    uint32_t len;
-    uint32_t fields[PART_DEPTH];
-} Part;
+typedef MovedPart Part;   // a part of a variable moved out (syntax/ast.h)
 
 typedef struct {
     bool dead;           // unreachable: a join ignores it
@@ -46,6 +39,7 @@ typedef struct {
     bool report;         // false while a loop's fixpoint is computed
     uint64_t *borrowed;  // per local: borrows a place (borrowed parameter, `for` variable)
     Vec(LoopFrame) loops;
+    Vec(Part) all_parts; // every part moved somewhere, for the drops
 } Moves;
 
 // How an expression is used: its value read (borrowed), consumed, or, for
@@ -63,8 +57,26 @@ bool moved_part(const State *s, const Part *part);    // overlaps something move
 void move_part(Moves *m, State *s, const Part *part);
 void init_part(Moves *m, State *s, const Part *part);  // assigned: no longer moved
 
+// A place rooted at a local: `x`, `x.a.b`, `x.0`. `via` tells what else
+// the path goes through, which forbids moving out of it.
+typedef enum { VIA_NOTHING, VIA_INDEX, VIA_DEREF, VIA_RAW } Via;
+
+typedef struct {
+    bool local;          // rooted at a local (else a temporary or a global)
+    Part part;
+    Via via;
+} Place;
+
 // moves_expr.c
 void moves_expr(Moves *m, Expr *e, State *s, Use use);
+bool is_copy(Moves *m, TypeId type);
+bool is_place(const Expr *e);
+Place place_of(Moves *m, Expr *e, State *s);   // walks what the place reads on the way
+void use_place(Moves *m, const Place *p, State *s, Span span);   // E0600, E0601
+
+// moves_match.c
+void moves_if(Moves *m, Expr *e, State *s, Use use);
+void moves_match(Moves *m, Expr *e, State *s, Use use);
 void moves_pattern_init(Moves *m, const Pattern *p, State *s, bool borrowed);
 // Whether the bindings of `p` take a non-Copy part of the value by move.
 bool binds_by_move(Moves *m, const Pattern *p);
