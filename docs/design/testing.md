@@ -28,6 +28,16 @@ tests/run/structs/methods.at
 tests/run/structs/methods.out          expected stdout
 ```
 
+A program made of several modules is a directory whose root module is
+`main.at`; the other files are its modules, not separate tests:
+
+```
+tests/run/modules/app/main.at          the test (root module)
+tests/run/modules/app/main.out
+tests/run/modules/app/util.at          module `util`
+tests/run/modules/app/geometry/shapes.at   module `geometry.shapes`
+```
+
 ### Compile-fail tests
 
 Expected diagnostics are annotations on the line where they are reported:

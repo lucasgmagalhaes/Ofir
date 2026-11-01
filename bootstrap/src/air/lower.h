@@ -10,8 +10,8 @@
 // the call, so only one function is in memory at a time.
 typedef void (*BodySink)(void *context, const AirBody *body);
 
-// Runs after a successful check_module. Reports E0901 for constructs that
+// Runs after a successful check_program. Reports E0901 for constructs that
 // stage 0 can check but not compile yet.
-void lower_module(Sema *sema, BodySink sink, void *context);
+void lower_program(Sema *sema, BodySink sink, void *context);
 
 #endif

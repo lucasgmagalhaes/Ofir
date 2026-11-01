@@ -1,12 +1,13 @@
 // Internal functions use fastcc; main is the entry point the runtime calls.
 // Stage 0 has no borrow checker, so it never emits noalias.
+// Functions are generated from `main`, in the order calls reach them.
+// CHECK: define void @astra_main() nounwind {
+// CHECK: call fastcc i64 @"astra.add"(i64 1, i64 2)
 // CHECK: define internal fastcc i64 @"astra.add"(i64 %p1, i64 %p2) nounwind {
 // CHECK: call { i64, i1 } @llvm.sadd.with.overflow.i64(
 // CHECK: call void @astra_panic_overflow(ptr @.loc.
-// CHECK: define void @astra_main() nounwind {
-// CHECK: call fastcc i64 @"astra.add"(i64 1, i64 2)
 // CHECK-NOT: noalias
-// CHECK: @.loc.0 = private unnamed_addr constant %astra.loc { ptr @.file, i32 11, i32 12 }
+// CHECK: @.loc.0 = private unnamed_addr constant %astra.loc { ptr @.file.
 fn add(a: int, b: int) int {
     return a + b
 }

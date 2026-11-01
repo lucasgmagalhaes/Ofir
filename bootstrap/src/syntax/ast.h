@@ -358,10 +358,12 @@ typedef struct Item {
     } as;
 } Item;
 
+typedef List(Item *) ItemList;
+
 typedef struct {
     FileId file;
     List(StrView) docs;        // `//!` lines
-    List(Item *) items;
+    ItemList items;
 } Module;
 
 // Writes the AST in the indented format used by `--emit=ast` and tests/parse.

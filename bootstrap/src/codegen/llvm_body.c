@@ -23,9 +23,7 @@ static void runtime_call(Gen *g, const AirStmt *s) {
         args[i] = gen_operand(g, s->as.call.args[i]);
     }
     RuntimeFn fn = s->as.call.rt;
-    bool returns_bool = fn == RT_STR_EQ || fn == RT_STR_STARTS_WITH || fn == RT_STR_ENDS_WITH ||
-                        fn == RT_STR_CONTAINS;
-    const char *ret = returns_bool ? "i1" : fn == RT_STR_CMP ? "i32" : "void";
+    const char *ret = fn == RT_STR_EQ ? "i1" : fn == RT_STR_CMP ? "i32" : "void";
     char result[16] = "";
     if (s->has_dest) {
         next_temp(g, result);
@@ -47,6 +45,24 @@ static void runtime_call(Gen *g, const AirStmt *s) {
     }
 }
 
+// A C function's bools are `zeroext i1`, as clang declares them.
+static const char *c_attr(bool c, const char *type) {
+    return c && strcmp(type, "i1") == 0 ? " zeroext" : "";
+}
+
+static void call_args(Gen *g, const Value *values, uint32_t count, bool c) {
+    out_char(&g->out, '(');
+    bool first = true;
+    for (uint32_t i = 0; i < count; i++) {
+        if (strcmp(values[i].type, "void") != 0) {   // () arguments are not passed
+            out_fmt(&g->out, "%s%s%s %s", first ? "" : ", ", values[i].type,
+                    c_attr(c, values[i].type), values[i].text);
+            first = false;
+        }
+    }
+    out_str(&g->out, ")\n");
+}
+
 static void user_call(Gen *g, const AirStmt *s) {
     Value args[16];
     uint32_t count = s->as.call.arg_count;
@@ -54,25 +70,23 @@ static void user_call(Gen *g, const AirStmt *s) {
     for (uint32_t i = 0; i < count; i++) {
         values[i] = gen_operand(g, s->as.call.args[i]);
     }
-    const Ty *sig = type_get(g->types, sema_def(g->sema, s->as.call.fn)->type);
-    const char *ret = llvm_type(g, sig->inner);
+    const Def *def = sema_def(g->sema, s->as.call.fn);
+    bool c = is_c_function(def);
+    if (c && def->item->kind == ITEM_EXTERN) {
+        mark_c_used(g, s->as.call.fn);
+    }
+    const char *ret = llvm_type(g, type_get(g->types, def->type)->inner);
     char result[16] = "";
     if (s->has_dest) {
         next_temp(g, result);
-        out_fmt(&g->out, "  %s = call fastcc %s ", result, ret);
+        out_fmt(&g->out, "  %s = ", result);
     } else {
-        out_fmt(&g->out, "  call fastcc %s ", ret);
+        out_str(&g->out, "  ");
     }
+    bool zext = c && strcmp(ret, "i1") == 0;
+    out_fmt(&g->out, "call %s%s%s ", c ? "" : "fastcc ", zext ? "zeroext " : "", ret);
     function_name(g, &g->out, s->as.call.fn, false);
-    out_char(&g->out, '(');
-    bool first = true;
-    for (uint32_t i = 0; i < count; i++) {
-        if (strcmp(values[i].type, "void") != 0) {   // () arguments are not passed
-            out_fmt(&g->out, "%s%s %s", first ? "" : ", ", values[i].type, values[i].text);
-            first = false;
-        }
-    }
-    out_str(&g->out, ")\n");
+    call_args(g, values, count, c);
     if (s->has_dest) {
         Value v = {.type = ret};
         memcpy(v.text, result, sizeof result);
@@ -91,7 +105,7 @@ static void statement(Gen *g, const AirStmt *s) {
     }
     Value v;
     TypeId type = g->body->locals.data[s->dest.id].type;
-    if (s->dest_path.len > 0) {   // the value has the field's type: the operand's
+    if (s->dest_path.len > 0 || s->dest_path.deref) {   // a field or `*p`: the operand's type
         type = s->as.rvalue.a.type;
     }
     gen_rvalue(g, &s->as.rvalue, type, &v);
@@ -154,7 +168,8 @@ static void terminator(Gen *g, const Terminator *t, size_t index) {
 
 static void header(Gen *g, const AirBody *body) {
     TypeId ret = body->locals.data[0].type;
-    out_fmt(&g->out, "define %s%s ", body->is_main ? "" : "internal fastcc ",
+    bool c = is_c_function(sema_def(g->sema, body->def));   // `extern "C" fn`: callable from C
+    out_fmt(&g->out, "define %s%s ", body->is_main || c ? "" : "internal fastcc ",
             body->is_main ? "void" : llvm_type(g, ret));
     function_name(g, &g->out, body->def, body->is_main);
     out_char(&g->out, '(');

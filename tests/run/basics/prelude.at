@@ -1,0 +1,12 @@
+// Ordering comes from std.core, visible without an import.
+fn compare(a: int, b: int) Ordering {
+    if a < b {
+        return .Less
+    }
+    return if a == b { .Equal } else { .Greater }
+}
+
+fn main() {
+    let o = compare(1, 2)
+    println("{o.isLt()} {o.reverse().isGt()} {compare(3, 3).then(.Greater).isGt()} {o.then(.Greater).isLt()}")
+}

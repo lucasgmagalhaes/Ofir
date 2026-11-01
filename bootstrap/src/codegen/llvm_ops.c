@@ -145,6 +145,9 @@ static void unary(Gen *g, const Rvalue *rv, Value *result) {
 }
 
 static const char *cast_op(const Ty *from, const Ty *to) {
+    if (from->kind == TY_PTR || to->kind == TY_PTR) {
+        return from->kind == to->kind ? NULL : from->kind == TY_PTR ? "ptrtoint" : "inttoptr";
+    }
     if (from->kind == TY_FLOAT && to->kind == TY_FLOAT) {
         return from->data < to->data ? "fpext" : "fptrunc";
     }
@@ -191,7 +194,8 @@ void gen_rvalue(Gen *g, const Rvalue *rv, TypeId dest_type, Value *result) {
     case RV_CAST: cast(g, rv, result); break;
     case RV_CAST_FAILS: gen_cast_fails(g, rv, result); break;
     case RV_SATURATE: gen_saturate(g, rv, result); break;
-    case RV_SELECT: case RV_STR_LEN: case RV_STR_BYTE: case RV_FLOAT_FN: case RV_AGGREGATE:
+    case RV_STR_LEN: case RV_STR_BYTE: case RV_FLOAT_FN: case RV_AGGREGATE:
+    case RV_PTR_ADD:
         gen_misc(g, rv, result);
         break;
     }

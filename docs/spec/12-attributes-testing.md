@@ -30,6 +30,7 @@ struct Header {
 | `@cfg(cond)` | any | conditional compilation (12.4) |
 | `@allow(category)` | any | silence a warning category (12.6) |
 | `@tag("key", "value")` | types, fields, variants | metadata for compile-time code (chapter 15.4) |
+| `@lang("type")` | structs, `std` only | the fields and methods of a primitive type (ADR 0019) |
 
 Unknown attributes are compile errors.
 

@@ -1,13 +1,28 @@
 #include "sema/scope.h"
 
-void scope_init(Scope *scope, uint32_t symbol_count) {
-    *scope = (Scope){.symbol_count = symbol_count};
-    scope->module = xcalloc(symbol_count, sizeof(uint32_t));
+void scope_init(Scope *scope, uint32_t symbol_count, uint32_t module_count) {
+    *scope = (Scope){.symbol_count = symbol_count, .table_count = module_count};
+    scope->tables = xcalloc(module_count, sizeof(uint32_t *));
+    for (uint32_t i = 0; i < module_count; i++) {
+        scope->tables[i] = xcalloc(symbol_count, sizeof(uint32_t));
+    }
+    scope->module = scope->tables[0];
     scope->local = xcalloc(symbol_count, sizeof(uint32_t));
 }
 
+void scope_use_module(Scope *scope, uint32_t index) {
+    scope->module = scope->tables[index];
+}
+
+DefId scope_module_in(const Scope *scope, uint32_t index, Symbol name) {
+    return (DefId){name.id < scope->symbol_count ? scope->tables[index][name.id] : 0};
+}
+
 void scope_free(Scope *scope) {
-    free(scope->module);
+    for (uint32_t i = 0; i < scope->table_count; i++) {
+        free(scope->tables[i]);
+    }
+    free(scope->tables);
     free(scope->local);
     VEC_FREE(scope->depth);
     VEC_FREE(scope->saved);

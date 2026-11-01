@@ -20,32 +20,52 @@ void timer_report(Timer *timer, const char *phase, const char *detail) {
     }
 }
 
-static Next run_lexer(Pipeline *p, TokenList *tokens) {
+static Next run_lexer(Pipeline *p, FileId file, TokenList *tokens, bool root) {
     Session *session = p->session;
     timer_start(p->timer);
-    lex(session, p->file, tokens);
+    lex(session, file, tokens);
     char detail[96];
-    const SourceFile *source = source_file(&session->sources, p->file);
+    const SourceFile *source = source_file(&session->sources, file);
     snprintf(detail, sizeof detail, "%zu bytes, %u lines, %zu tokens", source->text.len,
              source->line_count, tokens->len);
     timer_report(p->timer, "lex", detail);
-    if (p->opts->emit == EMIT_TOKENS) {
+    if (root && p->opts->emit == EMIT_TOKENS) {
         print_tokens(tokens, &session->sources, &session->names, stdout);
     }
     bool done = p->opts->emit == EMIT_TOKENS || p->opts->stop_after == STOP_AFTER_LEX;
     return diags_has_errors(&session->diags) || done ? STOP : CONTINUE;
 }
 
-static Next run_sema(Pipeline *p, Module *module) {
+Module *parse_file(Pipeline *p, FileId file, bool root, Next *next) {
+    TokenList tokens = {0};
+    *next = run_lexer(p, file, &tokens, root);
+    Module *module = NULL;
+    if (*next == CONTINUE) {
+        timer_start(p->timer);
+        module = parse(p->session, file, &tokens);
+        char detail[64];
+        snprintf(detail, sizeof detail, "%u items", module->items.len);
+        timer_report(p->timer, "parse", detail);
+        if (root && p->opts->emit == EMIT_AST) {
+            print_module(module, &p->session->names, stdout);
+        }
+        bool done = p->opts->emit == EMIT_AST || p->opts->stop_after == STOP_AFTER_PARSE;
+        *next = diags_has_errors(&p->session->diags) || done ? STOP : CONTINUE;
+    }
+    VEC_FREE(tokens);
+    return module;
+}
+
+static Next run_sema(Pipeline *p, Program program) {
     timer_start(p->timer);
     Sema sema;
-    sema_init(&sema, p->session, module);
-    resolve_module(&sema);
+    sema_init(&sema, p->session, program);
+    resolve_program(&sema);
     if (!diags_has_errors(&p->session->diags)) {
-        check_module(&sema);
+        check_program(&sema);
     }
     char detail[64];
-    snprintf(detail, sizeof detail, "%u types", sema.types.count);
+    snprintf(detail, sizeof detail, "%u modules, %u types", program.len, sema.types.count);
     timer_report(p->timer, "check", detail);
     Next next = STOP;
     if (!diags_has_errors(&p->session->diags) && p->opts->stop_after != STOP_AFTER_CHECK) {
@@ -53,22 +73,6 @@ static Next run_sema(Pipeline *p, Module *module) {
     }
     sema_free(&sema);
     return next;
-}
-
-static Next run_parser(Pipeline *p, TokenList *tokens) {
-    timer_start(p->timer);
-    Module *module = parse(p->session, p->file, tokens);
-    char detail[64];
-    snprintf(detail, sizeof detail, "%u items", module->items.len);
-    timer_report(p->timer, "parse", detail);
-    if (p->opts->emit == EMIT_AST) {
-        print_module(module, &p->session->names, stdout);
-    }
-    bool done = p->opts->emit == EMIT_AST || p->opts->stop_after == STOP_AFTER_PARSE;
-    if (diags_has_errors(&p->session->diags) || done) {
-        return STOP;
-    }
-    return run_sema(p, module);
 }
 
 // Runs the phases in order. Returns whether every requested phase finished.
@@ -79,12 +83,12 @@ static bool run_phases(Pipeline *p) {
         return false;
     }
     timer_report(p->timer, "load", "");
-    TokenList tokens = {0};
-    Next next = run_lexer(p, &tokens);
+    Next next;
+    Module *root = parse_file(p, p->file, true, &next);
     if (next == CONTINUE) {
-        next = run_parser(p, &tokens);
+        Program program = load_program(p, root);
+        next = diags_has_errors(&p->session->diags) ? STOP : run_sema(p, program);
     }
-    VEC_FREE(tokens);
     return next != STOP_FAIL && !diags_has_errors(&p->session->diags);
 }
 

@@ -19,6 +19,16 @@ void resolve_error(Resolver *r, const char *code, Span span, const char *format,
 // For "%.*s" in messages: SV_ARG(resolver_name(r, name)).
 StrView resolver_name(const Resolver *r, Symbol name);
 
+void declare_item(Resolver *r, Def def);
+
+// resolve_import.c
+void resolve_import(Resolver *r, const Item *item);
+void import_prelude(Resolver *r);   // after every module's declarations are known
+// `m.name` where `m` is an imported module becomes a reference to the item.
+void resolve_qualified(Resolver *r, Expr *e);
+// The definition named `name` in module `index`, if visible from here.
+DefId module_member(Resolver *r, uint32_t index, Symbol name, Span span);
+
 // resolve_body.c
 void resolve_fn(Resolver *r, FnDecl *fn);
 void resolve_expr(Resolver *r, Expr *e);
