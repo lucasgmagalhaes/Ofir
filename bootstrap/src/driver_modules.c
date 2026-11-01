@@ -1,6 +1,6 @@
 // Loading the modules of a program (spec 7.1 and 7.2): the root file, then
 // every module it imports, transitively. `import a.b` is the file
-// `<root dir>/a/b.at` or `<root dir>/a/b/mod.at`; `import std.x` is in the
+// `<root dir>/a/b.at` or `<root dir>/a/b/index.at`; `import std.x` is in the
 // standard library, and `std.core` (the prelude) is always loaded. When
 // `a.b` names a declaration rather than a module (`import
 // std.collections.Map`), its module `a` is loaded. Imports that match no
@@ -59,7 +59,7 @@ static bool module_file(Loader *ld, StrView name, char out[PATH_SIZE]) {
         relative[i] = rest.ptr[i] == '.' ? '/' : rest.ptr[i];
     }
     relative[len] = '\0';
-    static const char *const FORMS[] = {"%s/%s.at", "%s/%s/mod.at"};
+    static const char *const FORMS[] = {"%s/%s.at", "%s/%s/index.at"};
     for (size_t i = 0; i < ARRAY_LEN(FORMS); i++) {
         int n = snprintf(out, PATH_SIZE, FORMS[i], dir, relative);
         if (n > 0 && n < PATH_SIZE && access(out, R_OK) == 0) {
@@ -67,6 +67,33 @@ static bool module_file(Loader *ld, StrView name, char out[PATH_SIZE]) {
         }
     }
     return false;
+}
+
+// `astra test` (spec 12.2): the tests of `a/b.at` are in `a/b_test.at`, part
+// of the same module, so that they may use its private declarations. The
+// test file of a module outside std, or of the root, joins its items.
+static void add_test_file(Loader *ld, Module *module, StrView name, const char *path) {
+    bool in_std = name.len >= 3 && memcmp(name.ptr, "std", 3) == 0;
+    size_t len = strlen(path);
+    char test[PATH_SIZE];
+    if (strcmp(ld->p->opts->command, "test") != 0 || (in_std && ld->modules.len > 0) ||
+        len < 3 || snprintf(test, sizeof test, "%.*s_test.at", (int)(len - 3), path) >=
+                       (int)sizeof test || access(test, R_OK) != 0) {
+        return;
+    }
+    FileId file;
+    Next next;
+    Module *tests = source_map_load(&ld->p->session->sources, test, &file)
+                        ? parse_file(ld->p, file, false, &next)
+                        : NULL;
+    if (!tests || tests->items.len == 0) {
+        return;
+    }
+    uint32_t count = module->items.len + tests->items.len;
+    Item **items = ARENA_ARRAY(&ld->p->session->arena, Item *, count);
+    memcpy(items, module->items.items, module->items.len * sizeof(Item *));
+    memcpy(items + module->items.len, tests->items.items, tests->items.len * sizeof(Item *));
+    module->items = (ItemList){items, count};
 }
 
 static void load(Loader *ld, StrView name, const char *path) {
@@ -77,6 +104,7 @@ static void load(Loader *ld, StrView name, const char *path) {
     Next next;
     Module *module = parse_file(ld->p, file, false, &next);
     if (module) {
+        add_test_file(ld, module, name, path);
         VEC_PUSH(ld->modules, ((ProgramModule){.module = module, .name = name}));
     }
 }
@@ -97,12 +125,12 @@ static void load_import(Loader *ld, const Item *item) {
 }
 
 // The module name of the root file: its name without the directory and
-// `.at`; the directory's name for a `mod.at` (spec 7.1).
+// `.at`; the directory's name for an `index.at` (spec 7.1).
 static StrView root_name(Loader *ld, const char *input) {
     const char *slash = strrchr(input, '/');
     const char *base = slash ? slash + 1 : input;
     size_t len = strlen(base);
-    if (strcmp(base, "mod.at") == 0 && slash) {
+    if (strcmp(base, "index.at") == 0 && slash) {
         const char *dir = slash;
         while (dir > input && dir[-1] != '/') {
             dir--;
@@ -132,7 +160,7 @@ static bool std_name(Loader *ld, const char *input, StrView *name) {
     if (len < 7 || len >= (int)sizeof dotted) {
         return false;
     }
-    len -= len > 11 && strcmp(dotted + len - 7, "/mod.at") == 0 ? 7 : 3;   // or `.at`
+    len -= len > 13 && strcmp(dotted + len - 9, "/index.at") == 0 ? 9 : 3;   // or `.at`
     for (int i = 0; i < len; i++) {
         dotted[i] = dotted[i] == '/' ? '.' : dotted[i];
     }
@@ -151,6 +179,7 @@ Program load_program(Pipeline *p, Module *root) {
     if (!std_name(&ld, p->opts->input, &name)) {
         name = root_name(&ld, p->opts->input);
     }
+    add_test_file(&ld, root, name, p->opts->input);
     VEC_PUSH(ld.modules, ((ProgramModule){.module = root, .name = name}));
     char core[PATH_SIZE];
     // The prelude, in every program.

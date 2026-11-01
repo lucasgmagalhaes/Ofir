@@ -2,7 +2,9 @@
 
 ## 12.1 Attributes
 
-Attributes attach metadata to a declaration. They start with `@`:
+Attributes attach metadata to a declaration. They are written with `@`
+before the declaration, `@name` or `@name(arguments)`; there is no
+bracket form such as `#[test]` or `[test]`:
 
 ```astra
 @inline
@@ -38,14 +40,20 @@ Unknown attributes are compile errors.
 
 ## 12.2 Tests
 
-Tests live next to the code they test. A test is a function marked `@test`
-with no parameters, returning `()` or `Result<(), E>`:
+Tests live next to the code they test, in a test file: the tests of
+`calc.at` are in `calc_test.at`, and those of a directory's `index.at` in
+`index_test.at`. A test file belongs to the module it tests, so tests may
+use its private declarations; only `astra test` loads it. A test is a
+function marked `@test` with no parameters, returning `()` or
+`Result<(), E>`:
 
 ```astra
+// calc.at
 fn add(a: int, b: int) int {
     return a + b
 }
 
+// calc_test.at
 @test
 fn addWorks() {
     assert(add(2, 2) == 4)
@@ -55,12 +63,14 @@ fn addWorks() {
 
 - `astra test` compiles the project with all `@test` functions and runs
   each one in a separate process, so a panic fails only that test.
-- Tests are excluded from normal builds: their bodies are not even
-  checked, but their signatures are (E0205).
+- Tests are excluded from normal builds: test files are not loaded, and a
+  `@test` function written in an ordinary file (allowed, but not the
+  convention) is not even checked, except for its signature (E0205).
 
-Stage 0: `astra test <file.at>` runs the tests of every module of the
-program except the std modules, plus those of the root file, which may be
-a std module (`astra test std/core/split.at`); `make test-std` runs the
+Stage 0: `astra test <file.at>` (or `<file>_test.at`) runs the tests of
+every module of the program except the std modules, plus those of the root
+file, which may be a std module (`astra test std/core/split.at` runs
+`std/core/split_test.at`); `make test-std` runs the
 tests of std. A test returns `()`; `Result` tests and `assertEq` await
 interfaces (roadmap 5.1). Doc tests are planned.
 - `assertEq(a, b)` prints both values (using `Debug`) when they differ.

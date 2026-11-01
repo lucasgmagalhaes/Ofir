@@ -8,6 +8,9 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- A directory's module file is `index.at` (was `mod.at`).
+- Tests live in a `name_test.at` file next to the module, part of the
+  module; only `astra test` loads it. The std tests moved there.
 - Style: no inline blocks (`[fmt] inline-blocks = false`). Function and
   statement bodies always go on their own lines; `make check-format`
   (`tools/check_format.py`, with `--fix`) enforces it in `make test`.

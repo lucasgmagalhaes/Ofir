@@ -56,7 +56,8 @@ Order of a file's contents:
    project imports by a blank line;
 3. public types, then their related private types;
 4. public functions, then private functions;
-5. `@test` functions, at the end.
+Tests go in the module's test file, `name_test.at` next to `name.at`
+(`index_test.at` for a directory's `index.at`), not in the module itself.
 
 ## Types
 
@@ -116,7 +117,7 @@ checked by `tools/check_sizes.py` in `make test`:
 
 | Rule | Target | Limit |
 |------|-------:|------:|
-| Lines per file (Astra: not counting the `@test` section at the end) | 400 | 600 |
+| Lines per file | 400 | 600 |
 | Lines per function | 40 | 60 |
 | Nesting depth inside a function | 3 | 4 |
 | Parameters per function (not counting `self`) | 5 | 7 |
