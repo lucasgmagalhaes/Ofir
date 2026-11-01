@@ -8,15 +8,15 @@ fn main() {
         print("{i} ")
     }
     println("")
-    for i in 5..5 {
+    for _ in 5..5 {
         println("never")
     }
-    for i in 6..=5 {
+    for _ in 6..=5 {
         println("never")
     }
     let top: u8 = 255
     var count = 0
-    for i in 250..=top {   // stops at the maximum without overflowing
+    for _ in 250..=top {   // stops at the maximum without overflowing
         count += 1
     }
     println("count {count}")

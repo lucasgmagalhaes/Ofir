@@ -30,7 +30,7 @@ fn describe(n: int) str {
 fn main() {
     let shapes = (Shape.Circle(1.0), Shape.Rect(2.0, 3.0), Shape.Empty)
     println("{shapes.0.area()} {shapes.1.area()} {shapes.2.area()}")
-    let (a, b, _) = shapes
+    let (_, b, _) = shapes
     println("{b.area()}")
     let c: Color = .Green
     println("{c == .Green} {c != Color.Red}")

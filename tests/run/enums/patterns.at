@@ -25,7 +25,7 @@ fn describe(t: Token) str {
         .Number(n) => "number {n}"
         .Word("hi") | .Word("hello") => "greeting"
         .Word(w) => "word {w}"
-        .Pair(a, b) | .Pair(b, a) if a == 0 => "pair with zero"
+        .Pair(a, _) | .Pair(_, a) if a == 0 => "pair with zero"
         .Pair(a, b) => "pair {a + b}"
         .End => "end"
     }
