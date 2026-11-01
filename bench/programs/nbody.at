@@ -1,7 +1,7 @@
 // The n-body simulation of the Computer Language Benchmarks Game: floating
 // point arithmetic on a list of structs.
 
-struct Body {
+copy struct Body {
     x: float
     y: float
     z: float
