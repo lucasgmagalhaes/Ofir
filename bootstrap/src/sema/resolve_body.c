@@ -27,10 +27,12 @@ static LocalId declare_local(Resolver *r, Symbol name, Span span, bool mutable) 
 static Res lookup(Resolver *r, Symbol name, Span span) {
     LocalId local;
     if (scope_local(&r->sema->scope, name, &local)) {
+        r->locals.data[local.id].used = true;
         return (Res){RES_LOCAL, local.id};
     }
     DefId def = scope_module(&r->sema->scope, name);
     if (def.id != 0) {
+        note_import_use(r->sema, name);
         return (Res){RES_DEF, def.id};
     }
     resolve_error(r, "E0200", span, "cannot find `" SV_FMT "` in this scope",
@@ -318,6 +320,21 @@ static void resolve_block(Resolver *r, Block *block) {
     scope_leave(&r->sema->scope);
 }
 
+// W0001 for the variables never read; parameters and names starting with
+// `_` are exempt (spec 12.6).
+static void warn_unused_locals(Resolver *r, const FnDecl *fn) {
+    uint32_t params = fn->params.len + (fn->has_self ? 1 : 0);
+    for (size_t i = params; i < r->locals.len; i++) {
+        const Local *local = &r->locals.data[i];
+        StrView name = resolver_name(r, local->name);
+        if (!local->used && name.len > 0 && name.ptr[0] != '_') {
+            diag_warning(&r->sema->session->diags, "W0001", local->span,
+                         "unused variable `" SV_FMT "`: use it, or start its name with `_`",
+                         SV_ARG(name));
+        }
+    }
+}
+
 void resolve_fn(Resolver *r, FnDecl *fn) {
     Scope *scope = &r->sema->scope;
     scope_reset_locals(scope);
@@ -337,6 +354,7 @@ void resolve_fn(Resolver *r, FnDecl *fn) {
         resolve_stmts(r, fn->body->stmts);   // same scope as the parameters
     }
     scope_leave(scope);
+    warn_unused_locals(r, fn);
     fn->locals.len = (uint32_t)r->locals.len;
     fn->locals.items = ARENA_ARRAY(&r->sema->session->arena, Local, r->locals.len + 1);
     if (r->locals.len > 0) {

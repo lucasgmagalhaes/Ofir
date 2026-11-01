@@ -60,6 +60,7 @@ uint32_t sema_enter(Sema *sema, uint32_t index) {
 }
 
 void sema_free(Sema *sema) {
+    VEC_FREE(sema->imports);
     types_free(&sema->types);
     VEC_FREE(sema->defs);
     scope_free(&sema->scope);
@@ -135,4 +136,25 @@ StrView sema_type_name(const void *context, const Ty *ty) {
     const Sema *sema = context;
     Symbol name = ty->kind == TY_PARAM ? (Symbol){ty->inner.id} : sema->defs.data[ty->data].name;
     return symbol_name(&sema->session->names, name);
+}
+
+void note_import_use(Sema *sema, Symbol name) {
+    for (size_t i = sema->imports.len; i > 0; i--) {   // the current module's are recent
+        ImportUse *use = &sema->imports.data[i - 1];
+        if (use->module == sema->current && symbol_eq(use->name, name)) {
+            use->used = true;
+        }
+    }
+}
+
+void warn_unused_imports(Sema *sema) {
+    for (size_t i = 0; i < sema->imports.len; i++) {
+        const ImportUse *use = &sema->imports.data[i];
+        bool prelude_root = sv_eq(sema->program.items[use->module].name, SV("std.core"));
+        if (!use->used && !prelude_root) {
+            diag_warning(&sema->session->diags, "W0002", use->span,
+                         "unused import `" SV_FMT "`",
+                         SV_ARG(symbol_name(&sema->session->names, use->name)));
+        }
+    }
 }
