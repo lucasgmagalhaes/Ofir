@@ -13,14 +13,23 @@ LLVM IR. Its interface is `runtime/include/astra_rt.h`.
 | Memory | `astra_alloc`, `astra_realloc`, `astra_free` (wrapping `malloc`/`realloc`/`free`, panicking on failure) |
 | I/O | `astra_write(fd, ptr, len)`, `astra_read(fd, ptr, len)`, the standard output buffer (`astra_stdout_write`, `astra_stdout_flush`) |
 | Crashes | stack overflow detection (section 3) |
-| Process | `astra_exit(code)`, `astra_args_count()`, `astra_arg(i)` |
-| Files | thin wrappers over `open`, `close`, `stat`, `opendir` |
-| Processes | `astra_spawn` (needed for the compiler to invoke clang) |
+| Process | `astra_exit(code)`, `astra_arg_count()`, `astra_arg(i, &len)`, `astra_env` |
+| Files | thin wrappers over `open`, `read`, `write`, `stat`, `mkdir`, `unlink`, `opendir`, `getline` |
+| Processes | `astra_run`: `posix_spawnp` with both output streams captured (needed for the compiler to invoke clang) |
 
 Stage 0 implements the entry point, the panic functions, the allocator,
 the standard output buffer and the string functions used by
 interpolation (`runtime/src`). Values of type `str` are passed to the
 runtime by pointer, which keeps the C ABI of generated calls simple.
+
+The system functions (`os.c`, `fs.c`) serve std.os, std.fs and std.io,
+which call them through `extern "C"` blocks: a string goes in as a
+pointer and a length (the runtime adds the NUL that C wants, and rejects
+a string that holds one with `EINVAL`), and a result comes back in an
+`AstraBuf` the runtime allocates with `astra_alloc`, which std takes over
+as a `str` or a `List<u8>` without copying. They return 0 or an `errno`
+value; `astra_error_kind` and `astra_error_message` turn it into an
+`IoError`.
 
 ## 2. Panic functions
 

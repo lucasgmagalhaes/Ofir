@@ -47,6 +47,16 @@ pub ref struct Slice<T> {
     }
 
     /**
+     * The address of the first element, for C functions that read the
+     * elements (spec 11).
+     *
+     * @returns the pointer; reading through it requires `unsafe`
+     */
+    pub fn asPtr(self) *T {
+        return self.ptr
+    }
+
+    /**
      * The number of elements.
      *
      * @returns the length

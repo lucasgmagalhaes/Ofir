@@ -1,0 +1,6 @@
+args 1
+unset none
+clang 0 true
+sh 3 [out] [err]
+missing true
+cwd absolute true

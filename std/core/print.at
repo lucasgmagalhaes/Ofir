@@ -1,0 +1,41 @@
+/**
+ * @module
+ * Printing to standard error (spec 7.5). `print` and `println` are built
+ * into the compiler; standard error is not buffered.
+ */
+
+extern "C" {
+    fn astra_stdout_flush()
+    fn astra_write(fd: i32, ptr: *u8, len: int)
+}
+
+/**
+ * Writes text to standard error. Standard output is flushed first, so the
+ * two streams appear in the order the program wrote them.
+ *
+ * @param text the text to write
+ * @example
+ * ```astra
+ * eprint("warning: ")
+ * ```
+ */
+pub fn eprint(text: str) {
+    unsafe {
+        astra_stdout_flush()
+        astra_write(2, text.asPtr(), text.len())
+    }
+}
+
+/**
+ * Writes text and a newline to standard error.
+ *
+ * @param text the text to write
+ * @example
+ * ```astra
+ * eprintln("usage: tool <file>")
+ * ```
+ */
+pub fn eprintln(text: str) {
+    eprint(text)
+    eprint("\n")
+}
