@@ -82,9 +82,11 @@ static bool at_method(const Parser *p) {
 
 static FnDecl *method(Parser *p) {
     ItemHeader header = parse_item_header(p);
-    accept(p, TOK_KW_UNSAFE);
+    bool is_unsafe = accept(p, TOK_KW_UNSAFE);
     expect(p, TOK_KW_FN, "`fn`");
-    return parse_fn(p, header, true);
+    FnDecl *fn = parse_fn(p, header, true);
+    fn->is_unsafe = is_unsafe;
+    return fn;
 }
 
 static void member_end(Parser *p) {
