@@ -108,7 +108,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.13 | Tuples and destructuring `let` | S | **done**: `tests/run/enums/patterns` |
 | 2.14 | Enums: layout, construction, `.Variant` shorthand | M | **done**: `tests/run/enums/*` |
 | 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards; Copy bindings through references | L | **done** with sequential arm tests (decision trees later, if profiles ask for them); `examples/shapes.at` runs since `List` (2.20) |
-| 2.16 | Exhaustiveness checking (usefulness algorithm) | M | **in progress**: conservative check in place (`tests/compile_fail/types/enums`); the usefulness algorithm remains |
+| 2.16 | Exhaustiveness checking (usefulness algorithm) | M | **done**: `sema/exhaustive.c`; errors show an uncovered value (`Err(.TooLarge)`), unreachable arms warn (W0004); `tests/compile_fail/types/exhaustive.at`, `tests/run/enums/exhaustive.at` |
 | 2.17 | `if let`, `let ... else`, `??` | S | **done**: `tests/run/enums/if_let`; `??` since 2.22 (`tests/run/errors/option.at`) |
 | 2.18 | Generic functions, structs and enums **without bounds**; monomorphization and mangling | L | **done**: `tests/run/generics_basic/*`, `tests/compile_fail/types/generics*`; type arguments are inferred from the receiver, the expected type and the arguments |
 | 2.19 | `Box<T>` and recursive enums | M | **done**: `tests/run/box/expr_tree.at`; `Box` is written in `std/core/box.at` with `@lang("box")` and the `sizeOf<T>()` intrinsic; a box is freed by `unbox` until drops (3.2) |

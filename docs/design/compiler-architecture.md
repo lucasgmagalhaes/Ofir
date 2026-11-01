@@ -187,6 +187,13 @@ unreachable-arm detection use the *usefulness* algorithm (Maranget,
 "Warnings for pattern matching"), which also produces the list of missing
 patterns for the error message.
 
+Stage 0 (`sema/exhaustive.c`) splits enums, bool, tuples, structs and `()`
+by constructor; integers, floats and `str` have infinitely many values, so
+only `_` or a binding covers them (ranges that cover a whole integer type
+are not recognized). Arms with a guard never count as covering. The error
+shows one uncovered value; an arm that earlier arms already cover gets
+W0004.
+
 ## 7. AIR — Astra Intermediate Representation
 
 AIR is a control-flow graph of basic blocks per function, similar in spirit
