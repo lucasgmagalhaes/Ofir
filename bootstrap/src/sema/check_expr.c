@@ -311,7 +311,8 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_TUPLE_FIELD: return check_tuple_field(c, e);
     case EXPR_TRY: return unsupported(c, e->span, "the `?` operator is");
     case EXPR_STRUCT: return check_struct_literal(c, e, expected);
-    case EXPR_ARRAY: case EXPR_ARRAY_REPEAT: return unsupported(c, e->span, "arrays are");
+    case EXPR_ARRAY: return check_list_literal(c, e, expected);
+    case EXPR_ARRAY_REPEAT: return check_list_repeat(c, e, expected);
     case EXPR_VARIANT: return check_variant_shorthand(c, e, expected);
     case EXPR_MATCH: return check_match(c, e, expected, true);
     }

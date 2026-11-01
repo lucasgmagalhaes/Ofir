@@ -79,19 +79,25 @@ static bool in_std(Resolver *r) {
     return module.len >= 3 && memcmp(module.ptr, "std", 3) == 0;
 }
 
-// `@lang("box") struct Box<T>` in std: an ordinary declaration that the
-// compiler dereferences (`*b`, `b.field`, `b.method()`).
-static bool is_box(Resolver *r, const Attribute *attr) {
-    const Expr *arg = attr->args.len == 1 ? attr->args.items[0] : NULL;
-    return arg && arg->kind == EXPR_STR && sv_eq(arg->as.str, SV("box")) && in_std(r) &&
-           r->sema->box.id == 0;
+// `@lang("box") struct Box<T>` and `@lang("list") struct List<T>` in std:
+// ordinary declarations that the compiler knows (it dereferences boxes and
+// builds, indexes and iterates lists). Their slot in the Sema, or NULL.
+static DefId *named_lang(Resolver *r, const Attribute *attr) {
+    const Expr *arg = attr && attr->args.len == 1 ? attr->args.items[0] : NULL;
+    if (!arg || arg->kind != EXPR_STR || !in_std(r)) {
+        return NULL;
+    }
+    DefId *slot = sv_eq(arg->as.str, SV("box"))    ? &r->sema->box
+                  : sv_eq(arg->as.str, SV("list")) ? &r->sema->list
+                                                   : NULL;
+    return slot && slot->id == 0 ? slot : NULL;
 }
 
 // `@lang("str") struct str { ... }` in std: the body of a primitive type.
 // It declares no name; the primitive gets its fields and methods.
 static bool collect_lang(Resolver *r, const Item *item) {
     const Attribute *attr = find_attribute(r->sema, item->attributes, "lang");
-    if (!attr || is_box(r, attr)) {
+    if (!attr || named_lang(r, attr)) {
         return false;
     }
     bool std_module = in_std(r);
@@ -104,7 +110,7 @@ static bool collect_lang(Resolver *r, const Item *item) {
     bool taken = prim && prim->kind == DEF_PRIMITIVE && r->sema->lang[prim->type.id].id;
     if (!std_module || !prim || prim->kind != DEF_PRIMITIVE || taken) {
         resolve_error(r, "E0805", attr->span,
-                      std_module ? "`@lang` needs the name of a primitive type or `box`, declared "
+                      std_module ? "`@lang` needs a primitive type, `box` or `list`, declared "
                                    "once: `@lang(\"str\")`"
                                  : "`@lang` is reserved to the standard library");
         return true;
@@ -140,8 +146,11 @@ static void collect_item(Resolver *r, const Item *item) {
             item->kind == ITEM_ENUM) {
             check_members(r, item);
         }
-        if (item->kind == ITEM_STRUCT && find_attribute(r->sema, item->attributes, "lang")) {
-            r->sema->box = scope_module(&r->sema->scope, item->name);   // checked by is_box
+        DefId *slot = item->kind == ITEM_STRUCT
+                          ? named_lang(r, find_attribute(r->sema, item->attributes, "lang"))
+                          : NULL;
+        if (slot) {
+            *slot = scope_module(&r->sema->scope, item->name);
         }
         break;
     }
