@@ -126,10 +126,14 @@ def parse_diagnostics(output: str) -> list[Diagnostic]:
 
 
 def unexpected_diagnostics(reported, annotations) -> list[str]:
-    """Every reported diagnostic must be annotated (both stages)."""
+    """Every reported error must be annotated (both stages); every warning
+    too, in a test that annotates warnings. A test of errors is not about
+    the unused variables it needs to trigger them."""
     annotated = {(d.line, d.code) for _, d in annotations}
+    checks_warnings = any(d.severity == "warning" for _, d in annotations)
     return [f"unexpected {d.severity}[{d.code}] at line {d.line}: {d.message}"
-            for d in reported if (d.line, d.code) not in annotated]
+            for d in reported if (d.line, d.code) not in annotated
+            and (d.severity == "error" or checks_warnings)]
 
 
 def missing_stage0(reported, annotations) -> list[str]:
@@ -188,7 +192,8 @@ def check_panic(cfg: Config, path: Path, source: str) -> Result:
 
 
 def check_run(cfg: Config, path: Path) -> Result:
-    proc = run_process(compiler_cmd(cfg, "run", str(path)))
+    # Programs that run are warning-free: a warning fails the test.
+    proc = run_process(compiler_cmd(cfg, "run", str(path), "--deny-warnings"))
     if proc.returncode != 0:
         return Result(path, "fail", describe(proc))
     return compare_output(cfg, path, proc.stdout, ".out")
