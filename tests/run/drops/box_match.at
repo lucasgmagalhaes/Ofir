@@ -1,0 +1,31 @@
+// A `match` on the value in a box borrows its parts: the box still owns
+// them (a stage 0 double free, found by the stage 1 AST printer).
+
+struct Block {
+    stmts: List<str>
+}
+
+enum Kind {
+    Str(value: str)
+    Blk(block: Block)
+}
+
+struct E {
+    kind: Kind
+}
+
+fn show(otherwise: &Option<Box<E>>) {
+    if let .Some(e) = *otherwise {
+        match e.kind {
+            .Blk(block) => println("block {block.stmts.len()}")
+            _ => println("other")
+        }
+    }
+}
+
+fn main() {
+    let inner = E{kind: .Blk(Block{stmts: ["a".toOwned()]})}
+    let o: Option<Box<E>> = .Some(Box.new(inner))
+    show(&o)
+    show(&o)
+}

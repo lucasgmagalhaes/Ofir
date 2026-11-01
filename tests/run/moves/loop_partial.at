@@ -1,0 +1,19 @@
+// A `let` in a loop starts afresh: the parts of its value moved out in the
+// previous iteration do not count (a stage 0 bug, found by the stage 1 parser).
+
+fn pair(s: move str) (str, bool) {
+    return (s, false)
+}
+
+fn main() {
+    var e = "x".toOwned()
+    for {
+        let step = pair(e)
+        let more = step.1
+        e = step.0
+        if !more {
+            break
+        }
+    }
+    println(e)
+}

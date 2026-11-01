@@ -1,0 +1,389 @@
+/**
+ * @module
+ * Parser core: the token stream, newlines, errors and recovery, and the
+ * entry point (stage 0: bootstrap/src/syntax/parser.c). Each grammar area
+ * has its own file (`parse_*.at`).
+ */
+
+import base.intern.Interner
+import base.intern.Symbol
+import base.span.FileId
+import base.span.Span
+import diag.Diagnostics
+import syntax.ast.Module
+import syntax.parse_items.moduleItems
+import syntax.token.Token
+import syntax.token.TokenKind
+import syntax.token.TokenValue
+import syntax.token_print.kindText
+
+/**
+ * What `parse` gives back: the tree and the tables it took over.
+ */
+pub struct ParseResult {
+    /** The syntax tree of the file. */
+    pub module: Module
+    /** The interner, with the names the parser added. */
+    pub names: Interner
+    /** The diagnostics, with the syntax errors. */
+    pub diags: Diagnostics
+}
+
+/**
+ * The parser's state, shared by the `parse_*` modules.
+ */
+pub struct Parser {
+    /** The tokens of the file, without doc comments; the last is `Eof`. */
+    pub tokens: List<Token>
+    /** The index of the current token. */
+    pub pos: int
+    /** The source text, for the digits of `pair.0.1`. */
+    pub src: str
+    /** In `if`, `match` and `for` headers (spec A.6). */
+    pub noStructLiteral: bool
+    /** An error was reported: silent until resynchronized. */
+    pub recovering: bool
+    /** The interner, for contextual keywords and type names. */
+    pub names: Interner
+    /** Where syntax errors go. */
+    pub diags: Diagnostics
+    /** The contextual keywords (spec 1.5). */
+    pub words: Words
+
+    /**
+     * The kind of the token `ahead` positions after the current one; past
+     * the end, `Eof`.
+     *
+     * @param ahead how far to look
+     * @returns its kind
+     */
+    pub fn peekAt(self, ahead: int) TokenKind {
+        return self.token(ahead).kind
+    }
+
+    /**
+     * The token `ahead` positions after the current one; past the end, the
+     * last token, `Eof`.
+     *
+     * @param ahead how far to look
+     * @returns the token
+     */
+    pub fn token(self, ahead: int) &Token {
+        let i = self.pos + ahead
+        return &self.tokens[if i < self.tokens.len() { i } else { self.tokens.len() - 1 }]
+    }
+
+    /**
+     * The kind of the current token.
+     *
+     * @returns its kind
+     */
+    pub fn peek(self) TokenKind {
+        return self.token(0).kind
+    }
+
+    /**
+     * The span of the current token.
+     *
+     * @returns its span
+     */
+    pub fn here(self) Span {
+        return self.token(0).span
+    }
+
+    /**
+     * Whether the current token is of `kind`.
+     *
+     * @param kind the kind to look for
+     * @returns true if it is
+     */
+    pub fn at(self, kind: TokenKind) bool {
+        return self.peek() == kind
+    }
+
+    /**
+     * Moves to the next token; it stays on the last one, `Eof`.
+     *
+     * @returns the span of the token passed
+     */
+    pub fn advance(mut self) Span {
+        let span = self.here()
+        if self.pos < self.tokens.len() - 1 {
+            self.pos += 1
+        }
+        return span
+    }
+
+    /**
+     * Consumes the current token if it is of `kind`.
+     *
+     * @param kind the kind to accept
+     * @returns whether it was consumed
+     */
+    pub fn accept(mut self, kind: TokenKind) bool {
+        if self.at(kind) {
+            self.advance()
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Whether the current token is the identifier `word`.
+     *
+     * @param word a contextual keyword, if it was ever interned
+     * @returns true if it is
+     */
+    pub fn atWord(self, word: Option<Symbol>) bool {
+        let t = self.token(0)
+        return t.kind == .Ident && word.isSome() && symbolOf(t).0 == word.unwrapOr(Symbol(0)).0
+    }
+
+    /**
+     * Skips newlines, wherever the grammar needs more tokens (spec 1.3).
+     */
+    pub fn skipNewlines(mut self) {
+        for self.at(.Newline) {
+            self.advance()
+        }
+    }
+
+    /**
+     * The span from `start` to the end of the previous token.
+     *
+     * @param start where the construct began
+     * @returns the span
+     */
+    pub fn spanSince(self, start: Span) Span {
+        let previous = self.tokens[if self.pos > 0 { self.pos - 1 } else { 0 }].span
+        let end = if previous.end > start.start { previous.end } else { start.end }
+        return Span{file: start.file, start: start.start, end}
+    }
+
+    /**
+     * Reports a syntax error (E0100), unless one was reported for this
+     * statement already: the rest is usually a consequence.
+     *
+     * @param span where it is
+     * @param message what is wrong
+     */
+    pub fn syntaxError(mut self, span: Span, message: move str) {
+        if self.recovering {
+            return
+        }
+        self.diags.error("E0100", span, message)
+        self.recovering = true
+    }
+
+    /**
+     * Reports "expected <what>, found <the current token>".
+     *
+     * @param what what the grammar needs here
+     */
+    pub fn unexpected(mut self, what: str) {
+        let t = self.token(0)
+        let found = describe(t.kind)
+        let span = self.errorSpan()
+        if found.len() > 0 {
+            self.syntaxError(span, "expected {what}, found {found}")
+        } else {
+            self.syntaxError(span, "expected {what}, found `{kindText(t.kind)}`")
+        }
+    }
+
+    // Where to report a missing token: at the token found, or, for the end
+    // of a line, just after the previous token (not after a comment).
+    fn errorSpan(self) Span {
+        let t = self.token(0)
+        if t.kind != .Newline || self.pos == 0 {
+            return t.span
+        }
+        let after = self.tokens[self.pos - 1].span
+        return Span{file: after.file, start: after.end, end: after.end}
+    }
+
+    /**
+     * Consumes a token of `kind`, or reports what was expected.
+     *
+     * @param kind the kind needed
+     * @param what how to describe it in the error
+     * @returns whether it was there
+     */
+    pub fn expect(mut self, kind: TokenKind, what: str) bool {
+        if self.at(kind) {
+            self.advance()
+            return true
+        }
+        self.unexpected(what)
+        return false
+    }
+
+    /**
+     * Consumes an identifier, or reports what was expected.
+     *
+     * @param what how to describe it in the error
+     * @returns its name, or `None` if it was missing
+     */
+    pub fn expectName(mut self, what: str) Option<Symbol> {
+        if self.at(.Ident) {
+            let name = symbolOf(self.token(0))
+            self.advance()
+            return .Some(name)
+        }
+        self.unexpected(what)
+        return .None
+    }
+
+    /**
+     * Consumes the identifier at the current token.
+     *
+     * @returns its name
+     */
+    pub fn takeName(mut self) Symbol {
+        let name = symbolOf(self.token(0))
+        self.advance()
+        return name
+    }
+
+    /**
+     * Consumes a `,`, a newline, or both, between list members.
+     *
+     * @returns false if there was neither
+     */
+    pub fn acceptSeparator(mut self) bool {
+        let comma = self.accept(.Comma)
+        let newline = self.accept(.Newline)
+        return comma || newline
+    }
+
+    /**
+     * Consumes the end of a statement: a newline, or nothing before `}` or
+     * the end of the file.
+     */
+    pub fn expectTerminator(mut self) {
+        if self.accept(.Newline) {
+            self.skipNewlines()
+        } else if !self.at(.RBrace) && !self.at(.Eof) {
+            self.unexpected("a new line after the statement")
+        }
+    }
+
+    /**
+     * Skips to the end of the current statement: a newline outside
+     * brackets, or the `}` that closes the enclosing block (not consumed).
+     */
+    pub fn synchronize(mut self) {
+        var depth = 0
+        for !self.at(.Eof) {
+            let k = self.peek()
+            if depth == 0 && (k == .Newline || k == .RBrace) {
+                break
+            }
+            if k == .LParen || k == .LBracket || k == .LBrace {
+                depth += 1
+            } else if (k == .RParen || k == .RBracket || k == .RBrace) && depth > 0 {
+                depth -= 1
+            }
+            self.advance()
+        }
+        self.skipNewlines()
+        self.recovering = false
+    }
+}
+
+/**
+ * The contextual keywords: identifiers that are keywords in some places.
+ */
+pub copy struct Words {
+    /** `move` */
+    pub move: Option<Symbol>
+    /** `type` */
+    pub type: Option<Symbol>
+    /** `ref` */
+    pub ref: Option<Symbol>
+    /** `where` */
+    pub where: Option<Symbol>
+    /** `_` */
+    pub wildcard: Option<Symbol>
+}
+
+/**
+ * The name of an identifier token.
+ *
+ * @param t an `Ident` token
+ * @returns its symbol
+ */
+pub fn symbolOf(t: &Token) Symbol {
+    return match t.value {
+        .Name(symbol) => symbol
+        _ => Symbol(0)
+    }
+}
+
+/**
+ * The text of a string or doc comment token.
+ *
+ * @param t the token
+ * @returns its text
+ */
+pub fn textOf(t: &Token) str {
+    return match t.value {
+        .Str(text) => text.sliceFrom(0)
+        _ => ""
+    }
+}
+
+fn describe(kind: TokenKind) str {
+    return match kind {
+        .Ident => "an identifier"
+        .Int | .Float | .Byte => "a number"
+        .Str | .StrStart => "a string"
+        .Newline => "the end of the line"
+        .Eof => "the end of the file"
+        _ => ""
+    }
+}
+
+/**
+ * Parses the tokens of a file. Module documentation comments become the
+ * module's documentation; other doc comments are dropped (spec 12.5).
+ *
+ * @param file the file the tokens come from
+ * @param src its text
+ * @param tokens its tokens, ending with `Eof`
+ * @param names the interner of their names
+ * @param diags where errors go
+ * @returns the tree, with the interner and the diagnostics
+ */
+pub fn parse(file: FileId, src: str, tokens: move List<Token>, names: move Interner,
+             diags: move Diagnostics) ParseResult {
+    var docs: List<str> = []
+    var kept: List<Token> = []
+    for i in 0..tokens.len() {
+        let kind = tokens[i].kind
+        if kind == .ModuleDoc {
+            docs.push(textOf(&tokens[i]).toOwned())
+        } else if kind != .DocComment {
+            kept.push(copyToken(&tokens[i]))
+        }
+    }
+    let words = Words{move: names.find("move"), type: names.find("type"), ref: names.find("ref"),
+                      where: names.find("where"), wildcard: names.find("_")}
+    var p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
+                   recovering: false, names, diags, words}
+    let items = moduleItems(p)
+    let module = Module{file, docs, items}
+    return ParseResult{module, names: p.names, diags: p.diags}
+}
+
+fn copyToken(t: &Token) Token {
+    let value: TokenValue = match t.value {
+        .None => .None
+        .Int(v) => .Int(v)
+        .Float(v) => .Float(v)
+        .Byte(v) => .Byte(v)
+        .Str(text) => .Str(text.toOwned())
+        .Name(symbol) => .Name(symbol)
+    }
+    return Token{kind: t.kind, span: t.span, value}
+}

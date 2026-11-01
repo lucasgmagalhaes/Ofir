@@ -92,7 +92,6 @@ static void out_hex(Out *out, uint64_t value, int width) {
 }
 
 // Handles one conversion starting after '%'; returns the rest of the format.
-// check-sizes: table
 static const char *conversion(Out *out, const char *f, va_list *args) {
     if (f[0] == '0') {   // %02X, %016lX, %016llX
         int width = f[1] == '2' ? 2 : 16;

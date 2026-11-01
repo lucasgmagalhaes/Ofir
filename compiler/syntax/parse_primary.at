@@ -1,0 +1,425 @@
+/**
+ * @module
+ * Primary and postfix expressions: literals, names, aggregates, calls,
+ * indexing and field access (stage 0: bootstrap/src/syntax/parse_primary.c).
+ * Control flow expressions are in `syntax.parse_control`.
+ */
+
+import base.intern.Symbol
+import syntax.ast.Arg
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.FieldInit
+import syntax.ast.TypeExpr
+import syntax.parse_control.parseControl
+import syntax.parse_exprs.newExpr
+import syntax.parse_exprs.parseExpr
+import syntax.parse_types.parseTypeArgs
+import syntax.parser.Parser
+import syntax.parser.symbolOf
+import syntax.parser.textOf
+import syntax.token.TokenKind
+
+// ---------------------------------------------------------------------------
+// Literals
+
+/**
+ * Whether a literal starts here: a number, a string, a byte, `true`,
+ * `false`, or `-` before a number.
+ *
+ * @param p the parser
+ * @returns true if one does
+ */
+pub fn atLiteral(p: Parser) bool {
+    return match p.peek() {
+        .Int | .Float | .Byte | .Str | .True | .False => true
+        .Minus => p.peekAt(1) == .Int || p.peekAt(1) == .Float
+        _ => false
+    }
+}
+
+fn literalToken(p: mut Parser) Expr {
+    let t = p.token(0)
+    let kind: ExprKind = match t.value {
+        .Int(v) => .Int(v)
+        .Float(v) => .Float(v)
+        .Byte(v) => .Byte(v)
+        .Str(text) => .Str(text.toOwned())
+        _ => .Bool(t.kind == .True)
+    }
+    let start = p.advance()
+    return newExpr(p, kind, start)
+}
+
+/**
+ * A literal, `-` before a number included. Call it where `atLiteral`
+ * holds; elsewhere it consumes nothing and returns `()`.
+ *
+ * @param p the parser
+ * @returns the literal
+ */
+pub fn parseLiteral(p: mut Parser) Expr {
+    if !atLiteral(p) {
+        return newExpr(p, .Tuple([]), p.here())
+    }
+    if p.at(.Minus) {
+        let start = p.advance()
+        let operand = literalToken(p)
+        return newExpr(p, .Unary(.Neg, Box.new(operand)), start)
+    }
+    return literalToken(p)
+}
+
+// "a {x} b": StrStart, the tokens of x, StrMid or StrEnd, ...
+fn interpolation(p: mut Parser) Expr {
+    let start = p.here()
+    var parts: List<Expr> = []
+    for {
+        let kind = p.peek()
+        let text = textOf(p.token(0)).toOwned()
+        let span = p.advance()
+        if text.len() > 0 {   // "{x}" has empty text around `x`
+            parts.push(Expr{kind: .Str(text), span})
+        }
+        if kind == .StrEnd || kind == .Eof {
+            break
+        }
+        let saved = p.noStructLiteral
+        p.noStructLiteral = false
+        parts.push(parseExpr(p))
+        p.noStructLiteral = saved
+        if !p.at(.StrMid) && !p.at(.StrEnd) {
+            p.unexpected("`\}` to close the interpolation")
+            break
+        }
+    }
+    return newExpr(p, .Interp(parts), start)
+}
+
+// ---------------------------------------------------------------------------
+// Names
+
+// Whether `<` at `ahead` starts type arguments: the tokens up to the
+// matching `>` look like types and the `>` is followed by `(`, `.` or `{`
+// (spec 8.5). Pure lookahead.
+fn looksLikeTypeArgs(p: Parser, ahead: int) bool {
+    var depth = 0
+    for i in ahead..ahead + 64 {
+        let kind = p.peekAt(i)
+        if kind == .Lt {
+            depth += 1
+        } else if kind == .Gt {
+            depth -= 1
+            if depth == 0 {
+                let next = p.peekAt(i + 1)
+                return next == .LParen || next == .Dot || next == .LBrace
+            }
+        } else if !inTypeArgs(kind) {
+            return false
+        }
+    }
+    return false
+}
+
+fn inTypeArgs(kind: TokenKind) bool {
+    return match kind {
+        .Ident | .Comma | .Amp | .Mut | .LBracket | .RBracket | .LParen | .RParen => true
+        .Question | .Star | .Semicolon | .Int | .Fn | .Dyn | .SelfType | .Bang | .Dot => true
+        _ => false
+    }
+}
+
+fn name(p: mut Parser) Expr {
+    let start = p.here()
+    let symbol = p.takeName()
+    if p.at(.Lt) && looksLikeTypeArgs(p, 0) {
+        p.advance()
+        let args = parseTypeArgs(p)
+        return newExpr(p, .Generic(symbol, args), start)
+    }
+    return newExpr(p, .Ident(symbol), start)
+}
+
+// `.Name` or `.Name(args)`; the `.` is next.
+fn variantShorthand(p: mut Parser) Expr {
+    let start = p.advance()
+    let variant = p.expectName("a variant name after `.`") ?? Symbol(0)
+    var args: List<Arg> = []
+    let hasArgs = p.accept(.LParen)
+    if hasArgs {
+        args = parseCallArgs(p)
+    }
+    return newExpr(p, .Variant(variant, args, hasArgs), start)
+}
+
+// ---------------------------------------------------------------------------
+// Aggregates
+
+// `()`, `(e)`, `(e,)` and `(a, b)`; the `(` is next.
+fn parenthesized(p: mut Parser) Expr {
+    let start = p.advance()
+    let saved = p.noStructLiteral
+    p.noStructLiteral = false
+    var elems: List<Expr> = []
+    var tuple = p.at(.RParen)
+    for !p.at(.RParen) && !p.at(.Eof) {
+        elems.push(parseExpr(p))
+        if !p.accept(.Comma) {
+            break
+        }
+        tuple = true
+    }
+    p.expect(.RParen, "`)`")
+    p.noStructLiteral = saved
+    if !tuple && elems.len() == 1 {
+        return elems.pop() ?? newExpr(p, .Tuple([]), start)
+    }
+    return newExpr(p, .Tuple(elems), start)
+}
+
+// `[a, b]` and `[value; count]`; the `[` is next.
+fn array(p: mut Parser) Expr {
+    let start = p.advance()
+    let saved = p.noStructLiteral
+    p.noStructLiteral = false
+    var elems: List<Expr> = []
+    var repeat: Option<(Expr, Expr)> = .None
+    for !p.at(.RBracket) && !p.at(.Eof) {
+        elems.push(parseExpr(p))
+        if elems.len() == 1 && p.accept(.Semicolon) {
+            let value = elems.pop() ?? newExpr(p, .Tuple([]), start)
+            repeat = .Some((value, parseExpr(p)))
+            break
+        }
+        if !p.accept(.Comma) {
+            break
+        }
+    }
+    p.expect(.RBracket, "`]` to close the array")
+    p.noStructLiteral = saved
+    return match repeat {
+        .Some(parts) => newExpr(p, .Repeat(Box.new(parts.0), Box.new(parts.1)), start)
+        .None => newExpr(p, .Array(elems), start)
+    }
+}
+
+// A struct literal follows a type name: an identifier starting with an
+// uppercase letter, possibly qualified or with type arguments.
+fn isTypeName(p: Parser, e: &Expr) bool {
+    return match e.kind {
+        .Ident(symbol) => startsUpper(p, symbol)
+        .Generic(_, _) => true
+        .Field(_, symbol, _) => startsUpper(p, symbol)
+        .SelfType => true
+        _ => false
+    }
+}
+
+fn startsUpper(p: Parser, symbol: Symbol) bool {
+    return p.names.name(symbol)[0] <= b'Z'
+}
+
+fn structLiteral(p: mut Parser, typeName: move Expr) Expr {
+    p.advance()   // {
+    let saved = p.noStructLiteral
+    p.noStructLiteral = false
+    let start = typeName.span
+    var fields: List<FieldInit> = []
+    p.skipNewlines()
+    for p.at(.Ident) {
+        let field = p.takeName()
+        var value: Option<Expr> = .None
+        if p.accept(.Colon) {
+            p.skipNewlines()
+            value = .Some(parseExpr(p))
+        }
+        fields.push(FieldInit{name: field, value})
+        let separated = p.acceptSeparator()
+        p.skipNewlines()
+        if !separated {
+            break
+        }
+    }
+    var base: Option<Box<Expr>> = .None
+    if p.accept(.DotDot) {
+        base = .Some(Box.new(parseExpr(p)))
+        p.accept(.Comma)
+        p.skipNewlines()
+    }
+    p.expect(.RBrace, "`\}` to close the struct literal")
+    p.noStructLiteral = saved
+    return newExpr(p, .Struct(Box.new(typeName), fields, base), start)
+}
+
+// ---------------------------------------------------------------------------
+// Primary and postfix
+
+/**
+ * A primary expression: a literal, a name, an aggregate or a control flow
+ * expression.
+ *
+ * @param p the parser
+ * @returns the expression
+ */
+pub fn parsePrimary(p: mut Parser) Expr {
+    let start = p.here()
+    return match p.peek() {
+        .Int | .Float | .Byte | .Str | .True | .False => literalToken(p)
+        .StrStart => interpolation(p)
+        .Ident => name(p)
+        .SelfValue => {
+            p.advance()
+            newExpr(p, .SelfValue, start)
+        }
+        .SelfType => {
+            p.advance()
+            newExpr(p, .SelfType, start)
+        }
+        .LParen => parenthesized(p)
+        .LBracket => array(p)
+        .Dot => variantShorthand(p)
+        .LBrace | .If | .Match | .Unsafe => parseControl(p)
+        .Fn => {
+            p.syntaxError(p.here(), "closures are not supported by stage 0".toOwned())
+            newExpr(p, .Tuple([]), start)
+        }
+        _ => {
+            p.unexpected("an expression")
+            newExpr(p, .Tuple([]), start)
+        }
+    }
+}
+
+/**
+ * The arguments of a call after `(`, up to and including `)`.
+ *
+ * @param p the parser
+ * @returns the arguments
+ */
+pub fn parseCallArgs(p: mut Parser) List<Arg> {
+    let saved = p.noStructLiteral
+    p.noStructLiteral = false
+    var items: List<Arg> = []
+    for !p.at(.RParen) && !p.at(.Eof) {
+        var argName: Option<Symbol> = .None
+        if p.at(.Ident) && p.peekAt(1) == .Colon {
+            argName = .Some(p.takeName())
+            p.advance()
+        }
+        items.push(Arg{name: argName, value: parseExpr(p)})
+        if !p.accept(.Comma) {
+            break
+        }
+    }
+    p.expect(.RParen, "`)` to close the arguments")
+    p.noStructLiteral = saved
+    return items
+}
+
+fn tupleField(p: Parser, base: move Expr, index: u64) Expr {
+    let start = base.span
+    return newExpr(p, .TupleField(Box.new(base), index), start)
+}
+
+// After `.`: a field name, a tuple index `0`, or a float token `0.1` that
+// the lexer produced for `pair.0.1` (spec 1.7): two tuple indexes.
+fn member(p: mut Parser, base: move Expr) Expr {
+    let t = p.token(0)
+    let kind = t.kind
+    let span = t.span
+    let index = match t.value {
+        .Int(v) => v
+        _ => 0
+    }
+    p.advance()
+    if kind == .Int {
+        return tupleField(p, base, index)
+    }
+    if kind == .Float {
+        let digits = p.src.slice(span.start, span.end)
+        let dot = digits.find(".") ?? digits.len()
+        let first = leadingNumber(digits.slice(0, dot))
+        let second = leadingNumber(digits.sliceFrom(if dot < digits.len() { dot + 1 } else { dot }))
+        let inner = tupleField(p, base, first)
+        return tupleField(p, inner, second)
+    }
+    if kind != .Ident {
+        p.pos -= 1
+        p.unexpected("a field name after `.`")
+        return base
+    }
+    let field = symbolOf(p.token(-1))
+    var typeArgs: List<TypeExpr> = []
+    if p.at(.Lt) && looksLikeTypeArgs(p, 0) {   // x.wrappingCast<u8>()
+        p.advance()
+        typeArgs = parseTypeArgs(p)
+    }
+    let start = base.span
+    return newExpr(p, .Field(Box.new(base), field, typeArgs), start)
+}
+
+// The value of the digits at the start of `text`, as C's strtoul reads them.
+fn leadingNumber(text: str) u64 {
+    var value: u64 = 0
+    for i in 0..text.len() {
+        let c = text[i]
+        if c < b'0' || c > b'9' {
+            break
+        }
+        value = value.wrappingMul(10).wrappingAdd((c - b'0') as u64)
+    }
+    return value
+}
+
+fn postfixOnce(p: mut Parser, base: move Expr) (Expr, bool) {
+    let start = base.span
+    return match p.peek() {
+        .LParen => {
+            p.advance()
+            let args = parseCallArgs(p)
+            (newExpr(p, .Call(Box.new(base), args), start), true)
+        }
+        .LBracket => {
+            p.advance()
+            let index = parseExpr(p)
+            p.expect(.RBracket, "`]` after the index")
+            (newExpr(p, .Index(Box.new(base), Box.new(index)), start), true)
+        }
+        .Dot => {
+            p.advance()
+            p.skipNewlines()
+            let before = p.pos
+            let e = member(p, base)
+            (e, p.pos != before)
+        }
+        .Question => {
+            p.advance()
+            (newExpr(p, .Try(Box.new(base)), start), true)
+        }
+        _ => (base, false)
+    }
+}
+
+/**
+ * The postfix operations after a primary expression: calls, indexing,
+ * fields, `?` and struct literals.
+ *
+ * @param p the parser
+ * @param base the primary expression
+ * @returns the whole expression
+ */
+pub fn parsePostfix(p: mut Parser, base: move Expr) Expr {
+    var e = base
+    for {
+        if p.at(.LBrace) && !p.noStructLiteral && isTypeName(p, &e) {
+            e = structLiteral(p, e)
+            continue
+        }
+        let step = postfixOnce(p, e)
+        let more = step.1
+        e = step.0
+        if !more {
+            return e
+        }
+    }
+}

@@ -8,12 +8,18 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Stage 1 (roadmap phase 4): `compiler/base`, `compiler/diag` and the
-  lexer, whose tokens equal stage 0's on every source
-  (`make compare-stages`); a project root is the nearest directory with an
-  `astra.toml`.
+- Stage 1 (roadmap phase 4): `compiler/base`, `compiler/diag`, the lexer
+  and the parser, whose tokens and trees equal stage 0's on every source,
+  `compiler/` included (milestone M3, `make compare-stages`); a project
+  root is the nearest directory with an `astra.toml`.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
+
+### Fixed
+
+- Matching the value in a box bound its parts by move and freed them twice.
+- A `let` in a loop kept the parts moved out in the previous iteration.
+- `--emit=ast` crashed on a tree with a missing part after a syntax error.
 
 ### Changed
 

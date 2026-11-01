@@ -167,7 +167,6 @@ fn isStringSpecial(c: u8) bool {
     return c == b'"' || c == b'\\' || c == b'{' || c == b'}' || c == b'\n'
 }
 
-// check-sizes: table
 fn escape(cur: mut Cursor, src: str, out: mut str, diags: mut Diagnostics) {
     let start = cur.pos
     cur.pos += 1                                  // the backslash

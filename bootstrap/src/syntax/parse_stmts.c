@@ -82,7 +82,6 @@ static bool at_statement_end(const Parser *p) {
 
 // Recognizes an assignment operator, joining `>` `>` `=` into `>>=`.
 // Returns the number of tokens (0 if there is none).
-// check-sizes: table
 static int assign_op(const Parser *p, Op *op) {
     switch (peek(p)) {
     case TOK_EQ: *op = OP_ASSIGN; return 1;

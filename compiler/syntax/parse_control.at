@@ -1,0 +1,126 @@
+/**
+ * @module
+ * Blocks, `if`, `match` and `unsafe` (spec 4.1, 4.3, 4.5, 4.6; stage 0:
+ * bootstrap/src/syntax/parse_control.c).
+ */
+
+import syntax.ast.Block
+import syntax.ast.Expr
+import syntax.ast.MatchArm
+import syntax.ast.Pattern
+import syntax.ast.Stmt
+import syntax.parse_exprs.newExpr
+import syntax.parse_exprs.parseExpr
+import syntax.parse_exprs.parseExprNoStruct
+import syntax.parse_patterns.parsePattern
+import syntax.parse_stmts.parseStmt
+import syntax.parser.Parser
+
+/**
+ * A block: `{ statements }`.
+ *
+ * @param p the parser
+ * @returns the block
+ */
+pub fn parseBlock(p: mut Parser) Block {
+    let start = p.here()
+    if !p.expect(.LBrace, "`\{` to start a block") {
+        return Block{span: start, stmts: []}
+    }
+    let saved = p.noStructLiteral
+    p.noStructLiteral = false
+    var stmts: List<Stmt> = []
+    p.skipNewlines()
+    for !p.at(.RBrace) && !p.at(.Eof) {
+        stmts.push(parseStmt(p))
+        if p.recovering {
+            p.synchronize()
+        } else {
+            p.expectTerminator()
+        }
+    }
+    p.expect(.RBrace, "`\}` to close the block")
+    p.noStructLiteral = saved
+    return Block{span: p.spanSince(start), stmts}
+}
+
+// `if cond { } else if ... else { }` and `if let pattern = value { }`.
+fn ifExpr(p: mut Parser) Expr {
+    let start = p.advance()
+    var letPattern: Option<Pattern> = .None
+    if p.accept(.Let) {
+        letPattern = .Some(parsePattern(p))
+        p.expect(.Eq, "`=` after the pattern")
+    }
+    let cond = parseExprNoStruct(p)
+    let then = parseBlock(p)
+    var otherwise: Option<Box<Expr>> = .None
+    if p.accept(.Else) {
+        let elseStart = p.here()
+        if p.at(.If) {
+            otherwise = .Some(Box.new(ifExpr(p)))
+        } else {
+            let block = parseBlock(p)
+            otherwise = .Some(Box.new(newExpr(p, .Block(block), elseStart)))
+        }
+    }
+    return newExpr(p, .If(letPattern, Box.new(cond), then, otherwise), start)
+}
+
+fn matchArm(p: mut Parser) MatchArm {
+    let pattern = parsePattern(p)
+    var guard: Option<Expr> = .None
+    if p.accept(.If) {
+        guard = .Some(parseExprNoStruct(p))
+    }
+    p.expect(.FatArrow, "`=>` after the pattern")
+    p.skipNewlines()
+    return MatchArm{pattern, guard, body: parseExpr(p)}
+}
+
+fn matchExpr(p: mut Parser) Expr {
+    let start = p.advance()
+    let scrutinee = parseExprNoStruct(p)
+    var arms: List<MatchArm> = []
+    if p.expect(.LBrace, "`\{` after the matched value") {
+        p.skipNewlines()
+        for !p.at(.RBrace) && !p.at(.Eof) {
+            arms.push(matchArm(p))
+            if p.recovering {
+                p.synchronize()
+                continue
+            }
+            let separated = p.acceptSeparator()
+            p.skipNewlines()
+            if !separated && !p.at(.RBrace) {
+                p.unexpected("a new line or `,` after the match arm")
+                p.synchronize()
+            }
+        }
+        p.expect(.RBrace, "`\}` to close the match")
+    }
+    return newExpr(p, .Match(Box.new(scrutinee), arms), start)
+}
+
+/**
+ * A block, `if`, `match` or `unsafe` expression; one of them is next.
+ *
+ * @param p the parser
+ * @returns the expression
+ */
+pub fn parseControl(p: mut Parser) Expr {
+    let start = p.here()
+    return match p.peek() {
+        .If => ifExpr(p)
+        .Match => matchExpr(p)
+        .Unsafe => {
+            p.advance()
+            let block = parseBlock(p)
+            newExpr(p, .Unsafe(block), start)
+        }
+        _ => {
+            let block = parseBlock(p)
+            newExpr(p, .Block(block), start)
+        }
+    }
+}

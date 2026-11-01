@@ -52,7 +52,6 @@ typedef enum {
 
 // The binary operator at the cursor: its level, and in *op the operator and
 // in *count the number of tokens it spans. LEVEL_NONE if there is none.
-// check-sizes: table
 static Level operator_at(const Parser *p, Op *op, int *count) {
     *count = 1;
     switch (peek(p)) {

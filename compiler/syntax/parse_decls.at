@@ -1,0 +1,247 @@
+/**
+ * @module
+ * Functions, structs and enums (spec appendix A.2 and A.3; stage 0:
+ * bootstrap/src/syntax/parse_decls.c).
+ */
+
+import base.intern.Symbol
+import syntax.ast.Block
+import syntax.ast.Expr
+import syntax.ast.FieldDecl
+import syntax.ast.FnDecl
+import syntax.ast.ItemKind
+import syntax.ast.Mode
+import syntax.ast.Param
+import syntax.ast.TypeExpr
+import syntax.ast.Variant
+import syntax.ast.VariantField
+import syntax.parse_control.parseBlock
+import syntax.parse_exprs.parseExpr
+import syntax.parse_items.ItemHeader
+import syntax.parse_items.parseItemHeader
+import syntax.parse_types.canStartType
+import syntax.parse_types.parseMode
+import syntax.parse_types.parseType
+import syntax.parse_types.parseTypeParams
+import syntax.parser.Parser
+
+// ---------------------------------------------------------------------------
+// Functions
+
+fn param(p: mut Parser) Param {
+    let start = p.here()
+    let name = p.expectName("a parameter name") ?? Symbol(0)
+    p.expect(.Colon, "`:` and the parameter type")
+    let mode = parseMode(p)
+    let ty = parseType(p)
+    var defaultValue: Option<Expr> = .None
+    if p.accept(.Eq) {
+        defaultValue = .Some(parseExpr(p))
+    }
+    return Param{name, mode, ty, defaultValue, span: p.spanSince(start)}
+}
+
+// `[mut | move] self` as the first parameter of a method: its mode.
+fn selfParam(p: mut Parser) Option<Mode> {
+    let i = if p.at(.Mut) || p.atWord(p.words.move) { 1 } else { 0 }
+    if p.peekAt(i) != .SelfValue {
+        return .None
+    }
+    let mode = parseMode(p)
+    p.advance()   // self
+    return .Some(mode)
+}
+
+/**
+ * A function after `fn`.
+ *
+ * @param p the parser
+ * @param header its attributes and `pub`
+ * @param withBody false in `extern` blocks
+ * @returns the function
+ */
+pub fn parseFn(p: mut Parser, header: move ItemHeader, withBody: bool) FnDecl {
+    let name = p.expectName("a function name") ?? Symbol(0)
+    let typeParams = parseTypeParams(p)
+    p.expect(.LParen, "`(` and the parameters")
+    var params: List<Param> = []
+    let selfMode = selfParam(p)
+    if selfMode.isNone() || p.accept(.Comma) {
+        for p.at(.Ident) {
+            params.push(param(p))
+            if !p.accept(.Comma) {
+                break
+            }
+        }
+    }
+    p.expect(.RParen, "`)` to close the parameters")
+    var ret: Option<TypeExpr> = .None
+    if !p.at(.LBrace) && canStartType(p) {
+        ret = .Some(parseType(p))
+    }
+    if p.atWord(p.words.where) {
+        p.syntaxError(p.here(), "`where` clauses are not supported by stage 0".toOwned())
+    }
+    var body: Option<Block> = .None
+    if withBody {
+        body = .Some(parseBlock(p))
+    }
+    return FnDecl{span: p.spanSince(header.span), name, attributes: header.attributes,
+                  isPub: header.isPub, isUnsafe: false, abi: "", typeParams,
+                  hasSelf: selfMode.isSome(), selfMode: selfMode ?? .Borrow, params, ret, body}
+}
+
+// ---------------------------------------------------------------------------
+// Struct and enum bodies
+
+fn atMethod(p: Parser) bool {
+    var i = 0
+    for p.peekAt(i) == .Pub || p.peekAt(i) == .Unsafe {
+        i += 1
+    }
+    return p.peekAt(i) == .Fn || p.peekAt(i) == .At
+}
+
+fn method(p: mut Parser) FnDecl {
+    let header = parseItemHeader(p)
+    let isUnsafe = p.accept(.Unsafe)
+    p.expect(.Fn, "`fn`")
+    var decl = parseFn(p, header, true)
+    decl.isUnsafe = isUnsafe
+    return decl
+}
+
+fn memberEnd(p: mut Parser) {
+    let separated = p.acceptSeparator()
+    p.skipNewlines()
+    if !separated && !p.at(.RBrace) {
+        p.unexpected("a new line between members")
+    }
+    if p.recovering {
+        p.synchronize()
+    }
+}
+
+fn field(p: mut Parser) FieldDecl {
+    let header = parseItemHeader(p)
+    let name = p.expectName("a field name")
+    p.expect(.Colon, "`:` and the field type")
+    let ty = parseType(p)
+    var defaultValue: Option<Expr> = .None
+    if p.accept(.Eq) {
+        defaultValue = .Some(parseExpr(p))
+    }
+    return FieldDecl{name: .Some(name ?? Symbol(0)), attributes: header.attributes,
+                     isPub: header.isPub, ty, defaultValue, span: p.spanSince(header.span)}
+}
+
+/**
+ * A struct after `struct` (and `copy` or `ref`).
+ *
+ * @param p the parser
+ * @param isCopy `copy struct`
+ * @param isRef `ref struct`
+ * @returns its name and the item
+ */
+pub fn parseStruct(p: mut Parser, isCopy: bool, isRef: bool) (Symbol, ItemKind) {
+    let name = p.expectName("a struct name") ?? Symbol(0)
+    let typeParams = parseTypeParams(p)
+    var fields: List<FieldDecl> = []
+    var methods: List<FnDecl> = []
+    if p.at(.Colon) {
+        p.syntaxError(p.here(), "interface assertions are not supported by stage 0".toOwned())
+        return (name, .Struct(isCopy, isRef, false, typeParams, fields, methods))
+    }
+    let tuple = p.at(.LParen)
+    if tuple {
+        tupleStructBody(p, fields, methods)
+    } else {
+        p.expect(.LBrace, "`\{` and the fields")
+        p.skipNewlines()
+        for !p.at(.RBrace) && !p.at(.Eof) {
+            if atMethod(p) {
+                methods.push(method(p))
+            } else {
+                fields.push(field(p))
+            }
+            memberEnd(p)
+        }
+        p.expect(.RBrace, "`\}` to close the struct")
+    }
+    return (name, .Struct(isCopy, isRef, tuple, typeParams, fields, methods))
+}
+
+// `(T, U)` and an optional `{ methods }` after a tuple struct name.
+fn tupleStructBody(p: mut Parser, fields: mut List<FieldDecl>, methods: mut List<FnDecl>) {
+    p.advance()   // (
+    for !p.at(.RParen) && !p.at(.Eof) {
+        let header = parseItemHeader(p)
+        let ty = parseType(p)
+        fields.push(FieldDecl{name: .None, attributes: [], isPub: header.isPub, ty,
+                              defaultValue: .None, span: header.span})
+        if !p.accept(.Comma) {
+            break
+        }
+    }
+    p.expect(.RParen, "`)` to close the fields")
+    if p.accept(.LBrace) {
+        p.skipNewlines()
+        for !p.at(.RBrace) && !p.at(.Eof) {
+            methods.push(method(p))
+            memberEnd(p)
+        }
+        p.expect(.RBrace, "`\}` to close the methods")
+    }
+}
+
+fn variant(p: mut Parser) Variant {
+    let start = p.here()
+    let name = p.expectName("a variant name") ?? Symbol(0)
+    var fields: List<VariantField> = []
+    let hasFields = p.accept(.LParen)
+    if hasFields {
+        for !p.at(.RParen) && !p.at(.Eof) {
+            var fieldName: Option<Symbol> = .None
+            if p.at(.Ident) && p.peekAt(1) == .Colon {
+                fieldName = .Some(p.takeName())
+                p.advance()
+            }
+            fields.push(VariantField{name: fieldName, ty: parseType(p)})
+            if !p.accept(.Comma) {
+                break
+            }
+        }
+        p.expect(.RParen, "`)` to close the variant fields")
+    }
+    var discriminant: Option<Expr> = .None
+    if p.accept(.Eq) {
+        discriminant = .Some(parseExpr(p))
+    }
+    return Variant{name, fields, hasFields, discriminant, span: p.spanSince(start)}
+}
+
+/**
+ * An enum after `enum` (and `copy`).
+ *
+ * @param p the parser
+ * @param isCopy `copy enum`
+ * @returns its name and the item
+ */
+pub fn parseEnum(p: mut Parser, isCopy: bool) (Symbol, ItemKind) {
+    let name = p.expectName("an enum name") ?? Symbol(0)
+    let typeParams = parseTypeParams(p)
+    var variants: List<Variant> = []
+    var methods: List<FnDecl> = []
+    p.expect(.LBrace, "`\{` and the variants")
+    p.skipNewlines()
+    for !p.at(.RBrace) && !p.at(.Eof) {
+        if atMethod(p) {
+            methods.push(method(p))
+        } else {
+            variants.push(variant(p))
+        }
+        memberEnd(p)
+    }
+    p.expect(.RBrace, "`\}` to close the enum")
+    return (name, .Enum(isCopy, typeParams, variants, methods))
+}

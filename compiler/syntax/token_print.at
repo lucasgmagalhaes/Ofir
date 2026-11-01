@@ -145,7 +145,6 @@ fn gNotation(digits: str, power: int) str {
  * @param kind the kind
  * @returns its text, as `ident` or `(`
  */
-// check-sizes: table
 pub fn kindText(kind: TokenKind) str {
     return match kind {
         .Ident => "ident"

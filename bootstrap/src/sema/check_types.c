@@ -197,7 +197,6 @@ static TypeId resolve_ref(Checker *c, const TypeExpr *type) {
     return type_ref(c->types, inner, type->as.ref.mutable);
 }
 
-// check-sizes: table
 TypeId resolve_type(Checker *c, const TypeExpr *type) {
     switch (type->kind) {
     case TYPE_PATH: return resolve_path(c, type);

@@ -93,7 +93,6 @@ static void extern_item(Parser *p, Item *item, ItemHeader header) {
     TO_LIST(p, fns, item->as.extern_.fns);
 }
 
-// check-sizes: table
 static void item_body(Parser *p, Item *item, ItemHeader header) {
     bool is_copy = accept(p, TOK_KW_COPY);
     bool is_ref = !is_copy && at_word(p, p->words.ref) && peek_at(p, 1) == TOK_KW_STRUCT;

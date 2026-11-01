@@ -13,5 +13,6 @@ make test-std         # the @test functions of compiler/ (and std)
 make compare-stages   # stage 1's output equals stage 0's on every .at file
 ```
 
-So far stage 1 has `base`, `diag` and the lexer; `main.at` has one command,
-`main tokens <file.at>`, the equivalent of `astra build --emit=tokens`.
+So far stage 1 has `base`, `diag`, the lexer and the parser; `main.at` has
+two commands, `main tokens <file.at>` and `main ast <file.at>`, the
+equivalents of `astra build --emit=tokens` and `--emit=ast`.

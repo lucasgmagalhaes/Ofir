@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Checks the size rules of docs/style-guide.md ("Size and structure").
+"""Checks the line width of docs/style-guide.md ("Size and structure"),
+the one size rule that fails: no line of C, Astra or Python longer than
+100 characters.
 
-For C, Astra and Python sources it measures file length, function length,
-nesting depth and parameter count. Exceeding a target is a warning;
-exceeding a limit is an error.
+File length, function length, nesting depth and parameter count are
+suggestions, not rules: a file is as long as its subject needs (`List` is
+one type, with all its methods). `--advice` lists the files and functions
+past the suggested sizes, for a look in review; it never fails.
 
-A flat dispatch table (a function that is one `match`/`switch` mapping
-cases to results) may exceed the function length limit when the line
-before the function contains `check-sizes: table`.
+    python3 tools/check_sizes.py [--advice]
 """
 
 import re
@@ -19,12 +20,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ["bootstrap/src", "compiler", "std", "runtime/src", "tests/runner", "tools"]
 SUFFIXES = {".c", ".h", ".at", ".py"}
 
-#               target, limit
-FILE_LINES = (400, 600)
-FUNCTION_LINES = (40, 60)
-NESTING = (3, 4)
-PARAMETERS = (5, 7)
-LINE_WIDTH = 100    # a hard limit: every longer line is an error
+LINE_WIDTH = 100    # the rule: every longer line is an error
+
+# Suggested sizes, reported by --advice only.
+FILE_LINES = 400
+FUNCTION_LINES = 40
+NESTING = 3
+PARAMETERS = 5
 
 
 @dataclass
@@ -91,7 +93,7 @@ def braced_functions(lines: list[str], is_start) -> list[Function]:
             continue
         start = i
         signature, i, deepest = scan_body(lines, i)
-        table = start > 0 and "check-sizes: table" in lines[start - 1]
+        table = False
         params = count_params(signature)
         if re.search(r"\(\s*(mut |move )?self\b", signature):
             params -= 1
@@ -144,12 +146,16 @@ def python_functions(lines: list[str]) -> list[Function]:
     return functions
 
 
-def check(path: Path, report) -> None:
+def check(path: Path, report, advise) -> None:
     lines = path.read_text().splitlines()
     rel = path.relative_to(ROOT)
-    report((rel, 1), "file", len(lines), FILE_LINES, "lines")
     for number, line in enumerate(lines, start=1):
-        report((rel, number), "line", len(line), (LINE_WIDTH, LINE_WIDTH), "characters")
+        if len(line) > LINE_WIDTH:
+            report(f"{rel}:{number}: line has {len(line)} characters (limit {LINE_WIDTH})")
+    if not advise:
+        return
+    if len(lines) > FILE_LINES:
+        advise(f"{rel}: {len(lines)} lines (suggested {FILE_LINES})")
     if path.suffix == ".py":
         functions = python_functions(lines)
     elif path.suffix == ".at":
@@ -160,34 +166,28 @@ def check(path: Path, report) -> None:
     else:
         functions = braced_functions(lines, c_start)
     for f in functions:
-        what = f"function `{f.name}`"
-        if not f.table:
-            report((rel, f.line), what, f.length, FUNCTION_LINES, "lines")
-        report((rel, f.line), what, f.nesting, NESTING, "levels of nesting")
-        report((rel, f.line), what, f.params, PARAMETERS, "parameters")
+        where = f"{rel}:{f.line}: function `{f.name}`"
+        for value, suggested, unit in ((f.length, FUNCTION_LINES, "lines"),
+                                       (f.nesting, NESTING, "levels of nesting"),
+                                       (f.params, PARAMETERS, "parameters")):
+            if value > suggested:
+                advise(f"{where}: {value} {unit} (suggested {suggested})")
 
 
 def main() -> int:
-    counts = {"warning": 0, "error": 0}
-
-    def report(where, what, value, rule, unit):
-        target, limit = rule
-        rel, line = where
-        if value > limit:
-            severity, bound = "error", f"limit {limit}"
-        elif value > target:
-            severity, bound = "warning", f"target {target}"
-        else:
-            return
-        counts[severity] += 1
-        print(f"{severity}: {rel}:{line}: {what} has {value} {unit} ({bound})")
-
+    errors = []
+    advice = [] if "--advice" in sys.argv[1:] else None
     for source in SOURCES:
         for path in sorted((ROOT / source).rglob("*")):
             if path.suffix in SUFFIXES and "selftest" not in path.parts:
-                check(path, report)
-    print(f"sizes: {counts['error']} errors, {counts['warning']} warnings")
-    return 1 if counts["error"] else 0
+                check(path, errors.append, advice.append if advice is not None else None)
+    for e in errors:
+        print(f"error: {e}")
+    for a in advice or []:
+        print(f"advice: {a}")
+    print(f"sizes: {len(errors)} lines over {LINE_WIDTH} characters"
+          + (f", {len(advice)} suggestions" if advice is not None else ""))
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":

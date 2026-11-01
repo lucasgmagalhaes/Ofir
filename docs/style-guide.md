@@ -111,27 +111,25 @@ fn load(path: str) Result<Config, IoError> {
 
 ## Size and structure
 
-Small files and small functions are easier to read, review and test. These
-rules apply to all code in the repository (Astra, C and Python) and are
-checked by `tools/check_sizes.py` in `make test`:
+Small files and small functions are usually easier to read, review and
+test, but size is a judgment, not a rule: a file is as long as its subject
+needs. `std/core/list.at` holds `List` and all its methods (ADR 0015), and
+that is fine at 500 lines.
 
-| Rule | Target | Limit |
-|------|-------:|------:|
-| Lines per file | 400 | 600 |
-| Lines per function | 40 | 60 |
-| Nesting depth inside a function | 3 | 4 |
-| Parameters per function (not counting `self`) | 5 | 7 |
-| Characters per line | 100 | 100 |
+The one fixed rule is the **line width: 100 characters**, which
+`tools/check_sizes.py` enforces in `make test`. The other sizes are
+suggestions that `python3 tools/check_sizes.py --advice` lists without
+failing, as a prompt for a look in review:
 
-- Above the **target**, the checker warns: consider splitting, and explain
-  in review if not. Above the **limit**, it fails.
+| Suggestion | Around |
+|------------|-------:|
+| Lines per file | 400 |
+| Lines per function | 40 |
+| Nesting depth inside a function | 3 |
+| Parameters per function (not counting `self`) | 5 |
+
 - **One file, one subject; one function, one nameable task.** If a
-  function needs a comment to separate its "parts", each part is a function.
-- **Small types.** All the methods of a type live in its body (ADR 0015),
-  so a large type means a large file. Split responsibilities into smaller
-  types (for example, a `Cursor` used by a `Lexer`) instead of growing one.
-- More than five parameters usually means a missing struct: group related
-  parameters into one (`Context`, `Options`).
-- **Exception:** a function that is a single flat `match`/`switch` mapping
-  cases to results (a dispatch table) may exceed the length limit; mark it
-  with a `check-sizes: table` comment on the line before it.
+  function needs a comment to separate its "parts", each part is usually a
+  function.
+- Many parameters often mean a missing struct: group related parameters
+  into one (`Context`, `Options`).

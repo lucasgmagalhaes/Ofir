@@ -2,7 +2,9 @@
 """Compares the stage 1 compiler (compiler/, built by stage 0) with stage 0
 (roadmap phase 4): for every Astra file of the repository, each command
 that stage 1 implements so far must give the same standard output, standard
-error and exit status as stage 0's matching option. `--fuzz N` also
+error and exit status as stage 0's matching option (after an error, the
+standard error and the status only: the trees built while recovering need
+not agree). `--fuzz N` also
 compares N mutated sources (tools/fuzz_frontend.py's mutations).
 
     python3 tools/compare_stages.py [--compiler build/stage0/astra] [--fuzz 200]
@@ -21,7 +23,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from fuzz_frontend import mutate  # noqa: E402
 
 # stage 1 command -> the stage 0 option that it must match
-COMMANDS = {"tokens": "--emit=tokens"}
+COMMANDS = {"tokens": "--emit=tokens", "ast": "--emit=ast"}
 SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 
 
@@ -35,6 +37,8 @@ def compare(stage0: str, stage1: str, path: Path) -> list:
     for command, option in COMMANDS.items():
         expected = run([stage0, "build", str(path), option, "-o", "/dev/null"])
         actual = run([stage1, command, str(path)])
+        if expected[0] != 0 and actual[0] == expected[0] and actual[2] == expected[2]:
+            continue   # after errors, the trees of the recovery need not agree
         if expected != actual:
             names = ("status", "stdout", "stderr")
             what = [n for n, a, b in zip(names, expected, actual) if a != b]

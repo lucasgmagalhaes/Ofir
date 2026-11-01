@@ -176,9 +176,11 @@ compiler/
 │   ├── literals.at           numbers, strings and byte literals
 │   ├── lexer.at              main loop, comments, words, punctuation
 │   ├── token_print.at        the `--emit=tokens` format
-│   ├── ast.at
-│   ├── parser.at
-│   └── printer.at            AST pretty printer (shared with formatter)
+│   ├── ast.at                the syntax tree
+│   ├── parser.at             the token stream, errors, recovery; `parse`
+│   ├── parse_*.at            types, patterns, expressions, statements, items
+│   ├── ast_text.at           types, patterns and literals as text
+│   └── ast_print.at          the `--emit=ast` format
 ├── sema/
 │   ├── types.at
 │   ├── scope.at

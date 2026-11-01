@@ -245,7 +245,6 @@ static Expr *struct_literal(Parser *p, Expr *type) {
 // ---------------------------------------------------------------------------
 // Primary and postfix
 
-// check-sizes: table
 Expr *parse_primary(Parser *p) {
     Span start = peek_token(p, 0)->span;
     switch (peek(p)) {

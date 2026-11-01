@@ -61,7 +61,6 @@ static const char *const FLOAT_FN_NAMES[] = {
     [FF_MINNUM] = "minnum", [FF_MAXNUM] = "maxnum",
 };
 
-// check-sizes: table
 static void operand(AirPrinter *p, Operand o) {
     switch (o.kind) {
     case OPERAND_COPY: case OPERAND_ADDR:
@@ -88,7 +87,6 @@ static void operands(AirPrinter *p, const char *name, Operand a, const Operand *
     }
 }
 
-// check-sizes: table
 static void rvalue(AirPrinter *p, const Rvalue *rv) {
     switch (rv->kind) {
     case RV_STR_LEN: operands(p, "str_len", rv->a, NULL); return;
