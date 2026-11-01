@@ -20,6 +20,7 @@ typedef struct {
     char code[8];        // "E0001", "W0002"
     Span span;
     char *message;       // owned by the diagnostics arena
+    uint32_t seq;        // the order it was reported in: equal positions keep it
 } Diagnostic;
 
 typedef enum {

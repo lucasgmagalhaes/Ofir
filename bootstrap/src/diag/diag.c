@@ -25,6 +25,7 @@ static void add(Diagnostics *diags, Diagnostic d, const char *format, va_list ar
     va_end(copy);
     d.message = arena_alloc(diags->arena, (size_t)n + 1, 1);
     vsnprintf(d.message, (size_t)n + 1, format, args);
+    d.seq = (uint32_t)diags->items.len;
     VEC_PUSH(diags->items, d);
     if (d.severity == SEVERITY_ERROR) {
         diags->error_count++;
@@ -60,7 +61,11 @@ static int compare(const void *pa, const void *pb) {
     if (a->span.start != b->span.start) {
         return a->span.start < b->span.start ? -1 : 1;
     }
-    return strcmp(a->code, b->code);
+    int code = strcmp(a->code, b->code);
+    if (code != 0) {
+        return code;
+    }
+    return a->seq < b->seq ? -1 : a->seq > b->seq;   // qsort is not stable (macOS)
 }
 
 static bool same(const Diagnostic *a, const Diagnostic *b) {
