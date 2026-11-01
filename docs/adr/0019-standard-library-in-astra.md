@@ -29,12 +29,16 @@ The specification declares methods inside the body of their type (ADR
       len: int
       cap: int
 
-      pub fn len(self) int { return self.len }
+      pub fn len(self) int {
+          return self.len
+      }
   }
 
   @lang("i64")
   pub copy struct i64 {
-      pub fn abs(self) Self { return if self < 0 { -self } else { self } }
+      pub fn abs(self) Self {
+          return if self < 0 { -self } else { self }
+      }
   }
   ```
 

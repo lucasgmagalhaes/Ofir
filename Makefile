@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 runtime unit runner-selftest test test-std check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
+.PHONY: all stage0 runtime unit runner-selftest test test-std check-format check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
 
 all: stage0 runtime
 
@@ -29,6 +29,10 @@ check-sizes:
 check-docs:
 	$(PYTHON) tools/check_docs.py
 
+# No inline function or statement bodies (docs/style-guide.md, `[fmt] inline-blocks`).
+check-format:
+	$(PYTHON) tools/check_format.py
+
 # Every run test and example under valgrind: no leaks, no invalid accesses.
 check-leaks: stage0 runtime
 	$(PYTHON) tools/check_leaks.py --compiler $(BUILD)/stage0/astra
@@ -41,7 +45,7 @@ test-std: stage0 runtime
 check-asan: stage0 runtime
 	$(PYTHON) tools/check_asan.py --compiler $(BUILD)/stage0/astra
 
-test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs test-std
+test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/astra
 
 # Performance (docs/design/performance.md)

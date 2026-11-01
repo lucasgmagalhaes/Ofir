@@ -83,7 +83,9 @@ type `str` but are stored statically and never allocate unless modified.
 Passing a literal to a borrowed `str` parameter borrows the static data:
 
 ```astra
-fn greet(name: str) { println("hello, {name}") }
+fn greet(name: str) {
+    println("hello, {name}")
+}
 
 greet("Ana")            // no allocation
 ```
@@ -254,7 +256,9 @@ fn apply(f: fn(int) int, x: int) int {
     return f(x)
 }
 
-fn double(x: int) int { return x * 2 }
+fn double(x: int) int {
+    return x * 2
+}
 
 let y = apply(double, 21)
 ```

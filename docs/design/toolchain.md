@@ -59,7 +59,19 @@ kind = "exe"            # "exe" or "lib"
 root = "src/main.at"
 
 [dependencies]          # [planned] package manager
+
+[fmt]                   # what `astra fmt` produces (docs/style-guide.md)
+inline-blocks = false   # a function or statement body never shares a line with its braces
 ```
+
+`[fmt]` properties:
+
+| Property | Default | Meaning |
+|----------|---------|---------|
+| `inline-blocks` | `false` | when `false`, the body of every function and of every statement (`if`, `else`, `for`, `unsafe`, `match` arm, `let ... else`) is broken onto its own lines; an `if` or `unsafe` used as a value may stay on one line if each block holds one expression. `true` lets a body of a single statement stay on one line. |
+
+Until `astra fmt` exists, `tools/check_format.py` checks the repository
+against the default, and `--fix` applies it.
 
 ## 3. Build profiles
 

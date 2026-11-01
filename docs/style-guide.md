@@ -10,8 +10,28 @@ When the formatter exists it is the authority; until then, this document is.
   or an opening bracket (spec 1.3), and indent the continuation by 4 spaces.
 - **Braces:** the opening `{` stays on the line of its construct; `else`
   follows the closing `}` on the same line.
-- **One statement per line.** Short bodies may stay on one line when they
-  contain a single statement: `fn name(self) str { return "circle" }`.
+- **One statement per line.**
+- **No inline blocks** (`[fmt] inline-blocks = false`, the default): the
+  body of a function and the block of a statement (`if`, `else`, `for`,
+  `unsafe`, a `match` arm, the `else` of `let ... else`) always start on
+  the line after `{`, and `}` closes on a line of its own, even for a
+  single statement:
+
+  ```astra
+  fn name(self) str {
+      return "circle"
+  }
+
+  if done() {
+      break
+  }
+  ```
+
+  An `if` or `unsafe` used as a value may stay on one line when each of its
+  blocks holds a single expression: `let n = if a < b { a } else { b }`,
+  `let byte = unsafe { *p }`. `tools/check_format.py` (`make check-format`,
+  part of `make test`) enforces the rule on every Astra source and every
+  `astra` code block of the documentation; `--fix` breaks the lines.
 - **Blank lines:** one between top-level items and between methods; none at
   the start or end of a block.
 - **Trailing commas** in every multi-line list (arguments, literals,

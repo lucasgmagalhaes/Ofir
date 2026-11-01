@@ -26,8 +26,13 @@ interface Shape {
 struct Circle {
     radius: float
 
-    fn area(self) float { return 3.14159 * self.radius * self.radius }
-    fn name(self) str { return "circle" }
+    fn area(self) float {
+        return 3.14159 * self.radius * self.radius
+    }
+
+    fn name(self) str {
+        return "circle"
+    }
 }
 
 // Circle now satisfies Shape. Nothing else is needed.

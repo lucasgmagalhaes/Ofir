@@ -52,7 +52,9 @@ Param  = identifier ":" Type .
   passed (chapter 5.3). The caller never marks the mode:
 
   ```astra
-  fn rename(user: mut User, name: move str) { user.name = name }
+  fn rename(user: mut User, name: move str) {
+      user.name = name
+  }
 
   rename(ana, "Ana Maria")
   ```

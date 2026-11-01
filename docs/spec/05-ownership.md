@@ -12,7 +12,9 @@ takes ownership). Call sites look the same in all three cases.
 
 ```astra
 fn total(xs: List<int>) int { ... }            // reads xs
-fn reset(xs: mut List<int>) { xs.clear() }      // modifies the caller's list
+fn reset(xs: mut List<int>) {   // modifies the caller's list
+    xs.clear()
+}
 fn keep(xs: move List<int>) { ... }             // takes ownership
 
 var nums = [1, 2, 3]

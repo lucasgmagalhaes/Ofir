@@ -43,7 +43,9 @@ The condition must be `bool` (no truthiness). When `if` is used as a value,
 
 ```astra
 for {                      // infinite loop
-    if done() { break }
+    if done() {
+        break
+    }
 }
 
 for n < 100 {              // while-style
@@ -125,7 +127,9 @@ fn greet(id: UserId) Result<str, str> {
     let .Some(user) = findUser(id) else {
         return Err("user {id.0} not found")
     }
-    let .Admin(level) = user.role else { return Ok("hello, {user.name}") }
+    let .Admin(level) = user.role else {
+        return Ok("hello, {user.name}")
+    }
     return Ok("welcome back, admin level {level}")
 }
 ```
