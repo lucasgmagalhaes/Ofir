@@ -1,0 +1,444 @@
+/**
+ * @module
+ * The abstract syntax tree (spec appendix A), as stage 0's
+ * (bootstrap/src/syntax/ast.h) without its semantic annotations: the AST is
+ * a faithful representation of the source, and later phases keep their
+ * results beside it.
+ */
+
+import base.intern.Symbol
+import base.span.FileId
+import base.span.Span
+
+/**
+ * How a parameter receives its argument (spec 5.3).
+ */
+pub copy enum Mode {
+    /** Borrows it (the default). */
+    Borrow
+    /** Borrows it mutably: `mut x`. */
+    Mut
+    /** Takes it over: `move x`. */
+    Move
+}
+
+/**
+ * The operators of unary, binary and assignment expressions.
+ */
+pub copy enum Op {
+    Add, Sub, Mul, Div, Rem
+    And, Or, Xor, Shl, Shr
+    Eq, Ne, Lt, Le, Gt, Ge
+    LogicalAnd, LogicalOr, Coalesce
+    Neg, Not, Deref, Ref, RefMut
+    Assign
+}
+
+// ---------------------------------------------------------------------------
+// Types
+
+/**
+ * A type as written: `List<int>`, `&mut T`, `fn(int) str`.
+ */
+pub struct TypeExpr {
+    /** What it is. */
+    pub kind: TypeKind
+    /** Where it is written. */
+    pub span: Span
+}
+
+/**
+ * The forms of a type.
+ */
+pub enum TypeKind {
+    /** `a.b.Name<args>` */
+    Path(segments: List<Symbol>, args: List<TypeExpr>)
+    /** `Self` */
+    SelfType
+    /** `&T`, `&mut T` */
+    Ref(mutable: bool, inner: Box<TypeExpr>)
+    /** `*T`, `*mut T` */
+    Ptr(mutable: bool, inner: Box<TypeExpr>)
+    /** `[T]` */
+    Slice(elem: Box<TypeExpr>)
+    /** `[T; N]` */
+    Array(elem: Box<TypeExpr>, len: Box<Expr>)
+    /** `(A, B)`; `()` is the unit type. */
+    Tuple(items: List<TypeExpr>)
+    /** `fn(A) R`, `move fn(A) R` */
+    Fn(params: List<TypeExpr>, modes: List<Mode>, ret: Option<Box<TypeExpr>>, owned: bool)
+    /** `dyn I` */
+    Dyn(inner: Box<TypeExpr>)
+    /** `T?` */
+    Optional(inner: Box<TypeExpr>)
+    /** `!` */
+    Never
+}
+
+// ---------------------------------------------------------------------------
+// Patterns
+
+/**
+ * A pattern of `let`, `match` and `if let`.
+ */
+pub struct Pattern {
+    /** What it is. */
+    pub kind: PatternKind
+    /** Where it is written. */
+    pub span: Span
+}
+
+/**
+ * The forms of a pattern.
+ */
+pub enum PatternKind {
+    /** `_` */
+    Wildcard
+    /** `name`, `mut name` */
+    Binding(name: Symbol, mutable: bool)
+    /** `1`, `"a"`, `true`, `b'x'` */
+    Literal(value: Box<Expr>)
+    /** `1..=9` */
+    Range(lo: Box<Expr>, hi: Box<Expr>, inclusive: bool)
+    /** `.Some(x)`, `Option.Some(x)`, `Color.Red` */
+    Variant(path: List<Symbol>, name: Symbol, args: List<Pattern>, hasArgs: bool)
+    /** `(a, b)` */
+    Tuple(items: List<Pattern>)
+    /** `Point{x, y: 0, ..}` */
+    Struct(path: List<Symbol>, fields: List<FieldPattern>, rest: bool)
+    /** `UserId(raw)` */
+    TupleStruct(path: List<Symbol>, args: List<Pattern>)
+    /** `a | b` */
+    Or(alternatives: List<Pattern>)
+}
+
+/**
+ * A field of a struct pattern.
+ */
+pub struct FieldPattern {
+    /** The field. */
+    pub name: Symbol
+    /** Its pattern; `None` for the shorthand `x`. */
+    pub pattern: Option<Pattern>
+}
+
+// ---------------------------------------------------------------------------
+// Expressions
+
+/**
+ * An expression.
+ */
+pub struct Expr {
+    /** What it is. */
+    pub kind: ExprKind
+    /** Where it is written. */
+    pub span: Span
+}
+
+/**
+ * The forms of an expression.
+ */
+pub enum ExprKind {
+    /** An integer literal. */
+    Int(value: u64)
+    /** A float literal. */
+    Float(value: float)
+    /** A byte literal: `b'a'`. */
+    Byte(value: u8)
+    /** A string literal without interpolation. */
+    Str(value: str)
+    /** `true` or `false`. */
+    Bool(value: bool)
+    /** `"a {x} b"`: the parts alternate between strings and expressions. */
+    Interp(parts: List<Expr>)
+    /** A name. */
+    Ident(name: Symbol)
+    /** `self` */
+    SelfValue
+    /** `Self`, as in `Self.new()` */
+    SelfType
+    /** `Name<T, U>` in expression position (spec 8.5). */
+    Generic(name: Symbol, args: List<TypeExpr>)
+    /** `-x`, `!x`, `*x`, `&x`, `&mut x` */
+    Unary(op: Op, operand: Box<Expr>)
+    /** `a + b`, `a ?? b`, ... */
+    Binary(op: Op, lhs: Box<Expr>, rhs: Box<Expr>)
+    /** `x as T` */
+    Cast(value: Box<Expr>, to: TypeExpr)
+    /** `a..b`, `a..=b`; either bound may be missing. */
+    Range(lo: Option<Box<Expr>>, hi: Option<Box<Expr>>, inclusive: bool)
+    /** `f(a, name: b)` */
+    Call(callee: Box<Expr>, args: List<Arg>)
+    /** `a[i]` */
+    Index(base: Box<Expr>, index: Box<Expr>)
+    /** `a.name`, `a.name<T>` */
+    Field(base: Box<Expr>, name: Symbol, typeArgs: List<TypeExpr>)
+    /** `a.0` */
+    TupleField(base: Box<Expr>, index: u64)
+    /** `a?` */
+    Try(inner: Box<Expr>)
+    /** `Point{x: 1, ..base}` */
+    Struct(typeName: Box<Expr>, fields: List<FieldInit>, base: Option<Box<Expr>>)
+    /** `[a, b]` */
+    Array(elems: List<Expr>)
+    /** `[value; count]` */
+    Repeat(value: Box<Expr>, count: Box<Expr>)
+    /** `(a, b)`; `()` is unit. */
+    Tuple(elems: List<Expr>)
+    /** `.Some(x)`, `.None` */
+    Variant(name: Symbol, args: List<Arg>, hasArgs: bool)
+    /** `if cond { } else { }` and `if let pattern = value { }` */
+    If(letPattern: Option<Pattern>, cond: Box<Expr>, then: Block, otherwise: Option<Box<Expr>>)
+    /** `match value { arms }` */
+    Match(scrutinee: Box<Expr>, arms: List<MatchArm>)
+    /** `{ ... }` */
+    Block(block: Block)
+    /** `unsafe { ... }` */
+    Unsafe(block: Block)
+}
+
+/**
+ * An argument of a call or a variant.
+ */
+pub struct Arg {
+    /** The parameter it names, `name: value`; `None` for a positional one. */
+    pub name: Option<Symbol>
+    /** The argument. */
+    pub value: Expr
+}
+
+/**
+ * A field of a struct literal.
+ */
+pub struct FieldInit {
+    /** The field. */
+    pub name: Symbol
+    /** Its value; `None` for the shorthand `x`. */
+    pub value: Option<Expr>
+}
+
+/**
+ * An arm of a `match`.
+ */
+pub struct MatchArm {
+    /** What it matches. */
+    pub pattern: Pattern
+    /** Its `if` condition, if any. */
+    pub guard: Option<Expr>
+    /** Its value. */
+    pub body: Expr
+}
+
+// ---------------------------------------------------------------------------
+// Statements
+
+/**
+ * The forms of `for`.
+ */
+pub copy enum ForKind {
+    /** `for { }` */
+    Infinite
+    /** `for cond { }` */
+    Cond
+    /** `for [mut] x[, y] in expr { }` */
+    In
+}
+
+/**
+ * A statement.
+ */
+pub struct Stmt {
+    /** What it is. */
+    pub kind: StmtKind
+    /** Where it is written. */
+    pub span: Span
+}
+
+/**
+ * The forms of a statement.
+ */
+pub enum StmtKind {
+    /** `let pattern: T = value [else { ... }]` */
+    Let(pattern: Pattern, ty: Option<TypeExpr>, value: Expr, otherwise: Option<Block>)
+    /** `var name: T = value` */
+    Var(name: Symbol, ty: Option<TypeExpr>, value: Option<Expr>)
+    /** `target op= value`; `op` is `Assign` for a plain `=`. */
+    Assign(op: Op, target: Expr, value: Expr)
+    /** The three forms of `for`; `first, second` are the names of `for i, x in`. */
+    For(kind: ForKind, mutable: bool, first: Option<Symbol>, second: Option<Symbol>,
+        expr: Option<Expr>, body: Block)
+    /** `return [value]` */
+    Return(value: Option<Expr>)
+    /** `break` */
+    Break
+    /** `continue` */
+    Continue
+    /** An expression used as a statement. */
+    ExprStmt(expr: Expr)
+}
+
+/**
+ * `{ statements }`
+ */
+pub struct Block {
+    /** From `{` to `}`. */
+    pub span: Span
+    /** Its statements. */
+    pub stmts: List<Stmt>
+}
+
+// ---------------------------------------------------------------------------
+// Items
+
+/**
+ * `@name` or `@name(args)` before a declaration.
+ */
+pub struct Attribute {
+    /** Its name. */
+    pub name: Symbol
+    /** Its arguments: literals and names. */
+    pub args: List<Expr>
+    /** Where it is written. */
+    pub span: Span
+}
+
+/**
+ * A parameter of a function.
+ */
+pub struct Param {
+    /** Its name. */
+    pub name: Symbol
+    /** How it receives its argument. */
+    pub mode: Mode
+    /** Its type. */
+    pub ty: TypeExpr
+    /** `= value`, if any. */
+    pub defaultValue: Option<Expr>
+    /** Where it is written. */
+    pub span: Span
+}
+
+/**
+ * A function or a method.
+ */
+pub struct FnDecl {
+    /** Where it is written. */
+    pub span: Span
+    /** Its name. */
+    pub name: Symbol
+    /** Its attributes. */
+    pub attributes: List<Attribute>
+    /** `pub` */
+    pub isPub: bool
+    /** `unsafe fn` */
+    pub isUnsafe: bool
+    /** `"C"` for `extern "C" fn`, `""` otherwise. */
+    pub abi: str
+    /** Its type parameters. */
+    pub typeParams: List<Symbol>
+    /** Whether it is a method. */
+    pub hasSelf: bool
+    /** How a method receives `self`. */
+    pub selfMode: Mode
+    /** Its parameters, without `self`. */
+    pub params: List<Param>
+    /** Its result type; `None` for `()`. */
+    pub ret: Option<TypeExpr>
+    /** Its body; `None` in an `extern` block. */
+    pub body: Option<Block>
+}
+
+/**
+ * A field of a struct.
+ */
+pub struct FieldDecl {
+    /** Its name; `None` for a field of a tuple struct. */
+    pub name: Option<Symbol>
+    /** Its attributes. */
+    pub attributes: List<Attribute>
+    /** `pub` */
+    pub isPub: bool
+    /** Its type. */
+    pub ty: TypeExpr
+    /** `= value`, if any. */
+    pub defaultValue: Option<Expr>
+    /** Where it is written. */
+    pub span: Span
+}
+
+/**
+ * A field of an enum variant.
+ */
+pub struct VariantField {
+    /** Its name; `None` for an unnamed one. */
+    pub name: Option<Symbol>
+    /** Its type. */
+    pub ty: TypeExpr
+}
+
+/**
+ * A variant of an enum.
+ */
+pub struct Variant {
+    /** Its name. */
+    pub name: Symbol
+    /** Its fields. */
+    pub fields: List<VariantField>
+    /** Whether it has a field list, even an empty one: `A()`. */
+    pub hasFields: bool
+    /** `= value`, if any. */
+    pub discriminant: Option<Expr>
+    /** Where it is written. */
+    pub span: Span
+}
+
+/**
+ * A top-level declaration.
+ */
+pub struct Item {
+    /** What it is. */
+    pub kind: ItemKind
+    /** Where it is written. */
+    pub span: Span
+    /** Its name (the last segment for an import). */
+    pub name: Symbol
+    /** Its attributes. */
+    pub attributes: List<Attribute>
+    /** `pub` */
+    pub isPub: bool
+}
+
+/**
+ * The forms of a top-level declaration.
+ */
+pub enum ItemKind {
+    /** `fn` */
+    Fn(decl: FnDecl)
+    /** `struct`, also a tuple struct: `struct Id(int)` */
+    Struct(isCopy: bool, isRef: bool, isTuple: bool, typeParams: List<Symbol>,
+           fields: List<FieldDecl>, methods: List<FnDecl>)
+    /** `enum` */
+    Enum(isCopy: bool, typeParams: List<Symbol>, variants: List<Variant>, methods: List<FnDecl>)
+    /** `const NAME: T = value` */
+    Const(ty: Option<TypeExpr>, value: Expr)
+    /** A global `var`. */
+    Global(ty: Option<TypeExpr>, value: Expr)
+    /** `type Name<T> = T` */
+    TypeAlias(typeParams: List<Symbol>, ty: TypeExpr)
+    /** `import a.b [as c]` */
+    Import(path: List<Symbol>, alias: Option<Symbol>)
+    /** `extern "C" { fns }` */
+    Extern(abi: str, fns: List<FnDecl>)
+}
+
+/**
+ * The AST of one file.
+ */
+pub struct Module {
+    /** The file. */
+    pub file: FileId
+    /** The text of its module documentation comments (`@module`). */
+    pub docs: List<str>
+    /** Its declarations. */
+    pub items: List<Item>
+}

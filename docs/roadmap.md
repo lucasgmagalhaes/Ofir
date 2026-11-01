@@ -163,7 +163,7 @@ Each port is verified by comparing outputs with stage 0.
 | 4.1 | `compiler/base`: generic typed index vectors, interning, spans | M | **done**: `base.span` (spans, `SourceMap`, line/column), `base.intern`, `base.index_vec` (`Id<T>`, `IndexVec<T>`), 8 tests in `make test-std`; `compiler/astra.toml` makes `compiler/` the import root |
 | 4.2 | `compiler/diag` | S | **done**: `diag` (`Diagnostics`, human and short formats, sorted and deduplicated as stage 0 does); tests compare with stage 0's output |
 | 4.3 | `compiler/syntax/lexer` (starting from the 0.8 prototype) | M | **done**: `main tokens <file>` identical to stage 0's `--emit=tokens` (output, errors, status) on every `.at` file of the repository and 200 mutated ones (`make compare-stages`, `tools/compare_stages.py`); `checkedAdd/Sub/Mul/Div` and `parse` for the numeric types in std |
-| 4.4 | `compiler/syntax/parser` + AST printer | L | `--emit=ast` identical to stage 0; **M3** when it parses `compiler/` itself |
+| 4.4 | `compiler/syntax/parser` + AST printer | L | **done (M3)**: `main ast <file>` identical to stage 0's `--emit=ast` on every `.at` file of the repository, `compiler/` included, and on mutated sources (`make compare-stages`); found and fixed in stage 0: a double free when matching a value in a box, a partial move kept across loop iterations, a crash printing a tree after errors |
 | 4.5 | Resolver and module loading | M | resolve errors identical |
 | 4.6 | Type checker | L | `tests/compile_fail` pass |
 | 4.7 | AIR, lowering, move analysis, drop elaboration, monomorphization | L | `--emit=air` equivalent to stage 0 |

@@ -42,8 +42,7 @@ void moves_pattern_init(Moves *m, const Pattern *p, State *s, bool borrowed) {
     switch (p->kind) {
     case PAT_BINDING: {
         uint32_t local = p->as.binding.local.id;
-        set_bit(s->moved, local, false);
-        set_bit(s->uninit, local, false);
+        init_part(m, s, &(Part){.local = local});   // also the parts moved out before
         set_bit(m->borrowed, local, borrowed);
         break;
     }

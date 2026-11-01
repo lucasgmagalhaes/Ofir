@@ -1,0 +1,247 @@
+/**
+ * @module
+ * Compact, source-like text for types, patterns and literals, used by the
+ * AST printer (stage 0: bootstrap/src/syntax/ast_text.c).
+ */
+
+import base.intern.Interner
+import base.intern.Symbol
+import syntax.ast.Expr
+import syntax.ast.FieldPattern
+import syntax.ast.Mode
+import syntax.ast.Pattern
+import syntax.ast.TypeExpr
+import syntax.token_print.formatG
+
+/**
+ * A dotted path: `a.b.C`.
+ *
+ * @param path the names
+ * @param names their interner
+ * @returns the text
+ */
+pub fn symbolsText(path: List<Symbol>, names: Interner) str {
+    var out = ""
+    for i in 0..path.len() {
+        if i > 0 {
+            out.push(".")
+        }
+        out.push(names.name(path[i]))
+    }
+    return out
+}
+
+fn typeListText(types: List<TypeExpr>, names: Interner) str {
+    var out = ""
+    for i in 0..types.len() {
+        if i > 0 {
+            out.push(", ")
+        }
+        out.push(typeText(&types[i], names))
+    }
+    return out
+}
+
+/**
+ * The text of a mode before a parameter: `mut `, `move ` or nothing.
+ *
+ * @param mode the mode
+ * @returns the text
+ */
+pub fn modeText(mode: Mode) str {
+    return match mode {
+        .Mut => "mut "
+        .Move => "move "
+        .Borrow => ""
+    }
+}
+
+/**
+ * A type, as written.
+ *
+ * @param t the type
+ * @param names the interner
+ * @returns the text
+ */
+// check-sizes: table
+pub fn typeText(t: &TypeExpr, names: Interner) str {
+    return match t.kind {
+        .Path(segments, args) => if args.len() > 0 {
+            "{symbolsText(segments, names)}<{typeListText(args, names)}>"
+        } else {
+            symbolsText(segments, names)
+        }
+        .SelfType => "Self".toOwned()
+        .Ref(mutable, inner) => "&{if mutable { "mut " } else { "" }}{typeText(&*inner, names)}"
+        .Ptr(mutable, inner) => "*{if mutable { "mut " } else { "" }}{typeText(&*inner, names)}"
+        .Slice(elem) => "[{typeText(&*elem, names)}]"
+        .Array(elem, len) => "[{typeText(&*elem, names)}; {literalText(&*len, names)}]"
+        .Tuple(items) => "({typeListText(items, names)}{if items.len() == 1 { ",)" } else { ")" }}"
+        .Fn(params, modes, ret, owned) => fnTypeText(params, modes, ret, owned, names)
+        .Dyn(inner) => "dyn {typeText(&*inner, names)}"
+        .Optional(inner) => "{typeText(&*inner, names)}?"
+        .Never => "!".toOwned()
+    }
+}
+
+fn fnTypeText(params: List<TypeExpr>, modes: List<Mode>, ret: Option<Box<TypeExpr>>,
+              owned: bool, names: Interner) str {
+    var out = if owned { "move fn(" } else { "fn(" }
+    for i in 0..params.len() {
+        if i > 0 {
+            out.push(", ")
+        }
+        out.push(modeText(modes[i]))
+        out.push(typeText(&params[i], names))
+    }
+    out.push(")")
+    if let .Some(r) = ret {
+        out.push(" ")
+        out.push(typeText(&*r, names))
+    }
+    return out
+}
+
+/**
+ * A string as stage 0 prints it in the AST: quoted, with `\n`, `\"`, `\\`,
+ * `{`, `}` and `\xHH` escapes.
+ *
+ * @param s the string
+ * @returns the text
+ */
+pub fn escapedText(s: str) str {
+    var out = "\""
+    var run = 0
+    for i in 0..s.len() {
+        let c = s[i]
+        let escape = if c == b'\n' {
+            "\\n".toOwned()
+        } else if c == b'"' || c == b'\\' || c == b'{' || c == b'}' {
+            "\\" + s.slice(i, i + 1)
+        } else if c < 0x20 || c == 0x7F {
+            "\\x{hex(c >> 4)}{hex(c & 0xF)}"
+        } else {
+            ""
+        }
+        if escape.len() > 0 {
+            out.push(s.slice(run, i))   // escaped bytes are ASCII: `i` is a boundary
+            out.push(escape)
+            run = i + 1
+        }
+    }
+    out.push(s.sliceFrom(run))
+    out.push("\"")
+    return out
+}
+
+fn hex(d: u8) str {
+    return "0123456789abcdef".slice(d as int, d as int + 1)
+}
+
+// The shortest decimal form that reads back as the same value, with `.0`
+// when it would look like an integer.
+fn floatText(value: float) str {
+    var text = formatG(value)
+    var plain = true
+    for i in 0..text.len() {
+        let c = text[i]
+        if c == b'.' || c == b'e' || c == b'E' || c == b'n' || c == b'i' {
+            plain = false
+        }
+    }
+    if plain {
+        text.push(".0")
+    }
+    return text
+}
+
+/**
+ * A literal (or a name, or a negated literal) in a pattern, a type or an
+ * attribute.
+ *
+ * @param e the expression
+ * @param names the interner
+ * @returns the text; `<expr>` for other expressions
+ */
+pub fn literalText(e: &Expr, names: Interner) str {
+    return match e.kind {
+        .Int(v) => "{v}"
+        .Float(v) => floatText(v)
+        .Byte(v) => "b{v}"
+        .Bool(v) => if v { "true".toOwned() } else { "false".toOwned() }
+        .Str(text) => escapedText(text)
+        .Ident(name) => names.name(name).toOwned()
+        .Unary(op, operand) => if op == .Neg {
+            "-" + literalText(&*operand, names)
+        } else {
+            "<expr>".toOwned()
+        }
+        _ => "<expr>".toOwned()
+    }
+}
+
+fn patternListText(list: List<Pattern>, names: Interner) str {
+    var out = ""
+    for i in 0..list.len() {
+        if i > 0 {
+            out.push(", ")
+        }
+        out.push(patternText(&list[i], names))
+    }
+    return out
+}
+
+/**
+ * A pattern, as written.
+ *
+ * @param p the pattern
+ * @param names the interner
+ * @returns the text
+ */
+// check-sizes: table
+pub fn patternText(p: &Pattern, names: Interner) str {
+    return match p.kind {
+        .Wildcard => "_".toOwned()
+        .Binding(name, mutable) => "{if mutable { "mut " } else { "" }}{names.name(name)}"
+        .Literal(value) => literalText(&*value, names)
+        .Range(lo, hi, inclusive) => {
+            let dots = if inclusive { "..=" } else { ".." }
+            literalText(&*lo, names) + dots + literalText(&*hi, names)
+        }
+        .Variant(path, name, args, hasArgs) => "{symbolsText(path, names)}.{names.name(name)}" +
+            (if hasArgs { "({patternListText(args, names)})" } else { "".toOwned() })
+        .Tuple(items) => "({patternListText(items, names)})"
+        .Struct(path, fields, rest) => structPatternText(path, fields, rest, names)
+        .TupleStruct(path, args) => "{symbolsText(path, names)}({patternListText(args, names)})"
+        .Or(alternatives) => orText(alternatives, names)
+    }
+}
+
+fn orText(alternatives: List<Pattern>, names: Interner) str {
+    var out = ""
+    for i in 0..alternatives.len() {
+        if i > 0 {
+            out.push(" | ")
+        }
+        out.push(patternText(&alternatives[i], names))
+    }
+    return out
+}
+
+fn structPatternText(path: List<Symbol>, fields: List<FieldPattern>, rest: bool,
+                     names: Interner) str {
+    var out = symbolsText(path, names)
+    out.push("\{")
+    for i in 0..fields.len() {
+        if i > 0 {
+            out.push(", ")
+        }
+        out.push(names.name(fields[i].name))
+        if let .Some(pattern) = fields[i].pattern {
+            out.push(": ")
+            out.push(patternText(&pattern, names))
+        }
+    }
+    out.push(if rest { if fields.len() > 0 { ", ..\}" } else { "..\}" } } else { "\}" })
+    return out
+}

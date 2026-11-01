@@ -1,0 +1,156 @@
+/**
+ * @module
+ * Patterns (spec appendix A.7; stage 0: bootstrap/src/syntax/parse_patterns.c).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import syntax.ast.FieldPattern
+import syntax.ast.Pattern
+import syntax.ast.PatternKind
+import syntax.parse_primary.atLiteral
+import syntax.parse_primary.parseLiteral
+import syntax.parser.Parser
+
+fn newPattern(p: Parser, kind: move PatternKind, start: Span) Pattern {
+    return Pattern{kind, span: p.spanSince(start)}
+}
+
+// `(p, q)` after the `(`; also the arguments of variants and tuple structs.
+fn patternList(p: mut Parser) List<Pattern> {
+    var items: List<Pattern> = []
+    for !p.at(.RParen) && !p.at(.Eof) {
+        items.push(parsePattern(p))
+        if !p.accept(.Comma) {
+            break
+        }
+    }
+    p.expect(.RParen, "`)` to close the patterns")
+    return items
+}
+
+// A literal, optionally followed by `..` or `..=` and a second literal.
+fn literalOrRange(p: mut Parser, start: Span) Pattern {
+    let lo = Box.new(parseLiteral(p))
+    if !p.at(.DotDot) && !p.at(.DotDotEq) {
+        return newPattern(p, .Literal(lo), start)
+    }
+    let inclusive = p.peek() == .DotDotEq
+    p.advance()
+    if !atLiteral(p) {
+        p.unexpected("a literal to end the range")
+    }
+    let hi = Box.new(parseLiteral(p))
+    return newPattern(p, .Range(lo, hi, inclusive), start)
+}
+
+// `.Name` or `.Name(p, q)`; the `.` is next.
+fn variantShorthand(p: mut Parser, start: Span) Pattern {
+    p.advance()
+    let name = p.expectName("a variant name after `.`") ?? Symbol(0)
+    var args: List<Pattern> = []
+    let hasArgs = p.accept(.LParen)
+    if hasArgs {
+        args = patternList(p)
+    }
+    return newPattern(p, .Variant([], name, args, hasArgs), start)
+}
+
+// `Point{x, y: 0, ..}` after the `{`.
+fn structPattern(p: mut Parser, path: move List<Symbol>, start: Span) Pattern {
+    var fields: List<FieldPattern> = []
+    p.skipNewlines()
+    for p.at(.Ident) {
+        let name = p.takeName()
+        var pattern: Option<Pattern> = .None
+        if p.accept(.Colon) {
+            pattern = .Some(parsePattern(p))
+        }
+        fields.push(FieldPattern{name, pattern})
+        p.skipNewlines()
+        if !p.accept(.Comma) {
+            break
+        }
+        p.skipNewlines()
+    }
+    let rest = p.accept(.DotDot)
+    p.skipNewlines()
+    p.expect(.RBrace, "`\}` to close the struct pattern")
+    return newPattern(p, .Struct(path, fields, rest), start)
+}
+
+// A pattern starting with a name: a binding, `Enum.Variant(...)`,
+// `TupleStruct(...)` or `Struct{...}`.
+fn named(p: mut Parser, start: Span) Pattern {
+    var path = [p.takeName()]
+    for p.at(.Dot) && p.peekAt(1) == .Ident {
+        p.advance()
+        path.push(p.takeName())
+    }
+    if p.accept(.LBrace) {
+        return structPattern(p, path, start)
+    }
+    if path.len() == 1 && p.accept(.LParen) {
+        let args = patternList(p)
+        return newPattern(p, .TupleStruct(path, args), start)
+    }
+    if path.len() > 1 {
+        let name = path.pop() ?? Symbol(0)
+        let hasArgs = p.accept(.LParen)
+        var args: List<Pattern> = []
+        if hasArgs {
+            args = patternList(p)
+        }
+        return newPattern(p, .Variant(path, name, args, hasArgs), start)
+    }
+    let name = path[0]
+    let wildcard = p.words.wildcard.isSome() && (p.words.wildcard ?? Symbol(0)).0 == name.0
+    if wildcard {
+        return newPattern(p, .Wildcard, start)
+    }
+    return newPattern(p, .Binding(name, false), start)
+}
+
+fn atom(p: mut Parser) Pattern {
+    let start = p.here()
+    return match p.peek() {
+        .Ident => named(p, start)
+        .Dot => variantShorthand(p, start)
+        .Mut => {
+            p.advance()
+            let name = p.expectName("a name after `mut`") ?? Symbol(0)
+            newPattern(p, .Binding(name, true), start)
+        }
+        .LParen => {
+            p.advance()
+            let items = patternList(p)
+            newPattern(p, .Tuple(items), start)
+        }
+        _ => if atLiteral(p) {
+            literalOrRange(p, start)
+        } else {
+            p.unexpected("a pattern")
+            newPattern(p, .Wildcard, start)
+        }
+    }
+}
+
+/**
+ * A pattern, with `|` alternatives.
+ *
+ * @param p the parser
+ * @returns the pattern
+ */
+pub fn parsePattern(p: mut Parser) Pattern {
+    let start = p.here()
+    let first = atom(p)
+    if !p.at(.Pipe) {
+        return first
+    }
+    var alternatives = [first]
+    for p.accept(.Pipe) {
+        p.skipNewlines()
+        alternatives.push(atom(p))
+    }
+    return newPattern(p, .Or(alternatives), start)
+}

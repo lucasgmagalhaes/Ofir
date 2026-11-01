@@ -1,0 +1,191 @@
+/**
+ * @module
+ * Operator expressions: precedence climbing over the table of spec 4.8
+ * (stage 0: bootstrap/src/syntax/parse_exprs.c). Primary and postfix
+ * expressions are in `syntax.parse_primary`.
+ */
+
+import base.span.Span
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.Op
+import syntax.parse_primary.parsePostfix
+import syntax.parse_primary.parsePrimary
+import syntax.parse_types.parseType
+import syntax.parser.Parser
+
+/**
+ * An expression node from `start` to the previous token.
+ *
+ * @param p the parser
+ * @param kind what it is
+ * @param start where it began
+ * @returns the node
+ */
+pub fn newExpr(p: Parser, kind: move ExprKind, start: Span) Expr {
+    return Expr{kind, span: p.spanSince(start)}
+}
+
+fn binary(p: Parser, op: Op, lhs: move Expr, rhs: move Expr) Expr {
+    let start = lhs.span
+    return newExpr(p, .Binary(op, Box.new(lhs), Box.new(rhs)), start)
+}
+
+// Two tokens with no space between them, such as the `>` `>` of a shift.
+fn adjacent(p: Parser, ahead: int) bool {
+    return p.token(ahead).span.end == p.token(ahead + 1).span.start
+}
+
+// The lexer emits `>` alone (spec 1.6): `>>`, `>=` and `>>=` are joined
+// here. The operator and how many tokens it spans (0: none).
+fn gtOperator(p: Parser) (Op, int) {
+    if p.peekAt(1) == .Gt && adjacent(p, 0) {
+        let assign = p.peekAt(2) == .Eq && adjacent(p, 1)
+        return (.Shr, if assign { 0 } else { 2 })   // `>>=` is an assignment
+    }
+    if p.peekAt(1) == .Eq && adjacent(p, 0) {
+        let equality = p.peekAt(2) == .Eq && adjacent(p, 1)
+        return (.Ge, if equality { 0 } else { 2 })   // `>==` is not an operator
+    }
+    return (.Gt, 1)
+}
+
+// The levels of spec 4.8: || 2, && 3, comparisons 4, + - | ^ 5,
+// * / % << >> & 6; 0 for no operator.
+// check-sizes: table
+fn operatorAt(p: Parser) (int, Op, int) {
+    return match p.peek() {
+        .OrOr => (2, .LogicalOr, 1)
+        .AndAnd => (3, .LogicalAnd, 1)
+        .EqEq => (4, .Eq, 1)
+        .Ne => (4, .Ne, 1)
+        .Lt => (4, .Lt, 1)
+        .Le => (4, .Le, 1)
+        .Plus => (5, .Add, 1)
+        .Minus => (5, .Sub, 1)
+        .Pipe => (5, .Or, 1)
+        .Caret => (5, .Xor, 1)
+        .Star => (6, .Mul, 1)
+        .Slash => (6, .Div, 1)
+        .Percent => (6, .Rem, 1)
+        .Shl => (6, .Shl, 1)
+        .Amp => (6, .And, 1)
+        .Gt => gtLevel(p)
+        _ => (0, .Add, 0)
+    }
+}
+
+fn gtLevel(p: Parser) (int, Op, int) {
+    let gt = gtOperator(p)
+    if gt.1 == 0 {
+        return (0, gt.0, 0)
+    }
+    return (if gt.0 == .Shr { 6 } else { 4 }, gt.0, gt.1)
+}
+
+fn castExpr(p: mut Parser) Expr {
+    var e = unary(p)
+    for p.accept(.As) {
+        let start = e.span
+        let to = parseType(p)
+        e = newExpr(p, .Cast(Box.new(e), to), start)
+    }
+    return e
+}
+
+// Precedence climbing: the operators of level `min` and above.
+fn binaryExpr(p: mut Parser, min: int) Expr {
+    var lhs = castExpr(p)
+    for {
+        let found = operatorAt(p)
+        if found.0 == 0 || found.0 < min {
+            return lhs
+        }
+        p.pos += found.2
+        p.skipNewlines()   // an operator at the end of a line continues it
+        let rhs = binaryExpr(p, found.0 + 1)
+        lhs = binary(p, found.1, lhs, rhs)
+        if found.0 == 4 && operatorAt(p).0 == 4 {
+            p.syntaxError(p.here(), "comparison operators cannot be chained; use `&&`".toOwned())
+        }
+    }
+}
+
+fn coalesce(p: mut Parser) Expr {
+    let lhs = binaryExpr(p, 2)
+    if !p.accept(.QuestionQuestion) {
+        return lhs
+    }
+    p.skipNewlines()
+    let rhs = coalesce(p)   // right-associative
+    return binary(p, .Coalesce, lhs, rhs)
+}
+
+fn canEndRange(p: Parser) bool {
+    return match p.peek() {
+        .Newline | .Eof | .RParen | .RBracket | .RBrace | .Comma | .LBrace => true
+        _ => false
+    }
+}
+
+/**
+ * An expression, a range included.
+ *
+ * @param p the parser
+ * @returns the expression
+ */
+pub fn parseExpr(p: mut Parser) Expr {
+    let start = p.here()
+    let atRange = p.at(.DotDot) || p.at(.DotDotEq)
+    var lo: Option<Box<Expr>> = .None
+    if !atRange {
+        let first = coalesce(p)
+        if !p.at(.DotDot) && !p.at(.DotDotEq) {
+            return first
+        }
+        lo = .Some(Box.new(first))
+    }
+    let inclusive = p.peek() == .DotDotEq
+    p.advance()
+    var hi: Option<Box<Expr>> = .None
+    if !canEndRange(p) {
+        hi = .Some(Box.new(coalesce(p)))
+    }
+    return newExpr(p, .Range(lo, hi, inclusive), start)
+}
+
+/**
+ * An expression where a struct literal cannot start: the header of `if`,
+ * `match` and `for` (spec A.6).
+ *
+ * @param p the parser
+ * @returns the expression
+ */
+pub fn parseExprNoStruct(p: mut Parser) Expr {
+    let saved = p.noStructLiteral
+    p.noStructLiteral = true
+    let e = parseExpr(p)
+    p.noStructLiteral = saved
+    return e
+}
+
+fn unary(p: mut Parser) Expr {
+    let start = p.here()
+    let op: Op = match p.peek() {
+        .Minus => .Neg
+        .Bang => .Not
+        .Star => .Deref
+        .Amp => if p.peekAt(1) == .Mut { .RefMut } else { .Ref }
+        _ => .Assign   // no unary operator
+    }
+    if op == .Assign {
+        let base = parsePrimary(p)
+        return parsePostfix(p, base)
+    }
+    p.advance()
+    if op == .RefMut {
+        p.advance()   // mut
+    }
+    let operand = unary(p)
+    return newExpr(p, .Unary(op, Box.new(operand)), start)
+}

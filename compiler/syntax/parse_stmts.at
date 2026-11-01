@@ -1,0 +1,185 @@
+/**
+ * @module
+ * Statements (spec appendix A.5; stage 0: bootstrap/src/syntax/parse_stmts.c).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import syntax.ast.Block
+import syntax.ast.Expr
+import syntax.ast.ForKind
+import syntax.ast.Op
+import syntax.ast.Stmt
+import syntax.ast.StmtKind
+import syntax.ast.TypeExpr
+import syntax.parse_control.parseBlock
+import syntax.parse_exprs.parseExpr
+import syntax.parse_exprs.parseExprNoStruct
+import syntax.parse_patterns.parsePattern
+import syntax.parse_types.parseType
+import syntax.parser.Parser
+
+fn newStmt(p: Parser, kind: move StmtKind, start: Span) Stmt {
+    return Stmt{kind, span: p.spanSince(start)}
+}
+
+fn optionalType(p: mut Parser) Option<TypeExpr> {
+    if p.accept(.Colon) {
+        return .Some(parseType(p))
+    }
+    return .None
+}
+
+// The value of `let` when `=` is missing: an empty tuple, as nothing else.
+fn missingValue(p: Parser) Expr {
+    return Expr{kind: .Tuple([]), span: p.here()}
+}
+
+// `let pattern: T = value` and `let pattern = value else { ... }`.
+fn letStmt(p: mut Parser, start: Span) Stmt {
+    let pattern = parsePattern(p)
+    let ty = optionalType(p)
+    var value = missingValue(p)
+    if p.expect(.Eq, "`=` in `let`") {
+        p.skipNewlines()
+        value = parseExpr(p)
+    }
+    var otherwise: Option<Block> = .None
+    if p.accept(.Else) {
+        otherwise = .Some(parseBlock(p))
+    }
+    return newStmt(p, .Let(pattern, ty, value, otherwise), start)
+}
+
+fn varStmt(p: mut Parser, start: Span) Stmt {
+    let name = p.expectName("a variable name after `var`") ?? Symbol(0)
+    let ty = optionalType(p)
+    var value: Option<Expr> = .None
+    if p.accept(.Eq) {
+        p.skipNewlines()
+        value = .Some(parseExpr(p))
+    }
+    return newStmt(p, .Var(name, ty, value), start)
+}
+
+// Whether the tokens after `for` are `[mut] name [, name] in`.
+fn atForIn(p: Parser) bool {
+    let i = if p.at(.Mut) { 1 } else { 0 }
+    if p.peekAt(i) != .Ident {
+        return false
+    }
+    if p.peekAt(i + 1) == .Comma {
+        return p.peekAt(i + 2) == .Ident && p.peekAt(i + 3) == .In
+    }
+    return p.peekAt(i + 1) == .In
+}
+
+fn forStmt(p: mut Parser, start: Span) Stmt {
+    var kind: ForKind = .Cond
+    var mutable = false
+    var first: Option<Symbol> = .None
+    var second: Option<Symbol> = .None
+    var expr: Option<Expr> = .None
+    if p.at(.LBrace) {
+        kind = .Infinite
+    } else if atForIn(p) {
+        kind = .In
+        mutable = p.accept(.Mut)
+        first = .Some(p.takeName())
+        if p.accept(.Comma) {
+            second = .Some(p.takeName())
+        }
+        p.advance()   // in
+        expr = .Some(parseExprNoStruct(p))
+    } else {
+        expr = .Some(parseExprNoStruct(p))
+    }
+    let body = parseBlock(p)
+    return newStmt(p, .For(kind, mutable, first, second, expr, body), start)
+}
+
+fn atStatementEnd(p: Parser) bool {
+    return p.at(.Newline) || p.at(.RBrace) || p.at(.Eof)
+}
+
+// The assignment operator at the cursor, joining `>` `>` `=` into `>>=`,
+// and how many tokens it spans (0: none).
+// check-sizes: table
+fn assignOp(p: Parser) (Op, int) {
+    return match p.peek() {
+        .Eq => (.Assign, 1)
+        .PlusEq => (.Add, 1)
+        .MinusEq => (.Sub, 1)
+        .StarEq => (.Mul, 1)
+        .SlashEq => (.Div, 1)
+        .PercentEq => (.Rem, 1)
+        .AmpEq => (.And, 1)
+        .PipeEq => (.Or, 1)
+        .CaretEq => (.Xor, 1)
+        .ShlEq => (.Shl, 1)
+        .Gt => (.Shr, if shiftAssign(p) { 3 } else { 0 })
+        _ => (.Assign, 0)
+    }
+}
+
+fn shiftAssign(p: Parser) bool {
+    let a = p.token(0)
+    let b = p.token(1)
+    let c = p.token(2)
+    return b.kind == .Gt && c.kind == .Eq && a.span.end == b.span.start &&
+        b.span.end == c.span.start
+}
+
+// An expression statement, or an assignment if an assignment operator follows.
+fn exprStmt(p: mut Parser, start: Span) Stmt {
+    let target = parseExpr(p)
+    let op = assignOp(p)
+    if op.1 == 0 {
+        return newStmt(p, .ExprStmt(target), start)
+    }
+    p.pos += op.1
+    p.skipNewlines()
+    let value = parseExpr(p)
+    return newStmt(p, .Assign(op.0, target, value), start)
+}
+
+/**
+ * A statement.
+ *
+ * @param p the parser
+ * @returns the statement
+ */
+pub fn parseStmt(p: mut Parser) Stmt {
+    let start = p.here()
+    return match p.peek() {
+        .Let => {
+            p.advance()
+            letStmt(p, start)
+        }
+        .Var => {
+            p.advance()
+            varStmt(p, start)
+        }
+        .For => {
+            p.advance()
+            forStmt(p, start)
+        }
+        .Break => {
+            p.advance()
+            newStmt(p, .Break, start)
+        }
+        .Continue => {
+            p.advance()
+            newStmt(p, .Continue, start)
+        }
+        .Return => {
+            p.advance()
+            var value: Option<Expr> = .None
+            if !atStatementEnd(p) {
+                value = .Some(parseExpr(p))
+            }
+            newStmt(p, .Return(value), start)
+        }
+        _ => exprStmt(p, start)
+    }
+}

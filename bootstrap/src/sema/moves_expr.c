@@ -39,7 +39,13 @@ Place place_of(Moves *m, Expr *e, State *s) {
     if (e->kind == EXPR_UNARY && e->as.unary.op == OP_DEREF) {
         moves_expr(m, e->as.unary.operand, s, USE_READ);
         const Ty *ty = type_get(m->c->types, e->as.unary.operand->type);
-        return (Place){.via = ty->kind == TY_PTR ? VIA_RAW : VIA_DEREF};
+        // The value in a box (`*b.ptr` once checked) is lent like a referenced
+        // one: a `match` on it binds by borrow, as the box still owns it.
+        // In std.core.box itself, `*self.ptr` is the raw pointer it is.
+        Sema *sema = m->c->sema;
+        bool box_module = sema->box.id && sema_def(sema, sema->box)->module == sema->current;
+        bool raw = ty->kind == TY_PTR && (box_module || !is_box_deref(m->c, e));
+        return (Place){.via = raw ? VIA_RAW : VIA_DEREF};
     }
     moves_expr(m, e, s, USE_READ);   // a temporary: `make().x`
     return (Place){0};

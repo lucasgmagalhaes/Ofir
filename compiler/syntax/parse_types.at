@@ -1,0 +1,209 @@
+/**
+ * @module
+ * Types (spec appendix A.4), type parameters and parameter modes
+ * (stage 0: bootstrap/src/syntax/parse_types.c).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import syntax.ast.Mode
+import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
+import syntax.parse_exprs.parseExpr
+import syntax.parser.Parser
+
+fn newType(p: Parser, kind: move TypeKind, start: Span) TypeExpr {
+    return TypeExpr{kind, span: p.spanSince(start)}
+}
+
+/**
+ * Whether the current token can start a type.
+ *
+ * @param p the parser
+ * @returns true for a name, `&`, `*`, `[`, `(`, `fn`, `dyn`, `!` or `Self`
+ */
+pub fn canStartType(p: Parser) bool {
+    return match p.peek() {
+        .Ident | .Amp | .Star | .LBracket | .LParen | .Fn | .Dyn | .Bang | .SelfType => true
+        _ => false
+    }
+}
+
+/**
+ * An optional parameter mode: `mut` or `move`.
+ *
+ * @param p the parser
+ * @returns the mode, `Borrow` when there is none
+ */
+pub fn parseMode(p: mut Parser) Mode {
+    if p.accept(.Mut) {
+        return .Mut
+    }
+    if p.atWord(p.words.move) && p.peekAt(1) != .Colon {
+        p.advance()
+        return .Move
+    }
+    return .Borrow
+}
+
+/**
+ * Type arguments after `<`: `T, U>`.
+ *
+ * @param p the parser
+ * @returns the types
+ */
+pub fn parseTypeArgs(p: mut Parser) List<TypeExpr> {
+    var args: List<TypeExpr> = []
+    p.skipNewlines()
+    for !p.at(.Gt) && !p.at(.Eof) {
+        args.push(parseType(p))
+        p.skipNewlines()
+        if !p.accept(.Comma) {
+            break
+        }
+        p.skipNewlines()
+    }
+    p.expect(.Gt, "`>` to close the type arguments")
+    return args
+}
+
+/**
+ * Optional type parameters: `<T, U>`.
+ *
+ * @param p the parser
+ * @returns their names
+ */
+pub fn parseTypeParams(p: mut Parser) List<Symbol> {
+    var params: List<Symbol> = []
+    if p.accept(.Lt) {
+        for p.at(.Ident) {
+            params.push(p.takeName())
+            if !p.accept(.Comma) {
+                break
+            }
+        }
+        p.expect(.Gt, "`>` to close the type parameters")
+    }
+    return params
+}
+
+fn pathType(p: mut Parser) TypeExpr {
+    let start = p.here()
+    var segments = [p.takeName()]
+    for p.at(.Dot) && p.peekAt(1) == .Ident {
+        p.advance()
+        segments.push(p.takeName())
+    }
+    var args: List<TypeExpr> = []
+    if p.accept(.Lt) {
+        args = parseTypeArgs(p)
+    }
+    return newType(p, .Path(segments, args), start)
+}
+
+// `fn(A, mut B) R` or `move fn(A) R`; the `fn` keyword is next.
+fn fnType(p: mut Parser, start: Span, owned: bool) TypeExpr {
+    p.advance()
+    p.expect(.LParen, "`(` after `fn`")
+    var params: List<TypeExpr> = []
+    var modes: List<Mode> = []
+    for !p.at(.RParen) && !p.at(.Eof) {
+        modes.push(parseMode(p))
+        params.push(parseType(p))
+        if !p.accept(.Comma) {
+            break
+        }
+    }
+    p.expect(.RParen, "`)` to close the parameter types")
+    var ret: Option<Box<TypeExpr>> = .None
+    if canStartType(p) {
+        ret = .Some(Box.new(parseType(p)))
+    }
+    return newType(p, .Fn(params, modes, ret, owned), start)
+}
+
+// `[T]` or `[T; N]`; the `[` is next.
+fn bracketType(p: mut Parser, start: Span) TypeExpr {
+    p.advance()
+    let elem = Box.new(parseType(p))
+    if p.accept(.Semicolon) {
+        let len = Box.new(parseExpr(p))
+        p.expect(.RBracket, "`]`")
+        return newType(p, .Array(elem, len), start)
+    }
+    p.expect(.RBracket, "`]`")
+    return newType(p, .Slice(elem), start)
+}
+
+// `()`, `(T,)`, `(A, B)`; the `(` is next.
+fn tupleType(p: mut Parser, start: Span) TypeExpr {
+    p.advance()
+    var elems: List<TypeExpr> = []
+    for !p.at(.RParen) && !p.at(.Eof) {
+        elems.push(parseType(p))
+        if !p.accept(.Comma) {
+            break
+        }
+    }
+    p.expect(.RParen, "`)` to close the tuple type")
+    return newType(p, .Tuple(elems), start)
+}
+
+fn pointerType(p: mut Parser, start: Span, reference: bool) TypeExpr {
+    p.advance()
+    let mutable = p.accept(.Mut)
+    let inner = Box.new(parseType(p))
+    let kind: TypeKind = if reference { .Ref(mutable, inner) } else { .Ptr(mutable, inner) }
+    return newType(p, kind, start)
+}
+
+// check-sizes: table
+fn baseType(p: mut Parser) TypeExpr {
+    let start = p.here()
+    return match p.peek() {
+        .Ident => if p.atWord(p.words.move) && p.peekAt(1) == .Fn {
+            p.advance()
+            fnType(p, start, true)
+        } else {
+            pathType(p)
+        }
+        .SelfType => {
+            p.advance()
+            newType(p, .SelfType, start)
+        }
+        .Amp => pointerType(p, start, true)
+        .Star => pointerType(p, start, false)
+        .LBracket => bracketType(p, start)
+        .LParen => tupleType(p, start)
+        .Fn => fnType(p, start, false)
+        .Bang => {
+            p.advance()
+            newType(p, .Never, start)
+        }
+        .Dyn => {
+            p.advance()
+            let inner = Box.new(parseType(p))
+            newType(p, .Dyn(inner), start)
+        }
+        _ => {
+            p.unexpected("a type")
+            newType(p, .Never, start)
+        }
+    }
+}
+
+/**
+ * A type; `T?` is `Option<T>`.
+ *
+ * @param p the parser
+ * @returns the type
+ */
+pub fn parseType(p: mut Parser) TypeExpr {
+    var t = baseType(p)
+    for p.at(.Question) {
+        p.advance()
+        let span = t.span
+        t = TypeExpr{kind: .Optional(Box.new(t)), span: p.spanSince(span)}
+    }
+    return t
+}

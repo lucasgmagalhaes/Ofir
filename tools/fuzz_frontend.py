@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Mutation fuzzing of the compiler (roadmap 3.12): the sources of tests/,
 std/ and examples/ are cut, spliced and sprinkled with tokens, and each
-result is compiled up to LLVM IR. The compiler must answer with
-diagnostics (exit status 0 or 1), never crash, hang or trip a sanitizer
-(build/stage0/astra is built with ASan and UBSan). Failing inputs are kept
-in the output directory.
+result is compiled up to LLVM IR and printed as a tree (`--emit=ast`).
+The compiler must answer with diagnostics (exit status 0 or 1), never
+crash, hang or trip a sanitizer (build/stage0/astra is built with ASan and
+UBSan). Failing inputs are kept in the output directory.
 
     python3 tools/fuzz_frontend.py [--compiler build/stage0/astra] [--count 500] [--seed 1]
 """
@@ -39,6 +39,16 @@ def mutate(rng: random.Random, text: str) -> str:
     return text
 
 
+def crashes(compiler: str, case: Path, emit: str, out: Path) -> bool:
+    try:
+        run = subprocess.run([compiler, "build", str(case), emit, "-o", str(out / "case")],
+                             capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return True
+    return run.returncode not in (0, 1) or "Sanitizer" in run.stderr or \
+        "runtime error:" in run.stderr
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "astra"))
@@ -54,14 +64,7 @@ def main() -> int:
         text = mutate(rng, rng.choice(sources).read_text())
         case = out / f"case{i}.at"
         case.write_text(text)
-        try:
-            run = subprocess.run([args.compiler, "build", str(case), "--emit=llvm",
-                                  "-o", str(out / "case")], capture_output=True, text=True,
-                                 timeout=60)
-            bad = run.returncode not in (0, 1) or "Sanitizer" in run.stderr or \
-                "runtime error:" in run.stderr
-        except subprocess.TimeoutExpired:
-            bad = True
+        bad = any(crashes(args.compiler, case, emit, out) for emit in ("--emit=llvm", "--emit=ast"))
         if bad:
             failures += 1
             print(f"error: {case} crashed or hung the compiler")

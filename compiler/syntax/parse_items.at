@@ -1,0 +1,219 @@
+/**
+ * @module
+ * Items and modules (spec appendix A.1 and A.3; stage 0:
+ * bootstrap/src/syntax/parse_items.c).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import syntax.ast.Attribute
+import syntax.ast.Expr
+import syntax.ast.FnDecl
+import syntax.ast.Item
+import syntax.ast.ItemKind
+import syntax.ast.TypeExpr
+import syntax.parse_decls.parseEnum
+import syntax.parse_decls.parseFn
+import syntax.parse_decls.parseStruct
+import syntax.parse_exprs.parseExpr
+import syntax.parse_types.parseType
+import syntax.parse_types.parseTypeParams
+import syntax.parser.Parser
+import syntax.parser.textOf
+
+/**
+ * The attributes and the `pub` before a declaration.
+ */
+pub struct ItemHeader {
+    /** Where the declaration starts. */
+    pub span: Span
+    /** Its attributes. */
+    pub attributes: List<Attribute>
+    /** `pub` */
+    pub isPub: bool
+}
+
+fn attribute(p: mut Parser) Attribute {
+    let start = p.advance()   // @
+    let name = p.expectName("an attribute name after `@`") ?? Symbol(0)
+    var args: List<Expr> = []
+    if p.accept(.LParen) {
+        for !p.at(.RParen) && !p.at(.Eof) {
+            args.push(parseExpr(p))
+            if !p.accept(.Comma) {
+                break
+            }
+        }
+        p.expect(.RParen, "`)` to close the attribute arguments")
+    }
+    let span = p.spanSince(start)
+    p.skipNewlines()
+    return Attribute{name, args, span}
+}
+
+/**
+ * The attributes and `pub` of a declaration.
+ *
+ * @param p the parser
+ * @returns them
+ */
+pub fn parseItemHeader(p: mut Parser) ItemHeader {
+    let span = p.here()
+    var attributes: List<Attribute> = []
+    for p.at(.At) {
+        attributes.push(attribute(p))
+    }
+    return ItemHeader{span, attributes, isPub: p.accept(.Pub)}
+}
+
+fn importItem(p: mut Parser) ItemKind {
+    var path: List<Symbol> = []
+    for {
+        let .Some(name) = p.expectName("a module name") else {
+            break
+        }
+        path.push(name)
+        if !p.accept(.Dot) {
+            break
+        }
+    }
+    var alias: Option<Symbol> = .None
+    if p.accept(.As) {
+        alias = p.expectName("a name after `as`")
+    }
+    return .Import(path, alias)
+}
+
+// `const NAME: T = value` and the global `var NAME: T = value`.
+fn valueItem(p: mut Parser, isConst: bool) (Symbol, ItemKind) {
+    let name = p.expectName("a name") ?? Symbol(0)
+    var ty: Option<TypeExpr> = .None
+    if p.accept(.Colon) {
+        ty = .Some(parseType(p))
+    }
+    var value = Expr{kind: .Tuple([]), span: p.here()}
+    if p.expect(.Eq, "`=` and a value") {
+        value = parseExpr(p)
+    }
+    let kind: ItemKind = if isConst { .Const(ty, value) } else { .Global(ty, value) }
+    return (name, kind)
+}
+
+fn typeAlias(p: mut Parser) (Symbol, ItemKind) {
+    let name = p.expectName("a type name") ?? Symbol(0)
+    let params = parseTypeParams(p)
+    p.expect(.Eq, "`=` and a type")
+    return (name, .TypeAlias(params, parseType(p)))
+}
+
+// `extern "C" { fn ... }` or `extern "C" fn name(...) { body }`.
+fn externItem(p: mut Parser, header: move ItemHeader) (Symbol, ItemKind) {
+    var abi = "C".toOwned()
+    if p.at(.Str) {
+        abi = textOf(p.token(0)).toOwned()
+    }
+    p.expect(.Str, "the ABI string, as in `extern \"C\"`")
+    if p.accept(.Fn) {
+        var decl = parseFn(p, header, true)
+        decl.abi = abi
+        return (decl.name, .Fn(decl))
+    }
+    var fns: List<FnDecl> = []
+    p.expect(.LBrace, "`\{` and the declarations")
+    p.skipNewlines()
+    for !p.at(.RBrace) && !p.at(.Eof) && !p.recovering {
+        let fnHeader = parseItemHeader(p)
+        p.expect(.Fn, "`fn`")
+        fns.push(parseFn(p, fnHeader, false))
+        p.expectTerminator()
+    }
+    p.expect(.RBrace, "`\}` to close the extern block")
+    return (Symbol(0), .Extern(abi, fns))
+}
+
+// The declaration after its header: its name and what it is, or `None`
+// after an error.
+// check-sizes: table
+fn itemBody(p: mut Parser, header: move ItemHeader) Option<(Symbol, ItemKind)> {
+    let isCopy = p.accept(.Copy)
+    let isRef = !isCopy && p.atWord(p.words.ref) && p.peekAt(1) == .Struct
+    if isRef {
+        p.advance()
+    }
+    let isUnsafe = p.accept(.Unsafe)
+    let kind = p.peek()
+    if kind == .Struct {
+        p.advance()
+        return .Some(parseStruct(p, isCopy, isRef))
+    }
+    if kind == .Enum {
+        p.advance()
+        return .Some(parseEnum(p, isCopy))
+    }
+    if kind == .Fn {
+        p.advance()
+        var decl = parseFn(p, header, true)
+        decl.isUnsafe = isUnsafe
+        return .Some((decl.name, .Fn(decl)))
+    }
+    if kind == .Import {
+        p.advance()
+        let imported = importItem(p)
+        return .Some((Symbol(0), imported))
+    }
+    if kind == .Const || kind == .Var {
+        p.advance()
+        return .Some(valueItem(p, kind == .Const))
+    }
+    if kind == .Extern {
+        p.advance()
+        return .Some(externItem(p, header))
+    }
+    if p.atWord(p.words.type) && p.peekAt(1) == .Ident {
+        p.advance()
+        return .Some(typeAlias(p))
+    }
+    if kind == .Interface {
+        p.syntaxError(p.here(), "interfaces are not supported by stage 0".toOwned())
+    } else {
+        p.unexpected("a declaration (`fn`, `struct`, `enum`, `const`, `import`, ...)")
+    }
+    return .None
+}
+
+fn item(p: mut Parser) Option<Item> {
+    let header = parseItemHeader(p)
+    let start = header.span
+    let isPub = header.isPub
+    let attributes = header.attributes.clone()
+    let .Some(body) = itemBody(p, header) else {
+        return .None
+    }
+    if p.recovering {
+        return .None   // an incomplete item is left out of the tree
+    }
+    return .Some(Item{kind: body.1, span: p.spanSince(start), name: body.0, attributes, isPub})
+}
+
+/**
+ * The declarations of a file, up to the end.
+ *
+ * @param p the parser
+ * @returns them, without the ones that had errors
+ */
+pub fn moduleItems(p: mut Parser) List<Item> {
+    var items: List<Item> = []
+    p.skipNewlines()
+    for !p.at(.Eof) {
+        if let .Some(it) = item(p) {
+            items.push(it)
+            p.expectTerminator()
+        }
+        if p.recovering {
+            p.synchronize()
+            p.accept(.RBrace)   // a stray `}` at the top level
+            p.skipNewlines()
+        }
+    }
+    return items
+}
