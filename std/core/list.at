@@ -80,7 +80,7 @@ pub struct List<T> {
         var list: List<T> = List.withCapacity(count)
         for i in 0..count {
             unsafe {
-                *list.ptr.add(i) = value
+                *list.ptr.add(i) = *(&value as *T)   // a copy: the literal needs Copy values
             }
         }
         list.len = count

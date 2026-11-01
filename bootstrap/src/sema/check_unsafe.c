@@ -30,10 +30,11 @@ TypeId check_deref(Checker *c, Expr *e, TypeId expected) {
     return type_id(TID_ERROR);
 }
 
-// Pointer to pointer, and pointer to or from `uint`/`int` (spec 11.1).
+// Pointer to pointer, reference to pointer, and pointer to or from
+// `uint`/`int` (spec 11.1).
 bool pointer_cast(Checker *c, TypeId from, TypeId to, Span span) {
     TyKind a = type_get(c->types, from)->kind, b = type_get(c->types, to)->kind;
-    bool ptr_ptr = a == TY_PTR && b == TY_PTR;
+    bool ptr_ptr = (a == TY_PTR || a == TY_REF) && b == TY_PTR;
     bool ptr_int = (a == TY_PTR && (to.id == TID_U64 || to.id == TID_I64)) ||
                    (b == TY_PTR && (from.id == TID_U64 || from.id == TID_I64));
     if (ptr_ptr || ptr_int) {

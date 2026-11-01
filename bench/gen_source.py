@@ -88,7 +88,8 @@ def int_expr(rng: random.Random, ints: list[str], depth: int = 0) -> str:
 def typed_statement(rng: random.Random, ints: list[str], var: str) -> str:
     choice = rng.randrange(6)
     if choice == 0:
-        name = f"{rng.choice(NAMES)}{len(ints)}"
+        # `_` keeps the input free of unused-variable warnings (W0001).
+        name = f"_{rng.choice(NAMES)}{len(ints)}"
         line = f"let {name} = {int_expr(rng, ints)}"
         ints.append(name)
         return line

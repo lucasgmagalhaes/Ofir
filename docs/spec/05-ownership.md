@@ -41,6 +41,10 @@ fn main() {
   error; use `list.remove(i)`, `list.swapRemove(i)`, `mem.replace(list[i], v)`,
   `mem.take(opt)` or `.clone()` instead.
 
+Stage 0 reports E0600 (use of a moved value), E0601 (a variable that may
+not be initialized) and E0602 (moving out of a borrowed, indexed or
+referenced place, or a `mut` parameter left without a value).
+
 ### Partial and conditional moves
 
 ```astra

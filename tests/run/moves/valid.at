@@ -1,0 +1,66 @@
+// Moves the analysis accepts: reassigning after a move, moving on every
+// path, moving parts, `mut` parameters given a new value, mem.replace.
+
+import std.mem
+
+struct User {
+    name: str
+    age: int
+}
+
+fn consume(s: move str) int {
+    return s.len()
+}
+
+fn reset(s: mut str) str {
+    let old = mem.replace(s, "new")
+    return old
+}
+
+fn rename(s: mut str) {
+    let taken = s
+    s = "{taken}!"
+}
+
+fn pick(flag: bool) str {
+    let a = "left".toOwned()
+    let b = "right".toOwned()
+    if flag {
+        return a
+    }
+    return b
+}
+
+fn main() {
+    var s = "first".toOwned()
+    let n = consume(s)
+    s = "second".toOwned()          // a new value after the move
+    println("{n} {s}")
+
+    let u = User{name: "ana", age: 30}
+    let name = u.name               // moves a part
+    println("{name} {u.age}")
+
+    var label = "old".toOwned()
+    println("{reset(label)} {label}")
+    rename(label)
+    println(label)
+
+    let options = [Some(1), None]
+    for o in options {
+        print("{o ?? 0} ")
+    }
+    println("")
+    println("{pick(true)} {pick(false)}")
+
+    var names = ["b", "a"]
+    let first = mem.replace(names[0], "c")
+    var x = 1
+    var y = 2
+    mem.swap(x, y)
+    println("{first} {names[0]} {x} {y}")
+
+    var maybe = Some("token".toOwned())
+    let taken = maybe.take()
+    println("{taken.isSome()} {maybe.isNone()}")
+}

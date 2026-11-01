@@ -24,13 +24,13 @@ fn moved(p: Pixel, dx: int) Pixel {
     return Pixel{at: Position{x: p.at.x + dx, y: p.at.y}, color: p.color}
 }
 
-fn make(name: str) Counter {
+fn make(name: move str) Counter {
     return Counter{name}
 }
 
 fn main() {
     var first = make("clicks")
-    var second = first
+    var second = Counter{name: first.name.toOwned(), count: first.count}   // an explicit copy
     second.count += 5
     second.name += " (copy)"
     println("{first.name}: {first.count}, {second.name}: {second.count}")

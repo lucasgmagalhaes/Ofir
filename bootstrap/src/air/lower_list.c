@@ -99,8 +99,8 @@ static bool is_map(Lowerer *l, TypeId type) {
     return ty->kind == TY_ADT && ty->data != 0 && ty->data == l->sema->map.id;
 }
 
-// The fields of a map entry (std/core/map.at): key, value, hash, live.
-enum { ENTRY_KEY = 0, ENTRY_VALUE = 1, ENTRY_LIVE = 3 };
+// The fields of a map entry (std/core/map.at): key, value, hash.
+enum { ENTRY_KEY = 0, ENTRY_VALUE = 1 };
 
 // The current element of a loop: its address, type and position.
 typedef struct {
@@ -110,8 +110,8 @@ typedef struct {
 } Element;
 
 // Binds the loop variables to the current element: `x`, `i, x` or, for a
-// map entry, `key, value`. A removed map entry goes to `latch`.
-static void bind_element(Lowerer *l, Stmt *s, Element current, BlockId latch) {
+// map entry, `key, value`.
+static void bind_element(Lowerer *l, Stmt *s, Element current) {
     Place element = {.local = current.at, .path = {.deref = true}};
     TypeId elem = current.elem;
     Operand index = current.index;
@@ -126,12 +126,6 @@ static void bind_element(Lowerer *l, Stmt *s, Element current, BlockId latch) {
         }
         return;
     }
-    TypeId boolean = type_id(TID_BOOL);
-    Operand live = place_operand(field_of(l, element, ENTRY_LIVE), OPERAND_COPY, boolean);
-    BlockId next = air_new_block(l->body);
-    terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = live, .target = next,
-                              .other = latch});
-    switch_to(l, next);
     TypeId map = s->as.for_.expr->type;
     Operand key = place_operand(field_of(l, element, ENTRY_KEY), OPERAND_COPY,
                                 type_get(l->types, map)->args[0]);
@@ -167,7 +161,7 @@ void lower_for_list(Lowerer *l, Stmt *s) {
     TypeId ptr = struct_field_type(l->sema, type, LIST_PTR);
     Operand base = place_operand(field_of(l, list, LIST_PTR), OPERAND_COPY, ptr);
     LocalId at = emit_temp(l, ptr, (Rvalue){.kind = RV_PTR_ADD, .a = base, .b = current});
-    bind_element(l, s, (Element){at, elem_of(l, type), current}, latch);
+    bind_element(l, s, (Element){at, elem_of(l, type), current});
     lower_loop_body(l, s->as.for_.body, latch, exit);
     switch_to(l, latch);   // counter < len: the increment cannot overflow
     emit_assign(l, counter, (Rvalue){.kind = RV_BINARY, .op = OP_ADD, .a = current,

@@ -139,7 +139,7 @@ earlier accordingly).
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 3.1 | Move analysis on AIR: use after move, conditional moves, moves out of borrowed or indexed places, definite initialization | L | `tests/compile_fail/moves*` pass |
+| 3.1 | Move analysis on AIR: use after move, conditional moves, moves out of borrowed or indexed places, definite initialization | L | **done** on the typed AST (`sema/moves*.c`): `tests/compile_fail/moves.at`, `tests/run/moves/*`; `std.mem.replace` and `swap`; Map removes entries instead of marking them dead |
 | 3.2 | Drop elaboration, drop flags, drop glue, user `drop` methods | L | leak-free under ASan for all `tests/run` |
 | 3.3 | `.clone()` for built-in types and derived for structs/enums | M | tests pass |
 | 3.4 | Modules: multiple files, `mod.at`, `import`, aliases, `pub`, module-qualified names | L | multi-file tests pass |
