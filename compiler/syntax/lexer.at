@@ -1,9 +1,12 @@
-//! Lexer: turns source text into tokens (spec chapter 1).
-//!
-//! Written in the bootstrap subset (docs/bootstrap.md). It started as the
-//! paper prototype of roadmap task 0.8 and is not compiled yet; findings are
-//! recorded in docs/design/prototype-review.md. Literals are scanned in
-//! `syntax.literals`, positions are tracked by `syntax.cursor`.
+/**
+ * @module
+ * Lexer: turns source text into tokens (spec chapter 1).
+ *
+ * Written in the bootstrap subset (docs/bootstrap.md). It started as the
+ * paper prototype of roadmap task 0.8 and is not compiled yet; findings are
+ * recorded in docs/design/prototype-review.md. Literals are scanned in
+ * `syntax.literals`, positions are tracked by `syntax.cursor`.
+ */
 
 import base.intern.Interner
 import base.span.FileId
