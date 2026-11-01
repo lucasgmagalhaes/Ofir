@@ -6,7 +6,7 @@
 
 #include "air/lower_internal.h"
 
-static Place child(Lowerer *l, Place place, uint32_t step) {
+Place place_child(Lowerer *l, Place place, uint32_t step) {
     uint32_t *fields = ARENA_ARRAY(&l->sema->session->arena, uint32_t, place.path.len + 2);
     for (uint32_t i = 0; i < place.path.len; i++) {
         fields[i] = place.path.fields[i];
@@ -22,7 +22,7 @@ static const EnumInfo *enum_info(Lowerer *l, TypeId type) {
 }
 
 static Operand tag_of(Lowerer *l, Place place) {
-    return place_operand(child(l, place, 0), OPERAND_COPY, type_id(TID_I32));
+    return place_operand(place_child(l, place, 0), OPERAND_COPY, type_id(TID_I32));
 }
 
 static Operand discriminant(Lowerer *l, TypeId type, uint32_t index) {
@@ -35,9 +35,9 @@ Operand variant_value(Lowerer *l, TypeId type, uint32_t index, const Operand *fi
     LocalId dest = new_temp(l, type);
     Place place = {.local = dest};
     for (uint32_t i = 0; i < count; i++) {
-        emit_store(l, child(l, child(l, place, PATH_VARIANT | index), i), fields[i]);
+        emit_store(l, place_child(l, place_child(l, place, PATH_VARIANT | index), i), fields[i]);
     }
-    emit_store(l, child(l, place, 0), discriminant(l, type, index));
+    emit_store(l, place_child(l, place, 0), discriminant(l, type, index));
     return op_copy(dest, type);
 }
 
@@ -53,7 +53,7 @@ Operand build_variant(Lowerer *l, TypeId type, uint32_t index, ArgList args) {
 
 // Field `field` of variant `index` of the enum value at `place`.
 Place variant_field(Lowerer *l, Place place, uint32_t index, uint32_t field) {
-    return child(l, child(l, place, PATH_VARIANT | index), field);
+    return place_child(l, place_child(l, place, PATH_VARIANT | index), field);
 }
 
 // `a == b` on enums without payloads compares the tags.
@@ -120,7 +120,7 @@ static void struct_pattern(Lowerer *l, Pattern *p, Place place, BlockId fail) {
         while (index + 1 < info->count && !symbol_eq(info->names[index], f->name)) {
             index++;
         }
-        lower_pattern(l, f->pattern, child(l, place, index), fail);
+        lower_pattern(l, f->pattern, place_child(l, place, index), fail);
     }
 }
 
@@ -163,9 +163,9 @@ void lower_pattern(Lowerer *l, Pattern *p, Place place, BlockId fail) {
 // Sub-patterns of positional fields; `prefix` views a variant's payload.
 static void lower_patterns(Lowerer *l, PatternList list, Place place, uint32_t prefix,
                            BlockId fail) {
-    Place base = prefix ? child(l, place, prefix) : place;
+    Place base = prefix ? place_child(l, place, prefix) : place;
     for (uint32_t i = 0; i < list.len; i++) {
-        lower_pattern(l, list.items[i], child(l, base, i), fail);
+        lower_pattern(l, list.items[i], place_child(l, base, i), fail);
     }
 }
 

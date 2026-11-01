@@ -237,6 +237,15 @@ pub struct str {
         return out
     }
 
+    /**
+     * A copy on the heap, owned by the caller: the same as `toOwned`.
+     *
+     * @returns the new string
+     */
+    pub fn clone(self) str {
+        return self.toOwned()
+    }
+
     // Frees the heap buffer when the string is dropped (spec 5.2); a
     // literal or a view (`cap == 0`) has none.
     fn drop(mut self) {

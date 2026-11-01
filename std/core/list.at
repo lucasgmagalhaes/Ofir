@@ -20,6 +20,7 @@ extern "intrinsic" {
     // `a < b` for the instance's type. Stage 0: int, float and str (the
     // checker restricts `sort`); bounds replace it (roadmap 5.2).
     fn lessThan<T>(a: T, b: T) bool
+    fn cloneOf<T>(value: T) T     // what `value.clone()` does for any `T` (roadmap 3.3)
 }
 
 /**
@@ -339,6 +340,27 @@ pub struct List<T> {
      */
     pub fn clear(mut self) {
         self.truncate(0)
+    }
+
+    /**
+     * A new list with a clone of each element, in the same order.
+     *
+     * @returns a list of the same length, which owns its elements
+     * @example
+     * ```astra
+     * let names = ["ada".toOwned(), "alan".toOwned()]
+     * var copy = names.clone()
+     * copy.push("grace".toOwned())   // names keeps 2 elements
+     * ```
+     */
+    pub fn clone(self) List<T> {
+        var out: List<T> = List.withCapacity(self.len)
+        for i in 0..self.len {
+            unsafe {
+                out.push(cloneOf(*self.ptr.add(i)))
+            }
+        }
+        return out
     }
 
     /**

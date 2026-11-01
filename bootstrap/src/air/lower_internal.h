@@ -35,8 +35,9 @@ typedef struct {
 // A function to compile: a function that is not generic (targs `()`), or
 // an instance of a generic one.
 typedef struct {
-    FnDecl *fn;
+    FnDecl *fn;      // NULL for glue
     TypeId targs;
+    DefId glue;      // GLUE_DROP or GLUE_CLONE when `fn` is NULL
 } Instance;
 
 typedef struct {
@@ -158,6 +159,7 @@ Place lower_list_index(Lowerer *l, Expr *e);   // the element's place, bounds ch
 void lower_for_list(Lowerer *l, Stmt *s);
 
 // lower_pattern.c
+Place place_child(Lowerer *l, Place place, uint32_t step);
 Operand build_variant(Lowerer *l, TypeId type, uint32_t index, ArgList args);
 Operand variant_value(Lowerer *l, TypeId type, uint32_t index, const Operand *fields,
                       uint32_t count);
@@ -180,6 +182,14 @@ bool needs_drop(Lowerer *l, TypeId type);         // `type` is concrete
 void emit_drop(Lowerer *l, Place place, TypeId type);
 void lower_glue(Lowerer *l, TypeId targs, BodySink sink, void *context);
 Operand lower_drop_intrinsic(Lowerer *l, Expr *call, bool forget);
+FnDecl *type_method(Lowerer *l, TypeId type, StrView name);
+TypeId method_targs(Lowerer *l, TypeId type);
+
+// lower_clone.c
+Operand clone_value(Lowerer *l, Operand value, TypeId type);   // `type` is concrete
+void lower_clone_glue(Lowerer *l, TypeId targs, BodySink sink, void *context);
+Operand lower_clone_call(Lowerer *l, Expr *call);               // the derived `x.clone()`
+Operand lower_clone_of(Lowerer *l, Expr *call);                 // `cloneOf<T>(value)`
 
 // lower_scope.c: drop scopes and drop flags
 void drop_scope_enter(Lowerer *l);

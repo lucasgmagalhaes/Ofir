@@ -76,6 +76,21 @@ If a value is moved on some paths only, the compiler inserts a hidden drop
 flag so it is dropped exactly once. This is the only runtime cost of the
 model.
 
+### Cloning
+
+`x.clone()` returns an independent copy of `x`, which it only reads. A
+type that declares `fn clone(self) Self` is cloned by that method; `str`,
+`List<T>` and `Box<T>` declare one in std. Every other struct, enum and
+tuple gets a derived clone, which clones each field (of the active variant,
+for an enum), when all its parts can be cloned: Copy types are copied, and
+a type with a `drop` method but no `clone` method cannot be cloned, since
+the resource it owns has no known copy (E0322). A Copy value's clone is
+the value itself.
+
+Stage 0: until bounds (roadmap 5.2), `.clone()` on a value of a type
+parameter `T` is an error (E0322); std reaches the clone of any `T` with
+the `cloneOf<T>` intrinsic.
+
 ## 5.3 Parameter modes
 
 | Declaration | Mode | The function may | The caller passes |

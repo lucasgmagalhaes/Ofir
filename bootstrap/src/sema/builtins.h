@@ -16,6 +16,7 @@ typedef enum {
     BM_SATURATING_CAST,
     BM_CHECKED_CAST,
     BM_PTR_ADD,
+    BM_CLONE,     // `x.clone()` of a type without a `clone` method (sema/check_clone.c)
     BM_COUNT,
 } BuiltinMethod;
 

@@ -47,6 +47,9 @@ static Operand checked_cast(Lowerer *l, TypeId option, Operand value) {
 // and `p.add(n)`. The others are in std (ADR 0019).
 static Operand builtin_call(Lowerer *l, Expr *call) {
     Expr *field = call->as.call.callee;
+    if (field->as.field.res.index == BM_CLONE) {
+        return lower_clone_call(l, call);
+    }
     Operand self = lower_expr(l, field->as.field.base);
     switch ((BuiltinMethod)field->as.field.res.index) {
     case BM_WRAPPING_CAST:

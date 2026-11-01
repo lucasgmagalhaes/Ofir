@@ -47,8 +47,8 @@ void function_name(Gen *g, Out *out, DefId def, TypeId targs, bool is_main) {
         out_str(out, "@astra_main");
         return;
     }
-    if (def.id == 0) {   // drop glue: `astra.drop<T>`
-        out_str(out, "@\"astra.drop");
+    if (is_glue(def)) {   // `astra.drop<T>`, `astra.clone<T>`
+        out_str(out, def.id == GLUE_DROP ? "@\"astra.drop" : "@\"astra.clone");
         type_args_text(g, out, targs);
         out_char(out, '"');
         return;
