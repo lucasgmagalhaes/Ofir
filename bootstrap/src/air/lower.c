@@ -66,6 +66,24 @@ LocalId to_local(Lowerer *l, Operand operand) {
     return emit_temp(l, operand.type, (Rvalue){.kind = RV_USE, .a = operand});
 }
 
+// The function's scope owns its `move` parameters (spec 5.3).
+static void own_params(Lowerer *l, FnDecl *fn) {
+    l->flag_count = fn->locals.len + 1;
+    l->flags = ARENA_ARRAY(&l->sema->session->arena, LocalId, l->flag_count + 1);
+    l->fn_locals = fn->locals.items;
+    l->owned.len = 0;
+    l->scopes.len = 0;
+    drop_scope_enter(l);
+    if (fn->has_self && fn->self_mode == MODE_MOVE) {
+        own_local(l, (LocalId){1}, true);
+    }
+    for (uint32_t i = 0; i < fn->params.len; i++) {
+        if (fn->params.items[i].mode == MODE_MOVE) {
+            own_local(l, air_local_of(fn->params.items[i].local), true);
+        }
+    }
+}
+
 static void lower_fn(Lowerer *l, Instance inst, BodySink sink, void *context) {
     FnDecl *fn = inst.fn;
     Def *def = sema_def(l->sema, fn->def);
@@ -91,9 +109,11 @@ static void lower_fn(Lowerer *l, Instance inst, BodySink sink, void *context) {
         }
     }
     l->block = air_new_block(&body);
+    own_params(l, fn);
     lower_block(l, fn->body, false);
     // Falling off the end returns (); other functions were checked to return.
     TermKind end = sig.inner.id == TID_UNIT ? TERM_RETURN : TERM_UNREACHABLE;
+    drop_scope_leave(l);   // the `move` parameters
     air_terminate(&body, l->block, (Terminator){.kind = end});
     mono_body(l, &body);
     sink(context, &body);
@@ -143,10 +163,17 @@ void lower_program(Sema *sema, BodySink sink, void *context) {
     }
     for (size_t next = 0; next < l.pending.len; next++) {
         Instance inst = l.pending.data[next];
+        if (!inst.fn) {   // drop glue
+            l.flag_count = 0;
+            lower_glue(&l, inst.targs, sink, context);
+            continue;
+        }
         sema_enter(sema, sema_def(sema, inst.fn->def)->module);
         lower_fn(&l, inst, sink, context);
     }
     sema_enter(sema, 0);
     VEC_FREE(l.loops);
+    VEC_FREE(l.owned);
+    VEC_FREE(l.scopes);
     mono_free(&l);
 }

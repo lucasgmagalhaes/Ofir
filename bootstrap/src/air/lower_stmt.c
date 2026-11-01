@@ -27,6 +27,44 @@ static void lower_let(Lowerer *l, Stmt *s) {
         terminate(l, (Terminator){.kind = TERM_UNREACHABLE});
         switch_to(l, next);
     }
+    own_bindings(l, pattern);
+}
+
+// Whether `target` is written through a raw pointer: no old value is
+// dropped, as by `ptr.write` (the old value may be uninitialized or moved).
+static bool through_raw_pointer(Lowerer *l, const Expr *target) {
+    while (target->kind == EXPR_FIELD || target->kind == EXPR_TUPLE_FIELD) {
+        target = target->kind == EXPR_FIELD ? target->as.field.base : target->as.tuple_field.base;
+    }
+    if (target->kind != EXPR_UNARY || target->as.unary.op != OP_DEREF) {
+        return false;
+    }
+    const Expr *operand = target->as.unary.operand;
+    bool box = operand->kind == EXPR_FIELD &&
+               type_get(l->types, operand->as.field.base->type)->kind == TY_ADT &&
+               type_get(l->types, operand->as.field.base->type)->data == l->sema->box.id;
+    return type_get(l->types, operand->type)->kind == TY_PTR && !box;
+}
+
+// `place = value` drops the value the place held (spec 5.2): through the
+// drop flag for a local, at once for a field, an element or `*r`. The new
+// value is read first.
+static Operand drop_old_value(Lowerer *l, const Expr *target, Place place, Operand value) {
+    bool whole = place.path.len == 0 && !place.path.deref;
+    if (target->moves || through_raw_pointer(l, target)) {
+        return value;   // the old value may have been moved out
+    }
+    TypeId type = concrete_type(l, target->type);
+    if (!needs_drop(l, type)) {
+        return value;
+    }
+    value = op_copy(to_local(l, value), value.type);
+    if (whole) {
+        drop_before_assign(l, place.local);
+    } else {
+        emit_drop(l, place, type);
+    }
+    return value;
 }
 
 static void lower_assign(Lowerer *l, Stmt *s) {
@@ -45,14 +83,20 @@ static void lower_assign(Lowerer *l, Stmt *s) {
                    .span = s->span};
         value = lower_binary_op(l, x);
     }
-    if (value.kind != OPERAND_UNIT) {
-        emit_store(l, place, value);
+    if (value.kind == OPERAND_UNIT) {
+        return;
+    }
+    value = drop_old_value(l, target, place, value);
+    emit_store(l, place, value);
+    if (place.path.len == 0 && !place.path.deref) {
+        assign_done(l, place.local);
     }
 }
 
 // The body of a loop; `latch` is where `continue` goes.
 void lower_loop_body(Lowerer *l, Block *body, BlockId latch, BlockId exit) {
-    VEC_PUSH(l->loops, ((Loop){.break_to = exit, .continue_to = latch}));
+    VEC_PUSH(l->loops, ((Loop){.break_to = exit, .continue_to = latch,
+                              .scopes = (uint32_t)l->scopes.len}));
     lower_block(l, body, false);
     l->loops.len--;
     emit_goto(l, latch);
@@ -119,6 +163,7 @@ static void lower_for_range(Lowerer *l, Stmt *s) {
 
 static void lower_jump(Lowerer *l, Stmt *s) {
     Loop loop = VEC_LAST(l->loops);
+    drop_scopes(l, loop.scopes);
     emit_goto(l, s->kind == STMT_BREAK ? loop.break_to : loop.continue_to);
 }
 
@@ -126,6 +171,7 @@ static void lower_return(Lowerer *l, Stmt *s) {
     if (s->as.expr) {
         assign_operand(l, (LocalId){0}, lower_expr(l, s->as.expr));
     }
+    drop_scopes(l, 0);
     terminate(l, (Terminator){.kind = TERM_RETURN});
 }
 
@@ -136,6 +182,7 @@ static void lower_stmt(Lowerer *l, Stmt *s) {
         if (s->as.var.value) {
             assign_operand(l, air_local_of(s->as.var.local), lower_expr(l, s->as.var.value));
         }
+        own_local(l, air_local_of(s->as.var.local), s->as.var.value != NULL);
         break;
     case STMT_ASSIGN: lower_assign(l, s); break;
     case STMT_FOR:
@@ -156,12 +203,21 @@ static void lower_stmt(Lowerer *l, Stmt *s) {
 // As a value, a block is worth its last expression statement.
 Operand lower_block(Lowerer *l, Block *block, bool as_value) {
     StmtList stmts = block->stmts;
+    Operand result = op_unit();
+    drop_scope_enter(l);
     for (uint32_t i = 0; i < stmts.len; i++) {
         Stmt *s = stmts.items[i];
         if (as_value && i + 1 == stmts.len && s->kind == STMT_EXPR) {
-            return lower_expr(l, s->as.expr);
+            result = lower_expr(l, s->as.expr);
+            if (drop_scope_owns(l) && result.kind == OPERAND_COPY) {   // read before the drops
+                result = op_copy(emit_temp(l, result.type, (Rvalue){.kind = RV_USE,
+                                                                   .a = result}),
+                                 result.type);
+            }
+            break;
         }
         lower_stmt(l, s);
     }
-    return op_unit();
+    drop_scope_leave(l);
+    return result;
 }

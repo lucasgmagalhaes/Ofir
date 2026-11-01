@@ -53,6 +53,13 @@ static bool seen(Lowerer *l, uint64_t key) {
     return false;
 }
 
+// The drop glue of the type in `targs`, once (air/lower_drop.c).
+static void reach_glue(Lowerer *l, TypeId targs) {
+    if (!seen(l, instance_key((DefId){0}, targs))) {
+        VEC_PUSH(l->pending, ((Instance){NULL, targs}));
+    }
+}
+
 void reach(Lowerer *l, FnDecl *fn, TypeId targs) {
     if (!fn->body) {
         return;
@@ -139,7 +146,9 @@ void mono_body(Lowerer *l, AirBody *body) {
         const AirBlock *block = &body->blocks.data[b];
         for (size_t i = 0; i < block->stmts.len; i++) {
             const AirStmt *stmt = &block->stmts.data[i];
-            if (stmt->kind == AIR_CALL && !stmt->as.call.runtime) {
+            if (stmt->kind == AIR_CALL && !stmt->as.call.runtime && stmt->as.call.fn.id == 0) {
+                reach_glue(l, stmt->as.call.targs);
+            } else if (stmt->kind == AIR_CALL && !stmt->as.call.runtime) {
                 reach(l, sema_def(l->sema, stmt->as.call.fn)->fn, stmt->as.call.targs);
             }
         }

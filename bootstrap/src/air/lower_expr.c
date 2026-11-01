@@ -170,7 +170,13 @@ static Operand lower_if(Lowerer *l, Expr *e) {
                                   .other = other});
     }
     switch_to(l, then);
-    store(l, dest, has_value, lower_block(l, e->as.if_.then, has_value));
+    drop_scope_enter(l);   // the bindings of `if let` live in the `then` block
+    if (e->as.if_.let_pattern) {
+        own_bindings(l, e->as.if_.let_pattern);
+    }
+    Operand then_value = lower_block(l, e->as.if_.then, has_value);
+    store(l, dest, has_value, then_value);
+    drop_scope_leave(l);
     emit_goto(l, join);
     switch_to(l, other);
     Expr *else_ = e->as.if_.else_;
@@ -215,7 +221,17 @@ static Operand binary(Lowerer *l, Expr *e) {
 }
 
 // check-sizes: table
+static Operand lower_kind(Lowerer *l, Expr *e);
+
 Operand lower_expr(Lowerer *l, Expr *e) {
+    Operand value = lower_kind(l, e);
+    if (e->moves) {   // the local's value is moved out: it is not dropped
+        note_moved(l, e);
+    }
+    return value;
+}
+
+static Operand lower_kind(Lowerer *l, Expr *e) {
     switch (e->kind) {
     case EXPR_INT: return int_literal(l, e);
     case EXPR_FLOAT:

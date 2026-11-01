@@ -47,6 +47,12 @@ void function_name(Gen *g, Out *out, DefId def, TypeId targs, bool is_main) {
         out_str(out, "@astra_main");
         return;
     }
+    if (def.id == 0) {   // drop glue: `astra.drop<T>`
+        out_str(out, "@\"astra.drop");
+        type_args_text(g, out, targs);
+        out_char(out, '"');
+        return;
+    }
     const Def *d = sema_def(g->sema, def);
     if (is_c_function(d)) {   // a C function keeps its name
         StrView name = def_name(g, def);
