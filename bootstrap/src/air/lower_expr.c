@@ -80,6 +80,32 @@ static Operand argument(Lowerer *l, Expr *arg, bool by_ref, const Expr *next) {
     return next ? settle(l, value, next) : value;
 }
 
+void emit_direct_call(Lowerer *l, const FnDecl *fn, TypeId targs, CallArgs args,
+                      LocalId *dest) {
+    AirStmt s = {.kind = AIR_CALL, .has_dest = dest != NULL};
+    if (dest) {
+        s.dest = *dest;
+    }
+    s.as.call.fn = fn->def;
+    s.as.call.targs = targs;
+    s.as.call.args = args.items;
+    s.as.call.arg_count = args.count;
+    air_push(l->body, l->block, s);
+}
+
+FnDecl *std_fn(Lowerer *l, const char *module, const char *name) {
+    for (uint32_t m = 0; m < l->sema->program.len; m++) {
+        if (sv_eq(l->sema->program.items[m].name, sv_from_cstr(module))) {
+            DefId id = scope_module_in(&l->sema->scope, m,
+                                       intern(&l->sema->session->names, sv_from_cstr(name)));
+            if (id.id && sema_def(l->sema, id)->fn) {
+                return sema_def(l->sema, id)->fn;
+            }
+        }
+    }
+    fatal("lowering: the standard library has no `%s.%s`", module, name);
+}
+
 bool by_address(const FnDecl *fn, int32_t index) {
     Mode mode = index < 0 ? fn->self_mode : fn->params.items[index].mode;
     return mode == MODE_MUT ||

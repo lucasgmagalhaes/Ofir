@@ -23,7 +23,8 @@ struct Gen {
     uint32_t temp;           // next %t number in this function
     Out path;                // the escaped source path of the root module
     Vec(bool) files_emitted; // by FileId: whether @.file.<id> exists
-    Out type_defs;           // struct type definitions, written at the end
+    Out type_defs;           // struct type definitions not written yet
+    Out fn_text;             // the function being generated (llvm_function)
     const char **adt_types;  // the LLVM name of each struct or enum, by TypeId (NULL until used)
     size_t adt_count;
     Vec(bool) c_used;        // by DefId: functions of extern blocks to declare

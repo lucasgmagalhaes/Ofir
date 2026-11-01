@@ -42,6 +42,7 @@ TypeId adt_instance(Checker *c, DefId id, const TypeId *args, uint32_t count, Sp
     TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id,
                                              .arg_count = count, .args = args});
     check_instance_storable(c, type, span);
+    check_map_key(c, type, span);
     return type;
 }
 

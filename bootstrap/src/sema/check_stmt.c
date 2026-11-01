@@ -93,13 +93,13 @@ static TypeId loop_body(Checker *c, Block *body, bool infinite) {
 
 static TypeId for_in(Checker *c, Stmt *s) {
     Expr *range = s->as.for_.expr;
-    if (s->as.for_.second.id != 0) {
-        unsupported(c, range->span, "`for` with two variables is");
-        return type_id(TID_UNIT);
-    }
-    if (range->kind != EXPR_RANGE) {   // `for x in list`
-        set_local(c, s->as.for_.first_local, check_for_list(c, &s->as.for_.expr));
+    if (range->kind != EXPR_RANGE) {   // `for x in list`, `for key, value in map`
+        check_for_collection(c, s);
         return loop_body(c, s->as.for_.body, false);
+    }
+    if (s->as.for_.second.id != 0) {
+        check_error(c, "E0300", range->span, "a range gives one variable: `for i in a..b`");
+        return type_id(TID_UNIT);
     }
     if (!range->as.range.lo || !range->as.range.hi) {
         unsupported(c, range->span, "`for` over ranges without both bounds is");

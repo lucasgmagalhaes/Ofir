@@ -63,6 +63,7 @@ void types_init(TypeTable *table, Arena *arena);
 void types_free(TypeTable *table);
 
 // Returns the id of `ty`, creating it the first time. `ty.args` is copied.
+// `&str` is `str` in stage 0: a view whose capacity is 0.
 TypeId type_intern(TypeTable *table, Ty ty);
 
 static inline const Ty *type_get(const TypeTable *table, TypeId id) {
