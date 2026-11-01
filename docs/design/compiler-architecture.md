@@ -297,6 +297,20 @@ Where a value is moved on some paths only, a boolean **drop flag** local is
 introduced and the drop becomes conditional. LLVM removes most of these flags
 after optimization.
 
+**Stage 0** (`air/lower_drop.c`, `air/lower_scope.c`) elaborates drops
+while lowering, with what the move analysis left in the AST: the
+expressions that move a local out, the new values that are consumed, the
+locals that only borrow, and the field paths moved out somewhere. Every
+owned local gets a drop flag (and so does every moved part of it); a new
+value that nothing consumes (a call result used as an argument, an
+interpolated string) is a temporary, dropped at the end of its full
+expression: a statement, a condition, a `match` arm or the right side of
+`&&`, `||` and `??`. The last expression of a block or an arm passes its
+value on to the enclosing expression instead. Writes through raw pointers
+drop nothing (`mem.replace`, `List.push`). Drop glue is an instance like a
+generic function, `drop<T>`, for each concrete type that needs it.
+`tools/check_leaks.py` runs every program of `tests/run` under valgrind.
+
 **Drop glue** for a type is generated once: call the user `drop` method if
 present, then drop each field (and, for enums, the active variant's fields).
 

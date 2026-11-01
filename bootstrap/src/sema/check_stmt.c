@@ -6,6 +6,7 @@ static TypeId check_stmt(Checker *c, Stmt *s);
 
 static inline void set_local(Checker *c, LocalId id, TypeId type) {
     c->local_types[id.id] = type;
+    note_owned(c, type);
 }
 
 static StrView local_name(Checker *c, LocalId id) {
@@ -41,6 +42,7 @@ static TypeId var_stmt(Checker *c, Stmt *s) {
         found = annotation ? coerce(c, value, type) : check_expr(c, value, NO_TYPE);
     }
     set_local(c, s->as.var.local, annotation ? type : found);
+    c->owned_values = c->owned_values || !s->as.var.value;   // may be uninitialized
     return found.id == TID_NEVER ? found : type_id(TID_UNIT);
 }
 

@@ -9,6 +9,12 @@ extern "C" {
 }
 
 extern "intrinsic" {
+    // Drops the value at `p` in place: what the compiler runs at the end of
+    // a value's scope (spec 5.2).
+    fn dropInPlace<T>(p: *mut T)
+    // Consumes a value without dropping it.
+    fn forget<T>(value: move T)
+
     /**
      * The size in bytes of a value of type `T`, as laid out in memory
      * (spec 7.5, chapter 13): what an allocation for one `T` needs.
@@ -88,6 +94,15 @@ pub struct Box<T> {
         unsafe {
             astra_free(self.ptr as *mut u8)
         }
+        forget(self)   // the value was moved out: dropping the box would drop it twice
         return value
+    }
+
+    // Drops the value, then frees the memory (spec 5.2).
+    fn drop(mut self) {
+        unsafe {
+            dropInPlace(self.ptr)
+            astra_free(self.ptr as *mut u8)
+        }
     }
 }

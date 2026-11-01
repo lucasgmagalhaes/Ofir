@@ -28,6 +28,20 @@ const char *type_name(Checker *c, TypeId type) {
     return buf.data;
 }
 
+// Without owned values nothing can be moved, uninitialized or dropped. A
+// std function waits until the lowering reaches it (sema_moves_late).
+static void analyze_moves(Checker *c, FnDecl *fn) {
+    if (!c->owned_values) {
+        return;
+    }
+    StrView module = c->sema->program.items[c->sema->current].name;
+    if (module.len >= 3 && memcmp(module.ptr, "std", 3) == 0) {
+        fn->moves_pending = true;
+    } else {
+        check_moves(c, fn);
+    }
+}
+
 static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     Generics outer = enter_generics(c, (Generics){.owner = c->generics.owner,
                                                   .fn = fn->type_params});
@@ -50,6 +64,7 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     }
     c->unsafe_depth = fn->is_unsafe ? 1 : 0;
     uint32_t errors = c->sema->session->diags.error_count;
+    note_signature(c, fn, sig, self_type);
     TypeId body = check_block(c, fn->body, NO_TYPE, false);
     c->unsafe_depth = 0;
     bool needs_value = c->ret.id != TID_UNIT && c->ret.id != TID_ERROR;
@@ -58,7 +73,7 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
                     "function may reach its end without returning a value");
     }
     if (c->sema->session->diags.error_count == errors) {   // no cascade after type errors
-        check_moves(c, fn);
+        analyze_moves(c, fn);
     }
     enter_generics(c, outer);
 }
@@ -134,6 +149,17 @@ static void check_item(Checker *c, Item *item) {
     }
 }
 
+void sema_moves_late(Sema *sema, FnDecl *fn) {
+    if (!fn->moves_pending) {
+        return;
+    }
+    fn->moves_pending = false;
+    Checker c = {.sema = sema, .types = &sema->types, .self_type = NO_TYPE, .fn = fn,
+                 .local_types = fn->local_types};
+    check_moves(&c, fn);
+    arena_free(&c.scratch);
+}
+
 void check_program(Sema *sema) {
     Checker c = {.sema = sema, .types = &sema->types, .self_type = NO_TYPE};
     for (uint32_t m = 0; m < sema->program.len; m++) {
@@ -145,4 +171,5 @@ void check_program(Sema *sema) {
     sema_enter(sema, 0);
     warn_unused_imports(sema);
     VEC_FREE(c.loops);
+    arena_free(&c.scratch);
 }

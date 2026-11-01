@@ -76,8 +76,10 @@ static void user_call(Gen *g, const AirStmt *s) {
         mark_c_used(g, s->as.call.fn);
     }
     const Ty *targs = type_get(g->types, s->as.call.targs);
-    TypeId ret_type = type_subst(g->types, type_get(g->types, def->type)->inner, targs->args,
-                                 targs->arg_count);
+    TypeId ret_type = s->as.call.fn.id == 0   // drop glue returns nothing
+                          ? type_id(TID_UNIT)
+                          : type_subst(g->types, type_get(g->types, def->type)->inner,
+                                       targs->args, targs->arg_count);
     const char *ret = llvm_type(g, ret_type);
     bool has_dest = s->has_dest && llvm_has_value(ret_type);   // an instance may return ()
     char result[16] = "";

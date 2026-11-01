@@ -32,7 +32,10 @@ static Res lookup(Resolver *r, Symbol name, Span span) {
     }
     DefId def = scope_module(&r->sema->scope, name);
     if (def.id != 0) {
-        note_import_use(r->sema, name);
+        const Def *found = sema_def(r->sema, def);
+        if (found->module != r->sema->current || found->kind == DEF_MODULE) {   // maybe imported
+            note_import_use(r->sema, name);
+        }
         return (Res){RES_DEF, def.id};
     }
     resolve_error(r, "E0200", span, "cannot find `" SV_FMT "` in this scope",

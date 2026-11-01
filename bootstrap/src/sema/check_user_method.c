@@ -60,7 +60,13 @@ void check_mut_args(Checker *c, const FnDecl *fn, Expr *call) {
     for (uint32_t i = 0; i < fn->params.len && i < args.len; i++) {
         if (fn->params.items[i].mode == MODE_MUT) {
             require_mutable(c, args.items[i].value);
+        } else if (fn->params.items[i].mode == MODE_MOVE) {
+            note_owned(c, args.items[i].value->type);   // moved into the callee
         }
+    }
+    Expr *callee = call->as.call.callee;
+    if (fn->has_self && fn->self_mode == MODE_MOVE && callee->kind == EXPR_FIELD) {
+        note_owned(c, callee->as.field.base->type);
     }
 }
 

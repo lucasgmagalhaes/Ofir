@@ -26,7 +26,27 @@ typedef struct {
     TypeId *local_types;     // indexed by LocalId
     Vec(bool) loops;         // per open loop: whether a `break` leaves it
     uint32_t unsafe_depth;   // > 0 inside an `unsafe` block or function
+    Arena scratch;           // reset per function: the move analysis states
+    // Whether the function moves a value that is not trivially Copy (into a
+    // variable, a `move` parameter, an aggregate, its result) or has a `var`
+    // without a value: else the move analysis has nothing to find, and the
+    // drops treat every new value as a temporary.
+    bool owned_values;
 } Checker;
+
+// moves.c: whether a function needs the move analysis (Checker.owned_values)
+void note_owned(Checker *c, TypeId type);         // a value of `type` may be moved
+void note_aggregate(Checker *c, const Expr *e);   // an aggregate moves its parts in
+
+// note_aggregate for a value that is not trivially Copy, tested inline:
+// it runs for every expression.
+static inline void note_value(Checker *c, const Expr *e) {
+    TyKind kind = type_get(c->types, e->type)->kind;
+    if (kind > TY_FLOAT && kind != TY_REF && kind != TY_PTR) {
+        note_aggregate(c, e);
+    }
+}
+void note_signature(Checker *c, const FnDecl *fn, const Ty *sig, TypeId self_type);
 
 #define NO_TYPE type_id(TID_ERROR)   // "no expected type" for check_expr
 
