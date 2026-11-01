@@ -33,6 +33,7 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
                                                   .fn = fn->type_params});
     const Ty *sig = type_get(c->types, fn_signature(c, fn));
     c->fn = fn;
+    check_borrow_source(c, fn, sig, self_type);
     c->ret = sig->inner;
     c->self_type = self_type;
     c->local_types = ARENA_ARRAY(&c->sema->session->arena, TypeId, fn->locals.len + 1);

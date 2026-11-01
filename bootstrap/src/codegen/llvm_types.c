@@ -251,7 +251,7 @@ void place_address(Gen *g, LocalId local, FieldPath path, char text[16]) {
     }
     Cursor cur = {.type = g->body->locals.data[local.id].type};
     const Ty *pointer = type_get(g->types, cur.type);
-    if (path.deref && pointer->kind == TY_PTR) {   // `*p`: start from the pointee
+    if (path.deref && (pointer->kind == TY_PTR || pointer->kind == TY_REF)) {   // `*p`, `*r`
         cur.type = pointer->inner;
     }
     for (uint32_t i = 0; i < path.len; i++) {

@@ -1,0 +1,43 @@
+// `&[T]`: range indexing, lists as slices, slices of slices, indexing,
+// `for` and the slice methods; str slices.
+
+fn sum(xs: [int]) int {
+    var total = 0
+    for x in xs {
+        total += x
+    }
+    return total
+}
+
+fn names(all: &[str]) str {
+    var text = ""
+    for name in all {
+        text.push("{name} ")
+    }
+    return text
+}
+
+fn main() {
+    let numbers = [1, 2, 3, 4, 5]
+    println("{sum(numbers)} {sum(numbers[1..3])} {sum(numbers[3..])} {sum(numbers[..2])}")
+    let middle: &[int] = numbers[1..4]
+    println("{middle.len()} {middle[0]} {middle[2]} {sum(middle[1..])}")
+    println("{*middle.first().unwrap()} {*middle.last().unwrap()} {middle.get(9).isNone()}")
+    println("{sum(numbers[1..=3])} {numbers[2..2].isEmpty()}")
+
+    let people = ["ana", "bob", "cy", "dee"]
+    println(names(people[1..3]))
+    for p in people {
+        print(p)
+    }
+    println("")
+
+    let s = "hello, world"
+    let hello: &str = s[0..5]
+    println("{hello} {s[7..]} {hello.len()}")
+    var tail = s[7..]
+    tail.push("!")
+    println("{tail} {s}")
+    let accented = "café"
+    println("{accented[0..3]} {accented[3..].len()}")
+}

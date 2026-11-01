@@ -122,23 +122,42 @@ void infer_finish(Checker *c, Infer *inf, Span span);
 // type and the arguments, then checks the arguments against the result.
 TypeId check_generic_args(Checker *c, Expr *call, const Ty *sig, Infer *inf, TypeId expected);
 
+// check_ref.c: references (spec 5.6)
+TypeId check_ref(Checker *c, Expr *e, TypeId expected);
+bool holds_ref(Checker *c, TypeId type);
+// E0702 when `type` holds a reference; `where` names the place in the message.
+void check_storable(Checker *c, TypeId type, Span span, const char *where);
+void check_instance_storable(Checker *c, TypeId type, Span span);
+// Sets `returns_borrow` and `borrow_source` of a function returning a reference.
+void check_borrow_source(Checker *c, FnDecl *fn, const Ty *sig, TypeId self_type);
+void check_returned_ref(Checker *c, const Expr *value);   // E0702 for `return &local`
+
 // check_box.c: `Box<T>`, dereferenced by the compiler
 // Whether `type` is `Box<T>`; T goes to `inner`.
 bool box_inner(Checker *c, TypeId type, TypeId *inner);
 // `*b` for a box `b` of type `box`: rewritten to `*(b.ptr)`; returns T.
 TypeId box_deref(Checker *c, Expr *deref, TypeId box);
 // Replaces `*place`, of type `type`, by its value while it is a box (except
-// in the module declaring Box); returns the type of the result.
-TypeId deref_box(Checker *c, Expr **place, TypeId type);
+// in the module declaring Box) or a reference; returns the type of the
+// result.
+TypeId auto_deref(Checker *c, Expr **place, TypeId type);
+TypeId deref_once(Checker *c, Expr **place, TypeId type);   // one box or reference
+// The receiver of `place.name()`: through references, and through boxes
+// unless `Box` itself has the method.
+TypeId method_receiver(Checker *c, Expr **place, TypeId type, Symbol name);
 // Whether the dereference `e` reads through a box (`*(b.ptr)`).
 bool is_box_deref(Checker *c, const Expr *e);
 
 // check_list.c: `List<T>` literals, indexing and loops
 bool list_elem(Checker *c, TypeId type, TypeId *elem);   // whether `type` is List<elem>
+bool sequence_elem(Checker *c, TypeId type, TypeId *elem);   // List<elem> or &[elem]
+TypeId check_range_index(Checker *c, Expr *e);   // `xs[a..b]`: becomes `xs.slice(a, b)`
+// Rewrites `e`, a `List<T>`, to `e.asSlice()` when a `&[T]` is expected.
+bool coerce_to_slice(Checker *c, Expr *e, TypeId found, TypeId expected);
 void require_copy(Checker *c, Span span, TypeId type, const char *what);   // E0321
 TypeId check_list_literal(Checker *c, Expr *e, TypeId expected);
 TypeId check_list_repeat(Checker *c, Expr *e, TypeId expected);
-TypeId check_for_list(Checker *c, Expr *list);   // the type of the loop variable
+TypeId check_for_list(Checker *c, Expr **list);   // the type of the loop variable
 void check_list_sort(Checker *c, Expr *call);
 void check_list_layout(Checker *c, const Def *def);
 

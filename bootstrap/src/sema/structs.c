@@ -89,6 +89,9 @@ static void fill_fields(Checker *c, Def *def, StructInfo *info) {
         info->names[i] = field->name;
         info->types[i] = resolve_type(c, field->type);
         info->defaults[i] = field->default_value;
+        if (!item->as.struct_.is_ref) {
+            check_storable(c, info->types[i], field->span, "a struct field");
+        }
         check_not_recursive(c, info->types[i], field->span);
         if (field->default_value) {
             coerce(c, field->default_value, info->types[i]);
@@ -174,7 +177,7 @@ TypeId check_struct_field(Checker *c, Expr *e, TypeId base) {
 
 TypeId check_tuple_field(Checker *c, Expr *e) {
     TypeId base = check_expr(c, e->as.tuple_field.base, NO_TYPE);
-    base = deref_box(c, &e->as.tuple_field.base, base);
+    base = auto_deref(c, &e->as.tuple_field.base, base);
     const Ty *ty = type_get(c->types, base);
     if (ty->kind == TY_TUPLE && e->as.tuple_field.index < ty->arg_count) {
         return ty->args[e->as.tuple_field.index];

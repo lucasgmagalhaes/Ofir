@@ -7,9 +7,11 @@
 
 enum { LIST_PTR = 0, LIST_LEN = 1 };
 
+// A list or a slice: both have `ptr` and `len` first.
 bool is_list(Lowerer *l, TypeId type) {
     const Ty *ty = type_get(l->types, type);
-    return ty->kind == TY_ADT && ty->data == l->sema->list.id && l->sema->list.id != 0;
+    return ty->kind == TY_ADT && ty->data != 0 &&
+           (ty->data == l->sema->list.id || ty->data == l->sema->slice.id);
 }
 
 static TypeId elem_of(Lowerer *l, TypeId list) {

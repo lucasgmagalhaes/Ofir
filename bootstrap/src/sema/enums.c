@@ -20,6 +20,7 @@ static void fill_variant(Checker *c, const Variant *decl, VariantInfo *v, int64_
         v->field_names[f] = decl->fields.items[f].name;
         v->types[f] = resolve_type(c, decl->fields.items[f].type);
         check_not_recursive(c, v->types[f], decl->span);
+        check_storable(c, v->types[f], decl->span, "an enum variant");
         if (copy && !type_is_copy(c, v->types[f]) && v->types[f].id != TID_ERROR) {
             check_error(c, "E0317", decl->span, "a `copy enum` can only have fields of Copy "
                         "types, not `%s`", type_name(c, v->types[f]));

@@ -80,6 +80,12 @@ static Operand argument(Lowerer *l, Expr *arg, bool by_ref, const Expr *next) {
     return next ? settle(l, value, next) : value;
 }
 
+bool by_address(const FnDecl *fn, int32_t index) {
+    Mode mode = index < 0 ? fn->self_mode : fn->params.items[index].mode;
+    return mode == MODE_MUT ||
+           (fn->returns_borrow && fn->source_by_ref && fn->borrow_source == index);
+}
+
 // A call of a user function or method; the receiver of a method is the
 // first argument.
 Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver) {
@@ -97,11 +103,11 @@ Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver) {
     s.as.call.args = ARENA_ARRAY(&l->sema->session->arena, Operand, args.len + first + 1);
     if (receiver) {
         const Expr *next = args.len ? args.items[0].value : NULL;
-        s.as.call.args[0] = argument(l, receiver, fn->self_mode == MODE_MUT, next);
+        s.as.call.args[0] = argument(l, receiver, by_address(fn, -1), next);
     }
     for (uint32_t i = 0; i < args.len; i++) {
         const Expr *next = i + 1 < args.len ? args.items[i + 1].value : NULL;
-        bool by_ref = i < fn->params.len && fn->params.items[i].mode == MODE_MUT;
+        bool by_ref = i < fn->params.len && by_address(fn, (int32_t)i);
         s.as.call.args[first + i] = argument(l, args.items[i].value, by_ref, next);
     }
     Operand result = op_unit();
