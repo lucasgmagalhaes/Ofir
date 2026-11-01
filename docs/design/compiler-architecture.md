@@ -275,6 +275,16 @@ Runs on generic AIR, once per function, using dataflow analysis over the CFG:
 Because references cannot escape, every loan is local to one function body:
 no inter-procedural analysis and no lifetime inference are needed.
 
+**Stage 0** (`sema/moves*.c`) implements step 1 on the typed AST instead of
+AIR, right after a function is type checked, because the AST still says
+which uses consume a value and which borrow it, and its control flow is
+structured: branches join their states, loops are walked to a fixpoint.
+It tracks whole variables and the field paths moved out of them, the
+variables that borrow (borrowed parameters, `for` variables, bindings of a
+matched borrowed place), and the `mut` parameters that must hold a value
+again at each return. Step 3 is in `sema/check_ref.c`; step 2, the borrow
+checker proper, comes with stage 1 (roadmap 4.7).
+
 ## 9. Drop elaboration
 
 Using the move analysis results, inserts `Drop(place)` at:
