@@ -185,6 +185,10 @@ Operand lower_drop_intrinsic(Lowerer *l, Expr *call, bool forget);
 FnDecl *type_method(Lowerer *l, TypeId type, StrView name);
 TypeId method_targs(Lowerer *l, TypeId type);
 
+// lower_iter.c: `for x in it` over a type with `fn next(mut self) Option<T>`
+bool is_iterator(Lowerer *l, TypeId type);
+void lower_for_iter(Lowerer *l, Stmt *s);
+
 // lower_clone.c
 Operand clone_value(Lowerer *l, Operand value, TypeId type);   // `type` is concrete
 void lower_clone_glue(Lowerer *l, TypeId targs, BodySink sink, void *context);

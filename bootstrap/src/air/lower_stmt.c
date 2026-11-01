@@ -195,7 +195,10 @@ static void lower_stmt(Lowerer *l, Stmt *s) {
         break;
     case STMT_ASSIGN: lower_assign(l, s); break;
     case STMT_FOR:
-        if (s->as.for_.kind == FOR_IN && s->as.for_.expr->kind != EXPR_RANGE) {
+        if (s->as.for_.kind == FOR_IN && s->as.for_.expr->kind != EXPR_RANGE &&
+            is_iterator(l, s->as.for_.expr->type)) {
+            lower_for_iter(l, s);
+        } else if (s->as.for_.kind == FOR_IN && s->as.for_.expr->kind != EXPR_RANGE) {
             lower_for_list(l, s);
         } else if (s->as.for_.kind == FOR_IN) {
             lower_for_range(l, s);

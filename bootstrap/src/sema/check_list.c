@@ -130,9 +130,11 @@ void check_for_collection(Checker *c, Stmt *s) {
         }
         first = key;
         second = value;
+    } else if (iterator_item(c, type, &elem)) {
+        first = check_for_iterator(c, s, elem);
     } else if (type.id != TID_ERROR) {
         check_error(c, "E0300", (*expr)->span, "mismatched types: `for` needs a range, a "
-                    "list, a slice or a map, found %s", type_name(c, type));
+                    "list, a slice, a map or an iterator, found %s", type_name(c, type));
     }
     c->local_types[s->as.for_.first_local.id] = first;
     note_owned(c, first);

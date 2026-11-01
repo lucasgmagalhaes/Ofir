@@ -192,6 +192,10 @@ TypeId check_coalesce(Checker *c, Expr *e, TypeId expected);
 void check_unused_result(Checker *c, const Expr *e);   // E0305
 void check_wrapper_layout(Checker *c, DefId id);       // E0806
 
+// check_iter.c: `for x in it` over a type with `fn next(mut self) Option<T>`
+bool iterator_item(Checker *c, TypeId type, TypeId *item);
+TypeId check_for_iterator(Checker *c, Stmt *s, TypeId item);
+
 // check_clone.c
 bool type_is_cloneable(Checker *c, TypeId type);
 TypeId check_derived_clone(Checker *c, Expr *call, TypeId self);

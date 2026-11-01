@@ -145,7 +145,7 @@ earlier accordingly).
 | 3.4 | Modules: multiple files, `mod.at`, `import`, aliases, `pub`, module-qualified names | L | multi-file tests pass |
 | 3.5 | Prelude and standard library loading from `std/` | M | `Option`/`Result` helpers live in `std/core` |
 | 3.6 | `extern "C"` blocks, `unsafe` blocks, raw pointers | M | calling `strlen` works |
-| 3.7 | `std.strings` and `str` S0 methods, including the borrowing iterators `split`, `splitWhitespace`, `lines`, `bytes` | M | `tests/run/strings/*` pass |
+| 3.7 | `std.strings` and `str` S0 methods, including the borrowing iterators `split`, `splitWhitespace`, `lines`, `bytes` | M | **done**: `for x in it` over any type with `fn next(mut self) Option<T>` (`sema/check_iter.c`, `air/lower_iter.c`); `find`, `trim*`, `replace`, `pushChar`, `withCapacity` in `std/core/str.at`, the iterators in `std/core/split.at`; `std.strings` `join`, `fromUtf8`, `Builder`; `tests/run/strings/*`, `tests/run/iterators/*` |
 | 3.8 | `std.io` and `std.fs` S0 entries, `IoError` | M | `examples/word_count.at` runs |
 | 3.9 | `std.os` S0 entries: args, env, exit, `run` | M | a test program runs `clang --version` |
 | 3.10 | Runtime: stack overflow detection | S | `tests/panic/stack_overflow*` pass |
