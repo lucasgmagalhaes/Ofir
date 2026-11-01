@@ -68,6 +68,15 @@ compilation: +4.4% on check-10k, +0.6% on check-100k, an accepted
 regression (ADR 0019). Most of it is the integer methods (now `std/core/num/`), one copy per
 integer type; generic bounds (5.2) will reduce it to one declaration.
 
+Warnings (2.24), the move analysis (3.1) and drops (3.2), measured together
+against `df84bf9` on the inputs whose variables start with `_` (from
+`2ae90d5`, so that they report no warnings): check-10k 65,654,385 (+2.5%),
+check-100k 583,294,154 (+2.1%), llvm-10k 286,589,724 (+1.9%), llvm-100k
+2,790,594,623 (+1.7%). The move analysis first cost +13.8%; it now runs
+only in functions that move a value that is not trivially Copy, std
+functions only when the lowering reaches them, loops are walked once when
+nothing changes, and the analysis reuses a scratch arena.
+
 `List<T>` in the prelude (`std/core/list.at`, 2.20) adds 0.7M instructions
 to every compilation: +1.7% on check-10k, +0.2% on check-100k.
 

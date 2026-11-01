@@ -37,6 +37,15 @@ typedef struct {
 // moves.c: whether a function needs the move analysis (Checker.owned_values)
 void note_owned(Checker *c, TypeId type);         // a value of `type` may be moved
 void note_aggregate(Checker *c, const Expr *e);   // an aggregate moves its parts in
+
+// note_aggregate for a value that is not trivially Copy, tested inline:
+// it runs for every expression.
+static inline void note_value(Checker *c, const Expr *e) {
+    TyKind kind = type_get(c->types, e->type)->kind;
+    if (kind > TY_FLOAT && kind != TY_REF && kind != TY_PTR) {
+        note_aggregate(c, e);
+    }
+}
 void note_signature(Checker *c, const FnDecl *fn, const Ty *sig, TypeId self_type);
 
 #define NO_TYPE type_id(TID_ERROR)   // "no expected type" for check_expr

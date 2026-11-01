@@ -152,4 +152,8 @@ void resolve_program(Sema *sema);
 // Type checks the program after resolve_program.
 void check_program(Sema *sema);
 
+// Runs the move analysis of a std function before it is lowered: std
+// functions are analyzed only if the program uses them (sema/check.c).
+void sema_moves_late(Sema *sema, FnDecl *fn);
+
 #endif

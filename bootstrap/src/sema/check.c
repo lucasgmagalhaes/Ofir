@@ -28,6 +28,20 @@ const char *type_name(Checker *c, TypeId type) {
     return buf.data;
 }
 
+// Without owned values nothing can be moved, uninitialized or dropped. A
+// std function waits until the lowering reaches it (sema_moves_late).
+static void analyze_moves(Checker *c, FnDecl *fn) {
+    if (!c->owned_values) {
+        return;
+    }
+    StrView module = c->sema->program.items[c->sema->current].name;
+    if (module.len >= 3 && memcmp(module.ptr, "std", 3) == 0) {
+        fn->moves_pending = true;
+    } else {
+        check_moves(c, fn);
+    }
+}
+
 static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     Generics outer = enter_generics(c, (Generics){.owner = c->generics.owner,
                                                   .fn = fn->type_params});
@@ -58,10 +72,8 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
         check_error(c, "E0303", fn->span,
                     "function may reach its end without returning a value");
     }
-    // Without owned values nothing can be moved, uninitialized or dropped.
-    // No cascade after type errors either.
-    if (c->owned_values && c->sema->session->diags.error_count == errors) {
-        check_moves(c, fn);
+    if (c->sema->session->diags.error_count == errors) {   // no cascade after type errors
+        analyze_moves(c, fn);
     }
     enter_generics(c, outer);
 }
@@ -135,6 +147,17 @@ static void check_item(Checker *c, Item *item) {
     case ITEM_TYPE_ALIAS: case ITEM_IMPORT:
         break;
     }
+}
+
+void sema_moves_late(Sema *sema, FnDecl *fn) {
+    if (!fn->moves_pending) {
+        return;
+    }
+    fn->moves_pending = false;
+    Checker c = {.sema = sema, .types = &sema->types, .self_type = NO_TYPE, .fn = fn,
+                 .local_types = fn->local_types};
+    check_moves(&c, fn);
+    arena_free(&c.scratch);
 }
 
 void check_program(Sema *sema) {
