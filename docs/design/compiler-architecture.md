@@ -162,6 +162,14 @@ Unification is first-order; signatures are always explicit, so inference
 never crosses function boundaries. This keeps type checking linear in
 practice and error messages local.
 
+**Stage 0** checks the bodies of the standard library lazily: a std
+function's signature is checked with its module, but its body only when the
+lowering reaches it (`sema_check_late`), followed by its move analysis
+(`sema_moves_late`). A program uses a small part of the prelude, so the
+cost of `check` does not grow with std. The root module and the modules
+outside std are checked whole; `make test-std` checks every std module
+whole by taking each as the root.
+
 ### Method resolution
 
 For `recv.m(args)`:

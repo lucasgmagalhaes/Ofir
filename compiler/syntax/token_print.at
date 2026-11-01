@@ -1,0 +1,235 @@
+/**
+ * @module
+ * The `--emit=tokens` format of stage 0 (bootstrap/src/syntax/token.c):
+ * one token per line, `line:column kind value`.
+ */
+
+import base.intern.Interner
+import base.span.SourceFile
+import syntax.token.Token
+import syntax.token.TokenKind
+
+/**
+ * The tokens of a file, one per line, as stage 0's `--emit=tokens` prints
+ * them.
+ *
+ * @param tokens the tokens of `file`
+ * @param file the file they come from
+ * @param names the interner of their names
+ * @returns the text
+ */
+pub fn printTokens(tokens: List<Token>, file: SourceFile, names: Interner) str {
+    var out = ""
+    for i in 0..tokens.len() {
+        let t = &tokens[i]
+        let at = file.lineCol(t.span.start)
+        out.push("{at.line}:{at.column} {kindText(t.kind)}")
+        out.push(valueText(t, names))
+        out.push("\n")
+    }
+    return out
+}
+
+fn valueText(t: &Token, names: Interner) str {
+    return match t.value {
+        .Name(symbol) => " {names.name(symbol)}"
+        .Int(value) => " {value}"
+        .Float(value) => " {formatG(value)}"
+        .Byte(value) => " {value}"
+        .Str(text) => " {escaped(text)}"
+        .None => ""
+    }
+}
+
+fn escaped(text: str) str {
+    var out = "\""
+    var run = 0   // the start of the ordinary bytes not copied yet
+    for i in 0..text.len() {
+        let escape = escapeOf(text[i])
+        if escape.len() > 0 {
+            out.push(text.slice(run, i))   // special bytes are ASCII: `i` is a boundary
+            out.push(escape)
+            run = i + 1
+        }
+    }
+    out.push(text.sliceFrom(run))
+    out.push("\"")
+    return out
+}
+
+// The escape stage 0 prints for a byte, or "" for a byte printed as is.
+fn escapeOf(c: u8) str {
+    return match c {
+        b'\n' => "\\n"
+        b'\t' => "\\t"
+        b'\r' => "\\r"
+        b'\\' => "\\\\"
+        b'"' => "\\\""
+        b'{' => "\\\{"
+        b'}' => "\\\}"
+        _ => if c < 0x20 || c == 0x7F { "\\x{hexDigit(c >> 4)}{hexDigit(c & 0xF)}" } else { "" }
+    }
+}
+
+fn hexDigit(d: u8) str {
+    return "0123456789abcdef".slice(d as int, d as int + 1)
+}
+
+/**
+ * A float as C's `%.Ng` writes it with the smallest `N` that reads back to
+ * the same value, as stage 0 prints float tokens.
+ *
+ * @param value a finite value
+ * @returns the text, such as `1.5`, `2e+10` or `1e-07`
+ */
+pub fn formatG(value: float) str {
+    let shortest = "{value}"   // the shortest round-trip digits, in fixed or exponent form
+    var sign = ""
+    var text = shortest.sliceFrom(0)
+    if text.startsWith("-") {
+        sign = "-"
+        text = text.sliceFrom(1)
+    }
+    var exponent = 0
+    var mantissa = text.sliceFrom(0)
+    if let .Some(e) = text.find("e") {
+        exponent = int.parse(text.sliceFrom(e + 1)).unwrapOr(0)
+        mantissa = text.slice(0, e)
+    }
+    let point = mantissa.find(".") ?? mantissa.len()
+    var digits = ""
+    for i in 0..mantissa.len() {
+        if i != point {
+            digits.pushChar(mantissa[i] as u32)
+        }
+    }
+    var first = 0   // leading zeros are not significant
+    for first < digits.len() - 1 && digits[first] == b'0' {
+        first += 1
+    }
+    var last = digits.len()   // nor are trailing zeros
+    for last > first + 1 && digits[last - 1] == b'0' {
+        last -= 1
+    }
+    let significant = digits.slice(first, last)
+    let power = if significant == "0" { 0 } else { exponent + point - 1 - first }
+    return sign + gNotation(significant, power)
+}
+
+// `%.Ng` of the digits `d.ddd * 10^power`, where N is the number of digits.
+fn gNotation(digits: str, power: int) str {
+    let precision = digits.len()
+    if power < -4 || power >= precision {
+        var out = digits.slice(0, 1)
+        if precision > 1 {
+            out.push(".")
+            out.push(digits.sliceFrom(1))
+        }
+        let magnitude = if power < 0 { -power } else { power }
+        out.push(if power < 0 { "e-" } else { "e+" })
+        out.push(if magnitude < 10 { "0{magnitude}" } else { "{magnitude}" })
+        return out
+    }
+    if power < 0 {
+        return "0." + "0".repeat(-power - 1) + digits
+    }
+    if power + 1 >= precision {
+        return digits + "0".repeat(power + 1 - precision)
+    }
+    return digits.slice(0, power + 1) + "." + digits.sliceFrom(power + 1)
+}
+
+/**
+ * The text of a token kind in `--emit=tokens` and in error messages.
+ *
+ * @param kind the kind
+ * @returns its text, as `ident` or `(`
+ */
+// check-sizes: table
+pub fn kindText(kind: TokenKind) str {
+    return match kind {
+        .Ident => "ident"
+        .Int => "int"
+        .Float => "float"
+        .Byte => "byte"
+        .Str => "str"
+        .StrStart => "str_start"
+        .StrMid => "str_mid"
+        .StrEnd => "str_end"
+        .DocComment => "doc"
+        .ModuleDoc => "module_doc"
+        .Newline => "newline"
+        .Invalid => "invalid"
+        .Eof => "eof"
+        .As => "as"
+        .Break => "break"
+        .Const => "const"
+        .Continue => "continue"
+        .Copy => "copy"
+        .Dyn => "dyn"
+        .Else => "else"
+        .Enum => "enum"
+        .Extern => "extern"
+        .False => "false"
+        .Fn => "fn"
+        .For => "for"
+        .If => "if"
+        .Import => "import"
+        .In => "in"
+        .Interface => "interface"
+        .Let => "let"
+        .Match => "match"
+        .Mut => "mut"
+        .Pub => "pub"
+        .Return => "return"
+        .SelfValue => "self"
+        .SelfType => "Self"
+        .Struct => "struct"
+        .True => "true"
+        .Unsafe => "unsafe"
+        .Var => "var"
+        .LParen => "("
+        .RParen => ")"
+        .LBrace => "\{"
+        .RBrace => "\}"
+        .LBracket => "["
+        .RBracket => "]"
+        .Comma => ","
+        .Colon => ":"
+        .Semicolon => ";"
+        .Dot => "."
+        .DotDot => ".."
+        .DotDotEq => "..="
+        .FatArrow => "=>"
+        .Question => "?"
+        .QuestionQuestion => "??"
+        .At => "@"
+        .Plus => "+"
+        .Minus => "-"
+        .Star => "*"
+        .Slash => "/"
+        .Percent => "%"
+        .Amp => "&"
+        .Pipe => "|"
+        .Caret => "^"
+        .Shl => "<<"
+        .Bang => "!"
+        .Eq => "="
+        .EqEq => "=="
+        .Ne => "!="
+        .Lt => "<"
+        .Le => "<="
+        .Gt => ">"
+        .AndAnd => "&&"
+        .OrOr => "||"
+        .PlusEq => "+="
+        .MinusEq => "-="
+        .StarEq => "*="
+        .SlashEq => "/="
+        .PercentEq => "%="
+        .AmpEq => "&="
+        .PipeEq => "|="
+        .CaretEq => "^="
+        .ShlEq => "<<="
+    }
+}

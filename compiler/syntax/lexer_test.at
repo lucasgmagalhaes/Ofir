@@ -1,0 +1,58 @@
+// The tests of `syntax.lexer` (spec 12.2).
+
+import base.intern.Interner
+import base.span.FileId
+import diag.Diagnostics
+import syntax.token.TokenKind
+
+fn expectKinds(src: str, expected: [TokenKind]) {
+    var names = Interner.new()
+    var diags = Diagnostics.new()
+    let tokens = tokenize(src, FileId(0), names, diags)
+    assert(!diags.hasErrors())
+    assert(tokens.len() == expected.len())
+    for i, token in tokens {
+        assert(token.kind == expected[i])
+    }
+}
+
+@test
+fn genericsCloseWithSingleGtTokens() {
+    expectKinds("var b: List<List<u8>>", [
+        .Var, .Ident, .Colon, .Ident, .Lt, .Ident, .Lt, .Ident, .Gt, .Gt, .Eof,
+    ])
+}
+
+@test
+fn newlinesAreTokensExceptInParentheses() {
+    expectKinds("f(a,\nb)\nx", [
+        .Ident, .LParen, .Ident, .Comma, .Ident, .RParen, .Newline, .Ident, .Eof,
+    ])
+}
+
+@test
+fn newlinesCountInsideABlockNestedInParentheses() {
+    expectKinds("f(fn() \{\na\n\})", [
+        .Ident, .LParen, .Fn, .LParen, .RParen, .LBrace, .Newline,
+        .Ident, .Newline, .RBrace, .RParen, .Eof,
+    ])
+}
+
+@test
+fn interpolationSplitsStrings() {
+    expectKinds("\"a \{x\} b \{f(y)\} c\"", [
+        .StrStart, .Ident, .StrMid, .Ident, .LParen, .Ident, .RParen, .StrEnd, .Eof,
+    ])
+}
+
+@test
+fn rangesAreNotFloats() {
+    expectKinds("0..10 1.5 x.0", [
+        .Int, .DotDot, .Int, .Float, .Ident, .Dot, .Int, .Eof,
+    ])
+}
+
+@test
+fn contextualKeywordsAreIdentifiers() {
+    expectKinds("type move ref where", [.Ident, .Ident, .Ident, .Ident, .Eof])
+}

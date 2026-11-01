@@ -1,0 +1,12 @@
+# The stage 1 compiler (roadmap phase 4). Imports resolve from this directory.
+[package]
+name = "astra"
+version = "0.1.0"
+edition = "2027"
+
+[build]
+kind = "exe"
+root = "main.at"
+
+[fmt]
+inline-blocks = false

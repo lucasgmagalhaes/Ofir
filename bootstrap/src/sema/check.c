@@ -42,12 +42,35 @@ static void analyze_moves(Checker *c, FnDecl *fn) {
     }
 }
 
+static bool in_std_module(Checker *c) {
+    StrView module = c->sema->program.items[c->sema->current].name;
+    return module.len >= 3 && memcmp(module.ptr, "std", 3) == 0;
+}
+
+static void check_body(Checker *c, FnDecl *fn, TypeId self_type);
+
 static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     Generics outer = enter_generics(c, (Generics){.owner = c->generics.owner,
                                                   .fn = fn->type_params});
     const Ty *sig = type_get(c->types, fn_signature(c, fn));
+    check_borrow_source(c, fn, sig, self_type);   // what callers need, now
+    enter_generics(c, outer);
+    // The body of a std function waits until the lowering reaches it: a
+    // program uses few of them. The root module is always checked whole.
+    if (fn->body && c->sema->current != 0 && in_std_module(c)) {
+        fn->check_pending = true;
+        fn->pending_self = self_type;
+        fn->pending_owner_params = c->generics.owner;
+        return;
+    }
+    check_body(c, fn, self_type);
+}
+
+static void check_body(Checker *c, FnDecl *fn, TypeId self_type) {
+    Generics outer = enter_generics(c, (Generics){.owner = c->generics.owner,
+                                                  .fn = fn->type_params});
+    const Ty *sig = type_get(c->types, fn_signature(c, fn));
     c->fn = fn;
-    check_borrow_source(c, fn, sig, self_type);
     c->ret = sig->inner;
     c->self_type = self_type;
     c->local_types = ARENA_ARRAY(&c->sema->session->arena, TypeId, fn->locals.len + 1);
@@ -147,6 +170,20 @@ static void check_item(Checker *c, Item *item) {
     case ITEM_TYPE_ALIAS: case ITEM_IMPORT:
         break;
     }
+}
+
+void sema_check_late(Sema *sema, FnDecl *fn) {
+    if (!fn->check_pending) {
+        return;
+    }
+    fn->check_pending = false;
+    uint32_t saved = sema_enter(sema, sema_def(sema, fn->def)->module);
+    Checker c = {.sema = sema, .types = &sema->types, .self_type = NO_TYPE};
+    c.generics.owner = fn->pending_owner_params;
+    check_body(&c, fn, fn->pending_self);
+    VEC_FREE(c.loops);
+    arena_free(&c.scratch);
+    sema_enter(sema, saved);
 }
 
 void sema_moves_late(Sema *sema, FnDecl *fn) {

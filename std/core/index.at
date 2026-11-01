@@ -101,3 +101,10 @@ pub copy enum Ordering {
         return if self == .Equal { other } else { self }
     }
 }
+
+/**
+ * Why a text is not a number: the error of `int.parse`, `float.parse` and
+ * the `parse` of the other numeric types.
+ */
+pub copy struct ParseError {
+}

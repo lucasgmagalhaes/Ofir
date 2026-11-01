@@ -1,0 +1,41 @@
+/**
+ * @module
+ * The stage 1 compiler's entry point (roadmap phase 4). Until the driver
+ * (task 4.9) it has the commands that compare each port with stage 0:
+ *
+ *     main tokens <file.at>   the tokens, as `astra build --emit=tokens`
+ */
+
+import base.intern.Interner
+import base.span.SourceMap
+import diag.Diagnostics
+import std.fs
+import std.os
+import syntax.lexer.tokenize
+import syntax.token_print.printTokens
+
+fn main() {
+    let args = os.args()
+    if args.len() != 3 || args[1] != "tokens" {
+        eprintln("usage: main tokens <file.at>")
+        os.exit(2)
+    }
+    let path = args[2].clone()
+    let text = match fs.readToString(path) {
+        .Ok(text) => text
+        .Err(_) => {
+            eprintln("error[E0900]: cannot read `{path}`")
+            os.exit(1)
+        }
+    }
+    var map = SourceMap.new()
+    let file = map.add(path, text)
+    var names = Interner.new()
+    var diags = Diagnostics.new()
+    let tokens = tokenize(map.file(file).text, file, names, diags)
+    print(printTokens(tokens, *map.file(file), names))
+    eprint(diags.render(map, .Human))
+    if diags.hasErrors() {
+        os.exit(1)
+    }
+}

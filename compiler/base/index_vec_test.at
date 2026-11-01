@@ -1,0 +1,25 @@
+// The tests of `base.index_vec` (spec 12.2).
+
+copy struct Node {
+    depth: int
+}
+
+@test
+fn pushReturnsConsecutiveIds() {
+    var nodes: IndexVec<Node> = IndexVec.new()
+    let first = nodes.nextId()
+    let a = nodes.push(Node{depth: 0})
+    let b = nodes.push(Node{depth: 1})
+    assert(first.index == 0 && a.index == 0 && b.index == 1 && nodes.len() == 2)
+    assert(nodes.get(b).depth == 1)
+}
+
+@test
+fn getMutChangesTheElement() {
+    var names: IndexVec<str> = IndexVec.new()
+    let id = names.push("ma".toOwned())
+    names.getMut(id).push("in")
+    assert(names.get(id) == "main")
+    let same: Id<str> = idAt(0)
+    assert(names.get(same) == "main")
+}

@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 runtime unit runner-selftest test test-std check-format check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
+.PHONY: all stage0 runtime unit runner-selftest test test-std compare-stages check-format check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
 
 all: stage0 runtime
 
@@ -37,7 +37,7 @@ check-format:
 check-leaks: stage0 runtime
 	$(PYTHON) tools/check_leaks.py --compiler $(BUILD)/stage0/astra
 
-# The `@test` functions of std (spec 12.2).
+# The `@test` functions of std and of the stage 1 compiler (spec 12.2).
 test-std: stage0 runtime
 	$(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage0/astra
 
@@ -45,7 +45,11 @@ test-std: stage0 runtime
 check-asan: stage0 runtime
 	$(PYTHON) tools/check_asan.py --compiler $(BUILD)/stage0/astra
 
-test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std
+# Stage 1 (compiler/, built by stage 0) gives the same output as stage 0.
+compare-stages: stage0 runtime
+	$(PYTHON) tools/compare_stages.py --compiler $(BUILD)/stage0/astra --fuzz 200
+
+test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std compare-stages
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/astra
 
 # Performance (docs/design/performance.md)

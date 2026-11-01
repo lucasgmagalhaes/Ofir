@@ -42,6 +42,7 @@ static int gt_operator(const Parser *p, Op *op) {
 }
 
 typedef enum {
+    LEVEL_NONE = 0,
     LEVEL_OR = 2,         // ||
     LEVEL_AND = 3,        // &&
     LEVEL_COMPARE = 4,    // == != < <= > >=
@@ -49,43 +50,35 @@ typedef enum {
     LEVEL_MUL = 6,        // * / % << >> &
 } Level;
 
-// Recognizes a binary operator of `level` at the cursor. Returns how many
-// tokens it spans (0 if there is none).
+// The binary operator at the cursor: its level, and in *op the operator and
+// in *count the number of tokens it spans. LEVEL_NONE if there is none.
 // check-sizes: table
-static int operator_at(const Parser *p, Level level, Op *op) {
-    TokenKind k = peek(p);
-    switch (level) {
-    case LEVEL_OR: *op = OP_LOGICAL_OR; return k == TOK_OR_OR;
-    case LEVEL_AND: *op = OP_LOGICAL_AND; return k == TOK_AND_AND;
-    case LEVEL_COMPARE:
-        switch (k) {
-        case TOK_EQ_EQ: *op = OP_EQ; return 1;
-        case TOK_NE: *op = OP_NE; return 1;
-        case TOK_LT: *op = OP_LT; return 1;
-        case TOK_LE: *op = OP_LE; return 1;
-        case TOK_GT: { int n = gt_operator(p, op); return *op == OP_SHR ? 0 : n; }
-        default: return 0;
+static Level operator_at(const Parser *p, Op *op, int *count) {
+    *count = 1;
+    switch (peek(p)) {
+    case TOK_OR_OR: *op = OP_LOGICAL_OR; return LEVEL_OR;
+    case TOK_AND_AND: *op = OP_LOGICAL_AND; return LEVEL_AND;
+    case TOK_EQ_EQ: *op = OP_EQ; return LEVEL_COMPARE;
+    case TOK_NE: *op = OP_NE; return LEVEL_COMPARE;
+    case TOK_LT: *op = OP_LT; return LEVEL_COMPARE;
+    case TOK_LE: *op = OP_LE; return LEVEL_COMPARE;
+    case TOK_PLUS: *op = OP_ADD; return LEVEL_ADD;
+    case TOK_MINUS: *op = OP_SUB; return LEVEL_ADD;
+    case TOK_PIPE: *op = OP_OR; return LEVEL_ADD;
+    case TOK_CARET: *op = OP_XOR; return LEVEL_ADD;
+    case TOK_STAR: *op = OP_MUL; return LEVEL_MUL;
+    case TOK_SLASH: *op = OP_DIV; return LEVEL_MUL;
+    case TOK_PERCENT: *op = OP_REM; return LEVEL_MUL;
+    case TOK_SHL: *op = OP_SHL; return LEVEL_MUL;
+    case TOK_AMP: *op = OP_AND; return LEVEL_MUL;
+    case TOK_GT:
+        *count = gt_operator(p, op);
+        if (*count == 0) {
+            return LEVEL_NONE;
         }
-    case LEVEL_ADD:
-        switch (k) {
-        case TOK_PLUS: *op = OP_ADD; return 1;
-        case TOK_MINUS: *op = OP_SUB; return 1;
-        case TOK_PIPE: *op = OP_OR; return 1;
-        case TOK_CARET: *op = OP_XOR; return 1;
-        default: return 0;
-        }
-    case LEVEL_MUL:
-        switch (k) {
-        case TOK_STAR: *op = OP_MUL; return 1;
-        case TOK_SLASH: *op = OP_DIV; return 1;
-        case TOK_PERCENT: *op = OP_REM; return 1;
-        case TOK_SHL: *op = OP_SHL; return 1;
-        case TOK_AMP: *op = OP_AND; return 1;
-        case TOK_GT: { int n = gt_operator(p, op); return *op == OP_SHR ? n : 0; }
-        default: return 0;
-        }
+        return *op == OP_SHR ? LEVEL_MUL : LEVEL_COMPARE;
+    default: return LEVEL_NONE;
     }
-    return 0;
 }
 
 static Expr *unary(Parser *p);
@@ -102,25 +95,31 @@ static Expr *cast(Parser *p) {
     return e;
 }
 
-static Expr *level(Parser *p, Level lv) {
-    Expr *lhs = lv == LEVEL_MUL ? cast(p) : level(p, lv + 1);
-    Op op;
-    int n;
-    while ((n = operator_at(p, lv, &op)) > 0) {
-        p->pos += (size_t)n;
+// Precedence climbing: the operators of `min` and above, left-associative.
+// One table lookup per operator instead of one call per level.
+static Expr *binary_expr(Parser *p, Level min) {
+    Expr *lhs = cast(p);
+    for (;;) {
+        Op op;
+        int count;
+        Level lv = operator_at(p, &op, &count);
+        if (lv == LEVEL_NONE || lv < min) {
+            return lhs;
+        }
+        p->pos += (size_t)count;
         skip_newlines(p);   // an operator at the end of a line continues it
-        Expr *rhs = lv == LEVEL_MUL ? cast(p) : level(p, lv + 1);
+        Expr *rhs = binary_expr(p, lv + 1);
         lhs = binary(p, op, lhs, rhs);
-        if (lv == LEVEL_COMPARE && operator_at(p, lv, &op) > 0) {
+        Op next;
+        if (lv == LEVEL_COMPARE && operator_at(p, &next, &count) == LEVEL_COMPARE) {
             syntax_error(p, peek_token(p, 0)->span,
                          "comparison operators cannot be chained; use `&&`");
         }
     }
-    return lhs;
 }
 
 static Expr *coalesce(Parser *p) {
-    Expr *lhs = level(p, LEVEL_OR);
+    Expr *lhs = binary_expr(p, LEVEL_OR);
     if (!accept(p, TOK_QUESTION_QUESTION)) {
         return lhs;
     }

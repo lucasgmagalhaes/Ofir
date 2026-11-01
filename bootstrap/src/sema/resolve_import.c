@@ -51,8 +51,19 @@ DefId module_member(Resolver *r, uint32_t index, Symbol name, Span span) {
     return id;
 }
 
+// Whether two bindings name the same thing: the same declaration, or the
+// same module imported twice (a test file may repeat its module's imports).
+static bool same_target(Resolver *r, DefId a, DefId b) {
+    const Def *x = sema_def(r->sema, a), *y = sema_def(r->sema, b);
+    return a.id == b.id || (x->kind == DEF_MODULE && y->kind == DEF_MODULE &&
+                            x->target == y->target);
+}
+
 static void bind(Resolver *r, Symbol name, DefId id, Span span) {
     DefId existing = scope_module(&r->sema->scope, name);
+    if (existing.id != 0 && same_target(r, existing, id)) {
+        return;
+    }
     if (existing.id != 0 && !sema_def(r->sema, existing)->in_prelude) {
         resolve_error(r, "E0201", span, "`" SV_FMT "` is defined more than once",
                       SV_ARG(resolver_name(r, name)));
