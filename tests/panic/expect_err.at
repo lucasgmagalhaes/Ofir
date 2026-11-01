@@ -1,0 +1,8 @@
+// panic: no config file
+fn load() Result<str, int> {
+    return Err(2)
+}
+
+fn main() {
+    let text = load().expect("no config file")
+}
