@@ -311,6 +311,9 @@ struct FnDecl {
     // (`p.name`), which the drops track one by one.
     struct MovedPart *moved_parts;
     uint32_t moved_part_count;
+    // A std function whose move analysis waits until the lowering reaches
+    // it: a program uses few of them (sema_moves_late).
+    bool moves_pending;
 };
 
 enum { PART_DEPTH = 7 };
