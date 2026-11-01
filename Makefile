@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 runtime unit runner-selftest test check-codes check-sizes bench bench-compare clean
+.PHONY: all stage0 runtime unit runner-selftest test check-codes check-sizes check-docs bench bench-compare clean
 
 all: stage0 runtime
 
@@ -26,7 +26,10 @@ check-codes:
 check-sizes:
 	$(PYTHON) tools/check_sizes.py
 
-test: stage0 runtime unit runner-selftest check-codes check-sizes
+check-docs:
+	$(PYTHON) tools/check_docs.py
+
+test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/astra
 
 # Performance (docs/design/performance.md)
