@@ -1,4 +1,7 @@
-//! Numbers, strings and byte literals (spec 1.7).
+/**
+ * @module
+ * Numbers, strings and byte literals (spec 1.7).
+ */
 
 import diag.Diagnostics
 import syntax.cursor.Cursor

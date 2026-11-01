@@ -25,6 +25,7 @@ changed by writing a new record that supersedes the old one.
 | [0017](0017-compile-time-reflection.md) | Compile-time reflection instead of macros | Accepted |
 | [0018](0018-performance-driven-development.md) | Performance-driven development | Accepted |
 | [0019](0019-standard-library-in-astra.md) | The standard library is written in Astra, from stage 0 on | Accepted |
+| [0020](0020-documentation-comments.md) | Documentation comments in the style of JSDoc | Accepted |
 
 ## Template
 

@@ -1,4 +1,7 @@
-//! Tokens produced by the lexer (spec chapter 1).
+/**
+ * @module
+ * Tokens produced by the lexer (spec chapter 1).
+ */
 
 import base.intern.Symbol
 import base.span.Span
