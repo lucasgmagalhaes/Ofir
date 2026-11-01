@@ -29,6 +29,7 @@ static void check_list(Checker *c, PatternList list, const TypeId *types, uint32
 static bool path_def(Checker *c, SymbolList path, Span span, DefId *out) {
     if (path.len == 2) {   // `module.Type`
         DefId module = scope_module(&c->sema->scope, path.items[0]);
+        note_import_use(c->sema, path.items[0]);
         if (module.id && sema_def(c->sema, module)->kind == DEF_MODULE) {
             *out = module_type(c, sema_def(c->sema, module)->target, path.items[1], span);
             return out->id != 0;
@@ -39,6 +40,7 @@ static bool path_def(Checker *c, SymbolList path, Span span, DefId *out) {
         return false;
     }
     *out = scope_module(&c->sema->scope, path.items[0]);
+    note_import_use(c->sema, path.items[0]);
     if (out->id == 0) {
         check_error(c, "E0200", span, "cannot find `" SV_FMT "` in this scope",
                     SV_ARG(name_of(c, path.items[0])));

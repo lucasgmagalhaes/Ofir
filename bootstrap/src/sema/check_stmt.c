@@ -188,9 +188,14 @@ static TypeId check_stmt(Checker *c, Stmt *s) {
 // cannot finish has type `!`.
 TypeId check_block(Checker *c, Block *block, TypeId expected, bool as_value) {
     StmtList stmts = block->stmts;
-    bool diverges = false;
+    bool diverges = false, warned = false;
     for (uint32_t i = 0; i < stmts.len; i++) {
         Stmt *s = stmts.items[i];
+        if (diverges && !warned) {   // W0004 once per block (spec 12.6)
+            diag_warning(&c->sema->session->diags, "W0004", s->span,
+                         "unreachable code: the statement before it never finishes");
+            warned = true;
+        }
         bool tail = as_value && i + 1 == stmts.len && s->kind == STMT_EXPR;
         TypeId type = tail ? check_expr(c, s->as.expr, expected) : check_stmt(c, s);
         if (tail) {

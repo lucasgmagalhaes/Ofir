@@ -72,7 +72,7 @@ fn main() {
     var pair = Counter.new("pair")
     twice(pair)
     var grid = Vec2{x: 0.0, y: 0.0}
-    for i in 0..3 {
+    for _ in 0..3 {
         grid = grid.add(Vec2{x: 1.0, y: 2.0})
     }
     println("{pair.value()} {grid.x} {grid.y}")

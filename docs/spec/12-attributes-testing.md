@@ -137,5 +137,9 @@ meaningful:
 | naming convention | `fn read_file()`, `struct token` (chapter 1.4) |
 
 - `--deny-warnings` turns every warning into an error; CI uses it.
+- Unused variables (W0001) exclude parameters and names starting with
+  `_`; `for _ in 0..n` repeats without a variable. Stage 0 reports unused
+  variables, unused imports (W0002), unreachable code (W0004) and
+  unreachable `match` arms; the other warnings come with stage 1.
 - `@allow(unused)` on an item silences a warning category for that item.
 - Ignoring a `Result` is an **error**, not a warning (chapter 6.3).

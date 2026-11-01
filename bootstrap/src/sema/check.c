@@ -139,5 +139,6 @@ void check_program(Sema *sema) {
         }
     }
     sema_enter(sema, 0);
+    warn_unused_imports(sema);
     VEC_FREE(c.loops);
 }
