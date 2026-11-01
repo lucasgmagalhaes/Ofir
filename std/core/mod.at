@@ -22,6 +22,8 @@ import std.core.num.f64
 import std.core.box
 import std.core.list
 import std.core.slice
+import std.core.hash
+import std.core.map
 import std.core.option
 import std.core.result
 
