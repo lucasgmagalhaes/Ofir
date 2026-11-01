@@ -1,10 +1,11 @@
 // panic: stack overflow
-// Large frames: each call holds a list header and a string on the stack.
+// Larger frames: each call holds a list header and a string on the stack
+// (both short, so that reaching the limit takes little time).
 
-fn deep(text: str, n: int) int {
-    let label = "{text}{n}"
+fn deep(tag: str, n: int) int {
+    let label = "{tag}{n % 10}"
     let items = [n, n + 1, n + 2]
-    return deep(label, n + 1) + items[0]
+    return deep(label.slice(0, 1), n + 1) + items[0]
 }
 
 fn main() {
