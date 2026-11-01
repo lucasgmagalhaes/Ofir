@@ -10,9 +10,16 @@
 
 #include "sema/sema.h"
 
+// The type parameters in scope: those of the type declaring the method,
+// numbered first, then those of the function (spec 8.3).
+typedef struct {
+    SymbolList owner, fn;
+} Generics;
+
 typedef struct {
     Sema *sema;
     TypeTable *types;
+    Generics generics;
     FnDecl *fn;              // the function being checked
     TypeId ret;              // its return type
     TypeId self_type;        // the type declaring the method, or TID_ERROR
@@ -34,16 +41,28 @@ const char *type_name(Checker *c, TypeId type);
 
 // check_types.c
 TypeId resolve_type(Checker *c, const TypeExpr *type);
+// Makes `generics` the type parameters in scope; returns the previous ones.
+Generics enter_generics(Checker *c, Generics generics);
+// `Name<args>` for a struct or enum, checking the number of arguments
+// (E0302); `args` NULL means none were written.
+TypeId adt_instance(Checker *c, DefId id, const TypeId *args, uint32_t count, Span span);
 TypeId fn_signature(Checker *c, FnDecl *fn);   // the TY_FN type, cached in the Def
 // A declaration of another module named in a type or pattern (E0200, E0202).
 DefId module_type(Checker *c, uint32_t module, Symbol name, Span span);
 // Reports E0202 when a field or method of another module is not `pub`.
 void check_visible(Checker *c, uint32_t module, bool is_pub, Symbol name, Span span);
-bool types_compatible(TypeId found, TypeId expected);
+// `!` converts to every type; the error type is compatible with everything
+// so that one mistake is reported once.
+static inline bool types_compatible(TypeId found, TypeId expected) {
+    return type_eq(found, expected) || found.id == TID_ERROR || expected.id == TID_ERROR ||
+           found.id == TID_NEVER;
+}
 
 // check_expr.c
 TypeId check_expr(Checker *c, Expr *e, TypeId expected);
 TypeId coerce(Checker *c, Expr *e, TypeId expected);
+// Reports E0300 unless `found`, the type of the checked `e`, fits `expected`.
+void require_type(Checker *c, const Expr *e, TypeId found, TypeId expected);
 TypeId check_const(Checker *c, Def *def);   // the type of a constant or global
 TypeId check_args(Checker *c, Expr *call, const Ty *sig);
 TypeId check_unsafe_block(Checker *c, Expr *e, TypeId expected, bool as_value);
@@ -52,8 +71,8 @@ TypeId check_unsafe_block(Checker *c, Expr *e, TypeId expected, bool as_value);
 struct ConstValue *const_eval(Checker *c, const Expr *e);
 
 // check_method.c: methods, fields and indexing
-TypeId check_method_call(Checker *c, Expr *call);
-TypeId check_field(Checker *c, Expr *e);
+TypeId check_method_call(Checker *c, Expr *call, TypeId expected);
+TypeId check_field(Checker *c, Expr *e, TypeId expected);
 TypeId check_index(Checker *c, Expr *e);
 // Reports E0315 unless `e` is a place that may be modified.
 void require_mutable(Checker *c, Expr *e);
@@ -70,26 +89,64 @@ bool is_unsafe_fn(const Def *def);
 // generates (ADR 0019); safe to call.
 bool is_intrinsic(const Def *def);
 
+// check_generic.c: type arguments of generic calls, literals and variants
+// What fixes the type arguments of a generic use besides its values: the
+// type named before `.f()` or the receiver's type (`self`), and the type
+// the context expects. Either may be TID_ERROR: unknown.
+typedef struct {
+    TypeId self, expected;
+} TypeHints;
+
+typedef struct {
+    Generics params;     // the parameters, for messages
+    TypeId *args;        // args[i]: the argument of parameter i, once known
+    bool *known;
+    uint32_t count;
+} Infer;
+
+Generics fn_generics(const Def *fn);
+Infer infer_new(Checker *c, Generics params);
+// The explicit arguments `list` of the type's parameters (`of_owner`) or of
+// the function's own (E0302).
+void infer_explicit(Checker *c, Infer *inf, bool of_owner, TypeList list, Span span);
+// Binds the parameters of `type` from `self`, an instance of the same type.
+void infer_from_self(Infer *inf, const Ty *self, uint32_t count);
+// Binds the parameters in `pattern` by matching it against `actual`.
+void infer_from(Checker *c, Infer *inf, TypeId pattern, TypeId actual);
+// `pattern` with the arguments substituted, or NO_TYPE if some are unknown.
+TypeId infer_hint(Checker *c, const Infer *inf, TypeId pattern);
+TypeId infer_apply(Checker *c, const Infer *inf, TypeId pattern);
+// Reports E0330 for each parameter that is still unknown.
+void infer_finish(Checker *c, Infer *inf, Span span);
+// check_args for a generic callee: binds its parameters from the expected
+// type and the arguments, then checks the arguments against the result.
+TypeId check_generic_args(Checker *c, Expr *call, const Ty *sig, Infer *inf, TypeId expected);
+
 // check_user_method.c
-bool type_name_of(Checker *c, const Expr *e, DefId *out);
+// The struct or enum named by `e`, `Point` or `Pair<int, str>`; its type
+// arguments go to `args`.
+bool type_name_of(Checker *c, const Expr *e, DefId *out, TypeList *args);
+// The type `Name<args>` names, or TID_ERROR for a generic type written
+// without arguments, whose arguments are inferred.
+TypeId named_instance(Checker *c, DefId id, TypeList args, Span span);
 void check_mut_args(Checker *c, const FnDecl *fn, Expr *call);
-TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type);
+TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type, TypeHints hints);
 
 // structs.c
-StructInfo *struct_fields(Checker *c, DefId id);   // NULL for generic structs
+StructInfo *struct_fields(Checker *c, DefId id);   // NULL while it is being computed
 TypeId check_struct_field(Checker *c, Expr *e, TypeId base);
 TypeId check_tuple_field(Checker *c, Expr *e);
-TypeId check_constructor(Checker *c, Expr *call, DefId id);
-TypeId check_struct_literal(Checker *c, Expr *e);
+TypeId check_constructor(Checker *c, Expr *call, DefId id, TypeList explicit, TypeId expected);
+TypeId check_struct_literal(Checker *c, Expr *e, TypeId expected);
 void check_not_recursive(Checker *c, TypeId type, Span span);
 void check_lang_layout(Checker *c, const Def *lang, TypeId type);   // E0806
 
 // enums.c
-EnumInfo *enum_variants(Checker *c, DefId id);   // NULL for generic enums
+EnumInfo *enum_variants(Checker *c, DefId id);   // NULL while it is being computed
 EnumInfo *enum_of(Checker *c, TypeId type, DefId *id);
 int64_t variant_index(const EnumInfo *info, Symbol name);
 TypeId check_variant_shorthand(Checker *c, Expr *e, TypeId expected);
-bool check_qualified_variant(Checker *c, Expr *e, DefId id, Symbol name, TypeId *out);
+bool check_qualified_variant(Checker *c, Expr *e, DefId id, TypeHints hints, TypeId *out);
 
 // check_match.c
 TypeId check_match(Checker *c, Expr *e, TypeId expected, bool as_value);

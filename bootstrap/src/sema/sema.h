@@ -99,8 +99,24 @@ const Attribute *find_attribute(const Sema *sema, AttributeList attributes, cons
 Def *lang_def(Sema *sema, TypeId type);
 
 // The type a method's `self` and `Self` stand for: the struct or enum, or
-// the primitive of a `@lang` declaration.
+// the primitive of a `@lang` declaration. For a generic type it is the type
+// applied to its own parameters, `Stack<T>`.
 TypeId owner_type(Sema *sema, const Item *owner);
+
+// The type parameters of a struct or enum (none for other items).
+SymbolList item_type_params(const Item *item);
+
+// How many type arguments a call of the function `def` takes: those of its
+// type, for a method, then its own (spec 8.3).
+uint32_t fn_type_param_count(const Def *def);
+
+// The type of field `i` of a struct, or of field `i` of variant `v` of an
+// enum, in the instance `adt` (`Pair<int, str>` gives `int` for `T`).
+TypeId struct_field_type(Sema *sema, TypeId adt, uint32_t i);
+TypeId variant_field_type(Sema *sema, TypeId adt, uint32_t v, uint32_t i);
+
+// The name of an ADT or a type parameter, for ty_text; `context` is the Sema.
+StrView sema_type_name(const void *context, const Ty *ty);
 
 // Makes module `index` current; returns the previous one.
 uint32_t sema_enter(Sema *sema, uint32_t index);

@@ -67,6 +67,28 @@ static void test_text(TypeTable *table) {
     CHECK(text_is(table, type_fn(table, NULL, 0, type_id(TID_NEVER)), "fn() !"));
 }
 
+// Type parameters, substitution into nested types, and nesting depth.
+static void test_generics(TypeTable *table) {
+    TypeId t = type_param(table, 0, (Symbol){7}), u = type_param(table, 1, (Symbol){8});
+    CHECK(type_eq(t, type_param(table, 0, (Symbol){7})));
+    CHECK(type_get(table, t)->has_param && !type_get(table, type_id(TID_INT))->has_param);
+    TypeId pair[] = {t, u};
+    TypeId generic = type_ref(table, type_tuple(table, pair, 2), false);   // &(T, U)
+    CHECK(type_get(table, generic)->has_param);
+    CHECK(text_is(table, generic, "&(T0, T1)"));
+    TypeId args[] = {type_id(TID_STR), type_id(TID_U8)};
+    TypeId concrete = type_subst(table, generic, args, 2);
+    CHECK(text_is(table, concrete, "&(str, u8)"));
+    CHECK(!type_get(table, concrete)->has_param);
+    CHECK(type_eq(type_subst(table, concrete, args, 2), concrete));   // nothing to replace
+    TypeId adt = type_intern(table, (Ty){.kind = TY_ADT, .data = 3, .arg_count = 1, .args = &t});
+    TypeId swapped[] = {u, t};
+    CHECK(text_is(table, type_subst(table, type_tuple(table, pair, 2), swapped, 2), "(T1, T0)"));
+    CHECK(text_is(table, type_subst(table, adt, args, 2), "adt3<str>"));
+    CHECK(type_depth(table, type_id(TID_INT)) == 1);
+    CHECK(type_depth(table, concrete) == 3);
+}
+
 int main(void) {
     Arena arena;
     arena_init(&arena);
@@ -76,6 +98,7 @@ int main(void) {
     test_interning(&table);
     test_growth(&table);
     test_text(&table);
+    test_generics(&table);
     types_free(&table);
     arena_free(&arena);
     return test_report("types");

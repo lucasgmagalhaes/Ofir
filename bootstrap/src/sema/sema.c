@@ -93,5 +93,46 @@ TypeId owner_type(Sema *sema, const Item *owner) {
     for (uint32_t m = 0; id.id == 0 && m < sema->program.len; m++) {
         id = scope_module_in(&sema->scope, m, owner->name);
     }
-    return type_intern(&sema->types, (Ty){.kind = TY_ADT, .data = id.id});
+    SymbolList params = item_type_params(owner);
+    TypeId small[8];
+    TypeId *args = params.len <= 8 ? small : ARENA_ARRAY(sema->types.arena, TypeId, params.len);
+    for (uint32_t i = 0; i < params.len; i++) {
+        args[i] = type_param(&sema->types, i, params.items[i]);
+    }
+    return type_intern(&sema->types, (Ty){.kind = TY_ADT, .data = id.id, .arg_count = params.len,
+                                          .args = args});
+}
+
+SymbolList item_type_params(const Item *item) {
+    switch (item->kind) {
+    case ITEM_STRUCT: case ITEM_TUPLE_STRUCT: return item->as.struct_.type_params;
+    case ITEM_ENUM: return item->as.enum_.type_params;
+    default: return (SymbolList){0};
+    }
+}
+
+uint32_t fn_type_param_count(const Def *def) {
+    uint32_t owner = def->item ? item_type_params(def->item).len : 0;
+    return owner + def->fn->type_params.len;
+}
+
+TypeId struct_field_type(Sema *sema, TypeId adt, uint32_t i) {
+    const Ty *ty = type_get(&sema->types, adt);
+    if (ty->kind != TY_ADT) {   // a primitive's fields, from its `@lang` declaration
+        return lang_def(sema, adt)->fields->types[i];
+    }
+    TypeId field = sema_def(sema, (DefId){ty->data})->fields->types[i];
+    return type_subst(&sema->types, field, ty->args, ty->arg_count);
+}
+
+TypeId variant_field_type(Sema *sema, TypeId adt, uint32_t v, uint32_t i) {
+    const Ty *ty = type_get(&sema->types, adt);
+    TypeId field = sema_def(sema, (DefId){ty->data})->variants->variants[v].types[i];
+    return type_subst(&sema->types, field, ty->args, ty->arg_count);
+}
+
+StrView sema_type_name(const void *context, const Ty *ty) {
+    const Sema *sema = context;
+    Symbol name = ty->kind == TY_PARAM ? (Symbol){ty->inner.id} : sema->defs.data[ty->data].name;
+    return symbol_name(&sema->session->names, name);
 }
