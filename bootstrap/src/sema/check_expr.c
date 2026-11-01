@@ -67,10 +67,17 @@ static TypeId def_value(Checker *c, Def *def, Span span) {
     }
 }
 
-static TypeId name_value(Checker *c, Res res, Span span) {
+static TypeId name_value(Checker *c, Expr *e, TypeId expected) {
+    Res res = e->as.ident.res;
     switch (res.kind) {
     case RES_LOCAL: return c->local_types[res.index];
-    case RES_DEF: return def_value(c, sema_def(c->sema, (DefId){res.index}), span);
+    case RES_DEF: {
+        Def *def = sema_def(c->sema, (DefId){res.index});
+        if (def->kind == DEF_VARIANT) {   // `None`
+            return check_prelude_variant(c, e, def, NULL, expected);
+        }
+        return def_value(c, def, e->span);
+    }
     default: return type_id(TID_ERROR);
     }
 }
@@ -129,7 +136,7 @@ static bool operand_ok(const Ty *ty, Op op) {
 static TypeId binary(Checker *c, Expr *e, TypeId expected) {
     Op op = e->as.binary.op;
     if (op == OP_COALESCE) {
-        return unsupported(c, e->span, "the `??` operator is");
+        return check_coalesce(c, e, expected);
     }
     bool compares = op >= OP_EQ && op <= OP_GE;
     TypeId hint = compares || op == OP_LOGICAL_AND || op == OP_LOGICAL_OR ? NO_TYPE : expected;
@@ -256,6 +263,10 @@ static TypeId call(Checker *c, Expr *e, TypeId expected) {
         callee->type = type_id(TID_UNIT);
         return check_constructor(c, e, (DefId){res.index}, explicit, expected);
     }
+    if (def->kind == DEF_VARIANT && explicit.len == 0) {   // `Some(x)`
+        callee->type = type_id(TID_UNIT);
+        return check_prelude_variant(c, e, def, &e->as.call.args, expected);
+    }
     if (def->kind == DEF_FN) {
         callee->type = fn_signature(c, def->fn);
         return check_fn_call(c, e, def, explicit, expected);
@@ -294,7 +305,7 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_BOOL: return type_id(TID_BOOL);
     case EXPR_STR: return type_id(TID_STR);
     case EXPR_INTERP: return interpolation(c, e);
-    case EXPR_IDENT: case EXPR_SELF: return name_value(c, e->as.ident.res, e->span);
+    case EXPR_IDENT: case EXPR_SELF: return name_value(c, e, expected);
     case EXPR_UNARY: return unary(c, e, expected);
     case EXPR_BINARY: return binary(c, e, expected);
     case EXPR_CAST: return cast(c, e);
@@ -309,7 +320,7 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_INDEX: return check_index(c, e);
     case EXPR_FIELD: return check_field(c, e, expected);
     case EXPR_TUPLE_FIELD: return check_tuple_field(c, e);
-    case EXPR_TRY: return unsupported(c, e->span, "the `?` operator is");
+    case EXPR_TRY: return check_try(c, e);
     case EXPR_STRUCT: return check_struct_literal(c, e, expected);
     case EXPR_ARRAY: return check_list_literal(c, e, expected);
     case EXPR_ARRAY_REPEAT: return check_list_repeat(c, e, expected);

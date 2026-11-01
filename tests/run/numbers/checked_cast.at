@@ -1,0 +1,9 @@
+// `x.checkedCast<T>()`: None when the value does not fit in T.
+fn main() {
+    let a = 300.checkedCast<u8>()
+    let b = 200.checkedCast<u8>()
+    let c = (-1).checkedCast<u64>()
+    println("{a.isNone()} {b.unwrap()} {c.isSome()} {(-5).checkedCast<i8>() ?? 0}")
+    let big: u64 = 18446744073709551615
+    println("{big.checkedCast<int>().isNone()} {127.checkedCast<i8>().unwrap()}")
+}

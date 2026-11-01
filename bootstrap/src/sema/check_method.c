@@ -66,8 +66,14 @@ void require_mutable(Checker *c, Expr *place) {
     }
 }
 
-static TypeId param_type(BuiltinType t, TypeId self, TypeId target) {
+static TypeId param_type(Checker *c, BuiltinType t, TypeId self, TypeId target) {
     switch (t) {
+    case BT_OPTION:
+        if (c->sema->option.id == 0 || target.id == TID_ERROR) {
+            return type_id(TID_ERROR);
+        }
+        return type_intern(c->types, (Ty){.kind = TY_ADT, .data = c->sema->option.id,
+                                          .arg_count = 1, .args = &target});
     case BT_SELF: return self;
     case BT_INT: return type_id(TID_INT);
     case BT_TARGET: return target;
@@ -110,10 +116,10 @@ static TypeId call_builtin(Checker *c, Expr *call, const BuiltinInfo *info, Type
     TypeId params[2];
     uint32_t count = 0;
     while (count < 2 && info->params[count] != BT_NONE) {
-        params[count] = param_type(info->params[count], self, target);
+        params[count] = param_type(c, info->params[count], self, target);
         count++;
     }
-    TypeId ret = info->ret == BT_NONE ? type_id(TID_UNIT) : param_type(info->ret, self, target);
+    TypeId ret = info->ret == BT_NONE ? type_id(TID_UNIT) : param_type(c, info->ret, self, target);
     Ty sig = {.kind = TY_FN, .inner = ret, .arg_count = count, .args = params};
     return check_args(c, call, &sig);
 }

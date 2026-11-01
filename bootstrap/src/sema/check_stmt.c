@@ -165,6 +165,7 @@ static TypeId expr_stmt(Checker *c, Expr *e) {
         e->type = check_block(c, e->as.block, NO_TYPE, false);
     } else {
         check_expr(c, e, NO_TYPE);
+        check_unused_result(c, e);
     }
     return e->type.id == TID_NEVER ? e->type : type_id(TID_UNIT);
 }

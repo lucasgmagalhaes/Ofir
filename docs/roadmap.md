@@ -93,7 +93,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 2.1 | All integer types, `float`, `bool`; `as` conversions with checks; `wrappingCast`/`saturatingCast`/`checkedCast` | M | **done** except `checkedCast` (needs `Option`, 2.22): `tests/run/numbers/*`, `tests/panic/cast*` pass |
+| 2.1 | All integer types, `float`, `bool`; `as` conversions with checks; `wrappingCast`/`saturatingCast`/`checkedCast` | M | **done**: `tests/run/numbers/*`, `tests/panic/cast*` pass; `checkedCast` since 2.22 |
 | 2.2 | Checked arithmetic (`llvm.*.with.overflow`), division semantics, shifts | S | **done**: `tests/panic/*overflow*`, `div_*`, `shift` pass |
 | 2.3 | Comparison, logic (short-circuit), bitwise operators | S | **done**: covered by `tests/run/basics/*` |
 | 2.4 | `if`/`else` as statement and expression | S | **done**: `tests/run/basics/control` |
@@ -109,12 +109,12 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.14 | Enums: layout, construction, `.Variant` shorthand | M | **done**: `tests/run/enums/*` |
 | 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards; Copy bindings through references | L | **done** with sequential arm tests (decision trees later, if profiles ask for them); `examples/shapes.at` runs since `List` (2.20) |
 | 2.16 | Exhaustiveness checking (usefulness algorithm) | M | **in progress**: conservative check in place (`tests/compile_fail/types/enums`); the usefulness algorithm remains |
-| 2.17 | `if let`, `let ... else`, `??` | S | **done** except `??` (needs `Option`, 2.22): `tests/run/enums/if_let` |
+| 2.17 | `if let`, `let ... else`, `??` | S | **done**: `tests/run/enums/if_let`; `??` since 2.22 (`tests/run/errors/option.at`) |
 | 2.18 | Generic functions, structs and enums **without bounds**; monomorphization and mangling | L | **done**: `tests/run/generics_basic/*`, `tests/compile_fail/types/generics*`; type arguments are inferred from the receiver, the expected type and the arguments |
 | 2.19 | `Box<T>` and recursive enums | M | **done**: `tests/run/box/expr_tree.at`; `Box` is written in `std/core/box.at` with `@lang("box")` and the `sizeOf<T>()` intrinsic; a box is freed by `unbox` until drops (3.2) |
 | 2.20 | `List<T>` (std/collections.md S0 entries): literals, bounds checks, `for` over lists with Copy loop variables, `sort` | L | **done**: `tests/run/list/*`, `tests/panic/bounds_list*`; written in `std/core/list.at` (`@lang("list")`); `pop`, `get`, `first`, `last` wait for `Option` and borrows (2.21, 2.22), `contains` and `join` for bounds; `sort` takes int, float and str |
 | 2.21 | Slices `&[T]` and `&str`, range indexing, built-in borrow-returning methods (`get`, `first`, `last`, `getMut`) | M | tests pass |
-| 2.22 | `Option<T>`, `Result<T, E>`, `?` (equal error types), `unwrap`, `expect`, unused-`Result` error | M | `tests/run/errors/*` pass |
+| 2.22 | `Option<T>`, `Result<T, E>`, `?` (equal error types), `unwrap`, `expect`, unused-`Result` error | M | **done**: `tests/run/errors/*`; written in `std/core/option.at` and `result.at` (`@lang("option")`, `@lang("result")`); `Some`, `None`, `Ok`, `Err` in scope everywhere; `List.pop`; `asRef` waits for references (2.21) |
 | 2.23 | `Map<K, V>`: insertion order, deterministic hashing of integers, `str` and tuples | L | `tests/run/map/*` pass |
 | 2.24 | Warnings: unused variables, unused imports, unreachable code; `--deny-warnings` | S | `tests/compile_fail/warn_*` pass |
 
@@ -248,7 +248,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. `Option`/`Result` and `?` (2.22) in `std`, then slices and borrowing
-   methods (2.21: `get`, `first`, `last`, `pop` return `Option`).
+1. Slices and borrowing (2.21): `&[T]`, `&str`, `get`, `first`, `last`
+   returning `Option<&T>`, then `Map<K, V>` (2.23) in `std`.
 
 See also the [risk register](risks.md).
