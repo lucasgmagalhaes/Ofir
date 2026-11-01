@@ -44,6 +44,9 @@ Place lower_place(Lowerer *l, Expr *e) {
     if (is_deref(root)) {   // `*p`: the pointer's value is the address of the place
         local = to_local(l, lower_expr(l, root->as.unary.operand));
         deref = true;
+    } else if (root->kind == EXPR_INDEX && is_list(l, root->as.index.base->type)) {
+        local = lower_list_index(l, root).local;   // `l[i].x`: from the element's address
+        deref = true;
     } else if ((root->kind == EXPR_IDENT || root->kind == EXPR_SELF) &&
                root->as.ident.res.kind == RES_LOCAL) {
         local = air_local_of((LocalId){root->as.ident.res.index});
