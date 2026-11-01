@@ -70,6 +70,90 @@ pub copy struct u16 {
         return self
     }
 
+
+    /**
+     * Adds, or `None` when the result does not fit in `u16`.
+     *
+     * @param other the value to add
+     * @returns `Some(self + other)`, or `None` on overflow
+     */
+    pub fn checkedAdd(self, other: u16) Option<u16> {
+        let sum = self.wrappingAdd(other)
+        return if sum < self { .None } else { .Some(sum) }
+    }
+
+    /**
+     * Subtracts, or `None` when the result does not fit in `u16`.
+     *
+     * @param other the value to subtract
+     * @returns `Some(self - other)`, or `None` when `other > self`
+     */
+    pub fn checkedSub(self, other: u16) Option<u16> {
+        return if other > self { .None } else { .Some(self.wrappingSub(other)) }
+    }
+
+    /**
+     * Multiplies, or `None` when the result does not fit in `u16`.
+     *
+     * @param other the value to multiply by
+     * @returns `Some(self * other)`, or `None` on overflow
+     */
+    pub fn checkedMul(self, other: u16) Option<u16> {
+        let product = self.wrappingMul(other)
+        return if self != 0 && product / self != other { .None } else { .Some(product) }
+    }
+
+    /**
+     * Divides, or `None` when the result does not fit in `u16`.
+     *
+     * @param other the divisor
+     * @returns `Some(self / other)`, or `None` when `other` is 0
+     */
+    pub fn checkedDiv(self, other: u16) Option<u16> {
+        return if other == 0 { .None } else { .Some(self / other) }
+    }
+
+
+    /**
+     * The value of a decimal number: digits, after an optional `-` or `+`.
+     *
+     * @param text the number, without spaces or `_`
+     * @returns the value, or `ParseError` when the text is not a number or
+     * the value does not fit in `u16`
+     * @example
+     * ```astra
+     * assert(u16.parse("42").unwrapOr(0) == 42)
+     * ```
+     */
+    pub fn parse(text: str) Result<u16, ParseError> {
+        let negative = text.len() > 0 && text[0] == b'-'
+        let start = if negative || (text.len() > 0 && text[0] == b'+') { 1 } else { 0 }
+        if start == text.len() || negative {
+            return .Err(ParseError{})
+        }
+        var value: u16 = 0
+        for i in start..text.len() {
+            let c = text[i]
+            if c < b'0' || c > b'9' {
+                return .Err(ParseError{})
+            }
+            let digit = (c - b'0') as u16
+            let .Some(shifted) = value.checkedMul(10) else {
+                return .Err(ParseError{})
+            }
+            let next = if negative {
+                shifted.checkedSub(digit)
+            } else {
+                shifted.checkedAdd(digit)
+            }
+            let .Some(updated) = next else {
+                return .Err(ParseError{})
+            }
+            value = updated
+        }
+        return .Ok(value)
+    }
+
     /**
      * The smaller of two values.
      *

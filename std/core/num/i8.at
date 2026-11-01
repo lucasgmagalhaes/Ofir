@@ -75,6 +75,102 @@ pub copy struct i8 {
         return if self < 0 { -self } else { self }
     }
 
+
+    /**
+     * Adds, or `None` when the result does not fit in `i8`.
+     *
+     * @param other the value to add
+     * @returns `Some(self + other)`, or `None` on overflow
+     */
+    pub fn checkedAdd(self, other: i8) Option<i8> {
+        let sum = self.wrappingAdd(other)
+        let overflow = (self >= 0) == (other >= 0) && (sum >= 0) != (self >= 0)
+        return if overflow { .None } else { .Some(sum) }
+    }
+
+    /**
+     * Subtracts, or `None` when the result does not fit in `i8`.
+     *
+     * @param other the value to subtract
+     * @returns `Some(self - other)`, or `None` on overflow
+     */
+    pub fn checkedSub(self, other: i8) Option<i8> {
+        let difference = self.wrappingSub(other)
+        let overflow = (self >= 0) != (other >= 0) && (difference >= 0) != (self >= 0)
+        return if overflow { .None } else { .Some(difference) }
+    }
+
+    /**
+     * Multiplies, or `None` when the result does not fit in `i8`.
+     *
+     * @param other the value to multiply by
+     * @returns `Some(self * other)`, or `None` on overflow
+     */
+    pub fn checkedMul(self, other: i8) Option<i8> {
+        if self == 0 || other == 0 {
+            return .Some(0)
+        }
+        if (self == -1 && other == i8.MIN) || (other == -1 && self == i8.MIN) {
+            return .None
+        }
+        let product = self.wrappingMul(other)
+        return if product / other != self { .None } else { .Some(product) }
+    }
+
+    /**
+     * Divides, or `None` when the result does not fit in `i8`.
+     *
+     * @param other the divisor
+     * @returns `Some(self / other)`, or `None` when `other` is 0 or the quotient overflows
+     */
+    pub fn checkedDiv(self, other: i8) Option<i8> {
+        if other == 0 || (self == i8.MIN && other == -1) {
+            return .None
+        }
+        return .Some(self / other)
+    }
+
+
+    /**
+     * The value of a decimal number: digits, after an optional `-` or `+`.
+     *
+     * @param text the number, without spaces or `_`
+     * @returns the value, or `ParseError` when the text is not a number or
+     * the value does not fit in `i8`
+     * @example
+     * ```astra
+     * assert(i8.parse("42").unwrapOr(0) == 42)
+     * ```
+     */
+    pub fn parse(text: str) Result<i8, ParseError> {
+        let negative = text.len() > 0 && text[0] == b'-'
+        let start = if negative || (text.len() > 0 && text[0] == b'+') { 1 } else { 0 }
+        if start == text.len() {
+            return .Err(ParseError{})
+        }
+        var value: i8 = 0
+        for i in start..text.len() {
+            let c = text[i]
+            if c < b'0' || c > b'9' {
+                return .Err(ParseError{})
+            }
+            let digit = (c - b'0') as i8
+            let .Some(shifted) = value.checkedMul(10) else {
+                return .Err(ParseError{})
+            }
+            let next = if negative {
+                shifted.checkedSub(digit)
+            } else {
+                shifted.checkedAdd(digit)
+            }
+            let .Some(updated) = next else {
+                return .Err(ParseError{})
+            }
+            value = updated
+        }
+        return .Ok(value)
+    }
+
     /**
      * The smaller of two values.
      *

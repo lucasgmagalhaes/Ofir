@@ -6,6 +6,15 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Stage 1 (roadmap phase 4): `compiler/base`, `compiler/diag` and the
+  lexer, whose tokens equal stage 0's on every source
+  (`make compare-stages`); a project root is the nearest directory with an
+  `astra.toml`.
+- `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
+  the integer types, `parse` for the float types, `ParseError`.
+
 ### Changed
 
 - A directory's module file is `index.at` (was `mod.at`).

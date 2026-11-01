@@ -15,6 +15,12 @@ extern "intrinsic" {
     fn maxnum_f32(a: f32, b: f32) f32
 }
 
+// What `parse` calls.
+extern "C" {
+    fn strtof(text: *u8, end: *mut *u8) f32
+}
+
+
 /**
  * The IEEE 754 binary32 floating-point type `f32`.
  *
@@ -97,5 +103,31 @@ pub copy struct f32 {
      */
     pub fn isNan(self) bool {
         return self != self
+    }
+    /**
+     * The value of a decimal number, correctly rounded: digits with an
+     * optional `-` or `+`, fraction and exponent (`1.5`, `-2e10`), as C's
+     * `strtof` reads them, and `inf`, `infinity` and `nan`.
+     *
+     * @param text the number, without spaces or `_`
+     * @returns the value, or `ParseError` when the text is not a number
+     * @example
+     * ```astra
+     * assert(f32.parse("1.5").unwrapOr(0.0) == 1.5)
+     * ```
+     */
+    pub fn parse(text: str) Result<f32, ParseError> {
+        if text.len() == 0 || text[0] == b' ' || (text[0] >= 9 && text[0] <= 13) {
+            return .Err(ParseError{})
+        }
+        var terminated = text.toOwned()
+        terminated.push("\0")
+        var end = terminated.asPtr()
+        let value = unsafe { strtof(terminated.asPtr(), &mut end as *mut *u8) }
+        let used = unsafe { end as u64 } - unsafe { terminated.asPtr() as u64 }
+        if used != text.len() as u64 {
+            return .Err(ParseError{})
+        }
+        return .Ok(value)
     }
 }

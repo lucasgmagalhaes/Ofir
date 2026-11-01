@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # The parts of `compiler/` that compile so far; each port adds its directory
 # (roadmap phase 4: base, diag, syntax, ...).
-DIRS = ["std", "compiler/base", "compiler/diag"]
+DIRS = ["std", "compiler/base", "compiler/diag", "compiler/syntax"]
 
 
 def modules_with_tests() -> list[Path]:

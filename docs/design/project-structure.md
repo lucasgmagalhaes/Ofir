@@ -175,6 +175,7 @@ compiler/
 │   ├── cursor.at             position in a source file
 │   ├── literals.at           numbers, strings and byte literals
 │   ├── lexer.at              main loop, comments, words, punctuation
+│   ├── token_print.at        the `--emit=tokens` format
 │   ├── ast.at
 │   ├── parser.at
 │   └── printer.at            AST pretty printer (shared with formatter)

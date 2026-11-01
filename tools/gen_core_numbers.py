@@ -68,6 +68,8 @@ pub copy struct {t} {{
         return wrapping_mul_{t}(self, other)
     }}
 {abs}
+{checked}
+{parse}
     /**
      * The smaller of two values.
      *
@@ -138,6 +140,118 @@ pub copy struct {t} {{
         return result
     }}
 }}
+"""
+
+CHECKED_DOC = """
+    /**
+     * {verb}, or `None` when the result does not fit in `{t}`.
+     *
+     * @param other the {operand}
+     * @returns `Some(self {op} other)`, or `None` {when}
+     */"""
+
+UNSIGNED_CHECKED = (
+    CHECKED_DOC.format(verb="Adds", operand="value to add", op="+", when="on overflow", t="{t}")
+    + """
+    pub fn checkedAdd(self, other: {t}) Option<{t}> {{
+        let sum = self.wrappingAdd(other)
+        return if sum < self {{ .None }} else {{ .Some(sum) }}
+    }}
+""" + CHECKED_DOC.format(verb="Subtracts", operand="value to subtract", op="-",
+                         when="when `other > self`", t="{t}") + """
+    pub fn checkedSub(self, other: {t}) Option<{t}> {{
+        return if other > self {{ .None }} else {{ .Some(self.wrappingSub(other)) }}
+    }}
+""" + CHECKED_DOC.format(verb="Multiplies", operand="value to multiply by", op="*",
+                         when="on overflow", t="{t}") + """
+    pub fn checkedMul(self, other: {t}) Option<{t}> {{
+        let product = self.wrappingMul(other)
+        return if self != 0 && product / self != other {{ .None }} else {{ .Some(product) }}
+    }}
+""" + CHECKED_DOC.format(verb="Divides", operand="divisor", op="/", when="when `other` is 0",
+                         t="{t}") + """
+    pub fn checkedDiv(self, other: {t}) Option<{t}> {{
+        return if other == 0 {{ .None }} else {{ .Some(self / other) }}
+    }}
+""")
+
+SIGNED_CHECKED = (
+    CHECKED_DOC.format(verb="Adds", operand="value to add", op="+", when="on overflow", t="{t}")
+    + """
+    pub fn checkedAdd(self, other: {t}) Option<{t}> {{
+        let sum = self.wrappingAdd(other)
+        let overflow = (self >= 0) == (other >= 0) && (sum >= 0) != (self >= 0)
+        return if overflow {{ .None }} else {{ .Some(sum) }}
+    }}
+""" + CHECKED_DOC.format(verb="Subtracts", operand="value to subtract", op="-",
+                         when="on overflow", t="{t}") + """
+    pub fn checkedSub(self, other: {t}) Option<{t}> {{
+        let difference = self.wrappingSub(other)
+        let overflow = (self >= 0) != (other >= 0) && (difference >= 0) != (self >= 0)
+        return if overflow {{ .None }} else {{ .Some(difference) }}
+    }}
+""" + CHECKED_DOC.format(verb="Multiplies", operand="value to multiply by", op="*",
+                         when="on overflow", t="{t}") + """
+    pub fn checkedMul(self, other: {t}) Option<{t}> {{
+        if self == 0 || other == 0 {{
+            return .Some(0)
+        }}
+        if (self == -1 && other == {t}.MIN) || (other == -1 && self == {t}.MIN) {{
+            return .None
+        }}
+        let product = self.wrappingMul(other)
+        return if product / other != self {{ .None }} else {{ .Some(product) }}
+    }}
+""" + CHECKED_DOC.format(verb="Divides", operand="divisor", op="/",
+                         when="when `other` is 0 or the quotient overflows", t="{t}") + """
+    pub fn checkedDiv(self, other: {t}) Option<{t}> {{
+        if other == 0 || (self == {t}.MIN && other == -1) {{
+            return .None
+        }}
+        return .Some(self / other)
+    }}
+""")
+
+INT_PARSE = """
+    /**
+     * The value of a decimal number: digits, after an optional `-`{plus}.
+     *
+     * @param text the number, without spaces or `_`
+     * @returns the value, or `ParseError` when the text is not a number or
+     * the value does not fit in `{t}`
+     * @example
+     * ```astra
+     * assert({t}.parse("42").unwrapOr(0) == 42)
+     * ```
+     */
+    pub fn parse(text: str) Result<{t}, ParseError> {{
+        let negative = text.len() > 0 && text[0] == b'-'
+        let start = if negative || (text.len() > 0 && text[0] == b'+') {{ 1 }} else {{ 0 }}
+        if start == text.len(){negative_check} {{
+            return .Err(ParseError{{}})
+        }}
+        var value: {t} = 0
+        for i in start..text.len() {{
+            let c = text[i]
+            if c < b'0' || c > b'9' {{
+                return .Err(ParseError{{}})
+            }}
+            let digit = (c - b'0') as {t}
+            let .Some(shifted) = value.checkedMul(10) else {{
+                return .Err(ParseError{{}})
+            }}
+            let next = if negative {{
+                shifted.checkedSub(digit)
+            }} else {{
+                shifted.checkedAdd(digit)
+            }}
+            let .Some(updated) = next else {{
+                return .Err(ParseError{{}})
+            }}
+            value = updated
+        }}
+        return .Ok(value)
+    }}
 """
 
 SIGNED_ABS = """
@@ -251,6 +365,32 @@ pub copy struct {t} {{
     pub fn isNan(self) bool {{
         return self != self
     }}
+    /**
+     * The value of a decimal number, correctly rounded: digits with an
+     * optional `-` or `+`, fraction and exponent (`1.5`, `-2e10`), as C's
+     * `strto{c}` reads them, and `inf`, `infinity` and `nan`.
+     *
+     * @param text the number, without spaces or `_`
+     * @returns the value, or `ParseError` when the text is not a number
+     * @example
+     * ```astra
+     * assert({t}.parse("1.5").unwrapOr(0.0) == 1.5)
+     * ```
+     */
+    pub fn parse(text: str) Result<{t}, ParseError> {{
+        if text.len() == 0 || text[0] == b' ' || (text[0] >= 9 && text[0] <= 13) {{
+            return .Err(ParseError{{}})
+        }}
+        var terminated = text.toOwned()
+        terminated.push("\\0")
+        var end = terminated.asPtr()
+        let value = unsafe {{ strto{c}(terminated.asPtr(), &mut end as *mut *u8) }}
+        let used = unsafe {{ end as u64 }} - unsafe {{ terminated.asPtr() as u64 }}
+        if used != text.len() as u64 {{
+            return .Err(ParseError{{}})
+        }}
+        return .Ok(value)
+    }}
 }}
 """
 
@@ -276,7 +416,11 @@ def int_file(t: str) -> str:
     hi = (1 << (bits - 1)) - 1 if signed else (1 << bits) - 1
     alias = {"i64": " (`int`)", "u64": " (`uint`)"}.get(t, "")
     abs_text = (SIGNED_ABS if signed else UNSIGNED_ABS).format(t=t)
-    body = INT.format(t=t, abs=abs_text, bits=bits, alias=alias, min=lo, max=hi,
+    checked = (SIGNED_CHECKED if signed else UNSIGNED_CHECKED).format(t=t)
+    parse = INT_PARSE.format(t=t, plus=" or `+`",
+                             negative_check="" if signed else " || negative")
+    body = INT.format(t=t, abs=abs_text, checked=checked, parse=parse, bits=bits, alias=alias,
+                      min=lo, max=hi,
                       desc=f"{bits}-bit {'signed' if signed else 'unsigned'}")
     ops = [("wrapping_add", 2), ("wrapping_sub", 2), ("wrapping_mul", 2)]
     return module_doc(t) + GENERATED + intrinsics(t, ops) + body
@@ -285,8 +429,11 @@ def int_file(t: str) -> str:
 def float_file(t: str) -> str:
     alias = " (`float`)" if t == "f64" else ""
     ops = [("sqrt", 1), ("fabs", 1), ("floor", 1), ("ceil", 1), ("minnum", 2), ("maxnum", 2)]
-    return module_doc(t) + GENERATED + intrinsics(t, ops) + FLOAT.format(
-        t=t, bits=t[1:], alias=alias)
+    c = "d" if t == "f64" else "f"
+    externs = (f'// What `parse` calls.\nextern "C" {{\n'
+               f'    fn strto{c}(text: *u8, end: *mut *u8) {t}\n}}\n\n')
+    return module_doc(t) + GENERATED + intrinsics(t, ops) + "\n" + externs + FLOAT.format(
+        t=t, bits=t[1:], alias=alias, c=c)
 
 
 if __name__ == "__main__":
