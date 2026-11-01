@@ -44,7 +44,7 @@ enum Shape {
 
 fn main() {
     var d = Direction.North
-    for i in 0..5 {
+    for _ in 0..5 {
         print("{d.name()} ")
         d = d.turned()
     }
