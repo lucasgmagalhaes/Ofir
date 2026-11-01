@@ -1,0 +1,9 @@
+import shapes                    // warning[W0002]: unused import `shapes`
+import util
+import util.twice as double      // warning[W0002]: unused import `double`
+import util.Pair
+
+fn main() {
+    let p = Pair{a: 1, b: 2}
+    println("{util.twice(p.a)}")
+}

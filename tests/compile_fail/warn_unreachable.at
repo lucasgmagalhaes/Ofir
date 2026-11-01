@@ -1,0 +1,25 @@
+fn early(n: int) int {
+    if n > 0 {
+        return 1
+        println("never")         // warning[W0004]: unreachable code: the statement before it never finishes
+    }
+    return 0
+}
+
+fn loop() {
+    for {
+        break
+        println("never")         // warning[W0004]: unreachable code: the statement before it never finishes
+    }
+}
+
+fn fails() int {
+    panic("stop")
+    return 1                     // warning[W0004]: unreachable code: the statement before it never finishes
+}
+
+fn main() {
+    println("{early(1)}")
+    loop()
+    let _ = fails()
+}
