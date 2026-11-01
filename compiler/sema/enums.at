@@ -8,6 +8,7 @@
 import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
+import sema.check.Loc
 import sema.check.Generics
 import sema.check.itemOf
 import sema.check.itemTypeParams
@@ -48,16 +49,26 @@ pub struct EnumInfo {
     pub hasPayload: bool
 }
 
-fn declaredVariants(p: Program, c: Checker, id: int) (&List<Variant>, bool) {
-    return match itemOf(p, c.def(id)).kind {
-        .Enum(isCopy, _, variants, _) => (&variants, isCopy)
+// Whether an enum is `copy`, and its number of variants.
+fn declaredFlags(p: Program, at: Loc) (bool, int) {
+    return match itemOf(p, at).kind {
+        .Enum(isCopy, _, variants, _) => (isCopy, variants.len())
+        _ => (false, 0)
+    }
+}
+
+// Variant `i` as written.
+fn variantDeclAt(p: Program, at: Loc, i: int) &Variant {
+    return match itemOf(p, at).kind {
+        .Enum(_, _, variants, _) => &variants[i]
         _ => {
-            panic("declaredVariants: not an enum")
+            panic("variantDeclAt: not an enum")
         }
     }
 }
 
-fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int, copy: bool) VariantInfo {
+fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int,
+               isCopyEnum: bool) VariantInfo {
     var v = VariantInfo{name: decl.name, fieldNames: [], types: [], discriminant: next}
     for f in 0..decl.fields.len() {
         let ty = resolveType(c, p, &decl.fields[f].ty)
@@ -65,7 +76,7 @@ fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int, copy: bool
         v.types.push(ty)
         checkNotRecursive(c, p, ty, decl.span)
         checkStorable(c, p, ty, decl.span, "an enum variant")
-        if copy && !isCopy(c, p, ty) && ty != ERROR {
+        if isCopyEnum && !isCopy(c, p, ty) && ty != ERROR {
             c.error("E0317", decl.span, "a `copy enum` can only have fields of Copy types, "
                     + "not `{c.typeName(ty)}`")
         }
@@ -82,17 +93,18 @@ fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int, copy: bool
 }
 
 // Explicit discriminants: only without payloads, and all distinct.
-fn checkDiscriminants(c: mut Checker, decls: &List<Variant>, info: &EnumInfo) {
+fn checkDiscriminants(c: mut Checker, p: Program, at: Loc, info: &EnumInfo) {
     for i in 0..info.variants.len() {
-        if decls[i].discriminant.isSome() && info.hasPayload {
-            c.error("E0319", decls[i].span,
+        let decl = variantDeclAt(p, at, i)
+        if decl.discriminant.isSome() && info.hasPayload {
+            c.error("E0319", decl.span,
                     "explicit discriminants are allowed only in enums without payloads"
                         .toOwned())
             return
         }
         for j in 0..i {
             if info.variants[j].discriminant == info.variants[i].discriminant {
-                c.error("E0319", decls[i].span,
+                c.error("E0319", decl.span,
                         "discriminant {info.variants[i].discriminant} is used twice")
             }
         }
@@ -114,18 +126,17 @@ pub fn enumVariants(c: mut Checker, p: Program, id: int) bool {
     if c.info[id].checking {
         return false
     }
-    let declared = declaredVariants(p, c, id)
-    let decls = declared.0
+    let declared = declaredFlags(p, c.loc(id))
     let saved = c.enter(c.def(id).module)
     let savedSelf = c.selfType
-    let outer = c.enterGenerics(Generics{owner: itemTypeParams(itemOf(p, c.def(id))),
+    let outer = c.enterGenerics(Generics{owner: itemTypeParams(itemOf(p, c.loc(id))),
                                          fnParams: []})
     c.selfType = ownerType(c, p, id)
     c.info[id].checking = true
     var info = EnumInfo{variants: [], hasPayload: false}
     var next = 0
-    for i in 0..decls.len() {
-        let v = fillVariant(c, p, &decls[i], next, declared.1)
+    for i in 0..declared.1 {
+        let v = fillVariant(c, p, variantDeclAt(p, c.loc(id), i), next, declared.0)
         next = v.discriminant + 1
         info.hasPayload = info.hasPayload || v.types.len() > 0
         info.variants.push(v)
@@ -134,8 +145,8 @@ pub fn enumVariants(c: mut Checker, p: Program, id: int) bool {
     c.enterGenerics(outer)
     c.selfType = savedSelf
     c.enter(saved)
-    checkDiscriminants(c, decls, &info)
-    c.info[id].variants = .Some(info)
+    checkDiscriminants(c, p, c.loc(id), &info)
+    c.info[id].variants = .Some(Box.new(info))
     return true
 }
 
@@ -149,7 +160,7 @@ pub fn enumVariants(c: mut Checker, p: Program, id: int) bool {
  */
 pub fn variantsOf(c: Checker, id: int) &EnumInfo {
     return match c.info[id].variants {
-        .Some(info) => &info
+        .Some(info) => &*info
         .None => {
             panic("variantsOf: not computed")
         }

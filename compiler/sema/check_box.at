@@ -63,9 +63,10 @@ fn derefStep(c: mut Checker, p: Program, ty: int) int {
     return ty
 }
 
-fn record(c: mut Checker, e: &Expr, steps: move List<int>) {
+fn record(c: mut Checker, e: &Expr, steps: move List<int>, result: int) {
     if steps.len() > 0 {
         c.derefs[c.module()].insert(e.id.0, steps)
+        c.adjusted[c.module()].insert(e.id.0, result)
     }
 }
 
@@ -90,7 +91,7 @@ pub fn autoDeref(c: mut Checker, p: Program, e: &Expr, ty: int) int {
         steps.push(current)
         current = next
     }
-    record(c, e, steps)
+    record(c, e, steps, current)
     return current
 }
 
@@ -118,7 +119,7 @@ pub fn methodReceiver(c: mut Checker, p: Program, e: &Expr, ty: int, name: Symbo
         steps.push(current)
         current = next
     }
-    record(c, e, steps)
+    record(c, e, steps, current)
     return current
 }
 
@@ -140,18 +141,12 @@ pub fn derefsOf(c: Checker, e: &Expr) List<int> {
  * The type of the value of `e` once its implicit dereferences are done.
  *
  * @param c the checker
- * @param p the program
  * @param e an expression of the current module
  * @returns its type
  */
-pub fn adjustedType(c: mut Checker, p: Program, e: &Expr) int {
-    let steps = derefsOf(c, e)
-    if steps.len() == 0 {
-        return c.typeOf(e.id.0)
+pub fn adjustedType(c: Checker, e: &Expr) int {
+    return match c.adjusted[c.module()].get(e.id.0) {
+        .Some(ty) => *ty
+        .None => c.typeOf(e.id.0)
     }
-    let last = steps[steps.len() - 1]
-    if boxInner(c, last).isSome() {
-        return boxTarget(c, p, last)
-    }
-    return c.types.get(last).inner
 }

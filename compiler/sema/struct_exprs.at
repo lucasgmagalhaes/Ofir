@@ -56,7 +56,7 @@ pub fn structDef(c: Checker, ty: int) int {
 }
 
 fn fieldIsPub(c: Checker, p: Program, id: int, index: int) bool {
-    return match itemOf(p, c.def(id)).kind {
+    return match itemOf(p, c.loc(id)).kind {
         .Struct(_, _, _, _, fields, _) => fields[index].isPub
         _ => true
     }
@@ -137,7 +137,7 @@ pub fn checkConstructor(c: mut Checker, p: Program, call: &Expr, id: int,
         return ERROR
     }
     let params = fieldsOf(c, id).types.clone()
-    let owner = itemTypeParams(itemOf(p, c.def(id)))
+    let owner = itemTypeParams(itemOf(p, c.loc(id)))
     if owner.len() == 0 && explicit.len() == 0 {
         return checkArgs(c, p, call.span, args, &params, ty)
     }
@@ -155,7 +155,7 @@ pub fn checkConstructor(c: mut Checker, p: Program, call: &Expr, id: int,
 // The field values; with `inf`, a generic struct's parameters are bound from
 // their types, which `requireFields` checks after.
 fn checkLiteralFields(c: mut Checker, p: Program, id: int, fields: &List<FieldInit>,
-                      given: mut List<bool>, inf: mut Option<Infer>) {
+                      given: mut List<bool>, inf: mut Infer, generic: bool) {
     let types = fieldsOf(c, id).types.clone()
     for i in 0..fields.len() {
         let init = &fields[i]
@@ -171,15 +171,12 @@ fn checkLiteralFields(c: mut Checker, p: Program, id: int, fields: &List<FieldIn
             c.error("E0201", span, "field `{c.text(init.name)}` is given twice")
         }
         given[index] = true
-        match inf {
-            .Some(infer) => {
-                let hint = inferHint(c, &infer, types[index])
-                let found = checkInit(c, p, init, hint)
-                inferFrom(c, infer, types[index], found)
-            }
-            .None => {
-                coerceInit(c, p, init, types[index])
-            }
+        if generic {
+            let hint = inferHint(c, &inf, types[index])
+            let found = checkInit(c, p, init, hint)
+            inferFrom(c, inf, types[index], found)
+        } else {
+            coerceInit(c, p, init, types[index])
         }
     }
 }
@@ -225,70 +222,73 @@ fn coerceInit(c: mut Checker, p: Program, init: &FieldInit, expected: int) {
  * @returns its type
  */
 pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) int {
-    let ExprKind.Struct(name, fields, base) = e.kind else {
-        return ERROR
-    }
-    let Res.Def(id) = c.res(name.id.0) else {
-        return c.unsupported(name.span, "this struct literal is")
-    }
-    let known = c.def(id).kind == .Struct && structFields(c, p, id)
-    if !known || fieldsOf(c, id).isTuple {
-        c.error("E0310", name.span, "`{c.text(c.def(id).name)}` is not a struct with named "
-                + "fields")
-        return ERROR
-    }
-    c.shorthandSpan = e.span
-    let count = fieldsOf(c, id).types.len()
-    var given = List.filled(false, count)
-    let owner = itemTypeParams(itemOf(p, c.def(id)))
-    let explicit = match name.kind {
-        .Generic(_, args) => .Some(args.clone())
-        _ => .None
-    }
-    var ty = ERROR
-    if owner.len() > 0 || explicit.isSome() {
-        var inf = inferNew(Generics{owner, fnParams: []})
-        if let .Some(args) = explicit {
-            inferExplicit(c, p, inf, true, &args, name.span)
-        }
-        let selfType = ownerType(c, p, id)
-        inferFrom(c, inf, selfType, expected)
-        var holder: Option<Infer> = .Some(inf)
-        checkLiteralFields(c, p, id, &fields, given, holder)
-        var finished = holder ?? inferNew(Generics{owner: [], fnParams: []})
-        inferFinish(c, finished, name.span)
-        let types = fieldsOf(c, id).types.clone()
-        for i in 0..fields.len() {
-            let index = fieldIndex(fieldsOf(c, id), fields[i].name)
-            if index >= 0 {
-                let wanted = inferApply(c, &finished, types[index])
-                let found = c.typeOf(fields[i].id.0)
-                if let .Some(value) = fields[i].value {
-                    requireType(c, &value, c.typeOf(value.id.0), wanted)
-                } else if found != wanted && found != ERROR && wanted != ERROR {
-                    c.error("E0300", e.span, "mismatched types: expected "
-                            + "{c.typeName(wanted)}, found {c.typeName(found)}")
+    match e.kind {
+        .Struct(name, fields, base) => {
+            let Res.Def(id) = c.res(name.id.0) else {
+                return c.unsupported(name.span, "this struct literal is")
+            }
+            let known = c.def(id).kind == .Struct && structFields(c, p, id)
+            if !known || fieldsOf(c, id).isTuple {
+                c.error("E0310", name.span, "`{c.text(c.def(id).name)}` is not a struct with named "
+                        + "fields")
+                return ERROR
+            }
+            c.shorthandSpan = e.span
+            let count = fieldsOf(c, id).types.len()
+            var given = List.filled(false, count)
+            let owner = itemTypeParams(itemOf(p, c.loc(id)))
+            var explicit: Option<List<TypeExpr>> = .None
+            if let ExprKind.Generic(_, args) = name.kind {
+                explicit = .Some(args.clone())
+            }
+            var ty = ERROR
+            if owner.len() > 0 || explicit.isSome() {
+                var inf = inferNew(Generics{owner, fnParams: []})
+                if let .Some(args) = explicit {
+                    inferExplicit(c, p, inf, true, &args, name.span)
+                }
+                let selfType = ownerType(c, p, id)
+                inferFrom(c, inf, selfType, expected)
+                checkLiteralFields(c, p, id, &fields, given, inf, true)
+                var finished = inf
+                inferFinish(c, finished, name.span)
+                let types = fieldsOf(c, id).types.clone()
+                for i in 0..fields.len() {
+                    let index = fieldIndex(fieldsOf(c, id), fields[i].name)
+                    if index >= 0 {
+                        let wanted = inferApply(c, &finished, types[index])
+                        let found = c.typeOf(fields[i].id.0)
+                        if let .Some(value) = fields[i].value {
+                            requireType(c, &value, c.typeOf(value.id.0), wanted)
+                        } else if found != wanted && found != ERROR && wanted != ERROR {
+                            c.error("E0300", e.span, "mismatched types: expected "
+                                    + "{c.typeName(wanted)}, found {c.typeName(found)}")
+                        }
+                    }
+                }
+                ty = inferApply(c, &finished, selfType)
+            } else {
+                ty = c.types.adt(id, [])
+                var none = inferNew(Generics{owner: [], fnParams: []})
+                checkLiteralFields(c, p, id, &fields, given, none, false)
+            }
+            c.setType(name.id.0, ty)
+            if let .Some(rest) = base {
+                coerce(c, p, &*rest, ty)
+                return ty
+            }
+            let defaults = fieldsOf(c, id).defaults.clone()
+            let names = fieldsOf(c, id).names.clone()
+            for i in 0..count {
+                if !given[i] && !defaults[i] {
+                    c.error("E0308", e.span, "missing field `{c.text(names[i])}` in "
+                            + "`{c.text(c.def(id).name)}`")
                 }
             }
+            return ty
         }
-        ty = inferApply(c, &finished, selfType)
-    } else {
-        ty = c.types.adt(id, [])
-        var none: Option<Infer> = .None
-        checkLiteralFields(c, p, id, &fields, given, none)
-    }
-    c.setType(name.id.0, ty)
-    if let .Some(rest) = base {
-        coerce(c, p, &*rest, ty)
-        return ty
-    }
-    let defaults = fieldsOf(c, id).defaults.clone()
-    let names = fieldsOf(c, id).names.clone()
-    for i in 0..count {
-        if !given[i] && !defaults[i] {
-            c.error("E0308", e.span, "missing field `{c.text(names[i])}` in "
-                    + "`{c.text(c.def(id).name)}`")
+        _ => {
+            return ERROR
         }
     }
-    return ty
 }

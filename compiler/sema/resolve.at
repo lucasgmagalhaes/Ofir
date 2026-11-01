@@ -485,7 +485,7 @@ fn itemKind(kind: &ItemKind) DefKind {
 
 fn collectItem(r: mut Resolver, item: &Item, index: int) {
     match item.kind {
-        .Fn(decl) => declareFn(r, &decl, index, -1, true)
+        .Fn(decl) => declareFn(r, &*decl, index, -1, true)
         .Extern(_, fns) => {
             for i in 0..fns.len() {
                 declareFn(r, &fns[i], index, i, true)
@@ -534,7 +534,7 @@ fn namedSlot(r: mut Resolver, item: &Item, index: int) {
 
 fn resolveItem(r: mut Resolver, item: &Item) {
     match item.kind {
-        .Fn(decl) => resolveFn(r, &decl)
+        .Fn(decl) => resolveFn(r, &*decl)
         .Struct(_, _, _, _, fields, methods) => {
             r.owner = .Some(item.name)
             for i in 0..methods.len() {

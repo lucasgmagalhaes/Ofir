@@ -216,6 +216,14 @@ fn defaultRows(m: &List<List<Pat>>) List<List<Pat>> {
     return out
 }
 
+fn wildcards(n: int) List<str> {
+    var out: List<str> = []
+    for _ in 0..n {
+        out.push("_".toOwned())
+    }
+    return out
+}
+
 fn tail(row: &List<Pat>, from: int) List<Pat> {
     var out: List<Pat> = []
     for i in from..row.len() {
@@ -244,7 +252,9 @@ fn ctorText(c: Checker, ty: int, ctor: int, fields: &List<str>, count: int) str 
     } else if t.kind == .Adt {
         let isEnum = c.def(t.data).kind == .Enum
         let prelude = t.data == c.r.langItems[2] || t.data == c.r.langItems[3]
-        let name = if isEnum { variantsOf(c, t.data).variants[ctor].name } else { c.def(t.data).name }
+        let name = if isEnum { variantsOf(c, t.data).variants[ctor].name } else {
+            c.def(t.data).name
+        }
         if isEnum && !prelude {
             text.push(".")
         }
@@ -318,7 +328,7 @@ fn usefulWild(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>,
         for ctor in 0..count {
             if !present[ctor] {   // a missing constructor, with wildcard fields
                 let n = arity(c, types[0], ctor)
-                first = ctorText(c, types[0], ctor, &List.filled("_".toOwned(), n), n)
+                first = ctorText(c, types[0], ctor, &wildcards(n), n)
                 break
             }
         }
@@ -331,8 +341,8 @@ fn usefulWild(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>,
 }
 
 // A witness that `q` is useful after `m`.
-fn useful(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>, types: &List<int>)
-        Option<List<str>> {
+fn useful(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>,
+          types: &List<int>) Option<List<str>> {
     if q.len() == 0 {
         return if m.len() == 0 { .Some([]) } else { .None }
     }

@@ -1,0 +1,412 @@
+/**
+ * @module
+ * Compile-time evaluation of constants (spec 3.2; stage 0:
+ * bootstrap/src/sema/const_eval.c): literals, other constants, the
+ * constants of the primitive types and the arithmetic, bitwise, comparison
+ * and logical operators, with the overflow, division and shift rules of
+ * run time, reported as errors (E0801, E0802) instead of panics.
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.check.Checker
+import sema.def.Res
+import sema.expr_check.isModuleMember
+import sema.program.Program
+import sema.types.BOOL
+import sema.types.ERROR
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.Op
+
+/**
+ * The kinds of constant values.
+ */
+pub copy enum ConstKind {
+    /** An integer: `bits` holds its two's complement pattern of the type's width. */
+    Int
+    /** A float: `f`. */
+    Float
+    /** A bool: `b`. */
+    Bool
+    /** A string: `s`. */
+    Str
+}
+
+/**
+ * The value of a constant.
+ */
+pub struct ConstValue {
+    /** Its kind. */
+    pub kind: ConstKind
+    /** Its type. */
+    pub ty: int
+    /** An integer's bits. */
+    pub bits: u64
+    /** A float. */
+    pub f: float
+    /** A bool. */
+    pub b: bool
+    /** A string. */
+    pub s: str
+
+    /**
+     * An integer's bits read as an `int`, as stage 0 does for discriminants.
+     *
+     * @returns the value
+     */
+    pub fn signed(self) int {
+        return self.bits.wrappingCast<int>()
+    }
+}
+
+struct Eval {
+    failed: bool   // an error was reported: stop
+}
+
+fn widthOf(kind: int) int {
+    let widths = [8, 16, 32, 64, 8, 16, 32, 64]
+    return widths[kind]
+}
+
+fn mask(width: int) u64 {
+    return if width == 64 { 18446744073709551615 } else { (1 as u64 << width as u64) - 1 }
+}
+
+// A signed value from the bit pattern of its width.
+fn asSigned(bits: u64, width: int) int {
+    if width < 64 && (bits >> (width - 1) as u64) & 1 == 1 {
+        return (bits | (18446744073709551615 ^ mask(width))).wrappingCast<int>()
+    }
+    return bits.wrappingCast<int>()
+}
+
+fn intValue(ty: int, bits: u64, width: int) ConstValue {
+    return ConstValue{kind: .Int, ty, bits: bits & mask(width), f: 0.0, b: false, s: ""}
+}
+
+fn floatValue(ty: int, f: float) ConstValue {
+    return ConstValue{kind: .Float, ty, bits: 0, f, b: false, s: ""}
+}
+
+fn boolValue(b: bool) ConstValue {
+    return ConstValue{kind: .Bool, ty: BOOL, bits: 0, f: 0.0, b, s: ""}
+}
+
+fn fail(c: mut Checker, ev: mut Eval, code: str, span: Span, message: str) Option<ConstValue> {
+    if !ev.failed {
+        c.error(code, span, message.toOwned())
+    }
+    ev.failed = true
+    return .None
+}
+
+// Whether a signed result fits a type of `width` bits.
+fn fitsSigned(s: int, width: int) bool {
+    if width == 64 {
+        return true
+    }
+    let half = 1 << (width - 1)
+    return s >= -half && s <= half - 1
+}
+
+fn intArith(c: mut Checker, ev: mut Eval, op: Op, span: Span, a: &ConstValue,
+            b: &ConstValue) Option<ConstValue> {
+    let kind = c.types.get(a.ty).data
+    let width = widthOf(kind)
+    if (op == .Div || op == .Rem) && b.bits == 0 {
+        return fail(c, ev, "E0802", span, "division by zero in a constant")
+    }
+    if kind <= 3 {
+        let x = asSigned(a.bits, width)
+        let y = asSigned(b.bits, width)
+        let min = -9223372036854775807 - 1
+        let result: Option<int> = match op {
+            .Add => x.checkedAdd(y)
+            .Sub => x.checkedSub(y)
+            .Mul => x.checkedMul(y)
+            .Div => if x == min && y == -1 { .None } else { .Some(x / y) }
+            _ => if x == min && y == -1 { .None } else { .Some(x % y) }
+        }
+        let Some(s) = result else {
+            return fail(c, ev, "E0802", span, "integer overflow in a constant")
+        }
+        if !fitsSigned(s, width) {
+            return fail(c, ev, "E0802", span, "integer overflow in a constant")
+        }
+        return .Some(intValue(a.ty, s.wrappingCast<u64>(), width))
+    }
+    let result: Option<u64> = match op {
+        .Add => a.bits.checkedAdd(b.bits)
+        .Sub => a.bits.checkedSub(b.bits)
+        .Mul => a.bits.checkedMul(b.bits)
+        .Div => .Some(a.bits / b.bits)
+        _ => .Some(a.bits % b.bits)
+    }
+    let Some(u) = result else {
+        return fail(c, ev, "E0802", span, "integer overflow in a constant")
+    }
+    if width < 64 && u > mask(width) {
+        return fail(c, ev, "E0802", span, "integer overflow in a constant")
+    }
+    return .Some(intValue(a.ty, u, width))
+}
+
+fn intBits(c: mut Checker, ev: mut Eval, op: Op, span: Span, a: &ConstValue,
+           b: &ConstValue) Option<ConstValue> {
+    let kind = c.types.get(a.ty).data
+    let width = widthOf(kind)
+    if (op == .Shl || op == .Shr) && b.bits >= width as u64 {   // also a negative amount
+        return fail(c, ev, "E0802", span, "shift amount out of range in a constant")
+    }
+    let r: u64 = match op {
+        .And => a.bits & b.bits
+        .Or => a.bits | b.bits
+        .Xor => a.bits ^ b.bits
+        .Shl => (a.bits & (mask(64 - b.bits as int))) << b.bits
+        _ => if kind <= 3 {
+            (asSigned(a.bits, width) >> b.bits as int).wrappingCast<u64>()
+        } else {
+            a.bits >> b.bits
+        }
+    }
+    return .Some(intValue(a.ty, r, width))
+}
+
+fn order(greater: bool, less: bool) int {
+    if greater {
+        return 1
+    }
+    return if less { -1 } else { 0 }
+}
+
+// <0, 0 or >0.
+fn compare(c: Checker, a: &ConstValue, b: &ConstValue) int {
+    return match a.kind {
+        .Int => {
+            let kind = c.types.get(a.ty).data
+            if kind <= 3 {
+                order(asSigned(a.bits, widthOf(kind)) > asSigned(b.bits, widthOf(kind)),
+                      asSigned(a.bits, widthOf(kind)) < asSigned(b.bits, widthOf(kind)))
+            } else {
+                order(a.bits > b.bits, a.bits < b.bits)
+            }
+        }
+        .Float => order(a.f > b.f, a.f < b.f)
+        .Bool => order(a.b && !b.b, !a.b && b.b)
+        .Str => order(a.s > b.s, a.s < b.s)
+    }
+}
+
+fn isNan(f: float) bool {
+    return f != f
+}
+
+fn comparison(c: Checker, op: Op, a: &ConstValue, b: &ConstValue) ConstValue {
+    let unordered = a.kind == .Float && (isNan(a.f) || isNan(b.f))
+    let order = compare(c, a, b)
+    let r = match op {
+        .Eq => !unordered && order == 0
+        .Ne => unordered || order != 0
+        .Lt => !unordered && order < 0
+        .Le => !unordered && order <= 0
+        .Gt => !unordered && order > 0
+        _ => !unordered && order >= 0
+    }
+    return boolValue(r)
+}
+
+fn floatArith(op: Op, a: &ConstValue, b: &ConstValue) ConstValue {
+    let r = match op {
+        .Add => a.f + b.f
+        .Sub => a.f - b.f
+        .Mul => a.f * b.f
+        .Div => a.f / b.f
+        _ => a.f % b.f
+    }
+    return floatValue(a.ty, r)
+}
+
+fn binary(c: mut Checker, p: Program, ev: mut Eval, e: &Expr, op: Op, lhs: &Expr,
+          rhs: &Expr) Option<ConstValue> {
+    let Some(a) = eval(c, p, ev, lhs) else {
+        return .None
+    }
+    if op == .LogicalAnd || op == .LogicalOr {   // short-circuit, as at run time
+        if a.b == (op == .LogicalOr) {
+            return .Some(a)
+        }
+        return eval(c, p, ev, rhs)
+    }
+    let Some(b) = eval(c, p, ev, rhs) else {
+        return .None
+    }
+    if op == .Eq || op == .Ne || op == .Lt || op == .Le || op == .Gt || op == .Ge {
+        return .Some(comparison(c, op, &a, &b))
+    }
+    if a.kind == .Str {
+        return .Some(ConstValue{kind: .Str, ty: a.ty, bits: 0, f: 0.0, b: false,
+                                s: "{a.s}{b.s}"})
+    }
+    if a.kind == .Float {
+        return .Some(floatArith(op, &a, &b))
+    }
+    if op == .Add || op == .Sub || op == .Mul || op == .Div || op == .Rem {
+        return intArith(c, ev, op, e.span, &a, &b)
+    }
+    return intBits(c, ev, op, e.span, &a, &b)
+}
+
+fn unary(c: mut Checker, p: Program, ev: mut Eval, e: &Expr, op: Op,
+         operand: &Expr) Option<ConstValue> {
+    let Some(a) = eval(c, p, ev, operand) else {
+        return .None
+    }
+    if a.kind == .Bool {
+        return .Some(ConstValue{kind: .Bool, ty: a.ty, bits: 0, f: 0.0, b: !a.b, s: ""})
+    }
+    if a.kind == .Float {
+        return .Some(floatValue(a.ty, -a.f))
+    }
+    let width = widthOf(c.types.get(a.ty).data)
+    if op == .Not {
+        return .Some(intValue(a.ty, a.bits ^ 18446744073709551615, width))
+    }
+    let zero = intValue(a.ty, 0, 64)
+    return intArith(c, ev, .Sub, e.span, &zero, &a)
+}
+
+fn cast(c: mut Checker, p: Program, ev: mut Eval, e: &Expr, value: &Expr) Option<ConstValue> {
+    let Some(a) = eval(c, p, ev, value) else {
+        return .None
+    }
+    let to = c.typeOf(e.id.0)
+    let target = c.types.get(to)
+    if target.kind == .Float {
+        var f = a.f
+        if a.kind != .Float {
+            let from = c.types.get(a.ty).data
+            f = if from <= 3 { asSigned(a.bits, widthOf(from)) as float } else { a.bits as float }
+        }
+        if target.data == 32 {
+            f = (f as f32) as float
+        }
+        return .Some(floatValue(to, f))
+    }
+    if a.kind == .Float {
+        return fail(c, ev, "E0801", e.span,
+                    "float to integer conversions are not allowed in constants")
+    }
+    let from = c.types.get(a.ty).data
+    let fromSigned = from <= 3
+    let signed = if fromSigned { asSigned(a.bits, widthOf(from)) } else { 0 }
+    let negative = fromSigned && signed < 0
+    let magnitude = if fromSigned { signed.wrappingCast<u64>() } else { a.bits }
+    let width = widthOf(target.data)
+    var ok = false
+    if target.data <= 3 {
+        let half = if width == 64 { 9223372036854775807 } else { (1 << (width - 1)) - 1 }
+        ok = if negative { width == 64 || signed >= -half - 1 } else {
+            magnitude <= half.wrappingCast<u64>()
+        }
+    } else {
+        ok = !negative && (width == 64 || magnitude <= mask(width))
+    }
+    if !ok {
+        return fail(c, ev, "E0802", e.span, "value out of range for the target type of `as`")
+    }
+    return .Some(intValue(to, magnitude, width))
+}
+
+fn literal(c: Checker, e: &Expr) ConstValue {
+    let ty = c.typeOf(e.id.0)
+    let t = c.types.get(ty)
+    return match e.kind {
+        .Int(value) => if t.kind == .Float { floatValue(ty, value as float) } else {
+            intValue(ty, value, widthOf(t.data))
+        }
+        .Float(value) => floatValue(ty, value)
+        .Byte(value) => intValue(ty, value as u64, 8)
+        .Bool(value) => ConstValue{kind: .Bool, ty, bits: 0, f: 0.0, b: value, s: ""}
+        .Str(value) => ConstValue{kind: .Str, ty, bits: 0, f: 0.0, b: false, s: value.clone()}
+        _ => boolValue(false)
+    }
+}
+
+// `i32.MAX`, `float.NAN`, ...
+fn primitiveConst(c: Checker, e: &Expr, name: Symbol) ConstValue {
+    let ty = c.typeOf(e.id.0)
+    let t = c.types.get(ty)
+    let text = c.text(name)
+    if t.kind == .Int {
+        let width = widthOf(t.data)
+        let isSigned = t.data <= 3
+        let max = mask(width)
+        var v: u64 = 0
+        if text == "MAX" {
+            v = if isSigned { max >> 1 } else { max }
+        } else if isSigned {
+            v = 1 as u64 << (width - 1) as u64
+        }
+        return intValue(ty, v, width)
+    }
+    let zero = 0.0
+    var f = if t.data == 32 { 1.1920928955078125e-07 } else { 2.220446049250313e-16 }
+    if text == "NAN" {
+        f = zero / zero
+    } else if text == "INFINITY" {
+        f = 1.0 / zero
+    }
+    return floatValue(ty, f)
+}
+
+fn eval(c: mut Checker, p: Program, ev: mut Eval, e: &Expr) Option<ConstValue> {
+    if c.typeOf(e.id.0) == ERROR {
+        ev.failed = true   // already reported by the checker
+        return .None
+    }
+    if isModuleMember(c, e) {
+        return constant(c, ev, e)
+    }
+    return match e.kind {
+        .Int(_) | .Float(_) | .Byte(_) | .Bool(_) | .Str(_) => .Some(literal(c, e))
+        .Ident(_) => constant(c, ev, e)
+        .Field(_, name, _) => .Some(primitiveConst(c, e, name))
+        .Unary(op, operand) => unary(c, p, ev, e, op, &*operand)
+        .Binary(op, lhs, rhs) => binary(c, p, ev, e, op, &*lhs, &*rhs)
+        .Cast(value, _) => cast(c, p, ev, e, &*value)
+        _ => fail(c, ev, "E0801", e.span,
+                  "a constant may only use literals, constants and operators")
+    }
+}
+
+// The value of a named constant.
+fn constant(c: mut Checker, ev: mut Eval, e: &Expr) Option<ConstValue> {
+    let id = match c.res(e.id.0) {
+        .Def(id) => id
+        _ => 0
+    }
+    var found: Option<ConstValue> = .None
+    if id != 0 && c.def(id).kind == .Const {
+        found = c.info[id].value.clone()
+    }
+    let Some(value) = found else {
+        return fail(c, ev, "E0801", e.span, "only constants can be used in a constant")
+    }
+    var out = value
+    out.ty = c.typeOf(e.id.0)
+    return .Some(out)
+}
+
+/**
+ * The value of a constant's initializer.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the initializer, already checked
+ * @returns its value, or `None` after an error
+ */
+pub fn constEval(c: mut Checker, p: Program, e: &Expr) Option<ConstValue> {
+    var ev = Eval{failed: false}
+    return eval(c, p, ev, e)
+}

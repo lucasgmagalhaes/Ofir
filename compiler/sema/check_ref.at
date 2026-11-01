@@ -17,10 +17,12 @@ import sema.program.Program
 import sema.structs.isCopy
 import sema.types.ERROR
 import sema.types.STR
+import syntax.ast.Block
 import syntax.ast.Expr
 import syntax.ast.ExprKind
 import syntax.ast.Mode
 import syntax.ast.Op
+import syntax.ast.StmtKind
 
 /**
  * `&x` or `&mut x`. Stage 0 treats `&str` as `str`: a view whose
@@ -81,7 +83,7 @@ fn isRefStruct(c: Checker, p: Program, id: int) bool {
     if c.def(id).item < 0 {
         return false
     }
-    return match itemOf(p, c.def(id)).kind {
+    return match itemOf(p, c.loc(id)).kind {
         .Struct(_, isRef, isTuple, _, _, _) => isRef && !isTuple
         _ => false
     }
@@ -145,7 +147,7 @@ pub fn checkBorrowSource(c: mut Checker, p: Program, id: int, sig: int, selfType
     if !holdsRef(c, p, ret) {
         return
     }
-    let decl = fnOf(p, c.def(id))
+    let decl = fnOf(p, c.loc(id))
     c.info[id].returnsBorrow = true
     if decl.hasSelf && decl.selfMode != .Move {
         c.info[id].borrowSource = -1
@@ -189,42 +191,115 @@ pub fn checkReturnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
     if !c.info[fnDef].returnsBorrow {
         return
     }
+    if returnedBranches(c, p, fnDef, value) {
+        return
+    }
     var target = value
     if let ExprKind.Call(_, args) = value.kind {
         if args.len() == 1 {
             target = &args[0].value   // `Some(&x)`, `Ok(&x)`
         }
     }
-    let ExprKind.Unary(op, operand) = target.kind else {
-        return
-    }
-    if op != .Ref && op != .RefMut {
-        return
-    }
-    let Some(root) = placeRoot(c, &*operand) else {
-        return
-    }
-    if root.1 > 0 {
-        return   // through an implicit dereference: not a local
-    }
-    let local = match root.0.kind {
-        .Ident(_) | .SelfValue => match c.res(root.0.id.0) {
-            .Local(id) => id
-            _ => -1
+    match target.kind {
+        .Unary(op, operand) => {
+            if op != .Ref && op != .RefMut {
+                return
+            }
+            let Some(root) = placeRoot(c, &*operand) else {
+                return
+            }
+            if root.1 > 0 {
+                return   // through an implicit dereference: not a local
+            }
+            let local = match root.0.kind {
+                .Ident(_) | .SelfValue => match c.res(root.0.id.0) {
+                    .Local(id) => id
+                    _ => -1
+                }
+                _ => -1
+            }
+            if local < 0 || isSource(c, p, fnDef, local) || holdsRef(c, p, c.localTypes[local]) {
+                return
+            }
+            let name = c.text(c.locals[local].name).toOwned()
+            c.error("E0702", target.span, "cannot return a reference to `{name}`, which ends "
+                    + "with the function")
         }
-        _ => -1
+        _ => {
+            return
+        }
     }
-    if local < 0 || isSource(c, p, fnDef, local) || holdsRef(c, p, c.localTypes[local]) {
+}
+
+// The values a `match`, an `if` or a block gives: `return match x { .A(v) =>
+// &v }` returns a reference to the binding `v`, a copy that ends with the
+// function.
+fn returnedBranches(c: mut Checker, p: Program, fnDef: int, value: &Expr) bool {
+    match value.kind {
+        .Match(_, arms) => {
+            for i in 0..arms.len() {
+                returnedRef(c, p, fnDef, &arms[i].body)
+            }
+            return true
+        }
+        .If(_, _, then, otherwise) => {
+            returnedTail(c, p, fnDef, &then)
+            if let .Some(other) = otherwise {
+                returnedRef(c, p, fnDef, &*other)
+            }
+            return true
+        }
+        .Block(block) | .Unsafe(block) => {
+            returnedTail(c, p, fnDef, &block)
+            return true
+        }
+        _ => {
+            return false
+        }
+    }
+}
+
+fn returnedTail(c: mut Checker, p: Program, fnDef: int, block: &Block) {
+    let count = block.stmts.len()
+    if count > 0 {
+        if let StmtKind.ExprStmt(tail) = block.stmts[count - 1].kind {
+            returnedRef(c, p, fnDef, &tail)
+        }
+    }
+}
+
+// `&v` for a binding `v` of a branch (only the binding itself: `&v[i]` may
+// reach the elements of the matched value, which outlive the function).
+fn returnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
+    if returnedBranches(c, p, fnDef, value) {
         return
     }
-    let name = c.text(c.locals[local].name).toOwned()
-    c.error("E0702", target.span, "cannot return a reference to `{name}`, which ends with the "
-            + "function")
+    match value.kind {
+        .Unary(op, operand) => {
+            if op != .Ref && op != .RefMut {
+                return
+            }
+            let local = match operand.kind {
+                .Ident(_) | .SelfValue => match c.res(operand.id.0) {
+                    .Local(id) => id
+                    _ => -1
+                }
+                _ => -1
+            }
+            if local < 0 || isSource(c, p, fnDef, local) || holdsRef(c, p, c.localTypes[local]) {
+                return
+            }
+            let name = c.text(c.locals[local].name).toOwned()
+            c.error("E0702", value.span, "cannot return a reference to `{name}`, which ends "
+                    + "with the function")
+        }
+        _ => {}
+    }
 }
 
 // Whether `local` is the parameter the function borrows from.
 fn isSource(c: Checker, p: Program, fnDef: int, local: int) bool {
-    let decl = fnOf(p, c.def(fnDef))
+    let decl = fnOf(p, c.loc(fnDef))
     let source = c.info[fnDef].borrowSource
     if source < 0 {
         return decl.hasSelf && local == 0

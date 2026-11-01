@@ -1,0 +1,665 @@
+/**
+ * @module
+ * Method calls, fields and indexing (stage 0: bootstrap/src/sema/
+ * check_method.c, check_user_method.c, builtins.c and check_clone.c):
+ * methods declared in a type's body (spec 3.6), the `@lang` methods of the
+ * primitive types in std, the few built-in ones (`wrappingCast<T>()`,
+ * `p.add(n)`), the derived `.clone()`, and the arguments of `mut`
+ * parameters.
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.check.Checker
+import sema.check.Loc
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check.itemTypeParams
+import sema.check_box.autoDeref
+import sema.check_box.methodReceiver
+import sema.check_generic.checkGenericArgs
+import sema.check_generic.fnGenerics
+import sema.check_generic.inferExplicit
+import sema.check_generic.inferFromSelf
+import sema.check_generic.inferNew
+import sema.check_list.checkListSort
+import sema.check_list.checkRangeIndex
+import sema.check_list.sequenceElem
+import sema.check_place.requireMutable
+import sema.check_types.adtInstance
+import sema.check_types.fnSignature
+import sema.check_types.resolveType
+import sema.check_unsafe.requireUnsafe
+import sema.def.Res
+import sema.expr_check.checkArgs
+import sema.expr_check.checkArgsOf
+import sema.expr_check.checkExpr
+import sema.expr_check.coerce
+import sema.expr_check.nameRes
+import sema.program.Program
+import sema.struct_exprs.checkStructField
+import sema.structs.isCopy
+import sema.structs.structFieldType
+import sema.structs.variantFieldType
+import sema.types.ERROR
+import sema.types.I64
+import sema.types.STR
+import sema.types.U8
+import sema.types.UNIT
+import sema.variant_exprs.checkQualifiedVariant
+import syntax.ast.Arg
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.FnDecl
+import syntax.ast.Mode
+import syntax.ast.TypeExpr
+
+/** The `members` entry of a `.clone()` derived by the compiler. */
+pub const DERIVED_CLONE: int = -2
+/** The `members` entry of a built-in method: -10 minus its number. */
+pub const BUILTIN_BASE: int = -10
+
+// ---------------------------------------------------------------------------
+// User methods
+
+/**
+ * The number of methods of a struct, enum or `@lang` declaration.
+ *
+ * @param p the program
+ * @param owner where the type is
+ * @returns the count
+ */
+pub fn methodCount(p: Program, owner: Loc) int {
+    return match itemOf(p, owner).kind {
+        .Struct(_, _, _, _, _, methods) => methods.len()
+        .Enum(_, _, _, methods) => methods.len()
+        _ => 0
+    }
+}
+
+/**
+ * A method of a struct, enum or `@lang` declaration.
+ *
+ * @param p the program
+ * @param owner where the type is
+ * @param i the method's position
+ * @returns the method
+ */
+pub fn methodAt(p: Program, owner: Loc, i: int) &FnDecl {
+    return match itemOf(p, owner).kind {
+        .Struct(_, _, _, _, _, methods) => &methods[i]
+        .Enum(_, _, _, methods) => &methods[i]
+        _ => {
+            panic("methodAt: not a type")
+        }
+    }
+}
+
+// The position of method `name` of `owner`, or -1.
+fn findMethod(c: Checker, p: Program, owner: int, name: Symbol) int {
+    if owner == 0 || c.def(owner).item < 0 {
+        return -1
+    }
+    let isType = match itemOf(p, c.loc(owner)).kind {
+        .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
+        _ => false
+    }
+    if !isType {
+        return -1
+    }
+    for i in 0..methodCount(p, c.loc(owner)) {
+        if methodAt(p, c.loc(owner), i).name.0 == name.0 {
+            return i
+        }
+    }
+    return -1
+}
+
+/**
+ * Whether a type declares a method.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param owner the type's `DefId`
+ * @param name the method
+ * @returns true if it does
+ */
+pub fn hasMethod(c: Checker, p: Program, owner: int, name: Symbol) bool {
+    return findMethod(c, p, owner, name) >= 0
+}
+
+// The `DefId` of method `index` of `owner`.
+fn methodDef(c: Checker, p: Program, owner: int, index: int) int {
+    let decl = methodAt(p, c.loc(owner), index)
+    return c.r.tables[c.def(owner).module].fnDefs[decl.id.0]
+}
+
+/**
+ * Reports E0202 when a field or method of another module is not `pub`.
+ *
+ * @param c the checker
+ * @param module the module declaring it
+ * @param isPub whether it is `pub`
+ * @param name its name
+ * @param span where it is used
+ */
+pub fn checkVisible(c: mut Checker, module: int, isPub: bool, name: Symbol, span: Span) {
+    if module != c.module() && !isPub {
+        c.error("E0202", span, "`{c.text(name)}` is private to module "
+                + "`{c.r.moduleNames[module]}`")
+    }
+}
+
+// The struct or enum named by `e`, as in `Point.new()` or `Stack<int>.new()`.
+fn typeNameOf(c: Checker, e: &Expr) int {
+    let Res.Def(id) = nameRes(c, e) else {
+        return 0
+    }
+    let kind = c.def(id).kind
+    return if kind == .Struct || kind == .Enum { id } else { 0 }
+}
+
+fn typeArgsOf(e: &Expr) List<TypeExpr> {
+    return match e.kind {
+        .Generic(_, args) => args.clone()
+        _ => []
+    }
+}
+
+fn namedInstance(c: mut Checker, p: Program, id: int, list: &List<TypeExpr>, span: Span) int {
+    if list.len() == 0 && itemTypeParams(itemOf(p, c.loc(id))).len() > 0 {
+        return ERROR
+    }
+    var args: List<int> = []
+    for i in 0..list.len() {
+        args.push(resolveType(c, p, &list[i]))
+    }
+    return adtInstance(c, p, id, args, span)
+}
+
+/**
+ * An argument for a `mut` parameter must be a place that may be modified;
+ * the caller passes it by reference (spec 5.3).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the callee's `DefId`
+ * @param callee the callee expression
+ * @param args the arguments
+ */
+pub fn checkMutArgs(c: mut Checker, p: Program, id: int, callee: &Expr, args: &List<Arg>) {
+    let decl = fnOf(p, c.loc(id))
+    for i in 0..decl.params.len() {
+        if i < args.len() && decl.params[i].mode == .Mut {
+            requireMutable(c, p, &args[i].value)
+        }
+    }
+}
+
+fn skipArgs(c: mut Checker, p: Program, args: &List<Arg>) int {
+    for i in 0..args.len() {
+        checkExpr(c, p, &args[i].value, ERROR)
+    }
+    return ERROR
+}
+
+fn methodArgs(c: mut Checker, p: Program, call: &Expr, field: &Expr, explicit: &List<TypeExpr>,
+              args: &List<Arg>, id: int, selfType: int, expected: int) int {
+    let sig = fnSignature(c, p, id)
+    let generics = fnGenerics(c, p, id)
+    if generics.owner.len() + generics.fnParams.len() == 0 {
+        if explicit.len() > 0 {
+            c.error("E0302", field.span, "`{c.text(c.def(id).name)}` takes no type arguments")
+        }
+        return checkArgsOf(c, p, call.span, args, sig)
+    }
+    let ownerCount = generics.owner.len()
+    var inf = inferNew(generics)
+    inferFromSelf(c, inf, selfType, ownerCount)
+    if explicit.len() > 0 {
+        inferExplicit(c, p, inf, false, explicit, field.span)
+    }
+    let params = c.types.get(sig).args.clone()
+    let ret = c.types.get(sig).inner
+    return checkGenericArgs(c, p, call.id.0, call.span, args, &params, ret, inf, expected)
+}
+
+/**
+ * `value.m(args)` (`viaType` false) or `Type.f(args)` (`viaType` true).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param call the call
+ * @param field its callee, `base.name`
+ * @param base the receiver or the type name
+ * @param name the method
+ * @param explicit the written type arguments
+ * @param args the arguments
+ * @param owner the type's `DefId`
+ * @param viaType whether it is called on the type
+ * @param selfType the receiver's type, or the type named
+ * @param expected the type the context expects
+ * @returns the result type
+ */
+pub fn checkUserMethod(c: mut Checker, p: Program, call: &Expr, field: &Expr, base: &Expr,
+                       name: Symbol, explicit: &List<TypeExpr>, args: &List<Arg>, owner: int,
+                       viaType: bool, selfType: int, expected: int) int {
+    let index = findMethod(c, p, owner, name)
+    let isClone = c.text(name) == "clone"
+    if index < 0 && !viaType && isClone {
+        return checkDerivedClone(c, p, call, field, explicit, args, selfType)
+    }
+    if index < 0 {
+        let ty = c.types.adt(owner, [])
+        c.error("E0301", field.span, "no method `{c.text(name)}` on type `{c.typeName(ty)}`")
+        return skipArgs(c, p, args)
+    }
+    let decl = methodAt(p, c.loc(owner), index)
+    if viaType && decl.hasSelf {
+        c.error("E0301", field.span, "`{c.text(name)}` is a method: call it on a value, "
+                + "`value.m()`")
+        return skipArgs(c, p, args)
+    }
+    if !viaType && !decl.hasSelf {
+        c.error("E0301", field.span, "`{c.text(name)}` is an associated function: call it on "
+                + "the type, `Type.f()`")
+        return skipArgs(c, p, args)
+    }
+    if decl.hasSelf && decl.selfMode == .Mut {
+        requireMutable(c, p, base)
+    }
+    checkVisible(c, c.def(owner).module, decl.isPub, name, field.span)
+    let id = methodDef(c, p, owner, index)
+    c.setMember(field.id.0, id)
+    let ret = methodArgs(c, p, call, field, explicit, args, id, selfType, expected)
+    if owner == c.r.langItems[1] && c.text(name) == "sort" {
+        checkListSort(c, call)
+    }
+    checkMutArgs(c, p, id, field, args)
+    if !viaType && isClone {
+        checkStdClone(c, p, field, owner, decl.hasSelf, selfType)
+    }
+    return ret
+}
+
+// ---------------------------------------------------------------------------
+// Built-in methods of the primitive types
+
+// (name, receiver: 0 int / 1 pointer, number, takes an integer type argument)
+fn builtinIndex(c: Checker, ty: int, name: Symbol) int {
+    let kind = c.types.kind(ty)
+    let text = c.text(name)
+    if kind == .Int {
+        if text == "wrappingCast" {
+            return 0
+        }
+        if text == "saturatingCast" {
+            return 1
+        }
+        if text == "checkedCast" {
+            return 2
+        }
+    }
+    if kind == .Ptr && text == "add" {
+        return 3
+    }
+    return -1
+}
+
+// The integer type argument of `x.wrappingCast<T>()`.
+fn typeArgument(c: mut Checker, p: Program, field: &Expr, explicit: &List<TypeExpr>,
+                wanted: bool) int {
+    let count = if wanted { 1 } else { 0 }
+    if explicit.len() != count {
+        c.error("E0302", field.span, "wrong number of type arguments: expected {count}, "
+                + "found {explicit.len()}")
+        return ERROR
+    }
+    if !wanted {
+        return ERROR
+    }
+    let target = resolveType(c, p, &explicit[0])
+    if !c.types.isInteger(target) && target != ERROR {
+        c.error("E0300", explicit[0].span, "mismatched types: expected an integer type, "
+                + "found {c.typeName(target)}")
+        return ERROR
+    }
+    return target
+}
+
+fn callBuiltin(c: mut Checker, p: Program, call: &Expr, field: &Expr, explicit: &List<TypeExpr>,
+               args: &List<Arg>, which: int, selfType: int) int {
+    c.setMember(field.id.0, BUILTIN_BASE - which)
+    if which == 3 {   // pointer arithmetic (spec 11.2)
+        requireUnsafe(c, call.span, "offsetting a raw pointer")
+    }
+    let target = typeArgument(c, p, field, explicit, which < 3)
+    if which == 3 {
+        return checkArgs(c, p, call.span, args, &[I64], selfType)
+    }
+    var ret = target
+    if which == 2 {
+        let option = c.r.langItems[2]
+        ret = if option == 0 || target == ERROR { ERROR } else { c.types.adt(option, [target]) }
+    }
+    return checkArgs(c, p, call.span, args, &[], ret)
+}
+
+// Whether std declares the method `name` for the primitive `ty`.
+fn hasLangMethod(c: Checker, p: Program, ty: int, name: Symbol) bool {
+    let lang = if ty < c.r.lang.len() { c.r.lang[ty] } else { 0 }
+    return lang != 0 && hasMethod(c, p, lang, name)
+}
+
+fn noMethod(c: mut Checker, p: Program, field: &Expr, name: Symbol, args: &List<Arg>,
+            selfType: int) int {
+    if selfType != ERROR {
+        c.error("E0301", field.span, "no method `{c.text(name)}` on type `{c.typeName(selfType)}`")
+    }
+    return skipArgs(c, p, args)
+}
+
+// The primitive type named by `e`, as in `str.new()` or `i32.MAX`.
+fn primitiveName(c: Checker, e: &Expr) int {
+    let isIdent = match e.kind {
+        .Ident(_) => true
+        _ => false
+    }
+    if !isIdent {
+        return -1
+    }
+    let Res.Def(id) = c.res(e.id.0) else {
+        return -1
+    }
+    return if c.def(id).kind == .Primitive { c.def(id).primitive } else { -1 }
+}
+
+/**
+ * `base.name(args)`: a method or associated function, or `Shape.Circle(x)`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param call the call
+ * @param field its callee
+ * @param args its arguments
+ * @param expected the type the context expects
+ * @returns the result type
+ */
+pub fn checkMethodCall(c: mut Checker, p: Program, call: &Expr, field: &Expr, args: &List<Arg>,
+                       expected: int) int {
+    match field.kind {
+        .Field(baseBox, name, explicit) => {
+            let base = &*baseBox
+            let owner = typeNameOf(c, base)
+            if owner != 0 {   // `Point.new()`, `Stack<int>.new()` or `Shape.Circle(1.0)`
+                let selfType = namedInstance(c, p, owner, &typeArgsOf(base), base.span)
+                c.setType(base.id.0, selfType)
+                if c.def(owner).kind == .Enum {
+                    if let .Some(ty) = checkQualifiedVariant(c, p, call, field, name, .Some(args),
+                                                             owner, selfType, expected) {
+                        return ty
+                    }
+                }
+                return checkUserMethod(c, p, call, field, base, name, &explicit, args, owner, true,
+                                       selfType, expected)
+            }
+            let primitive = primitiveName(c, base)
+            if primitive >= 0 {   // an associated function: `str.new()`
+                c.setType(base.id.0, primitive)
+                if hasLangMethod(c, p, primitive, name) {
+                    return checkUserMethod(c, p, call, field, base, name, &explicit, args,
+                                           c.r.lang[primitive], true, primitive, expected)
+                }
+                return noMethod(c, p, field, name, args, primitive)
+            }
+            let found = checkExpr(c, p, base, ERROR)
+            let selfType = methodReceiver(c, p, base, found, name)
+            if c.types.kind(selfType) == .Adt {
+                let id = c.types.get(selfType).data
+                return checkUserMethod(c, p, call, field, base, name, &explicit, args, id, false,
+                                       selfType,
+                                       expected)
+            }
+            if hasLangMethod(c, p, selfType, name) {
+                let lang = c.r.lang[selfType]
+                return checkUserMethod(c, p, call, field, base, name, &explicit, args, lang,
+                                       false, selfType, expected)
+            }
+            let which = builtinIndex(c, selfType, name)
+            if which >= 0 {
+                return callBuiltin(c, p, call, field, &explicit, args, which, selfType)
+            }
+            if c.text(name) == "clone" {
+                return checkDerivedClone(c, p, call, field, &explicit, args, selfType)
+            }
+            return noMethod(c, p, field, name, args, selfType)
+        }
+        _ => {
+            return ERROR
+        }
+    }
+}
+
+fn builtinConst(c: Checker, ty: int, name: Symbol) bool {
+    let text = c.text(name)
+    let kind = c.types.kind(ty)
+    if kind == .Int {
+        return text == "MIN" || text == "MAX"
+    }
+    if kind == .Float {
+        return text == "NAN" || text == "INFINITY" || text == "EPSILON"
+    }
+    return false
+}
+
+/**
+ * `p.x` on a struct, `Shape.Empty`, or `i32.MAX`, `float.NAN`, ... on a
+ * primitive type.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the field expression
+ * @param base its base
+ * @param name the field
+ * @param expected the type the context expects
+ * @returns its type
+ */
+pub fn checkField(c: mut Checker, p: Program, e: &Expr, base: &Expr, name: Symbol,
+                  expected: int) int {
+    let owner = typeNameOf(c, base)
+    if owner != 0 {   // `Shape.Empty`, `Opt<int>.None`
+        let selfType = namedInstance(c, p, owner, &typeArgsOf(base), base.span)
+        c.setType(base.id.0, selfType)
+        if c.def(owner).kind == .Enum {
+            if let .Some(ty) = checkQualifiedVariant(c, p, e, e, name, .None, owner, selfType,
+                                                     expected) {
+                return ty
+            }
+        }
+        c.error("E0320", e.span, "no variant `{c.text(name)}` in `{c.text(c.def(owner).name)}`")
+        return ERROR
+    }
+    let primitive = primitiveName(c, base)
+    if primitive < 0 {
+        let found = checkExpr(c, p, base, ERROR)
+        return checkStructField(c, p, e, name, autoDeref(c, p, base, found))
+    }
+    c.setType(base.id.0, primitive)
+    if !builtinConst(c, primitive, name) {
+        c.error("E0301", e.span, "no constant `{c.text(name)}` on type "
+                + "`{c.typeName(primitive)}`")
+        return ERROR
+    }
+    return primitive
+}
+
+/**
+ * `s[i]` is the byte at offset i of a str (spec 2.3); `l[i]` an element.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the index expression
+ * @param base the indexed value
+ * @param index the index
+ * @returns the element's type
+ */
+pub fn checkIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, index: &Expr) int {
+    if let ExprKind.Range(_, _, _) = index.kind {
+        return checkRangeIndex(c, p, e, base, index)
+    }
+    let found = checkExpr(c, p, base, ERROR)
+    let ty = autoDeref(c, p, base, found)
+    coerce(c, p, index, I64)
+    if let .Some(elem) = sequenceElem(c, ty) {
+        return elem
+    }
+    if ty == STR {
+        return U8
+    }
+    if ty != ERROR {
+        c.error("E0313", e.span, "type `{c.typeName(ty)}` cannot be indexed")
+    }
+    return ERROR
+}
+
+// ---------------------------------------------------------------------------
+// Clones (spec 5.1)
+
+fn inStd(c: Checker, id: int) bool {
+    let name = c.r.moduleNames[c.def(id).module].sliceFrom(0)
+    return name == "std" || name.startsWith("std.")
+}
+
+fn cloneableArgs(c: mut Checker, p: Program, ty: int, visiting: mut List<int>) bool {
+    let args = c.types.get(ty).args.clone()
+    for i in 0..args.len() {
+        if !cloneableIn(c, p, args[i], visiting) {
+            return false
+        }
+    }
+    return true
+}
+
+fn cloneableFields(c: mut Checker, p: Program, ty: int, id: int, visiting: mut List<int>) bool {
+    if c.def(id).kind == .Struct {
+        let count = match c.info[id].fields {
+            .Some(info) => info.types.len()
+            .None => 0
+        }
+        for i in 0..count {
+            if !cloneableIn(c, p, structFieldType(c, p, ty, i), visiting) {
+                return false
+            }
+        }
+        return true
+    }
+    var shape: List<int> = []
+    if let .Some(info) = c.info[id].variants {
+        for v in 0..info.variants.len() {
+            shape.push(info.variants[v].types.len())
+        }
+    }
+    for v in 0..shape.len() {
+        for i in 0..shape[v] {
+            if !cloneableIn(c, p, variantFieldType(c, p, ty, v, i), visiting) {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+// A std type's `clone` (List, Box) clones its elements; a user type's is its
+// own business.
+fn cloneableAdt(c: mut Checker, p: Program, ty: int, visiting: mut List<int>) bool {
+    let id = c.types.get(ty).data
+    let cloneName = c.r.names.find("clone")
+    let dropName = c.r.names.find("drop")
+    if let .Some(name) = cloneName {
+        if hasMethod(c, p, id, name) {
+            return !inStd(c, id) || cloneableArgs(c, p, ty, visiting)
+        }
+    }
+    if let .Some(name) = dropName {
+        if hasMethod(c, p, id, name) {
+            return false
+        }
+    }
+    return cloneableFields(c, p, ty, id, visiting)
+}
+
+fn cloneableIn(c: mut Checker, p: Program, ty: int, visiting: mut List<int>) bool {
+    let kind = c.types.kind(ty)
+    if kind == .Param {
+        return false   // no bounds yet (roadmap 5.2)
+    }
+    if kind == .Str || isCopy(c, p, ty) {
+        return true
+    }
+    if kind == .Tuple {
+        return cloneableArgs(c, p, ty, visiting)
+    }
+    if kind != .Adt {
+        return false
+    }
+    for i in 0..visiting.len() {
+        if visiting[i] == ty {
+            return true   // a recursive type: cloneable if the rest is
+        }
+    }
+    if visiting.len() == 64 {
+        return false
+    }
+    visiting.push(ty)
+    let ok = cloneableAdt(c, p, ty, visiting)
+    visiting.pop()
+    return ok
+}
+
+/**
+ * Whether the compiler can clone a value of a type.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @returns true if it can
+ */
+pub fn isCloneable(c: mut Checker, p: Program, ty: int) bool {
+    var visiting: List<int> = []
+    return cloneableIn(c, p, ty, visiting)
+}
+
+fn notCloneable(c: mut Checker, span: Span, ty: int) {
+    if ty != ERROR {
+        c.error("E0322", span, "type `{c.typeName(ty)}` cannot be cloned: declare a `clone` "
+                + "method, or give it only parts that can be cloned")
+    }
+}
+
+// `value.clone()` on a type without a `clone` method: the derived clone.
+fn checkDerivedClone(c: mut Checker, p: Program, call: &Expr, field: &Expr,
+                     explicit: &List<TypeExpr>, args: &List<Arg>, selfType: int) int {
+    if args.len() > 0 || explicit.len() > 0 {
+        c.error("E0302", call.span, "`clone` takes no arguments".toOwned())
+    }
+    for i in 0..args.len() {
+        checkExpr(c, p, &args[i].value, ERROR)
+    }
+    if !isCloneable(c, p, selfType) {
+        notCloneable(c, field.span, selfType)
+        return ERROR
+    }
+    c.setMember(field.id.0, DERIVED_CLONE)
+    return selfType
+}
+
+// `list.clone()` calls the std method, which clones each element.
+fn checkStdClone(c: mut Checker, p: Program, field: &Expr, owner: int, hasSelf: bool,
+                 selfType: int) {
+    if !inStd(c, owner) || !hasSelf {
+        return
+    }
+    if !isCloneable(c, p, selfType) {
+        notCloneable(c, field.span, selfType)
+    }
+}

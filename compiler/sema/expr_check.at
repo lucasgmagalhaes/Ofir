@@ -588,7 +588,7 @@ pub fn checkConst(c: mut Checker, p: Program, id: int) int {
     c.info[id].checking = true
     let saved = c.enter(c.def(id).module)
     let outer = c.enterGenerics(noGenerics())
-    let item = itemOf(p, c.def(id))
+    let item = itemOf(p, c.loc(id))
     let isConst = c.def(id).kind == .Const
     match item.kind {
         .Const(annotation, value) | .Global(annotation, value) => {

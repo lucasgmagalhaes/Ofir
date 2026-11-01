@@ -117,10 +117,63 @@ static bool is_source(const FnDecl *fn, uint32_t local) {
     return fn->params.items[fn->borrow_source].local.id == local;
 }
 
+static void returned_ref(Checker *c, const Expr *value);
+
+// The values a `match`, an `if` or a block gives: `return match x { .A(v) => &v }`
+// returns a reference to the binding `v`, a copy that ends with the function.
+static bool returned_branches(Checker *c, const Expr *value) {
+    if (value->kind == EXPR_MATCH) {
+        for (uint32_t i = 0; i < value->as.match.arms.len; i++) {
+            returned_ref(c, value->as.match.arms.items[i].body);
+        }
+        return true;
+    }
+    if (value->kind == EXPR_IF) {
+        returned_ref(c, &(Expr){.kind = EXPR_BLOCK, .as.block = value->as.if_.then});
+        if (value->as.if_.else_) {
+            returned_ref(c, value->as.if_.else_);
+        }
+        return true;
+    }
+    if (value->kind == EXPR_BLOCK || value->kind == EXPR_UNSAFE) {
+        StmtList stmts = value->as.block->stmts;
+        if (stmts.len > 0 && stmts.items[stmts.len - 1]->kind == STMT_EXPR) {
+            returned_ref(c, stmts.items[stmts.len - 1]->as.expr);
+        }
+        return true;
+    }
+    return false;
+}
+
+// `&v` for a binding `v` of a branch (only the binding itself: `&v[i]` may
+// reach the elements of the matched value, which outlive the function).
+static void returned_binding(Checker *c, const Expr *value) {
+    const Expr *operand = value->as.unary.operand;
+    bool local = (operand->kind == EXPR_IDENT || operand->kind == EXPR_SELF) &&
+                 operand->as.ident.res.kind == RES_LOCAL;
+    if (local && !is_source(c->fn, operand->as.ident.res.index) &&
+        !holds_ref(c, c->local_types[operand->as.ident.res.index])) {
+        check_error(c, "E0702", value->span, "cannot return a reference to `" SV_FMT "`, which "
+                    "ends with the function",
+                    SV_ARG(symbol_name(&c->sema->session->names,
+                                       c->fn->locals.items[operand->as.ident.res.index].name)));
+    }
+}
+
+static void returned_ref(Checker *c, const Expr *value) {
+    if (!returned_branches(c, value) && value->kind == EXPR_UNARY &&
+        (value->as.unary.op == OP_REF || value->as.unary.op == OP_REF_MUT)) {
+        returned_binding(c, value);
+    }
+}
+
 // `return &x` where `x` ends with the function, also inside `Some(&x)`.
 void check_returned_ref(Checker *c, const Expr *value) {
     if (!c->fn->returns_borrow) {
         return;   // no reference returned, or E0702 on the signature already
+    }
+    if (returned_branches(c, value)) {
+        return;
     }
     if (value->kind == EXPR_CALL && value->as.call.args.len == 1) {
         value = value->as.call.args.items[0].value;   // `Some(&x)`, `Ok(&x)`

@@ -114,32 +114,36 @@ fn structPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>,
         mismatch(c, pat.span, "a struct", ty)
         return
     }
-    let PatternKind.Struct(_, fields, rest) = pat.kind else {
-        return
-    }
-    let names = fieldsOf(c, id).names.clone()
-    var listed = 0
-    for i in 0..fields.len() {
-        var index = 0
-        for index < names.len() && names[index].0 != fields[i].name.0 {
-            index += 1
+    match pat.kind {
+        .Struct(_, fields, rest) => {
+            let names = fieldsOf(c, id).names.clone()
+            var listed = 0
+            for i in 0..fields.len() {
+                var index = 0
+                for index < names.len() && names[index].0 != fields[i].name.0 {
+                    index += 1
+                }
+                if index == names.len() {
+                    c.error("E0316", pat.span, "no field `{c.text(fields[i].name)}` on type "
+                            + "`{c.typeName(ty)}`")
+                    continue
+                }
+                listed += 1
+                let fieldType = structFieldType(c, p, ty, index)
+                if let .Some(inner) = fields[i].pattern {
+                    checkPattern(c, p, &inner, fieldType)
+                } else {
+                    shorthand(c, fields[i].id.0, fieldType)
+                }
+            }
+            if !rest && listed < names.len() {
+                c.error("E0308", pat.span, "the pattern does not list every field: add `..` to "
+                        + "ignore the others")
+            }
         }
-        if index == names.len() {
-            c.error("E0316", pat.span, "no field `{c.text(fields[i].name)}` on type "
-                    + "`{c.typeName(ty)}`")
-            continue
+        _ => {
+            return
         }
-        listed += 1
-        let fieldType = structFieldType(c, p, ty, index)
-        if let .Some(inner) = fields[i].pattern {
-            checkPattern(c, p, &inner, fieldType)
-        } else {
-            shorthand(c, fields[i].id.0, fieldType)
-        }
-    }
-    if !rest && listed < names.len() {
-        c.error("E0308", pat.span, "the pattern does not list every field: add `..` to "
-                + "ignore the others")
     }
 }
 

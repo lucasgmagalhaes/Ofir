@@ -429,7 +429,7 @@ struct Printer {
         let name = names.name(it.name)
         let isPub = if it.isPub { " pub" } else { "" }
         match it.kind {
-            .Fn(decl) => self.fnDecl(&decl, names)
+            .Fn(decl) => self.fnDecl(&*decl, names)
             .Struct(isCopy, isRef, isTuple, typeParams, fields, methods) => {
                 let keyword = if isTuple { "tuple_struct" } else { "struct" }
                 let flags = (if isCopy { " copy" } else { "" }) + (if isRef { " ref" } else { "" })

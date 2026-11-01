@@ -28,6 +28,7 @@ import sema.def.DefKind
 import sema.def.Local
 import sema.def.Res
 import sema.enums.EnumInfo
+import sema.enums.checkEnumLayouts
 import sema.enums.enumVariants
 import sema.expr_check.checkConst
 import sema.program.Program
@@ -35,6 +36,7 @@ import sema.resolve.Resolver
 import sema.resolve.findAttribute
 import sema.resolve.moduleInStd
 import sema.structs.StructInfo
+import sema.structs.checkStructLayouts
 import sema.structs.structFields
 import sema.types.ERROR
 import sema.types.NEVER
@@ -57,9 +59,9 @@ pub struct DefInfo {
     /** Being computed: a cycle guard. */
     pub checking: bool
     /** A struct's fields, once computed. */
-    pub fields: Option<StructInfo>
+    pub fields: Option<Box<StructInfo>>
     /** An enum's variants, once computed. */
-    pub variants: Option<EnumInfo>
+    pub variants: Option<Box<EnumInfo>>
     /** A constant's value, when it could be computed. */
     pub value: Option<ConstValue>
     /** A function that returns a reference (spec 5.6). */
@@ -109,6 +111,8 @@ pub struct Checker {
     /** The implicit dereferences of an expression's value, by module and `NodeId`: the
      * type before each one (a `&T` or a `Box<T>`), in order (stage 0 inserts `*e`). */
     pub derefs: List<Map<int, List<int>>>
+    /** The type of an expression's value after its implicit dereferences. */
+    pub adjusted: List<Map<int, int>>
     /** By module and `NodeId`: the field of `a.f` and `a.0`, the variant of a variant
      * expression or pattern, the method (`DefId`) of a method call's callee, or -1. */
     pub members: List<List<int>>
@@ -179,6 +183,17 @@ pub struct Checker {
      */
     pub fn def(self, id: int) &Def {
         return &self.r.defs[id]
+    }
+
+    /**
+     * Where a declaration is.
+     *
+     * @param id its `DefId`
+     * @returns its location
+     */
+    pub fn loc(self, id: int) Loc {
+        let def = &self.r.defs[id]
+        return Loc{module: def.module, item: def.item, member: def.member}
     }
 
     /**
@@ -338,7 +353,19 @@ pub struct Checker {
 // The 64-bit types are printed with their usual alias names.
 fn intName(kind: int) str {
     let names = ["i8", "i16", "i32", "int", "u8", "u16", "u32", "uint"]
-    return names[kind]
+    return names[kind].sliceFrom(0)
+}
+
+/**
+ * Where a declaration is: its module, item and member.
+ */
+pub copy struct Loc {
+    /** The module. */
+    pub module: int
+    /** The item in it. */
+    pub item: int
+    /** The method, `extern` function or variant in the item, or -1. */
+    pub member: int
 }
 
 /**
@@ -348,7 +375,7 @@ fn intName(kind: int) str {
  * @param def the declaration
  * @returns its item
  */
-pub fn itemOf(p: Program, def: &Def) &Item {
+pub fn itemOf(p: Program, def: Loc) &Item {
     return &p.modules[def.module].module.items[def.item]
 }
 
@@ -374,10 +401,10 @@ pub fn itemTypeParams(item: &Item) List<Symbol> {
  * @param def a declaration of kind `Fn`
  * @returns the function
  */
-pub fn fnOf(p: Program, def: &Def) &FnDecl {
+pub fn fnOf(p: Program, def: Loc) &FnDecl {
     let item = &p.modules[def.module].module.items[def.item]
     return match item.kind {
-        .Fn(decl) => &decl
+        .Fn(decl) => &*decl
         .Struct(_, _, _, _, _, methods) => &methods[def.member]
         .Enum(_, _, _, methods) => &methods[def.member]
         .Extern(_, fns) => &fns[def.member]
@@ -405,6 +432,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     var nodeTypes: List<List<int>> = []
     var localTypesOf: List<Map<int, List<int>>> = []
     var derefs: List<Map<int, List<int>>> = []
+    var adjusted: List<Map<int, int>> = []
     var members: List<List<int>> = []
     var callTypeArgs: List<Map<int, int>> = []
     var sliceCoercions: List<Map<int, int>> = []
@@ -413,6 +441,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         nodeTypes.push(List.filled(ERROR, p.modules[m].module.nodeCount))
         localTypesOf.push(Map.new())
         derefs.push(Map.new())
+        adjusted.push(Map.new())
         members.push(List.filled(-1, p.modules[m].module.nodeCount))
         callTypeArgs.push(Map.new())
         sliceCoercions.push(Map.new())
@@ -426,6 +455,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         }
     }
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
+                   adjusted,
                    members, callTypeArgs, sliceCoercions,
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
@@ -445,7 +475,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
  * @param selfType the type declaring the method, or `ERROR`
  */
 pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
-    let decl = fnOf(p, c.def(id))
+    let decl = fnOf(p, c.loc(id))
     let outer = c.enterGenerics(Generics{owner: c.generics.owner.clone(),
                                          fnParams: decl.typeParams.clone()})
     let sig = fnSignature(c, p, id)
@@ -458,7 +488,7 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
 }
 
 fn checkBody(c: mut Checker, p: Program, id: int, selfType: int) {
-    let decl = fnOf(p, c.def(id))
+    let decl = fnOf(p, c.loc(id))
     let outer = c.enterGenerics(Generics{owner: c.generics.owner.clone(),
                                          fnParams: decl.typeParams.clone()})
     let sig = fnSignature(c, p, id)
@@ -481,12 +511,15 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int) {
             c.localTypes[local] = c.types.get(sig).args[i]
         }
     }
-    let Some(body) = decl.body else {
+    if decl.body.isNone() {
         c.enterGenerics(outer)
         return
     }
     c.unsafeDepth = if decl.isUnsafe { 1 } else { 0 }
-    let found = checkBlock(c, p, &body, ERROR, false)
+    var found = UNIT
+    if let .Some(body) = decl.body {
+        found = checkBlock(c, p, &body, ERROR, false)
+    }
     c.unsafeDepth = 0
     if c.ret != UNIT && c.ret != ERROR && found != NEVER {
         c.error("E0303", decl.span,
@@ -572,8 +605,15 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
     }
 }
 
-// A `@test` function that this build does not check (spec 12.2).
-fn skippedTest(c: Checker, p: Program, item: &Item) bool {
+/**
+ * A `@test` function that this build does not check (spec 12.2).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param item an item of the current module
+ * @returns true to skip it
+ */
+pub fn skippedTest(c: Checker, p: Program, item: &Item) bool {
     let isFn = match item.kind {
         .Fn(_) => true
         _ => false

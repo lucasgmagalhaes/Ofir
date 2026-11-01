@@ -14,6 +14,7 @@ make compare-stages   # stage 1's output equals stage 0's on every .at file
 ```
 
 So far stage 1 has `base`, `diag`, the lexer, the parser, module loading
-(`driver/modules.at`) and the resolver (`sema/`); `main.at` has three
-commands, `main tokens|ast|names <file.at>`, the equivalents of `astra
-build --emit=tokens`, `--emit=ast` and `--emit=names`.
+(`driver/modules.at`), the resolver and the type checker (`sema/`);
+`main.at` has four commands, `main tokens|ast|names|types <file.at>`, the
+equivalents of `astra build --emit=tokens`, `--emit=ast`, `--emit=names`
+and `--emit=types`.

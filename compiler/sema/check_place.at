@@ -25,7 +25,16 @@ import syntax.ast.ExprKind
  * @returns the root and the number of implicit dereferences of its value
  *     (0 for a variable or an explicit `*p`), or `None` for a temporary
  */
-pub fn placeRoot(c: mut Checker, p: Program, e: &Expr) Option<(&Expr, int)> {
+pub fn placeRoot(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
+    let own = derefsOf(c, e).len()
+    if own > 0 {   // the value itself is reached through a reference or a box
+        return .Some((e, own))
+    }
+    return placeRootBelow(c, e)
+}
+
+// The root of `e` as a place, before its own implicit dereferences.
+fn placeRootBelow(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
     var at = e
     for {
         if isModuleMember(c, at) {
@@ -35,7 +44,7 @@ pub fn placeRoot(c: mut Checker, p: Program, e: &Expr) Option<(&Expr, int)> {
             .Field(base, _, _) => &*base
             .TupleField(base, _) => &*base
             .Index(base, _) => {
-                if adjustedType(c, p, &*base) == STR {
+                if adjustedType(c, &*base) == STR {
                     return .None
                 }
                 &*base   // an element of a list
@@ -59,14 +68,14 @@ pub fn placeRoot(c: mut Checker, p: Program, e: &Expr) Option<(&Expr, int)> {
 }
 
 // Whether the place goes through an element of a `&[T]`, which is read-only.
-fn throughSlice(c: mut Checker, p: Program, e: &Expr) bool {
+fn throughSlice(c: Checker, e: &Expr) bool {
     var at = e
     for {
         let base = match at.kind {
             .Field(base, _, _) => &*base
             .TupleField(base, _) => &*base
             .Index(base, _) => {
-                let ty = adjustedType(c, p, &*base)
+                let ty = adjustedType(c, &*base)
                 let slice = c.r.langItems[4]
                 if slice != 0 && c.types.kind(ty) == .Adt && c.types.get(ty).data == slice {
                     return true
@@ -89,12 +98,17 @@ fn throughSlice(c: mut Checker, p: Program, e: &Expr) bool {
  * @param place the place
  */
 pub fn requireMutable(c: mut Checker, p: Program, place: &Expr) {
-    if throughSlice(c, p, place) {
+    requirePlace(c, p, place, true)
+}
+
+fn requirePlace(c: mut Checker, p: Program, place: &Expr, withOwn: bool) {
+    if throughSlice(c, place) {
         c.error("E0315", place.span, "this value cannot be modified: the elements of a `&[T]` "
                 + "are read-only")
         return
     }
-    let Some(root) = placeRoot(c, p, place) else {
+    let found = if withOwn { placeRoot(c, place) } else { placeRootBelow(c, place) }
+    let Some(root) = found else {
         if c.typeOf(place.id.0) != ERROR {
             c.error("E0315", place.span,
                     "only variables and their fields can be modified".toOwned())
@@ -110,7 +124,7 @@ fn requireRoot(c: mut Checker, p: Program, e: &Expr, level: int) {
         let ty = derefsOf(c, e)[level - 1]
         if boxInner(c, ty).isSome() {   // through a box: the box is modified
             if level == 1 {
-                requireMutable(c, p, e)
+                requirePlace(c, p, e, false)
             } else {
                 requireRoot(c, p, e, level - 1)
             }

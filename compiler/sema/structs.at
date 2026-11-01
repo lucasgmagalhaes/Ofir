@@ -7,6 +7,7 @@
 import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
+import sema.check.Loc
 import sema.check.Generics
 import sema.check.itemOf
 import sema.check.itemTypeParams
@@ -39,13 +40,20 @@ pub struct StructInfo {
     pub isCopy: bool
 }
 
-// The fields as written, and the flags of the struct.
-fn declaredFields(p: Program, c: Checker, id: int) (&List<FieldDecl>, bool, bool, bool) {
-    let item = itemOf(p, c.def(id))
-    return match item.kind {
-        .Struct(isCopy, isRef, isTuple, _, fields, _) => (&fields, isCopy, isRef, isTuple)
+// The flags of a struct: (copy, ref, tuple), and its number of fields.
+fn declaredFlags(p: Program, at: Loc) (bool, bool, bool, int) {
+    return match itemOf(p, at).kind {
+        .Struct(isCopy, isRef, isTuple, _, fields, _) => (isCopy, isRef, isTuple, fields.len())
+        _ => (false, false, false, 0)
+    }
+}
+
+// Field `i` as written.
+fn fieldDeclAt(p: Program, at: Loc, i: int) &FieldDecl {
+    return match itemOf(p, at).kind {
+        .Struct(_, _, _, _, fields, _) => &fields[i]
         _ => {
-            panic("declaredFields: not a struct")
+            panic("fieldDeclAt: not a struct")
         }
     }
 }
@@ -67,9 +75,9 @@ pub fn isCopy(c: Checker, p: Program, ty: int) bool {
             if t.data == c.r.langItems[2] || t.data == c.r.langItems[3] {
                 return argsAreCopy(c, p, &t.args)
             }
-            match itemOf(p, c.def(t.data)).kind {
-                .Struct(copy, _, _, _, _, _) => copy
-                .Enum(copy, _, _, _) => copy
+            match itemOf(p, c.loc(t.data)).kind {
+                .Struct(isCopyType, _, _, _, _, _) => isCopyType
+                .Enum(isCopyType, _, _, _) => isCopyType
                 _ => false
             }
         }
@@ -120,7 +128,7 @@ pub fn structFieldType(c: mut Checker, p: Program, ty: int, i: int) int {
  */
 pub fn fieldsOf(c: Checker, id: int) &StructInfo {
     return match c.info[id].fields {
-        .Some(info) => &info
+        .Some(info) => &*info
         .None => {
             panic("fieldsOf: not computed")
         }
@@ -231,23 +239,22 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     if c.info[id].checking {
         return false
     }
-    let declared = declaredFields(p, c, id)
-    let fields = declared.0
+    let declared = declaredFlags(p, c.loc(id))
     let saved = c.enter(c.def(id).module)
     let savedSelf = c.selfType
-    let outer = c.enterGenerics(Generics{owner: itemTypeParams(itemOf(p, c.def(id))),
+    let outer = c.enterGenerics(Generics{owner: itemTypeParams(itemOf(p, c.loc(id))),
                                          fnParams: []})
     c.selfType = if c.def(id).lang { c.def(id).primitive } else { ownerType(c, p, id) }
     c.info[id].checking = true
-    var info = StructInfo{names: [], types: [], defaults: [], isTuple: declared.3,
-                          isCopy: declared.1}
-    for i in 0..fields.len() {
-        let field = &fields[i]
+    var info = StructInfo{names: [], types: [], defaults: [], isTuple: declared.2,
+                          isCopy: declared.0}
+    for i in 0..declared.3 {
+        let field = fieldDeclAt(p, c.loc(id), i)
         let ty = resolveType(c, p, &field.ty)
         info.names.push(field.name ?? Symbol(-1))
         info.types.push(ty)
         info.defaults.push(field.defaultValue.isSome())
-        if !declared.2 {
+        if !declared.1 {
             checkStorable(c, p, ty, field.span, "a struct field")
         }
         checkNotRecursive(c, p, ty, field.span)
@@ -263,7 +270,7 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     c.enterGenerics(outer)
     c.selfType = savedSelf
     c.enter(saved)
-    c.info[id].fields = .Some(info)
+    c.info[id].fields = .Some(Box.new(info))
     return true
 }
 

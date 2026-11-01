@@ -48,8 +48,11 @@ pub struct Infer {
  */
 pub fn fnGenerics(c: Checker, p: Program, id: int) Generics {
     let def = c.def(id)
-    let owner = if def.item >= 0 { itemTypeParams(itemOf(p, def)) } else { [] }
-    return Generics{owner, fnParams: fnOf(p, def).typeParams.clone()}
+    var owner: List<Symbol> = []
+    if def.item >= 0 {
+        owner = itemTypeParams(itemOf(p, c.loc(id)))
+    }
+    return Generics{owner, fnParams: fnOf(p, c.loc(id)).typeParams.clone()}
 }
 
 /**
@@ -94,11 +97,11 @@ pub fn inferExplicit(c: mut Checker, p: Program, inf: mut Infer, ofOwner: bool,
  *
  * @param c the checker
  * @param inf the inference
- * @param self the instance
+ * @param selfType the instance
  * @param count the number of the type's parameters
  */
-pub fn inferFromSelf(c: Checker, inf: mut Infer, self: int, count: int) {
-    let t = c.types.get(self)
+pub fn inferFromSelf(c: Checker, inf: mut Infer, selfType: int, count: int) {
+    let t = c.types.get(selfType)
     if t.kind != .Adt {
         return
     }

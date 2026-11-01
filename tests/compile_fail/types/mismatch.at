@@ -34,3 +34,6 @@ fn branches(flag: bool) {
 fn emptyReturn() int {
     return   // error[E0300]: mismatched types: expected int, found ()
 }
+
+fn typed(x: nowhere.Thing) {   // error[E0200]: cannot find `nowhere` in this scope
+}

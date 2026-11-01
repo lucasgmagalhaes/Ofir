@@ -190,7 +190,26 @@ compiler/
 │   ├── resolve_import.at     imports, `m.name`, the prelude
 │   ├── resolve_body.at       function bodies, patterns, locals
 │   ├── trace.at              the `--emit=names` format
-│   ├── types.at
+│   ├── types.at              the type table (hash-consed `Ty`)
+│   ├── check.at              the checker's state, items and function bodies
+│   ├── check_types.at        type expressions, signatures, aliases
+│   ├── structs.at, enums.at  fields and variants of declarations
+│   ├── struct_exprs.at       struct literals, fields, tuple struct constructors
+│   ├── variant_exprs.at      building variants
+│   ├── expr_check.at         expressions, `coerce`, constants
+│   ├── check_stmt.at         statements, blocks, `if`, `match`
+│   ├── check_pattern.at      patterns
+│   ├── exhaustive.at         exhaustiveness and unreachable arms
+│   ├── check_methods.at      method calls, fields, indexing, clones
+│   ├── check_generic.at      inference of type arguments
+│   ├── check_list.at         lists, maps, iterators, slices
+│   ├── check_option.at       `?`, `??`, unused results
+│   ├── check_ref.at          references and their escape rules
+│   ├── check_box.at          implicit dereferences of boxes and references
+│   ├── check_place.at        places and mutability
+│   ├── check_unsafe.at       `unsafe`, raw pointers, the C boundary
+│   ├── const_eval.at         compile-time evaluation of constants
+│   ├── type_trace.at         the `--emit=types` format
 │   ├── check_items.at        declarations, signatures
 │   ├── check_exprs.at        expressions and statements
 │   ├── infer.at              type inference (unification)

@@ -69,10 +69,15 @@ fn resolveAlias(c: mut Checker, p: Program, id: int, span: Span) int {
         c.error("E0310", span, "the type alias `{c.text(c.def(id).name)}` refers to itself")
         return ERROR
     }
-    let item = itemOf(p, c.def(id))
-    let ItemKind.TypeAlias(typeParams, aliased) = item.kind else {
-        return ERROR
+    let item = itemOf(p, c.loc(id))
+    return match item.kind {
+        .TypeAlias(typeParams, aliased) => aliasType(c, p, id, &typeParams, &aliased, span)
+        _ => ERROR
     }
+}
+
+fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
+             aliased: &TypeExpr, span: Span) int {
     if typeParams.len() > 0 {
         return c.unsupported(span, "generic type aliases are")
     }
@@ -80,7 +85,7 @@ fn resolveAlias(c: mut Checker, p: Program, id: int, span: Span) int {
         let saved = c.enter(c.def(id).module)
         let outer = c.enterGenerics(noGenerics())
         c.info[id].checking = true
-        let ty = resolveType(c, p, &aliased)
+        let ty = resolveType(c, p, aliased)
         c.info[id].ty = ty
         c.info[id].checking = false
         c.enterGenerics(outer)
@@ -101,7 +106,7 @@ fn resolveAlias(c: mut Checker, p: Program, id: int, span: Span) int {
  * @returns the type
  */
 pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span) int {
-    let expected = itemTypeParams(itemOf(p, c.def(id))).len()
+    let expected = itemTypeParams(itemOf(p, c.loc(id))).len()
     if args.len() != expected {
         c.error("E0302", span, "wrong number of type arguments for `{c.text(c.def(id).name)}`: "
                 + "expected {expected}, found {args.len()}")
@@ -181,8 +186,12 @@ pub fn moduleType(c: mut Checker, m: int, name: Symbol, span: Span) int {
 fn pathTarget(c: mut Checker, segments: &List<Symbol>, span: Span) int {
     let first = c.r.scope.module(segments[0])
     c.r.noteImportUse(segments[0])
-    if segments.len() == 1 || first == 0 {
-        return if segments.len() == 1 { first } else { 0 }
+    if segments.len() == 1 {
+        return first
+    }
+    if first == 0 {   // `nowhere.Name`
+        c.error("E0200", span, "cannot find `{c.text(segments[0])}` in this scope")
+        return 0
     }
     if segments.len() > 2 || c.def(first).kind != .Module {
         c.unsupported(span, "nested module paths in types are")
@@ -326,8 +335,8 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
     }
     let def = c.def(id)
     let module = def.module
-    let decl = fnOf(p, def)
-    let item = itemOf(p, def)
+    let decl = fnOf(p, c.loc(id))
+    let item = itemOf(p, c.loc(id))
     let isMethod = match item.kind {
         .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
         _ => false

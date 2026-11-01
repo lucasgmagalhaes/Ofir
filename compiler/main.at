@@ -6,6 +6,7 @@
  *     main tokens <file.at>   the tokens, as `astra build --emit=tokens`
  *     main ast <file.at>      the syntax tree, as `astra build --emit=ast`
  *     main names <file.at>    what the names resolve to, as `--emit=names`
+ *     main types <file.at>    the types of declarations and locals, as `--emit=types`
  */
 
 import base.intern.Interner
@@ -13,7 +14,9 @@ import base.span.SourceMap
 import diag.Diagnostics
 import driver.modules.Front
 import driver.modules.loadProgram
+import sema.check.checkProgram
 import sema.resolve.resolveProgram
+import sema.type_trace.traceTypes
 import std.fs
 import std.os
 import syntax.ast_print.printModule
@@ -24,8 +27,8 @@ import syntax.token_print.printTokens
 fn main() {
     let args = os.args()
     let command = if args.len() == 3 { args[1].clone() } else { "" }
-    if command != "tokens" && command != "ast" && command != "names" {
-        eprintln("usage: main tokens|ast|names <file.at>")
+    if command != "tokens" && command != "ast" && command != "names" && command != "types" {
+        eprintln("usage: main tokens|ast|names|types <file.at>")
         os.exit(2)
     }
     let path = args[2].clone()
@@ -36,8 +39,8 @@ fn main() {
             os.exit(1)
         }
     }
-    if command == "names" {
-        names(path, text)
+    if command == "names" || command == "types" {
+        names(path, text, command == "types")
         return
     }
     var map = SourceMap.new()
@@ -66,7 +69,7 @@ fn main() {
 }
 
 // `main names <file.at>`: loads and resolves the program (roadmap 4.5).
-fn names(path: str, text: move str) {
+fn names(path: str, text: move str, types: bool) {
     var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
     let file = front.map.add(path.clone(), text)
     let parsed = front.parseFile(file)
@@ -80,10 +83,23 @@ fn names(path: str, text: move str) {
     if front.diags.hasErrors() {
         fail(front.diags, front.map)
     }
-    let r = resolveProgram(program, front.names, front.diags, front.map, true)
-    print(r.trace.out)
-    eprint(r.diags.render(r.map, .Human))
-    if r.diags.hasErrors() {
+    let r = resolveProgram(program, front.names, front.diags, front.map, !types)
+    if !types {
+        print(r.trace.out)
+        eprint(r.diags.render(r.map, .Human))
+        if r.diags.hasErrors() {
+            os.exit(1)
+        }
+        return
+    }
+    if r.diags.hasErrors() {   // as stage 0: no checking after name errors
+        eprint(r.diags.render(r.map, .Human))
+        os.exit(1)
+    }
+    var c = checkProgram(program, r)
+    print(traceTypes(c, program))
+    eprint(c.r.diags.render(c.r.map, .Human))
+    if c.r.diags.hasErrors() {
         os.exit(1)
     }
 }
