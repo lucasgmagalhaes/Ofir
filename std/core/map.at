@@ -5,9 +5,10 @@
  *
  * The entries are kept in a list, in the order their keys were first
  * inserted; an open-addressing table of entry positions finds them by hash.
- * A removed entry stays in the list, marked dead, until the table grows
- * and the list is compacted.
+ * Removing a key removes its entry from the list and renumbers the table.
  */
+
+import std.mem
 
 extern "intrinsic" {
     // The hash of a key and the equality of keys, for the instance's key
@@ -20,19 +21,19 @@ extern "intrinsic" {
 const EMPTY: int = -1   // never used: a lookup stops here
 const GONE: int = -2    // its entry was removed: a lookup goes on
 
-// One key and its value. `live` is false once the key is removed.
+// One key and its value.
 struct Entry<K, V> {
     key: K
     value: V
     hash: u64
-    live: bool
 }
 
 /**
  * A map from keys of type `K` to values of type `V`, which iterates in the
  * order the keys were first inserted.
  *
- * Lookups, insertions and removals take constant time on average. The hash
+ * Lookups and insertions take constant time on average, removals linear
+ * time (they keep the order of the other entries). The hash
  * function is deterministic, so a program's output never depends on hash
  * values. `for key, value in map` visits the entries in insertion order.
  * Stage 0 accepts keys of type int (and the other integers), bool, str and
@@ -57,7 +58,7 @@ struct Entry<K, V> {
 pub struct Map<K, V> {
     entries: List<Entry<K, V>>
     slots: List<int>
-    count: int
+    gone: int   // GONE slots, which count as used until the table is rebuilt
 
     /**
      * An empty map; nothing is allocated until the first insertion.
@@ -65,7 +66,7 @@ pub struct Map<K, V> {
      * @returns a map with no entries
      */
     pub fn new() Map<K, V> {
-        return Map{entries: [], slots: [], count: 0}
+        return Map{entries: [], slots: [], gone: 0}
     }
 
     /**
@@ -74,7 +75,7 @@ pub struct Map<K, V> {
      * @returns the number of entries
      */
     pub fn len(self) int {
-        return self.count
+        return self.entries.len()
     }
 
     /**
@@ -83,7 +84,7 @@ pub struct Map<K, V> {
      * @returns true when the map is empty
      */
     pub fn isEmpty(self) bool {
-        return self.count == 0
+        return self.entries.isEmpty()
     }
 
     /**
@@ -115,9 +116,7 @@ pub struct Map<K, V> {
         let slot = self.slotOf(key)
         if slot >= 0 {
             let at = self.slots[slot]
-            let old = self.entries[at].value
-            self.entries[at].value = value
-            return Some(old)
+            return Some(mem.replace(self.entries[at].value, value))
         }
         self.add(key, value)
         return None
@@ -185,7 +184,8 @@ pub struct Map<K, V> {
     }
 
     /**
-     * Removes a key. The other keys keep their order.
+     * Removes a key. The other keys keep their order, so this takes time
+     * proportional to the size of the map.
      *
      * @param key the key to remove
      * @returns the value the key had, or `None` if it was not in the map
@@ -197,9 +197,14 @@ pub struct Map<K, V> {
         }
         let at = self.slots[slot]
         self.slots[slot] = GONE
-        self.entries[at].live = false
-        self.count -= 1
-        return Some(self.entries[at].value)
+        self.gone += 1
+        for i in 0..self.slots.len() {   // the later entries move down by one
+            if self.slots[i] > at {
+                self.slots[i] -= 1
+            }
+        }
+        let entry = self.entries.remove(at)
+        return Some(entry.value)
     }
 
     /**
@@ -210,12 +215,12 @@ pub struct Map<K, V> {
         for i in 0..self.slots.len() {
             self.slots[i] = EMPTY
         }
-        self.count = 0
+        self.gone = 0
     }
 
     // The slot holding the entry of `key`, or -1.
     fn slotOf(self, key: K) int {
-        if self.count == 0 {
+        if self.entries.isEmpty() {
             return -1
         }
         let hash = hashOf(key)
@@ -237,9 +242,8 @@ pub struct Map<K, V> {
     fn add(mut self, key: move K, value: move V) {
         self.reserveOne()
         let hash = hashOf(key)
-        self.entries.push(Entry{key, value, hash, live: true})
+        self.entries.push(Entry{key, value, hash})
         self.place(hash, self.entries.len() - 1)
-        self.count += 1
     }
 
     // Puts entry `at` in the first empty slot of its probe sequence.
@@ -252,26 +256,18 @@ pub struct Map<K, V> {
         self.slots[slot] = at
     }
 
-    // Keeps the table at most half full, counting removed entries: when
-    // one more entry would exceed that, drops the dead entries and rebuilds
-    // a table four times larger than the live ones.
+    // Keeps the table at most half full, counting GONE slots: when one more
+    // entry would exceed that, rebuilds a table four times larger than the
+    // entries, without GONE slots.
     fn reserveOne(mut self) {
-        if (self.entries.len() + 1) * 2 <= self.slots.len() {
+        if (self.entries.len() + self.gone + 1) * 2 <= self.slots.len() {
             return
         }
-        if self.count < self.entries.len() {
-            var live: List<Entry<K, V>> = List.withCapacity(self.count)
-            for entry in self.entries {
-                if entry.live {
-                    live.push(entry)
-                }
-            }
-            self.entries = live
-        }
         var size = 8
-        for size < (self.count + 1) * 4 {
+        for size < (self.entries.len() + 1) * 4 {
             size *= 2
         }
+        self.gone = 0
         self.slots = [EMPTY; size]
         for i in 0..self.entries.len() {
             self.place(self.entries[i].hash, i)

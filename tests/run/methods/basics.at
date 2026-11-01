@@ -2,7 +2,7 @@ struct Counter {
     name: str
     count: int = 0
 
-    fn new(name: str) Counter {
+    fn new(name: move str) Counter {
         return Counter{name}
     }
 

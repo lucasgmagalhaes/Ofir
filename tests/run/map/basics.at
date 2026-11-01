@@ -28,7 +28,7 @@ fn main() {
 
     var counts = Map<str, int>.new()
     for word in ["a", "b", "a", "c", "b", "a"] {
-        *counts.getOrInsert(word, 0) += 1
+        *counts.getOrInsert(word.toOwned(), 0) += 1
     }
     println(show(counts))
 

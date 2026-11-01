@@ -123,7 +123,8 @@ bootstrap/
 │   │   ├── lower_hash.c      `hashOf<K>` and `equals<K>` for Map keys
 │   │   ├── lower_option.c    `?` and `??`
 │   │   ├── mono.c            monomorphization: instances, type substitution
-│   │   └── moves.c           moves, definite initialization, drop flags (planned)
+│   │   ├── moves.c           move analysis: states, statements, loops (E0600-E0602)
+│   │   └── moves_expr.c      move analysis of expressions, places and patterns
 │   ├── codegen/
 │   │   ├── llvm.c/.h         AIR → textual LLVM IR: module, names, constants
 │   │   ├── llvm_internal.h   state shared by the generator files
@@ -248,7 +249,7 @@ std/
 │   ├── result.at             `@lang("result")`: Result<T, E>, with Ok and Err in scope
 │   ├── interfaces.at         Eq, Ord, Hash, Clone, Display, Debug, Iterator, ...
 │   └── panic.at
-├── mem/                      std.mem: sizeOf, swap, replace, take, UnsafeCell, Cell
+├── mem/                      std.mem: replace and swap; take, UnsafeCell, Cell [planned]
 ├── collections/              std.collections [planned]: sets, deques; List, Map and Box are in std/core
 ├── strings/                  std.strings: str methods and helpers
 ├── fmt/                      std.fmt: formatting used by interpolation
