@@ -157,7 +157,10 @@ bool coerce_to_slice(Checker *c, Expr *e, TypeId found, TypeId expected);
 void require_copy(Checker *c, Span span, TypeId type, const char *what);   // E0321
 TypeId check_list_literal(Checker *c, Expr *e, TypeId expected);
 TypeId check_list_repeat(Checker *c, Expr *e, TypeId expected);
-TypeId check_for_list(Checker *c, Expr **list);   // the type of the loop variable
+// `for x in list`, `for i, x in list`, `for key, value in map`.
+void check_for_collection(Checker *c, Stmt *s);
+bool map_parts(Checker *c, TypeId type, TypeId *key, TypeId *value);   // Map<key, value>
+void check_map_key(Checker *c, TypeId type, Span span);   // E0313 for unhashable keys
 void check_list_sort(Checker *c, Expr *call);
 void check_list_layout(Checker *c, const Def *def);
 
