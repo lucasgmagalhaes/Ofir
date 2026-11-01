@@ -11,6 +11,7 @@
 
 typedef struct {
     BlockId break_to, continue_to;
+    uint32_t scopes;        // drop scopes open outside the loop
 } Loop;
 
 typedef struct {
@@ -33,6 +34,11 @@ typedef struct {
     Vec(Loop) loops;
     Vec(Instance) pending;  // functions reached by a call, still to lower
     Vec(bool) reached;      // by DefId, for functions that are not generic
+    Vec(LocalId) owned;     // locals to drop at the end of their scope, in order
+    Vec(uint32_t) scopes;   // per open block: its first entry in `owned`
+    LocalId *flags;         // per local of the function: its drop flag (0: none)
+    uint32_t flag_count;
+    const Local *fn_locals; // the function's locals: which ones borrow
     uint64_t *instances;    // the generic instances reached: open addressing of
     uint32_t instance_count, instance_cap;   // DefId << 32 | targs, 0 = empty
     bool too_deep;          // E0331 was reported
@@ -145,6 +151,25 @@ Operand lower_tuple(Lowerer *l, Expr *e);
 // match, else continues in the current block with the bindings assigned.
 void lower_pattern(Lowerer *l, Pattern *p, Place place, BlockId fail);
 Operand lower_match(Lowerer *l, Expr *e);
+
+// lower_drop.c: drop glue (spec 5.2)
+TypeId concrete_type(Lowerer *l, TypeId type);   // with the instance's type arguments
+bool needs_drop(Lowerer *l, TypeId type);         // `type` is concrete
+void emit_drop(Lowerer *l, Place place, TypeId type);
+void lower_glue(Lowerer *l, TypeId targs, BodySink sink, void *context);
+Operand lower_drop_intrinsic(Lowerer *l, Expr *call, bool forget);
+
+// lower_scope.c: drop scopes and drop flags
+void drop_scope_enter(Lowerer *l);
+void drop_scope_leave(Lowerer *l);                     // drops the scope's locals
+void drop_scopes(Lowerer *l, uint32_t first);     // for `return`, `break`, `continue`
+bool drop_scope_owns(Lowerer *l);                      // the innermost scope owns a local
+void own_local(Lowerer *l, LocalId local, bool initialized);
+void own_bindings(Lowerer *l, const Pattern *p);
+void drop_moved(Lowerer *l, LocalId local);
+void drop_before_assign(Lowerer *l, LocalId local);
+void assign_done(Lowerer *l, LocalId local);
+void note_moved(Lowerer *l, const Expr *e);
 
 // lower_intrinsic.c
 Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn);

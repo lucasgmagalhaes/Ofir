@@ -188,10 +188,13 @@ Operand lower_match(Lowerer *l, Expr *e) {
         if (arm->guard) {
             test(l, lower_expr(l, arm->guard), next);
         }
+        drop_scope_enter(l);   // the arm's bindings own what they took
+        own_bindings(l, arm->pattern);
         Operand value = arm_value(l, arm->body, as_value);
         if (as_value && value.kind != OPERAND_UNIT) {
             emit_store(l, (Place){.local = dest}, value);
         }
+        drop_scope_leave(l);
         emit_goto(l, join);
         switch_to(l, next);
     }
