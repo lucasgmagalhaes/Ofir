@@ -11,22 +11,12 @@ static StrView name(Moves *m, uint32_t local) {
     return symbol_name(&m->c->sema->session->names, m->fn->locals.items[local].name);
 }
 
-static bool is_copy(Moves *m, TypeId type) {
+bool is_copy(Moves *m, TypeId type) {
     return type_is_copy(m->c, type);
 }
 
-// A place rooted at a local: `x`, `x.a.b`, `x.0`. `via` tells what else
-// the path goes through, which forbids moving out of it.
-typedef enum { VIA_NOTHING, VIA_INDEX, VIA_DEREF, VIA_RAW } Via;
-
-typedef struct {
-    bool local;          // rooted at a local (else a temporary or a global)
-    Part part;
-    Via via;
-} Place;
-
 // The place of `e`, walking the bases it does not reach through fields.
-static Place place_of(Moves *m, Expr *e, State *s) {
+Place place_of(Moves *m, Expr *e, State *s) {
     if (e->kind == EXPR_IDENT || e->kind == EXPR_SELF) {   // else a constant or a function
         bool local = e->as.ident.res.kind == RES_LOCAL;
         return (Place){.local = local, .part = {.local = local ? e->as.ident.res.index : 0}};
@@ -55,7 +45,7 @@ static Place place_of(Moves *m, Expr *e, State *s) {
     return (Place){0};
 }
 
-static void use_place(Moves *m, const Place *p, State *s, Span span) {
+void use_place(Moves *m, const Place *p, State *s, Span span) {
     if (!p->local) {
         return;
     }
@@ -88,7 +78,7 @@ static void move_place(Moves *m, const Place *p, State *s, Span span) {
     move_part(m, s, &p->part);
 }
 
-static bool is_place(const Expr *e) {
+bool is_place(const Expr *e) {
     return e->kind == EXPR_IDENT || e->kind == EXPR_SELF || e->kind == EXPR_TUPLE_FIELD ||
            e->kind == EXPR_INDEX || (e->kind == EXPR_FIELD && e->as.field.res.kind == RES_FIELD) ||
            (e->kind == EXPR_UNARY && e->as.unary.op == OP_DEREF);
@@ -108,6 +98,36 @@ static void assign_place(Moves *m, Expr *e, const Place *p, State *s, Span span)
     init_part(m, s, &p->part);
 }
 
+// Moving a field out of a value whose type has a `drop` method would leave
+// that method a value with a hole (E0602).
+static bool has_drop(Moves *m, const Expr *e) {
+    bool field = e->kind == EXPR_FIELD && e->as.field.res.kind == RES_FIELD;
+    if (!field && e->kind != EXPR_TUPLE_FIELD) {
+        return false;
+    }
+    TypeId base = field ? e->as.field.base->type : e->as.tuple_field.base->type;
+    const Ty *ty = type_get(m->c->types, base);
+    if (ty->kind != TY_ADT) {
+        return false;
+    }
+    Symbol drop = intern(&m->c->sema->session->names, SV("drop"));
+    if (!has_method(m->c, (DefId){ty->data}, drop)) {
+        return false;
+    }
+    move_error(m, "E0602", e->span, "cannot move out of a field of `%s`, which has a `drop` "
+               "method: use `mem.replace`", type_name(m->c, base));
+    return true;
+}
+
+static void consume_root(Expr *e) {
+    while (e->kind == EXPR_FIELD || e->kind == EXPR_TUPLE_FIELD) {
+        e = e->kind == EXPR_FIELD ? e->as.field.base : e->as.tuple_field.base;
+    }
+    if (!is_place(e)) {
+        e->consumed = true;
+    }
+}
+
 static void place_expr(Moves *m, Expr *e, State *s, Use use) {
     Place p = place_of(m, e, s);
     if (use == USE_ASSIGN) {   // the target of `=`: overwritten, not read
@@ -115,6 +135,12 @@ static void place_expr(Moves *m, Expr *e, State *s, Use use) {
         return;
     }
     use_place(m, &p, s, e->span);
+    if (use == USE_MOVE && !is_copy(m, e->type) && !p.local) {
+        consume_root(e);   // a field moved out of a temporary: the rest is not dropped
+    }
+    if (use == USE_MOVE && !is_copy(m, e->type) && has_drop(m, e)) {
+        return;   // E0602: a type with a `drop` method is dropped whole
+    }
     if (use == USE_MOVE && !is_copy(m, e->type)) {
         move_place(m, &p, s, e->span);
         e->moves = e->moves || (p.local && p.via == VIA_NOTHING);   // for the drop flags
@@ -167,122 +193,6 @@ static void call(Moves *m, Expr *e, State *s) {
 }
 
 // ---------------------------------------------------------------------------
-// Patterns, `if` and `match`
-
-static bool any_by_move(Moves *m, PatternList list) {
-    for (uint32_t i = 0; i < list.len; i++) {
-        if (binds_by_move(m, list.items[i])) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool binds_by_move(Moves *m, const Pattern *p) {
-    switch (p->kind) {
-    case PAT_BINDING: return !is_copy(m, p->type);
-    case PAT_VARIANT: return any_by_move(m, p->as.variant.args);
-    case PAT_TUPLE: return any_by_move(m, p->as.tuple);
-    case PAT_TUPLE_STRUCT: return any_by_move(m, p->as.tuple_struct.args);
-    case PAT_OR: return any_by_move(m, p->as.alternatives);
-    case PAT_STRUCT:
-        for (uint32_t i = 0; i < p->as.struct_.fields.len; i++) {
-            if (binds_by_move(m, p->as.struct_.fields.items[i].pattern)) {
-                return true;
-            }
-        }
-        return false;
-    default: return false;
-    }
-}
-
-static void init_list(Moves *m, PatternList list, State *s, bool borrowed) {
-    for (uint32_t i = 0; i < list.len; i++) {
-        moves_pattern_init(m, list.items[i], s, borrowed);
-    }
-}
-
-// The bindings of `p` hold values; `borrowed` ones borrow the matched place.
-void moves_pattern_init(Moves *m, const Pattern *p, State *s, bool borrowed) {
-    switch (p->kind) {
-    case PAT_BINDING: {
-        uint32_t local = p->as.binding.local.id;
-        set_bit(s->moved, local, false);
-        set_bit(s->uninit, local, false);
-        set_bit(m->borrowed, local, borrowed);
-        break;
-    }
-    case PAT_VARIANT: init_list(m, p->as.variant.args, s, borrowed); break;
-    case PAT_TUPLE: init_list(m, p->as.tuple, s, borrowed); break;
-    case PAT_TUPLE_STRUCT: init_list(m, p->as.tuple_struct.args, s, borrowed); break;
-    case PAT_OR: init_list(m, p->as.alternatives, s, borrowed); break;
-    case PAT_STRUCT:
-        for (uint32_t i = 0; i < p->as.struct_.fields.len; i++) {
-            moves_pattern_init(m, p->as.struct_.fields.items[i].pattern, s, borrowed);
-        }
-        break;
-    default: break;
-    }
-}
-
-// The value matched by `match` or `if let`: an owned place whose parts are
-// bound by move is moved; a borrowed place lends its parts to the
-// bindings; a temporary is consumed. Returns whether the bindings borrow.
-static bool scrutinee(Moves *m, Expr *e, State *s, bool by_move) {
-    if (!is_place(e)) {
-        moves_expr(m, e, s, USE_MOVE);
-        return false;
-    }
-    Place p = place_of(m, e, s);
-    use_place(m, &p, s, e->span);
-    bool owned = p.local && p.via == VIA_NOTHING && !bit(m->borrowed, p.part.local);
-    if (by_move && owned) {
-        move_part(m, s, &p.part);
-        e->moves = true;
-    }
-    return !owned && p.via != VIA_RAW;
-}
-
-static void if_expr(Moves *m, Expr *e, State *s, Use use) {
-    bool borrowed = false;
-    Pattern *pattern = e->as.if_.let_pattern;
-    if (pattern) {
-        borrowed = scrutinee(m, e->as.if_.cond, s, binds_by_move(m, pattern));
-    } else {
-        moves_expr(m, e->as.if_.cond, s, USE_READ);
-    }
-    State other = state_copy(m, s);
-    if (pattern) {
-        moves_pattern_init(m, pattern, s, borrowed);
-    }
-    moves_block(m, e->as.if_.then, s, use);
-    if (e->as.if_.else_) {
-        moves_expr(m, e->as.if_.else_, &other, use);
-    }
-    state_join(m, s, &other);
-}
-
-static void match_expr(Moves *m, Expr *e, State *s, Use use) {
-    bool by_move = false;
-    for (uint32_t i = 0; i < e->as.match.arms.len; i++) {
-        by_move = by_move || binds_by_move(m, e->as.match.arms.items[i].pattern);
-    }
-    bool borrowed = scrutinee(m, e->as.match.scrutinee, s, by_move);
-    State result = {.dead = true};
-    for (uint32_t i = 0; i < e->as.match.arms.len; i++) {
-        MatchArm *arm = &e->as.match.arms.items[i];
-        State a = state_copy(m, s);
-        moves_pattern_init(m, arm->pattern, &a, borrowed);
-        if (arm->guard) {
-            moves_expr(m, arm->guard, &a, USE_READ);
-        }
-        moves_expr(m, arm->body, &a, use);
-        state_join(m, &result, &a);
-    }
-    *s = result;
-}
-
-// ---------------------------------------------------------------------------
 
 static void each(Moves *m, ExprList list, State *s, Use use) {
     for (uint32_t i = 0; i < list.len; i++) {
@@ -298,12 +208,12 @@ static void conditional(Moves *m, Expr *e, State *s, Use lhs, Use rhs) {
     state_join(m, s, &other);
 }
 
-static void binary(Moves *m, Expr *e, State *s, Use use) {
+static void binary(Moves *m, Expr *e, State *s) {
     Op op = e->as.binary.op;
     if (op == OP_LOGICAL_AND || op == OP_LOGICAL_OR) {
         conditional(m, e, s, USE_READ, USE_READ);
     } else if (op == OP_COALESCE) {
-        conditional(m, e, s, USE_MOVE, use);
+        conditional(m, e, s, USE_MOVE, USE_MOVE);
     } else {
         moves_expr(m, e->as.binary.lhs, s, USE_READ);
         moves_expr(m, e->as.binary.rhs, s, USE_READ);
@@ -338,7 +248,7 @@ static void walk(Moves *m, Expr *e, State *s, Use use) {
     switch (e->kind) {
     case EXPR_INTERP: each(m, e->as.parts, s, USE_READ); break;
     case EXPR_UNARY: unary(m, e, s); break;
-    case EXPR_BINARY: binary(m, e, s, use); break;
+    case EXPR_BINARY: binary(m, e, s); break;
     case EXPR_CAST: moves_expr(m, e->as.cast.value, s, USE_READ); break;
     case EXPR_RANGE:
         if (e->as.range.lo) {
@@ -359,8 +269,8 @@ static void walk(Moves *m, Expr *e, State *s, Use use) {
     case EXPR_VARIANT:
         each_arg(m, e->as.variant.args, NULL, USE_MOVE, s);
         break;
-    case EXPR_IF: if_expr(m, e, s, use); break;
-    case EXPR_MATCH: match_expr(m, e, s, use); break;
+    case EXPR_IF: moves_if(m, e, s, use); break;
+    case EXPR_MATCH: moves_match(m, e, s, use); break;
     case EXPR_BLOCK: case EXPR_UNSAFE: moves_block(m, e->as.block, s, use); break;
     default: break;   // literals, names of types and functions, constants
     }
@@ -373,6 +283,7 @@ void moves_expr(Moves *m, Expr *e, State *s, Use use) {
     if (is_place(e)) {
         place_expr(m, e, s, use);
     } else {
+        e->consumed = e->consumed || use == USE_MOVE;   // else a temporary, dropped (3.2)
         walk(m, e, s, use);
     }
     if (e->type.id == TID_NEVER) {

@@ -103,9 +103,15 @@ bool moved_part(const State *s, const Part *part) {
 void move_part(Moves *m, State *s, const Part *part) {
     if (part->len == 0) {
         set_bit(s->moved, part->local, true);
-    } else {
-        add_part(m, s, part);
+        return;
     }
+    add_part(m, s, part);
+    for (size_t i = 0; i < m->all_parts.len; i++) {
+        if (same_part(&m->all_parts.data[i], part)) {
+            return;
+        }
+    }
+    VEC_PUSH(m->all_parts, *part);
 }
 
 // An assignment to `part` makes it, and everything inside it, a value again.
@@ -171,7 +177,8 @@ static void check_mut_params(Moves *m, const State *s, Span span) {
 static void loop_body(Moves *m, Stmt *s, State *st);
 
 static void moves_assign(Moves *m, Stmt *s, State *st) {
-    moves_expr(m, s->as.assign.value, st, USE_MOVE);
+    // `x = v` moves `v` into `x`; `x op= v` only reads it (`s += t` appends).
+    moves_expr(m, s->as.assign.value, st, s->as.assign.op == OP_ASSIGN ? USE_MOVE : USE_READ);
     Expr *target = s->as.assign.target;
     if (s->as.assign.op != OP_ASSIGN) {   // `x += 1` reads `x` first
         moves_expr(m, target, st, USE_READ);
@@ -181,7 +188,9 @@ static void moves_assign(Moves *m, Stmt *s, State *st) {
 }
 
 static void moves_let(Moves *m, Stmt *s, State *st) {
-    moves_expr(m, s->as.let.value, st, USE_MOVE);
+    // `let _ = value` keeps nothing: the value is a temporary, dropped at once.
+    bool keeps = s->as.let.pattern->kind != PAT_WILDCARD;
+    moves_expr(m, s->as.let.value, st, keeps ? USE_MOVE : USE_READ);
     if (s->as.let.else_) {
         State other = state_copy(m, st);
         moves_block(m, s->as.let.else_, &other, USE_READ);   // never falls through
@@ -313,6 +322,12 @@ void check_moves(Checker *c, FnDecl *fn) {
     for (uint32_t i = 0; i < fn->locals.len; i++) {   // what the drops need
         fn->locals.items[i].borrows = bit(m.borrowed, i);
     }
+    fn->moved_part_count = (uint32_t)m.all_parts.len;
+    fn->moved_parts = ARENA_ARRAY(&c->sema->session->arena, MovedPart, m.all_parts.len + 1);
+    if (m.all_parts.len > 0) {
+        memcpy(fn->moved_parts, m.all_parts.data, m.all_parts.len * sizeof(MovedPart));
+    }
+    VEC_FREE(m.all_parts);
     VEC_FREE(m.loops);
     arena_free(&m.arena);
 }
