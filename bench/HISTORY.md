@@ -51,6 +51,7 @@ helpers, and building lists directly in the arena. Memory: 32-byte tokens
 | `c78cce1` | generics (2.18); the common case of `coerce` inlined | 567,130,671 | 122.1 | 0.82M | 68,748 |
 | `fbc80ef` | std bodies checked only when lowered; std grew (checked integers, `parse`) | 589,025,975 | 137.3 | 0.73M | 68,924 |
 | `6a46c6a` | precedence climbing in the parser | 525,711,881 | 134.7 | 0.74M | 68,880 |
+| `bce26e1` | `--emit=names` trace checks in the resolver (+1.8%, within the gate) | 535,002,000 | 125.5 | 0.80M | 68,924 |
 
 On the same input, stopping after the parser costs 489.4M instructions:
 resolution and type checking add 72.6M (13% of the total, a third of the
