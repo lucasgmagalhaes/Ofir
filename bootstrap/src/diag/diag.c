@@ -46,7 +46,8 @@ void diag_error(Diagnostics *diags, const char *code, Span span, const char *for
 void diag_warning(Diagnostics *diags, const char *code, Span span, const char *format, ...) {
     va_list args;
     va_start(args, format);
-    add(diags, make(SEVERITY_WARNING, code, span), format, args);
+    Severity severity = diags->deny_warnings ? SEVERITY_ERROR : SEVERITY_WARNING;
+    add(diags, make(severity, code, span), format, args);
     va_end(args);
 }
 

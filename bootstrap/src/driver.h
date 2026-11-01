@@ -29,6 +29,7 @@ typedef struct {
     DiagFormat format;
     bool time_passes;      // --time-passes: report the time spent in each phase
     bool release;          // --release: optimize (clang -O2)
+    bool deny_warnings;    // --deny-warnings: warnings are errors (spec 12.6)
     const char *argv0;     // to find the runtime next to the compiler
 } Options;
 

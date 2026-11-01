@@ -112,6 +112,7 @@ static DefId path_target(Checker *c, const TypeExpr *type, Symbol *name) {
     SymbolList segments = type->as.path.segments;
     *name = segments.items[segments.len - 1];
     DefId id = scope_module(&c->sema->scope, segments.items[0]);
+    note_import_use(c->sema, segments.items[0]);
     if (segments.len == 1 || id.id == 0) {
         return segments.len == 1 ? id : (DefId){0};
     }

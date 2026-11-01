@@ -31,6 +31,7 @@ typedef struct {
     Arena *arena;
     Vec(Diagnostic) items;
     uint32_t error_count;
+    bool deny_warnings;  // --deny-warnings: warnings are reported as errors
 } Diagnostics;
 
 void diags_init(Diagnostics *diags, Arena *arena);

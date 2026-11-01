@@ -69,6 +69,14 @@ typedef struct {
     EnumInfo *variants;  // enums, once computed
 } Def;
 
+// An import, for the unused-import warning (W0002).
+typedef struct {
+    uint32_t module;     // the importing module
+    Symbol name;         // the name it binds
+    Span span;
+    bool used;
+} ImportUse;
+
 // The modules of a program; the root module (with `main`) comes first.
 typedef struct {
     Module *module;
@@ -88,6 +96,7 @@ typedef struct {
     TypeTable types;
     Vec(Def) defs;       // defs.data[0] is unused: DefId 0 means "none"
     Scope scope;         // its module table is the current module's
+    Vec(ImportUse) imports;   // in module order
     DefId lang[TID_BUILTIN_COUNT];   // the `@lang` declaration of each primitive type
     DefId box;           // `@lang("box") struct Box<T>`, which the compiler dereferences
     DefId list;          // `@lang("list") struct List<T>`: literals, indexing, `for`
@@ -131,6 +140,11 @@ uint32_t sema_enter(Sema *sema, uint32_t index);
 static inline Def *sema_def(Sema *sema, DefId id) {
     return &sema->defs.data[id.id];
 }
+
+// Records that the current module names `name`, which may be an import.
+void note_import_use(Sema *sema, Symbol name);
+// W0002 for each import nothing names, except in the prelude's root.
+void warn_unused_imports(Sema *sema);
 
 // Binds every name in the program (E0200, E0201, E0202, E0204).
 void resolve_program(Sema *sema);

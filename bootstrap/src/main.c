@@ -22,6 +22,7 @@ static void print_usage(FILE *out) {
           "  --emit=air                print the intermediate representation and stop\n"
           "  --emit=llvm               write <output>.ll and stop\n"
           "  --release                 optimize the program\n"
+          "  --deny-warnings           treat warnings as errors\n"
           "  --message-format=short    one line per diagnostic\n"
           "  --stop-after=PHASE       run the phases up to lex, parse or check, without output\n"
           "  --time-passes             report the time spent in each phase\n",
@@ -42,6 +43,8 @@ static bool parse_option(int argc, char **argv, int *i, Options *opts) {
         opts->emit = EMIT_AIR;
     } else if (strcmp(arg, "--emit=llvm") == 0) {
         opts->emit = EMIT_LLVM;
+    } else if (strcmp(arg, "--deny-warnings") == 0) {
+        opts->deny_warnings = true;
     } else if (strcmp(arg, "--release") == 0) {
         opts->release = true;
     } else if (strcmp(arg, "--message-format=short") == 0) {
