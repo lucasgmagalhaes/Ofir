@@ -71,8 +71,13 @@ static void own_params(Lowerer *l, FnDecl *fn) {
     l->flag_count = fn->locals.len + 1;
     l->flags = ARENA_ARRAY(&l->sema->session->arena, LocalId, l->flag_count + 1);
     l->fn_locals = fn->locals.items;
+    l->fn = fn;
+    l->part_flags.len = 0;
     l->owned.len = 0;
     l->scopes.len = 0;
+    l->temps.len = 0;
+    l->temp_scopes.len = 0;
+    l->forward = false;
     drop_scope_enter(l);
     if (fn->has_self && fn->self_mode == MODE_MOVE) {
         own_local(l, (LocalId){1}, true);
@@ -165,6 +170,7 @@ void lower_program(Sema *sema, BodySink sink, void *context) {
         Instance inst = l.pending.data[next];
         if (!inst.fn) {   // drop glue
             l.flag_count = 0;
+            l.fn = NULL;
             lower_glue(&l, inst.targs, sink, context);
             continue;
         }
@@ -175,5 +181,8 @@ void lower_program(Sema *sema, BodySink sink, void *context) {
     VEC_FREE(l.loops);
     VEC_FREE(l.owned);
     VEC_FREE(l.scopes);
+    VEC_FREE(l.temps);
+    VEC_FREE(l.part_flags);
+    VEC_FREE(l.temp_scopes);
     mono_free(&l);
 }

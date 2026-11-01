@@ -12,7 +12,20 @@
 typedef struct {
     BlockId break_to, continue_to;
     uint32_t scopes;        // drop scopes open outside the loop
+    uint32_t temp_scopes;   // temporary scopes open outside the loop
 } Loop;
+
+// The drop flag of a part of a local that is moved out somewhere.
+typedef struct {
+    MovedPart part;   // `local` is the AIR local
+    LocalId flag;
+} PartFlag;
+
+// A temporary to drop at the end of its full expression.
+typedef struct {
+    LocalId local;
+    TypeId type;
+} Temp;
 
 typedef struct {
     LocalId local;
@@ -39,6 +52,12 @@ typedef struct {
     LocalId *flags;         // per local of the function: its drop flag (0: none)
     uint32_t flag_count;
     const Local *fn_locals; // the function's locals: which ones borrow
+    const FnDecl *fn;       // the function being lowered (NULL for drop glue)
+    Vec(PartFlag) part_flags;   // of this function's partially moved locals
+    Vec(Temp) temps;        // new values no one consumed, to drop
+    Vec(uint32_t) temp_scopes;   // per open full expression: its first temporary
+    bool forward;           // the next expression's value is the value of an `if`,
+                            // `match` or block: it is that expression's temporary
     uint64_t *instances;    // the generic instances reached: open addressing of
     uint32_t instance_count, instance_cap;   // DefId << 32 | targs, 0 = empty
     bool too_deep;          // E0331 was reported
@@ -74,6 +93,8 @@ void emit_goto(Lowerer *l, BlockId target);
 void switch_to(Lowerer *l, BlockId block);
 void emit_assert(Lowerer *l, Operand fails, PanicKind panic, Span span);
 Operand lower_block(Lowerer *l, Block *block, bool as_value);
+Operand lower_tail(Lowerer *l, Expr *e);   // the value of a block or an arm
+Operand lower_condition(Lowerer *l, Expr *e);   // its temporaries end with it
 // lower_stmt.c: the body of a loop; `latch` is where `continue` goes.
 void lower_loop_body(Lowerer *l, Block *body, BlockId latch, BlockId exit);
 LocalId to_local(Lowerer *l, Operand operand);   // a local holding the operand
@@ -170,6 +191,13 @@ void drop_moved(Lowerer *l, LocalId local);
 void drop_before_assign(Lowerer *l, LocalId local);
 void assign_done(Lowerer *l, LocalId local);
 void note_moved(Lowerer *l, const Expr *e);
+bool place_path(const Expr *e, LocalId *local, uint32_t *path, uint32_t *len);
+bool assign_part(Lowerer *l, const Expr *target, Place place, TypeId type);
+void temp_scope_enter(Lowerer *l);
+void temp_scope_leave(Lowerer *l);                // drops its temporaries
+void drop_temps(Lowerer *l, uint32_t first);      // for the jumps that leave them
+// A new value no one consumes: dropped at the end of the full expression.
+Operand own_temp(Lowerer *l, const Expr *e, Operand value);
 
 // lower_intrinsic.c
 Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn);
