@@ -65,7 +65,7 @@ lexer).
 
 The prelude (690 lines of `std/core`) costs a fixed 2.6M instructions per
 compilation: +4.4% on check-10k, +0.6% on check-100k, an accepted
-regression (ADR 0019). Most of it is `ints.at`, one copy of the methods per
+regression (ADR 0019). Most of it is the integer methods (now `std/core/num/`), one copy per
 integer type; generic bounds (5.2) will reduce it to one declaration.
 
 `List<T>` in the prelude (`std/core/list.at`, 2.20) adds 0.7M instructions

@@ -31,7 +31,7 @@ for i in 0..n {
 
 Order of a file's contents:
 
-1. `//!` module documentation;
+1. the `/** @module ... */` documentation;
 2. imports, sorted alphabetically, standard library first, separated from
    project imports by a blank line;
 3. public types, then their related private types;
@@ -80,7 +80,10 @@ fn load(path: str) Result<Config, IoError> {
 
 ## Comments
 
-- `///` documents every `pub` item: one summary sentence, then details.
+- `/** ... */` documents every `pub` item (ADR 0020): one summary
+  sentence, then details, then the tags `@typeParam`, `@param`,
+  `@returns`, `@panics`, `@safety` and an `@example` where it helps.
+  `tools/check_docs.py` checks the tags against the signatures in `std`.
 - Ordinary comments explain *why*, not *what*. Write full sentences.
 - `// TODO(name): ...` for known follow-ups, with a roadmap task or issue
   number when one exists.

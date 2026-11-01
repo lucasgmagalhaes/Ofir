@@ -85,18 +85,41 @@ Available conditions: `os` (`"linux"`, `"macos"`, `"windows"`), `arch`
 
 ## 12.5 Documentation comments
 
-Comments starting with `///` document the next declaration; `//!` documents
-the enclosing module. They are Markdown. Code blocks inside them are
-compiled and run by `astra test` as doc tests.
+A `/** ... */` comment documents the next declaration; one whose text
+starts with `@module` documents the file (ADR 0020). The text is Markdown:
+a summary sentence, details, then tags in the style of JSDoc. Code blocks
+inside them are compiled and run by `astra test` as doc tests.
 
 ```astra
-/// Returns the larger of two values.
-///
-/// ```astra
-/// assert(max(1, 2) == 2)
-/// ```
+/**
+ * The larger of two values.
+ *
+ * @typeParam T the type of the values
+ * @param a the first value
+ * @param b the second value
+ * @returns `a` if it is greater than `b`, else `b`
+ * @example
+ * ```astra
+ * assert(max(1, 2) == 2)
+ * ```
+ */
 pub fn max<T: Ord>(a: move T, b: move T) T { ... }
 ```
+
+| Tag | Meaning |
+|-----|---------|
+| `@module` | documents the file's module |
+| `@typeParam T ...` | a type parameter |
+| `@param name ...` | a parameter, in order, except `self` |
+| `@returns ...` | the result of a function that returns a value |
+| `@panics ...` | when the function panics |
+| `@safety ...` | what the caller of an `unsafe fn` must guarantee |
+| `@example` | an example in a fenced `astra` block |
+| `@see target` | a related declaration or document |
+| `@deprecated reason` | the declaration should no longer be used |
+
+Every public declaration of `std` is documented, and its tags match its
+signature (`tools/check_docs.py`).
 
 ## 12.6 Warnings
 
