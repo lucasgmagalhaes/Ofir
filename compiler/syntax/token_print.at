@@ -139,8 +139,14 @@ fn gNotation(digits: str, power: int) str {
     return digits.slice(0, power + 1) + "." + digits.sliceFrom(power + 1)
 }
 
+/**
+ * The text of a token kind in `--emit=tokens` and in error messages.
+ *
+ * @param kind the kind
+ * @returns its text, as `ident` or `(`
+ */
 // check-sizes: table
-fn kindText(kind: TokenKind) str {
+pub fn kindText(kind: TokenKind) str {
     return match kind {
         .Ident => "ident"
         .Int => "int"
