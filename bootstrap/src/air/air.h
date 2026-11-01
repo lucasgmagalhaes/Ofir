@@ -186,4 +186,13 @@ static inline AirBlock *air_block(AirBody *body, BlockId id) {
 
 const char *runtime_fn_name(RuntimeFn fn);
 
+// The functions the compiler generates per type: in an AIR body or call,
+// `def` is one of these and `targs` is the tuple of the type.
+#define GLUE_DROP 0u            // drop<T>(p: &mut T)
+#define GLUE_CLONE 0xFFFFFFFFu  // clone<T>(p: &T) T
+
+static inline bool is_glue(DefId def) {
+    return def.id == GLUE_DROP || def.id == GLUE_CLONE;
+}
+
 #endif

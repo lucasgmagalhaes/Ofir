@@ -145,7 +145,9 @@ static void statement(AirPrinter *p, const AirStmt *s) {
         if (s->as.call.runtime) {
             fprintf(p->out, "call %s(", runtime_fn_name(s->as.call.rt));
         } else {
-            StrView name = s->as.call.fn.id ? def_name(p->sema, s->as.call.fn.id) : SV("drop");
+            StrView name = s->as.call.fn.id == GLUE_DROP    ? SV("drop")
+                           : s->as.call.fn.id == GLUE_CLONE ? SV("clone")
+                                                            : def_name(p->sema, s->as.call.fn.id);
             fprintf(p->out, "call " SV_FMT, SV_ARG(name));
             type_args(p, s->as.call.targs);
             fputc('(', p->out);

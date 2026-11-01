@@ -169,10 +169,14 @@ void lower_program(Sema *sema, BodySink sink, void *context) {
     }
     for (size_t next = 0; next < l.pending.len; next++) {
         Instance inst = l.pending.data[next];
-        if (!inst.fn) {   // drop glue
+        if (!inst.fn) {   // glue
             l.flag_count = 0;
             l.fn = NULL;
-            lower_glue(&l, inst.targs, sink, context);
+            if (inst.glue.id == GLUE_CLONE) {
+                lower_clone_glue(&l, inst.targs, sink, context);
+            } else {
+                lower_glue(&l, inst.targs, sink, context);
+            }
             continue;
         }
         sema_enter(sema, sema_def(sema, inst.fn->def)->module);

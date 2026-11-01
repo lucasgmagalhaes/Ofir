@@ -16,14 +16,14 @@
 
 TypeId concrete_type(Lowerer *l, TypeId type) {
     const Ty *targs = type_get(l->types, l->body->targs);
-    if (l->body->def.id == 0) {
-        return type;   // drop glue is lowered for a concrete type
+    if (is_glue(l->body->def)) {
+        return type;   // glue is lowered for a concrete type
     }
     return type_subst(l->types, type, targs->args, targs->arg_count);
 }
 
-// The `drop` method of the type of `type`, or NULL.
-static FnDecl *drop_method(Lowerer *l, TypeId type) {
+// The method `name` (with `self`) declared by the type `type`, or NULL.
+FnDecl *type_method(Lowerer *l, TypeId type, StrView name) {
     const Ty *ty = type_get(l->types, type);
     const Def *def = ty->kind == TY_ADT ? sema_def(l->sema, (DefId){ty->data})
                                         : lang_def(l->sema, type);
@@ -34,7 +34,7 @@ static FnDecl *drop_method(Lowerer *l, TypeId type) {
     FnList methods = item->kind == ITEM_ENUM ? item->as.enum_.methods : item->as.struct_.methods;
     for (uint32_t i = 0; i < methods.len; i++) {
         if (methods.items[i]->has_self &&
-            sv_eq(symbol_name(&l->sema->session->names, methods.items[i]->name), SV("drop"))) {
+            sv_eq(symbol_name(&l->sema->session->names, methods.items[i]->name), name)) {
             return methods.items[i];
         }
     }
@@ -79,7 +79,7 @@ static bool compute_needs_drop(Lowerer *l, TypeId type) {
         ty->kind == TY_INT || ty->kind == TY_FLOAT || ty->kind == TY_BOOL) {
         return false;
     }
-    return drop_method(l, type) != NULL || fields_need_drop(l, type);
+    return type_method(l, type, SV("drop")) != NULL || fields_need_drop(l, type);
 }
 
 // Cached by TypeId: asked for every new value and every local.
@@ -103,6 +103,12 @@ void emit_drop(Lowerer *l, Place place, TypeId type) {
     *arg = place_operand(place, OPERAND_ADDR, type_ref(l->types, type, true));
     TypeId targs = type_tuple(l->types, &type, 1);
     emit_direct_call(l, &(FnDecl){.def = {0}}, targs, (CallArgs){arg, 1}, NULL);
+}
+
+// The type arguments of a method of `type`: those of the type.
+TypeId method_targs(Lowerer *l, TypeId type) {
+    const Ty *ty = type_get(l->types, type);
+    return ty->kind == TY_ADT ? type_tuple(l->types, ty->args, ty->arg_count) : type_id(TID_UNIT);
 }
 
 // ---------------------------------------------------------------------------
@@ -150,11 +156,9 @@ static void drop_variants(Lowerer *l, Place value, TypeId type) {
 // The body of `drop<T>(p)`: T's `drop` method, then its fields.
 static void glue_body(Lowerer *l, TypeId type) {
     Place value = {.local = {1}, .path = {.deref = true}};
-    FnDecl *method = drop_method(l, type);
+    FnDecl *method = type_method(l, type, SV("drop"));
     if (method) {
-        const Ty *ty = type_get(l->types, type);
-        TypeId targs = ty->kind == TY_ADT ? type_tuple(l->types, ty->args, ty->arg_count)
-                                          : type_id(TID_UNIT);
+        TypeId targs = method_targs(l, type);
         Operand *self = ARENA_NEW(&l->sema->session->arena, Operand);
         *self = op_copy((LocalId){1}, type_ref(l->types, type, true));
         emit_direct_call(l, method, targs, (CallArgs){self, 1}, NULL);

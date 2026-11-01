@@ -192,6 +192,11 @@ TypeId check_coalesce(Checker *c, Expr *e, TypeId expected);
 void check_unused_result(Checker *c, const Expr *e);   // E0305
 void check_wrapper_layout(Checker *c, DefId id);       // E0806
 
+// check_clone.c
+bool type_is_cloneable(Checker *c, TypeId type);
+TypeId check_derived_clone(Checker *c, Expr *call, TypeId self);
+void check_std_clone(Checker *c, Expr *call, DefId owner, FnDecl *fn, TypeId self);
+
 // check_user_method.c
 // The struct or enum named by `e`, `Point` or `Pair<int, str>`; its type
 // arguments go to `args`.

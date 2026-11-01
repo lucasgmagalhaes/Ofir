@@ -70,16 +70,16 @@ static void user_call(Gen *g, const AirStmt *s) {
     for (uint32_t i = 0; i < count; i++) {
         values[i] = gen_operand(g, s->as.call.args[i]);
     }
-    const Def *def = sema_def(g->sema, s->as.call.fn);
+    const Def *def = sema_def(g->sema, is_glue(s->as.call.fn) ? (DefId){0} : s->as.call.fn);
     bool c = is_c_function(def);
     if (c && def->item->kind == ITEM_EXTERN) {
         mark_c_used(g, s->as.call.fn);
     }
     const Ty *targs = type_get(g->types, s->as.call.targs);
-    TypeId ret_type = s->as.call.fn.id == 0   // drop glue returns nothing
-                          ? type_id(TID_UNIT)
-                          : type_subst(g->types, type_get(g->types, def->type)->inner,
-                                       targs->args, targs->arg_count);
+    TypeId ret_type = s->as.call.fn.id == GLUE_DROP ? type_id(TID_UNIT)
+                      : s->as.call.fn.id == GLUE_CLONE ? targs->args[0]   // clone<T> returns T
+                      : type_subst(g->types, type_get(g->types, def->type)->inner,
+                                   targs->args, targs->arg_count);
     const char *ret = llvm_type(g, ret_type);
     bool has_dest = s->has_dest && llvm_has_value(ret_type);   // an instance may return ()
     char result[16] = "";
@@ -174,7 +174,8 @@ static void terminator(Gen *g, const Terminator *t, size_t index) {
 
 static void header(Gen *g, const AirBody *body) {
     TypeId ret = body->locals.data[0].type;
-    bool c = is_c_function(sema_def(g->sema, body->def));   // `extern "C" fn`: callable from C
+    // `extern "C" fn`: callable from C
+    bool c = !is_glue(body->def) && is_c_function(sema_def(g->sema, body->def));
     out_fmt(&g->out, "define %s%s ", body->is_main || c ? "" : "internal fastcc ",
             body->is_main ? "void" : llvm_type(g, ret));
     function_name(g, &g->out, body->def, body->targs, body->is_main);

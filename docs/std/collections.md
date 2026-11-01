@@ -21,6 +21,7 @@ from context).
 | `fn clear(mut self)` | drops all elements | ✓ |
 | `fn truncate(mut self, n: int)` | | ✓ |
 | `fn extend(mut self, other: move List<T>)` | moves the elements of `other` | ✓ |
+| `fn clone(self) List<T>` | clones each element; allocates | ✓ |
 | `fn get(self, i: int) Option<&T>` | returns a borrow (spec 5.6) | ✓ |
 | `fn getMut(mut self, i: int) Option<&mut T>` | | ✓ |
 | `fn first(self) Option<&T>`, `last()` | | ✓ |
@@ -78,11 +79,12 @@ An owned heap allocation.
 |--------|-------------|:--:|
 | `fn new(x: move T) Box<T>` | allocates | ✓ |
 | `fn unbox(move self) T` | moves the value out and frees the box | ✓ |
+| `fn clone(self) Box<T>` | a new box with a clone of the value; allocates | ✓ |
 
 `Box<T>` dereferences automatically for field access and method calls;
 `*b` reads the value. A method of `Box` itself (`unbox`) takes precedence
 over a method of the same name of the value; `(*b).m()` calls the latter.
 
 Stage 0: `Box` is declared in `std/core/box.at`, marked `@lang("box")` so
-that the compiler knows which type to dereference. Until drops (roadmap
-3.2) a box is freed only by `unbox`.
+that the compiler knows which type to dereference. Dropping a box drops
+its value and frees the memory.
