@@ -145,8 +145,10 @@ static void unary(Gen *g, const Rvalue *rv, Value *result) {
 }
 
 static const char *cast_op(const Ty *from, const Ty *to) {
-    if (from->kind == TY_PTR || to->kind == TY_PTR) {
-        return from->kind == to->kind ? NULL : from->kind == TY_PTR ? "ptrtoint" : "inttoptr";
+    bool from_ptr = from->kind == TY_PTR || from->kind == TY_REF;
+    bool to_ptr = to->kind == TY_PTR || to->kind == TY_REF;
+    if (from_ptr || to_ptr) {   // a reference is a pointer
+        return from_ptr == to_ptr ? NULL : from_ptr ? "ptrtoint" : "inttoptr";
     }
     if (from->kind == TY_FLOAT && to->kind == TY_FLOAT) {
         return from->data < to->data ? "fpext" : "fptrunc";
