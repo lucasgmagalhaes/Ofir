@@ -105,7 +105,6 @@ typedef struct {
     DefId option, result;   // `@lang("option")`, `@lang("result")`: `?`, `??`, bare variants
     DefId slice;         // `@lang("slice") ref struct Slice<T>`: the type `&[T]`
     DefId map;           // `@lang("map") struct Map<K, V>`: `for key, value in map`
-    bool no_moves;       // --emit=types: no move analysis (stage 1 ports it later)
     FILE *trace;         // --emit=names: where the root module's resolutions go
     bool testing;        // `astra test`: the `@test` functions are the roots, not `main`
     Vec(FnDecl *) tests; // filled by the lowering when testing, in program order

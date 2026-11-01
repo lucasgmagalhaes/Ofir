@@ -150,8 +150,14 @@ pub fn checkVisible(c: mut Checker, module: int, isPub: bool, name: Symbol, span
     }
 }
 
-// The struct or enum named by `e`, as in `Point.new()` or `Stack<int>.new()`.
-fn typeNameOf(c: Checker, e: &Expr) int {
+/**
+ * The struct or enum named by `e`, as in `Point.new()` or `Stack<int>.new()`.
+ *
+ * @param c the checker
+ * @param e an expression
+ * @returns its `DefId`, or 0
+ */
+pub fn typeNameOf(c: Checker, e: &Expr) int {
     let Res.Def(id) = nameRes(c, e) else {
         return 0
     }
@@ -359,8 +365,14 @@ fn noMethod(c: mut Checker, p: Program, field: &Expr, name: Symbol, args: &List<
     return skipArgs(c, p, args)
 }
 
-// The primitive type named by `e`, as in `str.new()` or `i32.MAX`.
-fn primitiveName(c: Checker, e: &Expr) int {
+/**
+ * The primitive type named by `e`, as in `str.new()` or `i32.MAX`.
+ *
+ * @param c the checker
+ * @param e an expression
+ * @returns the type, or -1
+ */
+pub fn primitiveName(c: Checker, e: &Expr) int {
     let isIdent = match e.kind {
         .Ident(_) => true
         _ => false

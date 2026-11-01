@@ -31,7 +31,7 @@ const char *type_name(Checker *c, TypeId type) {
 // Without owned values nothing can be moved, uninitialized or dropped. A
 // std function waits until the lowering reaches it (sema_moves_late).
 static void analyze_moves(Checker *c, FnDecl *fn) {
-    if (!c->owned_values || c->sema->no_moves) {
+    if (!c->owned_values) {
         return;
     }
     StrView module = c->sema->program.items[c->sema->current].name;

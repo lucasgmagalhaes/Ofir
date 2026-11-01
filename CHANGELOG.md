@@ -17,6 +17,8 @@ project uses [Semantic Versioning](https://semver.org/).
 - `fs.canonicalize`.
 - Stage 1 type checker (roadmap 4.6), checked against stage 0's new
   `--emit=types` trace by `make compare-stages`.
+- Stage 1 move analysis (roadmap 4.7); `--emit=types` now runs the move
+  analysis, so its errors are compared too.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 
@@ -31,6 +33,9 @@ project uses [Semantic Versioning](https://semver.org/).
 - Matching the value in a box bound its parts by move and freed them twice.
 - A `let` in a loop kept the parts moved out in the previous iteration.
 - `--emit=ast` crashed on a tree with a missing part after a syntax error.
+- Stage 1's parser looped forever on a `.` at the end of the file (`x.`).
+- Stage 0 left `deny_warnings` uninitialized, which turned warnings into
+  errors on macOS.
 
 ### Changed
 
