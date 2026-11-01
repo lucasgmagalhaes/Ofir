@@ -17,6 +17,8 @@ typedef struct {
 
 void arena_init(Arena *arena);
 void arena_free(Arena *arena);
+// Releases every allocation but keeps one chunk: for scratch memory reused often.
+void arena_reset(Arena *arena);
 
 // Returns `size` bytes aligned to `align` (a power of two), zero-initialized.
 void *arena_alloc(Arena *arena, size_t size, size_t align);

@@ -73,12 +73,25 @@ static bool fields_need_drop(Lowerer *l, TypeId type) {
     return false;
 }
 
-bool needs_drop(Lowerer *l, TypeId type) {
+static bool compute_needs_drop(Lowerer *l, TypeId type) {
     const Ty *ty = type_get(l->types, type);
-    if (ty->kind == TY_REF || ty->kind == TY_PTR || ty->kind == TY_PARAM) {
+    if (ty->kind == TY_REF || ty->kind == TY_PTR || ty->kind == TY_PARAM ||
+        ty->kind == TY_INT || ty->kind == TY_FLOAT || ty->kind == TY_BOOL) {
         return false;
     }
     return drop_method(l, type) != NULL || fields_need_drop(l, type);
+}
+
+// Cached by TypeId: asked for every new value and every local.
+bool needs_drop(Lowerer *l, TypeId type) {
+    while (l->drop_cache.len <= type.id) {
+        VEC_PUSH(l->drop_cache, 0);
+    }
+    if (l->drop_cache.data[type.id] == 0) {
+        l->drop_cache.data[type.id] = 3;   // in progress: no drop through itself
+        l->drop_cache.data[type.id] = compute_needs_drop(l, type) ? 2 : 1;
+    }
+    return l->drop_cache.data[type.id] == 2;
 }
 
 // Drops the value at `place`, of the concrete type `type`.

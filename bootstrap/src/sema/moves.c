@@ -11,8 +11,8 @@
 // States
 
 State state_new(Moves *m) {
-    return (State){.moved = ARENA_ARRAY(&m->arena, uint64_t, m->words),
-                   .uninit = ARENA_ARRAY(&m->arena, uint64_t, m->words)};
+    return (State){.moved = ARENA_ARRAY(m->arena, uint64_t, m->words),
+                   .uninit = ARENA_ARRAY(m->arena, uint64_t, m->words)};
 }
 
 State state_copy(Moves *m, const State *s) {
@@ -21,7 +21,7 @@ State state_copy(Moves *m, const State *s) {
     memcpy(out.moved, s->moved, m->words * sizeof(uint64_t));
     memcpy(out.uninit, s->uninit, m->words * sizeof(uint64_t));
     if (s->part_count > 0) {
-        out.parts = ARENA_ARRAY(&m->arena, Part, s->part_count);
+        out.parts = ARENA_ARRAY(m->arena, Part, s->part_count);
         memcpy(out.parts, s->parts, s->part_count * sizeof(Part));
         out.part_count = out.part_cap = s->part_count;
     }
@@ -41,7 +41,7 @@ static void add_part(Moves *m, State *s, const Part *part) {
     }
     if (s->part_count == s->part_cap) {
         uint32_t cap = s->part_cap ? s->part_cap * 2 : 4;
-        Part *parts = ARENA_ARRAY(&m->arena, Part, cap);
+        Part *parts = ARENA_ARRAY(m->arena, Part, cap);
         if (s->part_count) {
             memcpy(parts, s->parts, s->part_count * sizeof(Part));
         }
@@ -274,40 +274,94 @@ static State iteration(Moves *m, Stmt *s, const State *entry) {
 }
 
 // The state at the start of an iteration is the entry state joined with
-// the states at the end of every iteration: walked until it is stable,
-// without reporting, then once more to report.
+// the states at the end of every iteration. The first walk reports; when
+// an iteration changes that state (it moves or initializes something),
+// the loop is walked without reporting until the state is stable, then
+// once more to report. Errors reported twice are rendered once.
 static void loop_body(Moves *m, Stmt *s, State *st) {
     if (s->as.for_.kind == FOR_IN) {
         moves_expr(m, s->as.for_.expr, st, USE_READ);   // evaluated once, borrowed
     }
     VEC_PUSH(m->loops, ((LoopFrame){0}));
-    bool report = m->report;
-    m->report = false;
     State entry = state_copy(m, st);
-    for (int round = 0; round < 16; round++) {
-        iteration(m, s, &entry);
-        State next = state_copy(m, &entry);
-        state_join(m, &next, &VEC_LAST(m->loops).continues);
-        if (state_equal(m, &next, &entry)) {
-            break;
+    State exit = iteration(m, s, &entry);
+    State next = state_copy(m, &entry);
+    state_join(m, &next, &VEC_LAST(m->loops).continues);
+    if (!state_equal(m, &next, &entry)) {
+        bool report = m->report;
+        m->report = false;
+        for (int round = 0; round < 16 && !state_equal(m, &next, &entry); round++) {
+            entry = next;
+            iteration(m, s, &entry);
+            next = state_copy(m, &entry);
+            state_join(m, &next, &VEC_LAST(m->loops).continues);
         }
-        entry = next;
+        m->report = report;
+        exit = iteration(m, s, &entry);
     }
-    m->report = report;
-    *st = iteration(m, s, &entry);
+    *st = exit;
     m->loops.len--;
 }
 
 // ---------------------------------------------------------------------------
+// Whether a function needs the analysis (Checker.owned_values)
+
+void note_owned(Checker *c, TypeId type) {
+    TyKind kind = type_get(c->types, type)->kind;
+    if (kind > TY_FLOAT && kind != TY_REF && kind != TY_PTR) {   // not trivially Copy
+        c->owned_values = true;
+    }
+}
+
+// `Wrap(x)`, `Some(x)`, `Shape.Circle(r)`: a constructor or a variant.
+static bool builds_value(Checker *c, const Expr *call) {
+    const Expr *callee = call->as.call.callee;
+    if (callee->kind == EXPR_FIELD) {
+        return callee->as.field.res.kind == RES_VARIANT;
+    }
+    if (callee->kind != EXPR_IDENT && callee->kind != EXPR_GENERIC) {
+        return false;
+    }
+    Res res = (callee->kind == EXPR_GENERIC ? callee->as.generic.res : callee->as.ident.res);
+    if (res.kind != RES_DEF) {
+        return false;
+    }
+    DefKind kind = sema_def(c->sema, (DefId){res.index})->kind;
+    return kind == DEF_STRUCT || kind == DEF_VARIANT;
+}
+
+// An aggregate moves its parts in.
+void note_aggregate(Checker *c, const Expr *e) {
+    bool aggregate = e->kind == EXPR_STRUCT || e->kind == EXPR_TUPLE || e->kind == EXPR_ARRAY ||
+                     e->kind == EXPR_ARRAY_REPEAT || e->kind == EXPR_VARIANT ||
+                     e->kind == EXPR_TRY ||
+                     (e->kind == EXPR_BINARY && e->as.binary.op == OP_COALESCE) ||
+                     (e->kind == EXPR_CALL && builds_value(c, e));
+    if (aggregate) {
+        note_owned(c, e->type);
+    }
+}
+
+// What a function's signature may move: its result and its parameters.
+void note_signature(Checker *c, const FnDecl *fn, const Ty *sig, TypeId self_type) {
+    c->owned_values = false;
+    note_owned(c, sig->inner);
+    for (uint32_t i = 0; i < sig->arg_count; i++) {
+        note_owned(c, sig->args[i]);
+    }
+    if (fn->has_self) {
+        note_owned(c, self_type);
+    }
+}
 
 void check_moves(Checker *c, FnDecl *fn) {
     if (!fn->body) {
         return;
     }
-    Moves m = {.c = c, .fn = fn, .report = true};
-    arena_init(&m.arena);
+    Moves m = {.c = c, .fn = fn, .report = true, .arena = &c->scratch};
+    arena_reset(m.arena);
     m.words = (fn->locals.len + 63) / 64 + 1;
-    m.borrowed = ARENA_ARRAY(&m.arena, uint64_t, m.words);
+    m.borrowed = ARENA_ARRAY(m.arena, uint64_t, m.words);
     if (fn->has_self && fn->self_mode == MODE_BORROW) {
         set_bit(m.borrowed, 0, true);
     }
@@ -329,5 +383,4 @@ void check_moves(Checker *c, FnDecl *fn) {
     }
     VEC_FREE(m.all_parts);
     VEC_FREE(m.loops);
-    arena_free(&m.arena);
 }

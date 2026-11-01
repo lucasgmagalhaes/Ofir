@@ -50,6 +50,7 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     }
     c->unsafe_depth = fn->is_unsafe ? 1 : 0;
     uint32_t errors = c->sema->session->diags.error_count;
+    note_signature(c, fn, sig, self_type);
     TypeId body = check_block(c, fn->body, NO_TYPE, false);
     c->unsafe_depth = 0;
     bool needs_value = c->ret.id != TID_UNIT && c->ret.id != TID_ERROR;
@@ -57,7 +58,9 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
         check_error(c, "E0303", fn->span,
                     "function may reach its end without returning a value");
     }
-    if (c->sema->session->diags.error_count == errors) {   // no cascade after type errors
+    // Without owned values nothing can be moved, uninitialized or dropped.
+    // No cascade after type errors either.
+    if (c->owned_values && c->sema->session->diags.error_count == errors) {
         check_moves(c, fn);
     }
     enter_generics(c, outer);
@@ -145,4 +148,5 @@ void check_program(Sema *sema) {
     sema_enter(sema, 0);
     warn_unused_imports(sema);
     VEC_FREE(c.loops);
+    arena_free(&c.scratch);
 }
