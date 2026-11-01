@@ -203,6 +203,9 @@ bool check_qualified_variant(Checker *c, Expr *e, DefId id, TypeHints hints, Typ
 TypeId check_prelude_variant(Checker *c, Expr *e, const Def *def, const ArgList *args,
                              TypeId expected);
 
+// moves.c: E0600, E0601, E0602 (spec 5.1); after the function is checked
+void check_moves(Checker *c, FnDecl *fn);
+
 // check_match.c
 TypeId check_match(Checker *c, Expr *e, TypeId expected, bool as_value);
 // exhaustive.c: E0500 for a non-exhaustive match, W0004 for unreachable arms
