@@ -96,6 +96,7 @@ bootstrap/
 │   │   ├── check_method.c    method calls on primitives (std methods, then built-ins)
 │   │   ├── check_user_method.c method calls on user types
 │   │   ├── check_box.c       dereferencing boxes and references: `*b`, `b.x`, `b.m()`
+│   │   ├── check_clone.c     which types can be cloned, the derived `.clone()` (E0322)
 │   │   ├── check_ref.c       `&x`, `&mut x`, second-class rules (E0702), returned borrows
 │   │   ├── check_list.c      `List<T>`: literals, indexing, `for`, `sort` in stage 0
 │   │   ├── check_option.c    `?`, `??`, unused results, the Option/Result layouts
@@ -121,6 +122,7 @@ bootstrap/
 │   │   ├── lower_struct.c    struct and enum values
 │   │   ├── lower_list.c      list literals, bounds-checked elements, `for` over lists and maps
 │   │   ├── lower_hash.c      `hashOf<K>` and `equals<K>` for Map keys
+│   │   ├── lower_clone.c     clone glue, the derived `.clone()` and `cloneOf<T>`
 │   │   ├── lower_drop.c      drop glue, `dropInPlace<T>` and `forget<T>`
 │   │   ├── lower_scope.c     drop scopes, drop flags (also per moved part), temporaries
 │   │   ├── lower_option.c    `?` and `??`

@@ -141,7 +141,7 @@ earlier accordingly).
 |---|------|:----:|-----------|
 | 3.1 | Move analysis on AIR: use after move, conditional moves, moves out of borrowed or indexed places, definite initialization | L | **done** on the typed AST (`sema/moves*.c`): `tests/compile_fail/moves.at`, `tests/run/moves/*`; `std.mem.replace` and `swap`; Map removes entries instead of marking them dead |
 | 3.2 | Drop elaboration, drop flags, drop glue, user `drop` methods | L | **done**: `make check-leaks` (valgrind, as clang here has no ASan runtime) finds no leak or invalid access in `tests/run` and `examples`; `tests/run/drops/order.at`; the unbound parts of a value matched by move are not dropped yet |
-| 3.3 | `.clone()` for built-in types and derived for structs/enums | M | tests pass |
+| 3.3 | `.clone()` for built-in types and derived for structs/enums | M | **done**: clone glue `clone<T>` (`air/lower_clone.c`), the derived clone and E0322 (`sema/check_clone.c`), `clone` in std str, List and Box; `tests/run/clone`, `tests/compile_fail/types/clone.at` |
 | 3.4 | Modules: multiple files, `mod.at`, `import`, aliases, `pub`, module-qualified names | L | multi-file tests pass |
 | 3.5 | Prelude and standard library loading from `std/` | M | `Option`/`Result` helpers live in `std/core` |
 | 3.6 | `extern "C"` blocks, `unsafe` blocks, raw pointers | M | calling `strlen` works |

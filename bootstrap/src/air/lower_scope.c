@@ -158,7 +158,8 @@ static void flag_parts(Lowerer *l, LocalId local) {
 }
 
 void own_local(Lowerer *l, LocalId local, bool initialized) {
-    if (local.id >= l->flag_count || l->body->def.id == 0 || !needs_drop(l, local_type(l, local))) {
+    if (local.id >= l->flag_count || is_glue(l->body->def) ||
+        !needs_drop(l, local_type(l, local))) {
         return;
     }
     if (local.id > 0 && l->fn_locals && l->fn_locals[local.id - 1].borrows) {
@@ -311,7 +312,7 @@ Operand own_temp(Lowerer *l, const Expr *e, Operand value) {
     bool forwarded = l->forward;
     l->forward = false;
     if (forwarded || e->consumed || !makes_value(e) || l->temp_scopes.len == 0 ||
-        l->body->def.id == 0 || value.kind == OPERAND_UNIT) {
+        is_glue(l->body->def) || value.kind == OPERAND_UNIT) {
         return value;
     }
     TypeId type = concrete_type(l, e->type);

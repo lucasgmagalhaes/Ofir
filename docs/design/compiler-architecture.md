@@ -314,6 +314,14 @@ generic function, `drop<T>`, for each concrete type that needs it.
 **Drop glue** for a type is generated once: call the user `drop` method if
 present, then drop each field (and, for enums, the active variant's fields).
 
+**Clone glue** (`air/lower_clone.c`) is its counterpart, `clone<T>(value: T)
+T`, for each concrete type that needs drop: it calls T's `clone` method if
+present, and otherwise rebuilds the value from clones of its fields (of the
+active variant, for an enum). A value of a type without drop is cloned by
+copying it. `x.clone()` on a type without a `clone` method and std's
+`cloneOf<T>` intrinsic both lower to it; `sema/check_clone.c` decides which
+types can be cloned (E0322).
+
 ## 10. Monomorphization
 
 Starting from `main` (or all `@test` functions), a worklist collects every

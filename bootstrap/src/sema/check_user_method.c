@@ -7,6 +7,10 @@ static StrView name_of(Checker *c, Symbol name) {
     return symbol_name(&c->sema->session->names, name);
 }
 
+static bool is_clone(Checker *c, Symbol name) {
+    return sv_eq(name_of(c, name), SV("clone"));
+}
+
 static FnDecl *find_method(Checker *c, DefId owner, Symbol name) {
     const Item *item = sema_def(c->sema, owner)->item;
     FnList methods = item->kind == ITEM_ENUM ? item->as.enum_.methods : item->as.struct_.methods;
@@ -107,6 +111,9 @@ TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type, Typ
     Expr *field = call->as.call.callee;
     Symbol name = field->as.field.name;
     FnDecl *fn = find_method(c, owner, name);
+    if (!fn && !via_type && is_clone(c, name)) {
+        return check_derived_clone(c, call, hints.self);
+    }
     if (!fn) {
         TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
         check_error(c, "E0301", field->span, "no method `" SV_FMT "` on type `%s`",
@@ -132,5 +139,8 @@ TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type, Typ
         check_list_sort(c, call);
     }
     check_mut_args(c, fn, call);
+    if (!via_type && is_clone(c, name)) {
+        check_std_clone(c, call, owner, fn, hints.self);
+    }
     return ret;
 }

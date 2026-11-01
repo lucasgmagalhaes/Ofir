@@ -69,6 +69,9 @@ Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn) {
     if (sv_eq(name, SV("dropInPlace")) || sv_eq(name, SV("forget"))) {
         return lower_drop_intrinsic(l, call, sv_eq(name, SV("forget")));
     }
+    if (sv_eq(name, SV("cloneOf"))) {
+        return lower_clone_of(l, call);
+    }
     if (sv_eq(name, SV("hashOf"))) {
         return lower_hash_of(l, call);
     }

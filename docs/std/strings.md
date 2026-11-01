@@ -12,6 +12,7 @@ UTF-8 character boundaries.
 | `fn push(mut self, t: str)` | append; may allocate | ✓ |
 | `fn pushChar(mut self, c: u32)` | append a Unicode scalar value as UTF-8; **panics** if `c` is not one | ✓ |
 | `fn toOwned(self) str` | copy a borrowed string into a new owned `str`; allocates | ✓ |
+| `fn clone(self) str` | the same as `toOwned` | ✓ |
 | `fn clear(mut self)` | | ✓ |
 | `fn bytes(self) StrBytes` | iterator over `u8` | ✓ |
 | `fn chars(self) StrChars` | iterator over Unicode scalar values (`u32`) | |
