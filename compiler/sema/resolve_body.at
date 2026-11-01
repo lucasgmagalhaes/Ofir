@@ -48,6 +48,9 @@ fn find(r: mut Resolver, name: Symbol, span: Span) Res {
     }
     let def = r.scope.module(name)
     if def != 0 {
+        if r.def(def).module != r.current || r.def(def).kind == .Module {   // maybe imported
+            r.noteImportUse(name)
+        }
         return .Def(def)
     }
     r.error("E0200", span, "cannot find `{r.text(name)}` in this scope")

@@ -48,6 +48,20 @@ pub struct Resolutions {
 
 
 /**
+ * An import, for the unused-import warning (W0002).
+ */
+pub struct ImportUse {
+    /** The importing module. */
+    pub module: int
+    /** The name it binds. */
+    pub name: Symbol
+    /** The import. */
+    pub span: Span
+    /** Whether the name is used. */
+    pub used: bool
+}
+
+/**
  * The resolver's state and results.
  */
 pub struct Resolver {
@@ -59,7 +73,7 @@ pub struct Resolver {
     pub tables: List<Resolutions>
     /** The `DefId` of `Box`, `List`, `Option`, `Result`, `Slice` and `Map`, or 0. */
     pub langItems: List<int>
-    /** The `@lang` declaration of each primitive type number, or 0. */
+    /** The `@lang` declaration of each primitive type, by type id, or 0. */
     pub lang: List<int>
     /** The interner of the program. */
     pub names: Interner
@@ -83,6 +97,34 @@ pub struct Resolver {
     pub selfName: Symbol
     /** `@test` functions are compiled: `astra test`. */
     pub testing: bool
+    /** The imports, in module order. */
+    pub imports: List<ImportUse>
+
+    /**
+     * Marks the import that binds `name` in the current module as used,
+     * unless `name` is the module's own declaration.
+     *
+     * @param name a name used in the current module
+     */
+    pub fn noteImportUse(mut self, name: Symbol) {
+        let id = self.scope.module(name)
+        if id != 0 {
+            let def = &self.defs[id]
+            if def.module == self.current && !def.inPrelude && def.kind != .Module {
+                return
+            }
+        }
+        var i = self.imports.len()
+        for i > 0 {
+            i -= 1
+            if self.imports[i].module < self.current {
+                break
+            }
+            if self.imports[i].module == self.current && self.imports[i].name.0 == name.0 {
+                self.imports[i].used = true
+            }
+        }
+    }
 
     /**
      * Reports an error.
@@ -157,18 +199,19 @@ pub struct Resolver {
     }
 }
 
-// The built-in names of every module: (name, kind, primitive type number).
+// The built-in names of every module: (name, kind, type id of a primitive,
+// as `sema.types` numbers them; `int` is `i64`, `uint` is `u64`).
 fn preludeNames() List<(str, DefKind, int)> {
-    return [("int", .Primitive, 0), ("uint", .Primitive, 1), ("i8", .Primitive, 2),
-            ("i16", .Primitive, 3), ("i32", .Primitive, 4), ("i64", .Primitive, 5),
-            ("u8", .Primitive, 6), ("u16", .Primitive, 7), ("u32", .Primitive, 8),
-            ("u64", .Primitive, 1), ("float", .Primitive, 9), ("f32", .Primitive, 10),
-            ("f64", .Primitive, 11), ("bool", .Primitive, 12), ("str", .Primitive, 13),
-            ("print", .Builtin, -1), ("println", .Builtin, -1), ("panic", .Builtin, -1),
-            ("assert", .Builtin, -1)]
+    return [("int", .Primitive, 7), ("uint", .Primitive, 11), ("i8", .Primitive, 4),
+            ("i16", .Primitive, 5), ("i32", .Primitive, 6), ("i64", .Primitive, 7),
+            ("u8", .Primitive, 8), ("u16", .Primitive, 9), ("u32", .Primitive, 10),
+            ("u64", .Primitive, 11), ("float", .Primitive, 13), ("f32", .Primitive, 12),
+            ("f64", .Primitive, 13), ("bool", .Primitive, 3), ("str", .Primitive, 14),
+            ("print", .Builtin, 0), ("println", .Builtin, 1), ("panic", .Builtin, 2),
+            ("assert", .Builtin, 3)]
 }
 
-const PRIMITIVE_TYPES: int = 14
+const PRIMITIVE_TYPES: int = 15
 
 /**
  * Resolves the names of a program.
@@ -230,7 +273,7 @@ fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
     return Resolver{defs, scope, tables, langItems: List.filled(0, 6),
                     lang: List.filled(0, PRIMITIVE_TYPES), names, diags, map,
                     trace: Trace.new(trace), moduleNames, current: 0, moduleName: "", locals: [],
-                    owner: .None, selfName, testing: false}
+                    owner: .None, selfName, testing: false, imports: []}
 }
 
 fn noDef() Def {
