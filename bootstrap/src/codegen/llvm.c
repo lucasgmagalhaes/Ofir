@@ -10,7 +10,8 @@
 const char *llvm_type(Gen *g, TypeId type) {
     const Ty *ty = type_get(g->types, type);
     switch (ty->kind) {
-    case TY_ADT: return adt_type(g, ty->data);
+    case TY_ADT: return adt_type(g, type);
+    case TY_PARAM: fatal("llvm_type: a type parameter survived monomorphization");
     case TY_TUPLE: return tuple_type(g, ty);
     case TY_REF: case TY_PTR: return "ptr";
     case TY_BOOL: return "i1";
@@ -41,7 +42,7 @@ bool is_c_function(const Def *def) {
     return def->fn && (def->fn->abi.len > 0 || (def->item && def->item->kind == ITEM_EXTERN));
 }
 
-void function_name(Gen *g, Out *out, DefId def, bool is_main) {
+void function_name(Gen *g, Out *out, DefId def, TypeId targs, bool is_main) {
     if (is_main) {
         out_str(out, "@astra_main");
         return;
@@ -67,6 +68,9 @@ void function_name(Gen *g, Out *out, DefId def, bool is_main) {
     }
     StrView name = def_name(g, def);
     out_write(out, name.ptr, name.len);
+    if (targs.id != TID_UNIT) {   // an instance: `astra.identity<int>`
+        type_args_text(g, out, targs);
+    }
     out_char(out, '"');
 }
 
@@ -186,10 +190,13 @@ Gen *llvm_begin(Sema *sema, FILE *file) {
     out_str(&g->out, "%astra.loc = type { ptr, i32, i32 }\n");
     // Every struct is known after type checking. The definitions come first:
     // LLVM needs a type's size when a function allocates it.
+    // Instances of generic types are defined as functions use them.
     for (size_t i = 1; i < sema->defs.len; i++) {
         const Def *def = &sema->defs.data[i];
-        if ((def->kind == DEF_STRUCT && def->fields) || (def->kind == DEF_ENUM && def->variants)) {
-            adt_type(g, (uint32_t)i);
+        bool known = (def->kind == DEF_STRUCT && def->fields && !def->lang) ||
+                     (def->kind == DEF_ENUM && def->variants);
+        if (known && item_type_params(def->item).len == 0) {
+            adt_type(g, type_intern(g->types, (Ty){.kind = TY_ADT, .data = (uint32_t)i}));
         }
     }
     out_write(&g->out, g->type_defs.buf, g->type_defs.len);
@@ -198,7 +205,18 @@ Gen *llvm_begin(Sema *sema, FILE *file) {
     return g;
 }
 
+// LLVM sizes a struct type at each `alloca`, so the instances of generic
+// types a function uses are defined before it. Each such type is the type
+// of a local, or nested in one.
 void llvm_function(Gen *g, const AirBody *body) {
+    for (size_t i = 0; i < body->locals.len; i++) {
+        llvm_type(g, body->locals.data[i].type);
+    }
+    if (g->type_defs.len > 0) {
+        out_write(&g->out, g->type_defs.buf, g->type_defs.len);
+        out_char(&g->out, '\n');
+        g->type_defs.len = 0;
+    }
     gen_body(g, body);
 }
 
@@ -218,7 +236,7 @@ static void c_decls(Gen *g) {
         const Ty *sig = type_get(g->types, sema_def(g->sema, (DefId){id})->type);
         const char *ret = llvm_type(g, sig->inner);
         out_fmt(&g->out, "declare %s%s ", strcmp(ret, "i1") ? "" : "zeroext ", ret);
-        function_name(g, &g->out, (DefId){id}, false);
+        function_name(g, &g->out, (DefId){id}, type_id(TID_UNIT), false);
         out_char(&g->out, '(');
         for (uint32_t i = 0; i < sig->arg_count; i++) {
             const char *type = llvm_type(g, sig->args[i]);
