@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// check-sizes: table
 const char *llvm_type(Gen *g, TypeId type) {
     const Ty *ty = type_get(g->types, type);
     switch (ty->kind) {

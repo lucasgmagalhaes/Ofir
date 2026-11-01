@@ -232,7 +232,6 @@ static Operand binary(Lowerer *l, Expr *e) {
                                       .span = e->span});
 }
 
-// check-sizes: table
 static Operand lower_kind(Lowerer *l, Expr *e);
 
 Operand lower_expr(Lowerer *l, Expr *e) {

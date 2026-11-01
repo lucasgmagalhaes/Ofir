@@ -249,7 +249,6 @@ static void literal(Moves *m, Expr *e, State *s) {
     }
 }
 
-// check-sizes: table
 static void walk(Moves *m, Expr *e, State *s, Use use) {
     switch (e->kind) {
     case EXPR_INTERP: each(m, e->as.parts, s, USE_READ); break;

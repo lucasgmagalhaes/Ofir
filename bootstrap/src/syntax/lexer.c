@@ -205,7 +205,6 @@ static TokenKind invalid_character(Lexer *lx, uint32_t start) {
 }
 
 // `>` is always a single token: the parser joins adjacent ones (spec 1.6).
-// check-sizes: table
 static TokenKind punct_kind(Lexer *lx, char c, uint32_t start) {
     switch (c) {
     case '(': return open_bracket(lx, '(', TOK_LPAREN);

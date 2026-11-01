@@ -37,7 +37,6 @@ static void fn_type_text(StrBuf *out, const TypeExpr *t, const Interner *names) 
     }
 }
 
-// check-sizes: table
 void type_text(StrBuf *out, const TypeExpr *t, const Interner *names) {
     switch (t->kind) {
     case TYPE_PATH:
@@ -155,7 +154,6 @@ static void struct_pattern_text(StrBuf *out, const Pattern *p, const Interner *n
     strbuf_append_cstr(out, p->as.struct_.rest ? end : "}");
 }
 
-// check-sizes: table
 void pattern_text(StrBuf *out, const Pattern *p, const Interner *names) {
     switch (p->kind) {
     case PAT_WILDCARD: strbuf_push(out, '_'); break;

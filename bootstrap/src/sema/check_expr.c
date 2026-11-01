@@ -297,7 +297,6 @@ static TypeId tuple(Checker *c, Expr *e, TypeId expected) {
     return type_tuple(c->types, types, count);
 }
 
-// check-sizes: table
 static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     switch (e->kind) {
     case EXPR_INT: return int_literal(c, e, expected, false);

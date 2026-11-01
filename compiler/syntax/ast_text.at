@@ -63,7 +63,6 @@ pub fn modeText(mode: Mode) str {
  * @param names the interner
  * @returns the text
  */
-// check-sizes: table
 pub fn typeText(t: &TypeExpr, names: Interner) str {
     return match t.kind {
         .Path(segments, args) => if args.len() > 0 {
@@ -198,7 +197,6 @@ fn patternListText(list: List<Pattern>, names: Interner) str {
  * @param names the interner
  * @returns the text
  */
-// check-sizes: table
 pub fn patternText(p: &Pattern, names: Interner) str {
     return match p.kind {
         .Wildcard => "_".toOwned()

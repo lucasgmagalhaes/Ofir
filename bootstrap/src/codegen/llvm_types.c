@@ -49,7 +49,6 @@ static uint64_t payload_words(Gen *g, TypeId adt, const EnumInfo *info) {
     return (largest + 7) / 8;
 }
 
-// check-sizes: table
 static Layout layout(Gen *g, TypeId type) {
     static const uint64_t INT_BYTES[] = {1, 2, 4, 8, 1, 2, 4, 8};
     const Ty *ty = type_get(g->types, type);

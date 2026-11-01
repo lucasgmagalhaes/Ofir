@@ -104,7 +104,6 @@ fn atStatementEnd(p: Parser) bool {
 
 // The assignment operator at the cursor, joining `>` `>` `=` into `>>=`,
 // and how many tokens it spans (0: none).
-// check-sizes: table
 fn assignOp(p: Parser) (Op, int) {
     return match p.peek() {
         .Eq => (.Assign, 1)

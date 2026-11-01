@@ -261,7 +261,6 @@ fn structLiteral(p: mut Parser, typeName: move Expr) Expr {
  * @param p the parser
  * @returns the expression
  */
-// check-sizes: table
 pub fn parsePrimary(p: mut Parser) Expr {
     let start = p.here()
     return match p.peek() {

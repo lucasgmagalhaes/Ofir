@@ -143,7 +143,6 @@ static TypeExpr *pointer_type(Parser *p, Span start, TypeKind kind) {
     return t;
 }
 
-// check-sizes: table
 static TypeExpr *base_type(Parser *p) {
     Span start = peek_token(p, 0)->span;
     switch (peek(p)) {

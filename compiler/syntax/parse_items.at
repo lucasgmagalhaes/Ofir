@@ -133,7 +133,6 @@ fn externItem(p: mut Parser, header: move ItemHeader) (Symbol, ItemKind) {
 
 // The declaration after its header: its name and what it is, or `None`
 // after an error.
-// check-sizes: table
 fn itemBody(p: mut Parser, header: move ItemHeader) Option<(Symbol, ItemKind)> {
     let isCopy = p.accept(.Copy)
     let isRef = !isCopy && p.atWord(p.words.ref) && p.peekAt(1) == .Struct

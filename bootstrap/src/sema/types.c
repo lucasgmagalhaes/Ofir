@@ -182,7 +182,6 @@ static void list_text(StrBuf *out, const TypeTable *table, const Ty *ty, TypeNam
     }
 }
 
-// check-sizes: table
 void ty_text(StrBuf *out, const TypeTable *table, TypeId id, TypeNameFn name_of,
              const void *context) {
     const Ty *ty = type_get(table, id);

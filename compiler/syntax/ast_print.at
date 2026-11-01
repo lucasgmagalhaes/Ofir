@@ -112,7 +112,6 @@ struct Printer {
         self.depth -= 1
     }
 
-    // check-sizes: table
     fn expr(mut self, e: &Expr, names: Interner) {
         match e.kind {
             .Int(_) | .Float(_) | .Byte(_) | .Bool(_) => self.line("lit {literalText(e, names)}")
@@ -426,7 +425,6 @@ struct Printer {
         }
     }
 
-    // check-sizes: table
     fn item(mut self, it: &Item, names: Interner) {
         let name = names.name(it.name)
         let isPub = if it.isPub { " pub" } else { "" }
@@ -506,7 +504,6 @@ fn nameOf(symbol: Option<Symbol>, names: Interner) str {
     }
 }
 
-// check-sizes: table
 fn opText(op: Op) str {
     return match op {
         .Add => "+"

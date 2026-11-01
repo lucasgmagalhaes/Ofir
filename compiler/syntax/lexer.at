@@ -180,7 +180,6 @@ struct Lexer {
     }
 
     // `>` is always a single token: the parser joins adjacent ones (spec 1.6).
-    // check-sizes: table
     fn punctKind(mut self, src: str, c: u8, start: int, diags: mut Diagnostics) TokenKind {
         return match c {
             b'(' => self.open(b'(', .LParen)

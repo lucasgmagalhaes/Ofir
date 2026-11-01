@@ -52,7 +52,6 @@ fn gtOperator(p: Parser) (Op, int) {
 
 // The levels of spec 4.8: || 2, && 3, comparisons 4, + - | ^ 5,
 // * / % << >> & 6; 0 for no operator.
-// check-sizes: table
 fn operatorAt(p: Parser) (int, Op, int) {
     return match p.peek() {
         .OrOr => (2, .LogicalOr, 1)

@@ -157,7 +157,6 @@ fn pointerType(p: mut Parser, start: Span, reference: bool) TypeExpr {
     return newType(p, kind, start)
 }
 
-// check-sizes: table
 fn baseType(p: mut Parser) TypeExpr {
     let start = p.here()
     return match p.peek() {

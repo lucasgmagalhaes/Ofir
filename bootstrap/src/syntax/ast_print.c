@@ -53,7 +53,6 @@ static void child(Printer *p, const char *label, const Expr *e) {
     p->depth--;
 }
 
-// check-sizes: table
 static const char *op_text(Op op) {
     static const char *const texts[] = {
         [OP_ADD] = "+", [OP_SUB] = "-", [OP_MUL] = "*", [OP_DIV] = "/", [OP_REM] = "%",
@@ -179,7 +178,6 @@ static void with_children(Printer *p, const char *label, const Expr *a, const Ex
     p->depth--;
 }
 
-// check-sizes: table
 static void compound(Printer *p, const Expr *e) {
     char label[64];
     switch (e->kind) {

@@ -211,7 +211,6 @@ static void resolve_self_type(Resolver *r, Expr *e) {
     e->as.ident.res = (Res){RES_DEF, scope_module(&r->sema->scope, r->owner->name).id};
 }
 
-// check-sizes: table
 void resolve_expr(Resolver *r, Expr *e) {
     switch (e->kind) {
     case EXPR_INT: case EXPR_FLOAT: case EXPR_BYTE: case EXPR_STR: case EXPR_BOOL:
