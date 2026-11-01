@@ -119,7 +119,8 @@ bootstrap/
 │   │   ├── lower_intrinsic.c `extern "intrinsic"` calls → AIR operations
 │   │   ├── lower_pattern.c   patterns and `match`
 │   │   ├── lower_struct.c    struct and enum values
-│   │   ├── lower_list.c      list literals, bounds-checked elements, `for` over lists
+│   │   ├── lower_list.c      list literals, bounds-checked elements, `for` over lists and maps
+│   │   ├── lower_hash.c      `hashOf<K>` and `equals<K>` for Map keys
 │   │   ├── lower_option.c    `?` and `??`
 │   │   ├── mono.c            monomorphization: instances, type substitution
 │   │   └── moves.c           moves, definite initialization, drop flags (planned)
@@ -241,13 +242,14 @@ std/
 │   ├── box.at                `@lang("box")`: Box<T>, and the sizeOf<T>() intrinsic
 │   ├── list.at               `@lang("list")`: List<T>
 │   ├── slice.at              `@lang("slice")`: Slice<T>, the type `&[T]`
+│   ├── map.at                `@lang("map")`: Map<K, V>, ordered by insertion
+│   ├── hash.at               the deterministic hash functions of Map keys
 │   ├── option.at             `@lang("option")`: Option<T>, with Some and None in scope
 │   ├── result.at             `@lang("result")`: Result<T, E>, with Ok and Err in scope
 │   ├── interfaces.at         Eq, Ord, Hash, Clone, Display, Debug, Iterator, ...
 │   └── panic.at
 ├── mem/                      std.mem: sizeOf, swap, replace, take, UnsafeCell, Cell
-├── collections/              std.collections: requires a heap
-│   └── map.at                Map<K, V>
+├── collections/              std.collections [planned]: sets, deques; List, Map and Box are in std/core
 ├── strings/                  std.strings: str methods and helpers
 ├── fmt/                      std.fmt: formatting used by interpolation
 ├── io/                       std.io
