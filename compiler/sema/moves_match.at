@@ -1,0 +1,200 @@
+/**
+ * @module
+ * Move analysis of patterns, `if let` and `match` (spec 5.1, 5.5; stage 0:
+ * bootstrap/src/sema/moves_match.c): a matched owned value is moved into
+ * the bindings that take parts of it by move; the bindings of a matched
+ * borrowed place borrow.
+ */
+
+import sema.check.Checker
+import sema.moves.MOVES
+import sema.moves.Moves
+import sema.moves.Part
+import sema.moves.State
+import sema.moves.Use
+import sema.moves.deadState
+import sema.moves.movesBlock
+import sema.moves_expr.isPlace
+import sema.moves_expr.movesNode
+import sema.moves_expr.placeOfNode
+import sema.moves_expr.usePlace
+import sema.program.Program
+import sema.structs.isCopy
+import syntax.ast.Expr
+import syntax.ast.FieldPattern
+import syntax.ast.Pattern
+
+fn anyByMove(c: Checker, p: Program, list: &List<Pattern>) bool {
+    for i in 0..list.len() {
+        if bindsByMove(c, p, &list[i]) {
+            return true
+        }
+    }
+    return false
+}
+
+// The shorthand field `Point{x}` of a pattern binds `x`, if it is a local.
+fn fieldBindsByMove(c: Checker, p: Program, field: &FieldPattern) bool {
+    return match field.pattern {
+        .Some(pattern) => bindsByMove(c, p, &pattern)
+        .None => c.localAt(field.id.0) >= 0 && !isCopy(c, p, c.typeOf(field.id.0))
+    }
+}
+
+/**
+ * Whether the bindings of a pattern take a non-Copy part of the value by
+ * move.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param pattern the pattern
+ * @returns true if one does
+ */
+pub fn bindsByMove(c: Checker, p: Program, pattern: &Pattern) bool {
+    return match pattern.kind {
+        .Binding(_, _) => c.localAt(pattern.id.0) >= 0 &&
+                          !isCopy(c, p, c.typeOf(pattern.id.0))
+        .Variant(_, _, args, _) => anyByMove(c, p, &args)
+        .Tuple(items) => anyByMove(c, p, &items)
+        .TupleStruct(_, args) => anyByMove(c, p, &args)
+        .Or(alternatives) => anyByMove(c, p, &alternatives)
+        .Struct(_, fields, _) => {
+            for i in 0..fields.len() {
+                if fieldBindsByMove(c, p, &fields[i]) {
+                    return true
+                }
+            }
+            false
+        }
+        _ => false
+    }
+}
+
+fn initLocal(m: mut Moves, local: int, s: mut State, borrowed: bool) {
+    if local >= 0 {
+        s.initPart(&Part{local: local, fields: []})   // also the parts moved out before
+        m.borrowed[local] = borrowed
+    }
+}
+
+fn initList(m: mut Moves, c: Checker, list: &List<Pattern>, s: mut State, borrowed: bool) {
+    for i in 0..list.len() {
+        patternInit(m, c, &list[i], s, borrowed)
+    }
+}
+
+/**
+ * The bindings of a pattern hold values; `borrowed` ones borrow the
+ * matched place.
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param pattern the pattern
+ * @param s the state, updated
+ * @param borrowed whether the bindings borrow
+ */
+pub fn patternInit(m: mut Moves, c: Checker, pattern: &Pattern, s: mut State, borrowed: bool) {
+    match pattern.kind {
+        .Binding(_, _) => initLocal(m, c.localAt(pattern.id.0), s, borrowed)
+        .Variant(_, _, args, _) => initList(m, c, &args, s, borrowed)
+        .Tuple(items) => initList(m, c, &items, s, borrowed)
+        .TupleStruct(_, args) => initList(m, c, &args, s, borrowed)
+        .Or(alternatives) => initList(m, c, &alternatives, s, borrowed)
+        .Struct(_, fields, _) => {
+            for i in 0..fields.len() {
+                match fields[i].pattern {
+                    .Some(inner) => patternInit(m, c, &inner, s, borrowed)
+                    .None => initLocal(m, c.localAt(fields[i].id.0), s, borrowed)
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+// The value matched by `match` or `if let`: an owned place whose parts are
+// bound by move is moved; a borrowed place lends its parts to the
+// bindings; a temporary is consumed. Returns whether the bindings borrow.
+fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
+             byMove: bool) bool {
+    if !isPlace(c, e) {   // a temporary: consumed if its parts are bound by move
+        movesNode(m, c, p, e, s, if byMove { Use.Move } else { Use.Read })
+        return false
+    }
+    let place = placeOfNode(m, c, p, e, s)
+    usePlace(m, c, &place, &s, e.span)
+    let owned = place.local && place.via == .Nothing && !m.borrowed[place.part.local]
+    if byMove && owned {
+        m.movePart(s, &place.part)
+        m.flag(e.id.0, MOVES)
+    }
+    return !owned && place.via != .Raw
+}
+
+/**
+ * `if cond {...} else {...}` and `if let pattern = value {...}`.
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param p the program
+ * @param e the `if`
+ * @param s the state, updated
+ * @param use how the value of its branches is used
+ */
+pub fn movesIf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
+    match e.kind {
+        .If(letPattern, cond, then, otherwise) => {
+            var borrowed = false
+            match letPattern {
+                .Some(pattern) => {
+                    borrowed = scrutinee(m, c, p, &*cond, s, bindsByMove(c, p, &pattern))
+                }
+                .None => movesNode(m, c, p, &*cond, s, .Read)
+            }
+            var other = s.dup()
+            if let .Some(pattern) = letPattern {
+                patternInit(m, c, &pattern, s, borrowed)
+            }
+            movesBlock(m, c, p, &then, s, use)
+            if let .Some(branch) = otherwise {
+                movesNode(m, c, p, &*branch, other, use)
+            }
+            s.join(&other)
+        }
+        _ => {}
+    }
+}
+
+/**
+ * `match value { arms }`.
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param p the program
+ * @param e the `match`
+ * @param s the state, updated
+ * @param use how the value of its arms is used
+ */
+pub fn movesMatch(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
+    match e.kind {
+        .Match(value, arms) => {
+            var byMove = false
+            for i in 0..arms.len() {
+                byMove = byMove || bindsByMove(c, p, &arms[i].pattern)
+            }
+            let borrowed = scrutinee(m, c, p, &*value, s, byMove)
+            var result = deadState()
+            for i in 0..arms.len() {
+                var a = s.dup()
+                patternInit(m, c, &arms[i].pattern, a, borrowed)
+                if let .Some(guard) = arms[i].guard {
+                    movesNode(m, c, p, &guard, a, .Read)
+                }
+                movesNode(m, c, p, &arms[i].body, a, use)
+                result.join(&a)
+            }
+            s.replace(result)
+        }
+        _ => {}
+    }
+}

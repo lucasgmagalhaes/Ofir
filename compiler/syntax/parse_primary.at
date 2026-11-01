@@ -331,6 +331,7 @@ fn member(p: mut Parser, base: move Expr) Expr {
         .Int(v) => v
         _ => 0
     }
+    let before = p.pos
     p.advance()
     if kind == .Int {
         return tupleField(p, base, index)
@@ -346,6 +347,7 @@ fn member(p: mut Parser, base: move Expr) Expr {
     if kind != .Ident {
         p.pos -= 1
         p.unexpected("a field name after `.`")
+        p.pos = before   // at the end of the file, `advance` stays there: no step back
         return base
     }
     let field = symbolOf(p.token(-1))

@@ -209,6 +209,9 @@ compiler/
 │   ├── check_place.at        places and mutability
 │   ├── check_unsafe.at       `unsafe`, raw pointers, the C boundary
 │   ├── const_eval.at         compile-time evaluation of constants
+│   ├── moves.at              move analysis: states, statements, loops (E0600-E0602)
+│   ├── moves_expr.at         move analysis of expressions and places
+│   ├── moves_match.at        move analysis of patterns, `if let`, `match`
 │   ├── type_trace.at         the `--emit=types` format
 │   ├── check_items.at        declarations, signatures
 │   ├── check_exprs.at        expressions and statements

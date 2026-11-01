@@ -70,7 +70,6 @@ static Next run_sema(Pipeline *p, Program program) {
         sema_free(&sema);
         return STOP;
     }
-    sema.no_moves = p->opts->emit == EMIT_TYPES;
     bool resolved = !diags_has_errors(&p->session->diags);
     if (resolved) {
         check_program(&sema);

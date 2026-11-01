@@ -31,6 +31,7 @@ import sema.enums.EnumInfo
 import sema.enums.checkEnumLayouts
 import sema.enums.enumVariants
 import sema.expr_check.checkConst
+import sema.moves.checkMoves
 import sema.program.Program
 import sema.resolve.Resolver
 import sema.resolve.findAttribute
@@ -516,6 +517,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int) {
         return
     }
     c.unsafeDepth = if decl.isUnsafe { 1 } else { 0 }
+    let errors = c.r.diags.errorCount()
     var found = UNIT
     if let .Some(body) = decl.body {
         found = checkBlock(c, p, &body, ERROR, false)
@@ -524,6 +526,10 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int) {
     if c.ret != UNIT && c.ret != ERROR && found != NEVER {
         c.error("E0303", decl.span,
                 "function may reach its end without returning a value".toOwned())
+    }
+    // No cascade after type errors; std functions wait until the lowering reaches them.
+    if c.r.diags.errorCount() == errors && !moduleInStd(p, c.module()) {
+        checkMoves(c, p, id)
     }
     let types = mem.replace(c.localTypes, [])
     c.localTypesOf[c.module()].insert(decl.id.0, types)

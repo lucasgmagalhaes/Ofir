@@ -1,0 +1,602 @@
+/**
+ * @module
+ * Move analysis of expressions and places (spec 5.1; stage 0:
+ * bootstrap/src/sema/moves_expr.c). Each expression is walked as a *read*,
+ * which only uses its value (an argument of a borrowed parameter, an
+ * operand, a condition), or as a *move*, which consumes it (a `let`, a
+ * `move` parameter, a field of a literal, a return value). Moving a place
+ * of a non-Copy type marks it moved; any later use of it, or of a part of
+ * it, is E0600 until it is assigned again.
+ *
+ * An expression is seen with its implicit dereferences: `(e, d)` is `e`
+ * dereferenced `d` times, `d` up to the number the checker recorded.
+ */
+
+import base.span.Span
+import sema.check.Checker
+import sema.check.fnOf
+import sema.check_box.adjustedType
+import sema.check_box.boxInner
+import sema.check_methods.hasMethod
+import sema.check_methods.primitiveName
+import sema.check_methods.typeNameOf
+import sema.enums.enumVariants
+import sema.enums.variantIndex
+import sema.enums.variantsOf
+import sema.moves.COERCION_CONSUMED
+import sema.moves.CONSUMED
+import sema.moves.MOVES
+import sema.moves.Moves
+import sema.moves.PART_DEPTH
+import sema.moves.Part
+import sema.moves.State
+import sema.moves.Use
+import sema.moves.localName
+import sema.moves.moveError
+import sema.moves.movesBlock
+import sema.moves_match.movesIf
+import sema.moves_match.movesMatch
+import sema.program.Program
+import sema.structs.isCopy
+import sema.types.NEVER
+import syntax.ast.Arg
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.FieldInit
+
+/** What else than fields a place goes through, which forbids moving out of it. */
+pub copy enum Via {
+    Nothing
+    Index
+    Deref
+    Raw
+}
+
+/** A place rooted at a local: `x`, `x.a.b`, `x.0`. */
+pub struct Place {
+    /** Rooted at a local, else a temporary or a global. */
+    pub local: bool
+    /** The local and the path. */
+    pub part: Part
+    /** What else it goes through. */
+    pub via: Via
+}
+
+fn noPlace(via: Via) Place {
+    return Place{local: false, part: Part{local: 0, fields: []}, via: via}
+}
+
+fn derefCount(c: Checker, e: &Expr) int {
+    return match c.derefs[c.module()].get(e.id.0) {
+        .Some(steps) => steps.len()
+        .None => 0
+    }
+}
+
+// The type before the `i`th implicit dereference of `e`.
+fn stepType(c: Checker, e: &Expr, i: int) int {
+    return match c.derefs[c.module()].get(e.id.0) {
+        .Some(steps) => steps[i]
+        .None => c.typeOf(e.id.0)
+    }
+}
+
+/**
+ * The type of `e` dereferenced `depth` times.
+ *
+ * @param c the checker
+ * @param e the expression
+ * @param depth the number of dereferences, -1 for all of them
+ * @returns the type
+ */
+pub fn viewType(c: Checker, e: &Expr, depth: int) int {
+    let count = derefCount(c, e)
+    if depth == 0 || count == 0 {
+        return c.typeOf(e.id.0)
+    }
+    if depth < 0 || depth >= count {
+        return adjustedType(c, e)
+    }
+    return stepType(c, e, depth)
+}
+
+fn coerced(c: Checker, e: &Expr) bool {
+    return c.sliceCoercions[c.module()].get(e.id.0).isSome()
+}
+
+// The field of `a.f`, or -1 for a variant (`Shape.Empty`), a constant
+// (`i32.MAX`) or an error.
+fn fieldOf(c: Checker, e: &Expr, base: &Expr) int {
+    if typeNameOf(c, base) != 0 || primitiveName(c, base) >= 0 {
+        return -1
+    }
+    return c.members[c.module()][e.id.0]
+}
+
+fn isRangeIndex(index: &Expr) bool {
+    return match index.kind {
+        .Range(_, _, _) => true
+        _ => false
+    }
+}
+
+// Whether `e` itself is a place: a name, a field, an element, `*p`.
+fn isPlaceExpr(c: Checker, e: &Expr) bool {
+    return match e.kind {
+        .Ident(_) | .SelfValue | .TupleField(_, _) => true
+        .Index(_, index) => !isRangeIndex(&*index)
+        .Field(base, _, _) => fieldOf(c, e, &*base) >= 0
+        .Unary(op, _) => op == .Deref
+        _ => false
+    }
+}
+
+/**
+ * Whether `e`, with its implicit dereferences and conversions, is a place.
+ *
+ * @param c the checker
+ * @param e the expression
+ * @returns true if it is
+ */
+pub fn isPlace(c: Checker, e: &Expr) bool {
+    return !coerced(c, e) && (derefCount(c, e) > 0 || isPlaceExpr(c, e))
+}
+
+/**
+ * Whether a type is Copy.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @returns true if it is
+ */
+pub fn copyType(c: Checker, p: Program, ty: int) bool {
+    return isCopy(c, p, ty)
+}
+
+/**
+ * Walks an expression used as `use`.
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param p the program
+ * @param e the expression
+ * @param s the state, updated
+ * @param use how its value is used
+ */
+pub fn movesNode(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
+    if coerced(c, e) {   // `list.asSlice()`: the list is read
+        if s.dead {
+            return
+        }
+        if use == .Move {
+            m.flag(e.id.0, COERCION_CONSUMED)
+        }
+        movesView(m, c, p, e, derefCount(c, e), s, .Read)
+        return
+    }
+    movesView(m, c, p, e, derefCount(c, e), s, use)
+}
+
+fn movesView(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mut State,
+             use: Use) {
+    if s.dead {
+        return   // unreachable code moves nothing
+    }
+    if depth > 0 || isPlaceExpr(c, e) {
+        placeExpr(m, c, p, e, depth, s, use)
+    } else {
+        if use == .Move {   // else a temporary, dropped (3.2)
+            m.flag(e.id.0, CONSUMED)
+        }
+        walk(m, c, p, e, s, use)
+    }
+    if viewType(c, e, depth) == NEVER {
+        s.dead = true
+    }
+}
+
+// The place of `e` dereferenced `depth` times, walking the bases it does
+// not reach through fields.
+fn placeOf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mut State) Place {
+    if depth > 0 {
+        if boxInner(c, stepType(c, e, depth - 1)).isSome() {   // `*b.ptr`
+            boxPointer(m, c, p, e, depth - 1, s)
+        } else {   // `*r`
+            movesView(m, c, p, e, depth - 1, s, .Read)
+        }
+        return noPlace(.Deref)
+    }
+    match e.kind {
+        .Ident(_) | .SelfValue => {   // else a constant or a function
+            return match c.res(e.id.0) {
+                .Local(id) => Place{local: true, part: Part{local: id, fields: []}, via: .Nothing}
+                _ => noPlace(.Nothing)
+            }
+        }
+        .Field(base, _, _) => {
+            return fieldPlace(m, c, p, &*base, fieldOf(c, e, &*base), s)
+        }
+        .TupleField(base, index) => {
+            return fieldPlace(m, c, p, &*base, index as int, s)
+        }
+        .Index(base, index) => {
+            var place = placeOf(m, c, p, &*base, derefCount(c, &*base), s)
+            movesNode(m, c, p, &*index, s, .Read)
+            place.via = .Index
+            return place
+        }
+        .Unary(_, operand) => {   // `*p`
+            let ty = viewType(c, &*operand, -1)
+            if boxInner(c, ty).isSome() {   // `*b` is `*b.ptr`
+                boxPointer(m, c, p, &*operand, derefCount(c, &*operand), s)
+                // The value in a box is lent like a referenced one: a `match` on
+                // it binds by borrow, as the box still owns it. In std.core.box
+                // itself, `*self.ptr` is the raw pointer it is.
+                return noPlace(if ownBox(c) { Via.Raw } else { Via.Deref })
+            }
+            movesNode(m, c, p, &*operand, s, .Read)
+            return noPlace(if c.types.kind(ty) == .Ptr { Via.Raw } else { Via.Deref })
+        }
+        _ => {
+            movesView(m, c, p, e, 0, s, .Read)   // a temporary: `make().x`
+            return noPlace(.Nothing)
+        }
+    }
+}
+
+/**
+ * The place of an expression, with its implicit dereferences, walking the
+ * bases it does not reach through fields.
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param p the program
+ * @param e the expression, a place
+ * @param s the state, updated
+ * @returns the place
+ */
+pub fn placeOfNode(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State) Place {
+    return placeOf(m, c, p, e, derefCount(c, e), s)
+}
+
+fn ownBox(c: Checker) bool {
+    let box = c.r.langItems[0]
+    return box != 0 && c.def(box).module == c.module()
+}
+
+// Reads `b.ptr`, the pointer field of the box `b` (`e` dereferenced `depth` times).
+fn boxPointer(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mut State) {
+    var place = placeOf(m, c, p, e, depth, s)
+    if place.local && place.part.fields.len() < PART_DEPTH {
+        place.part.fields.push(0)
+    }
+    usePlace(m, c, &place, &s, e.span)
+}
+
+fn fieldPlace(m: mut Moves, c: mut Checker, p: Program, base: &Expr, field: int,
+              s: mut State) Place {
+    var place = placeOf(m, c, p, base, derefCount(c, base), s)
+    if place.local && place.part.fields.len() < PART_DEPTH {
+        place.part.fields.push(field)
+    }
+    return place
+}
+
+/**
+ * Reports E0601 or E0600 if a place may not hold a value.
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param place the place
+ * @param s the state
+ * @param span where it is used
+ */
+pub fn usePlace(m: Moves, c: mut Checker, place: &Place, s: &State, span: Span) {
+    if !place.local {
+        return
+    }
+    let local = place.part.local
+    if s.uninit[local] {
+        moveError(m, c, "E0601", span, "use of possibly uninitialized variable "
+                  + "`{localName(c, local)}`")
+    } else if s.movedPart(&place.part) {
+        moveError(m, c, "E0600", span, "use of moved value `{localName(c, local)}`: it was "
+                  + "moved before; clone it, or move a copy")
+    }
+}
+
+// Moving out of `place`: only out of a place the function owns entirely.
+fn movePlace(m: mut Moves, c: mut Checker, place: &Place, s: mut State, span: Span) {
+    if place.via == .Index || place.via == .Deref {
+        let what = if place.via == .Index { "an element of a collection" } else {
+            "a reference"
+        }
+        moveError(m, c, "E0602", span, "cannot move out of {what}: use `remove`, `swapRemove`, "
+                  + "`mem.replace` or `.clone()`")
+        return
+    }
+    if !place.local || place.via == .Raw {
+        return   // a temporary, or a raw pointer read (unsafe)
+    }
+    if m.borrowed[place.part.local] {
+        moveError(m, c, "E0602", span, "cannot move out of `{localName(c, place.part.local)}`, "
+                  + "which is borrowed: declare the parameter `move`, or call `.clone()`")
+        return
+    }
+    m.movePart(s, &place.part)
+}
+
+// `p = value`: `p` holds a value again. A field of a moved struct cannot be
+// assigned: the struct as a whole is gone.
+fn assignPlace(m: mut Moves, c: mut Checker, e: &Expr, place: &Place, s: mut State,
+               span: Span) {
+    if !place.local {
+        return
+    }
+    if s.movedPart(&place.part) {   // the old value may be moved out: it is not dropped
+        m.flag(e.id.0, MOVES)
+    }
+    let local = place.part.local
+    if place.part.fields.len() > 0 && s.moved[local] {
+        usePlace(m, c, &Place{local: true, part: Part{local: local, fields: []}, via: .Nothing},
+                 &s, span)
+    }
+    s.initPart(&place.part)
+}
+
+// Moving a field out of a value whose type has a `drop` method would leave
+// that method a value with a hole (E0602).
+fn hasDrop(m: Moves, c: mut Checker, p: Program, e: &Expr, depth: int) bool {
+    if depth > 0 {
+        return false
+    }
+    let base = match e.kind {
+        .Field(b, _, _) => if fieldOf(c, e, &*b) >= 0 { viewType(c, &*b, -1) } else { -1 }
+        .TupleField(b, _) => viewType(c, &*b, -1)
+        _ => -1
+    }
+    if base < 0 || c.types.kind(base) != .Adt {
+        return false
+    }
+    let Some(drop) = c.r.names.find("drop") else {
+        return false
+    }
+    if !hasMethod(c, p, c.types.get(base).data, drop) {
+        return false
+    }
+    moveError(m, c, "E0602", e.span, "cannot move out of a field of `{c.typeName(base)}`, "
+              + "which has a `drop` method: use `mem.replace`")
+    return true
+}
+
+// A field moved out of a temporary: the rest of it is not dropped.
+fn consumeRoot(m: mut Moves, c: Checker, e: &Expr, depth: int) {
+    if depth > 0 {
+        return
+    }
+    match e.kind {
+        .Field(base, _, _) | .TupleField(base, _) => {
+            consumeRoot(m, c, &*base, derefCount(c, &*base))
+        }
+        _ => {
+            if !isPlaceExpr(c, e) {
+                m.flag(e.id.0, CONSUMED)
+            }
+        }
+    }
+}
+
+fn placeExpr(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mut State,
+             use: Use) {
+    let place = placeOf(m, c, p, e, depth, s)
+    if use == .Assign {   // the target of `=`: overwritten, not read
+        assignPlace(m, c, e, &place, s, e.span)
+        return
+    }
+    usePlace(m, c, &place, &s, e.span)
+    if use != .Move || isCopy(c, p, viewType(c, e, depth)) {
+        return
+    }
+    if !place.local {
+        consumeRoot(m, c, e, depth)
+    }
+    if hasDrop(m, c, p, e, depth) {
+        return   // E0602: a type with a `drop` method is dropped whole
+    }
+    movePlace(m, c, &place, s, e.span)
+    if place.local && place.via == .Nothing && depth == 0 {   // for the drop flags
+        m.flag(e.id.0, MOVES)
+    }
+}
+
+// `Point{x}`: the variable `x`, moved into the field.
+fn shorthand(m: mut Moves, c: mut Checker, p: Program, init: &FieldInit, span: Span,
+             s: mut State) {
+    let place = match c.res(init.id.0) {
+        .Local(id) => Place{local: true, part: Part{local: id, fields: []}, via: .Nothing}
+        _ => noPlace(.Nothing)
+    }
+    usePlace(m, c, &place, &s, span)
+    if !isCopy(c, p, c.typeOf(init.id.0)) {
+        movePlace(m, c, &place, s, span)
+        if place.local {
+            m.flag(init.id.0, MOVES)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Calls
+
+fn eachArg(m: mut Moves, c: mut Checker, p: Program, args: &List<Arg>, uses: &List<Use>,
+           otherwise: Use, s: mut State) {
+    for i in 0..args.len() {
+        let use = if i < uses.len() { uses[i] } else { otherwise }
+        movesNode(m, c, p, &args[i].value, s, use)
+    }
+}
+
+// How a function's parameters use their arguments.
+fn paramUses(c: Checker, p: Program, id: int) List<Use> {
+    let decl = fnOf(p, c.loc(id))
+    var uses: List<Use> = []
+    for i in 0..decl.params.len() {
+        uses.push(if decl.params[i].mode == .Move { Use.Move } else { Use.Read })
+    }
+    return uses
+}
+
+fn isVariant(c: mut Checker, p: Program, owner: int, field: &Expr) bool {
+    if owner == 0 || c.def(owner).kind != .Enum || !enumVariants(c, p, owner) {
+        return false
+    }
+    return match field.kind {
+        .Field(_, name, _) => variantIndex(variantsOf(c, owner), name) >= 0
+        _ => false
+    }
+}
+
+// A call consumes the arguments of `move` parameters (and of constructors
+// and variants) and only reads the others.
+fn call(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List<Arg>,
+        s: mut State) {
+    let none: List<Use> = []
+    match callee.kind {
+        .Field(baseBox, _, _) => {
+            let base = &*baseBox
+            if isVariant(c, p, typeNameOf(c, base), callee) {
+                eachArg(m, c, p, args, &none, .Move, s)
+                return
+            }
+            let member = c.members[c.module()][callee.id.0]
+            if member > 0 {   // a method, or an associated function
+                let decl = fnOf(p, c.loc(member))
+                if decl.hasSelf {
+                    let selfUse = if decl.selfMode == .Move { Use.Move } else { Use.Read }
+                    movesNode(m, c, p, base, s, selfUse)
+                }
+                eachArg(m, c, p, args, &paramUses(c, p, member), .Read, s)
+                return
+            }
+            movesNode(m, c, p, base, s, .Read)   // the built-in methods read
+            eachArg(m, c, p, args, &none, .Read, s)
+        }
+        .Ident(_) | .Generic(_, _) => {
+            match c.res(callee.id.0) {
+                .Def(id) => {
+                    let kind = c.def(id).kind
+                    if kind == .Fn {
+                        eachArg(m, c, p, args, &paramUses(c, p, id), .Read, s)
+                    } else {
+                        let build = kind == .Struct || kind == .Variant
+                        eachArg(m, c, p, args, &none, if build { Use.Move } else { Use.Read }, s)
+                    }
+                }
+                _ => {
+                    movesNode(m, c, p, callee, s, .Read)
+                    eachArg(m, c, p, args, &none, .Read, s)
+                }
+            }
+        }
+        _ => {
+            movesNode(m, c, p, callee, s, .Read)
+            eachArg(m, c, p, args, &none, .Read, s)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+
+fn each(m: mut Moves, c: mut Checker, p: Program, list: &List<Expr>, s: mut State, use: Use) {
+    for i in 0..list.len() {
+        movesNode(m, c, p, &list[i], s, use)
+    }
+}
+
+// `a && b`, `a || b`, `a ?? b`: `b` is evaluated on some paths only.
+fn conditional(m: mut Moves, c: mut Checker, p: Program, lhs: &Expr, rhs: &Expr, s: mut State,
+               use: Use) {
+    movesNode(m, c, p, lhs, s, use)
+    var other = s.dup()
+    movesNode(m, c, p, rhs, other, use)
+    s.join(&other)
+}
+
+fn borrow(m: mut Moves, c: mut Checker, p: Program, operand: &Expr, s: mut State) {
+    if isPlace(c, operand) {
+        let place = placeOf(m, c, p, operand, derefCount(c, operand), s)
+        usePlace(m, c, &place, &s, operand.span)
+    } else {
+        movesNode(m, c, p, operand, s, .Read)
+    }
+}
+
+fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
+    match e.kind {
+        .Interp(parts) => each(m, c, p, &parts, s, .Read)
+        .Unary(op, operand) => {
+            if op == .Ref || op == .RefMut {   // a borrow
+                borrow(m, c, p, &*operand, s)
+            } else {
+                movesNode(m, c, p, &*operand, s, .Read)
+            }
+        }
+        .Binary(op, lhs, rhs) => {
+            if op == .LogicalAnd || op == .LogicalOr {
+                conditional(m, c, p, &*lhs, &*rhs, s, .Read)
+            } else if op == .Coalesce {
+                conditional(m, c, p, &*lhs, &*rhs, s, .Move)
+            } else {
+                movesNode(m, c, p, &*lhs, s, .Read)
+                movesNode(m, c, p, &*rhs, s, .Read)
+            }
+        }
+        .Cast(value, _) => movesNode(m, c, p, &*value, s, .Read)
+        .Range(lo, hi, _) => {
+            if let .Some(l) = lo {
+                movesNode(m, c, p, &*l, s, .Read)
+            }
+            if let .Some(h) = hi {
+                movesNode(m, c, p, &*h, s, .Read)
+            }
+        }
+        .Index(base, index) => {   // `xs[a..b]` is `xs.slice(a, b)`: both read
+            movesNode(m, c, p, &*base, s, .Read)
+            if let ExprKind.Range(lo, hi, _) = index.kind {
+                if let .Some(l) = lo {
+                    movesNode(m, c, p, &*l, s, .Read)
+                }
+                if let .Some(h) = hi {
+                    movesNode(m, c, p, &*h, s, .Read)
+                }
+            }
+        }
+        .Call(callee, args) => call(m, c, p, &*callee, &args, s)
+        .Try(inner) => movesNode(m, c, p, &*inner, s, .Move)
+        .Struct(_, fields, base) => {
+            for i in 0..fields.len() {
+                match fields[i].value {
+                    .Some(value) => movesNode(m, c, p, &value, s, .Move)
+                    .None => shorthand(m, c, p, &fields[i], e.span, s)
+                }
+            }
+            if let .Some(b) = base {
+                movesNode(m, c, p, &*b, s, .Move)
+            }
+        }
+        .Array(elems) | .Tuple(elems) => each(m, c, p, &elems, s, .Move)
+        .Repeat(value, count) => {
+            movesNode(m, c, p, &*value, s, .Read)
+            movesNode(m, c, p, &*count, s, .Read)
+        }
+        .Variant(_, args, _) => {
+            let none: List<Use> = []
+            eachArg(m, c, p, &args, &none, .Move, s)
+        }
+        .If(_, _, _, _) => movesIf(m, c, p, e, s, use)
+        .Match(_, _) => movesMatch(m, c, p, e, s, use)
+        .Block(block) | .Unsafe(block) => movesBlock(m, c, p, &block, s, use)
+        _ => {}   // literals, names of types and functions, constants
+    }
+}
