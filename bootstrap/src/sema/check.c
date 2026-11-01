@@ -49,12 +49,16 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
         return;
     }
     c->unsafe_depth = fn->is_unsafe ? 1 : 0;
+    uint32_t errors = c->sema->session->diags.error_count;
     TypeId body = check_block(c, fn->body, NO_TYPE, false);
     c->unsafe_depth = 0;
     bool needs_value = c->ret.id != TID_UNIT && c->ret.id != TID_ERROR;
     if (needs_value && body.id != TID_NEVER) {
         check_error(c, "E0303", fn->span,
                     "function may reach its end without returning a value");
+    }
+    if (c->sema->session->diags.error_count == errors) {   // no cascade after type errors
+        check_moves(c, fn);
     }
     enter_generics(c, outer);
 }
