@@ -70,21 +70,29 @@ Operand lower_field(Lowerer *l, Expr *e) {
     return (Operand){.kind = OPERAND_FLOAT, .type = e->type, .as.float_value = value};
 }
 
-// `s[i]`: the index is compared as unsigned, so a negative one is out of
-// range too (spec 2.1).
-Operand lower_index(Lowerer *l, Expr *e) {
-    Operand s = lower_expr(l, e->as.index.base);
-    Operand index = op_copy(to_local(l, lower_expr(l, e->as.index.index)), type_id(TID_INT));
+// Panics unless 0 <= index < len. The index is compared as unsigned, so a
+// negative one is out of range too (spec 2.1).
+void emit_bounds_check(Lowerer *l, Operand index, Operand len, Span span) {
     TypeId u64 = type_id(TID_U64), boolean = type_id(TID_BOOL);
-    Operand len = value_of(l, type_id(TID_INT), (Rvalue){.kind = RV_STR_LEN, .a = s});
     Operand i_u = value_of(l, u64, (Rvalue){.kind = RV_CAST, .a = index, .to = u64});
     Operand len_u = value_of(l, u64, (Rvalue){.kind = RV_CAST, .a = len, .to = u64});
     Operand outside = binary(l, OP_GE, boolean, i_u, len_u);
     BlockId next = air_new_block(l->body);
     air_terminate(l->body, l->block, (Terminator){.kind = TERM_ASSERT, .cond = outside,
                                                   .target = next, .panic = PANIC_BOUNDS,
-                                                  .index = index, .len = len, .span = e->span});
+                                                  .index = index, .len = len, .span = span});
     switch_to(l, next);
+}
+
+// `s[i]`, a byte of a str, or `l[i]`, an element of a list.
+Operand lower_index(Lowerer *l, Expr *e) {
+    if (is_list(l, e->as.index.base->type)) {
+        return place_operand(lower_list_index(l, e), OPERAND_COPY, e->type);
+    }
+    Operand s = lower_expr(l, e->as.index.base);
+    Operand index = op_copy(to_local(l, lower_expr(l, e->as.index.index)), type_id(TID_INT));
+    Operand len = value_of(l, type_id(TID_INT), (Rvalue){.kind = RV_STR_LEN, .a = s});
+    emit_bounds_check(l, index, len, e->span);
     return value_of(l, type_id(TID_U8), (Rvalue){.kind = RV_STR_BYTE, .a = s, .b = index});
 }
 

@@ -68,6 +68,8 @@ void emit_goto(Lowerer *l, BlockId target);
 void switch_to(Lowerer *l, BlockId block);
 void emit_assert(Lowerer *l, Operand fails, PanicKind panic, Span span);
 Operand lower_block(Lowerer *l, Block *block, bool as_value);
+// lower_stmt.c: the body of a loop; `latch` is where `continue` goes.
+void lower_loop_body(Lowerer *l, Block *body, BlockId latch, BlockId exit);
 LocalId to_local(Lowerer *l, Operand operand);   // a local holding the operand
 
 // lower_expr.c
@@ -103,6 +105,14 @@ Operand lower_method_call(Lowerer *l, Expr *call);
 Operand lower_field(Lowerer *l, Expr *e);
 Operand lower_index(Lowerer *l, Expr *e);
 void lower_panic_assert(Lowerer *l, Expr *call, Builtin builtin);
+void emit_bounds_check(Lowerer *l, Operand index, Operand len, Span span);
+
+// lower_list.c: `List<T>` literals, indexing and loops
+bool is_list(Lowerer *l, TypeId type);
+Operand lower_list_literal(Lowerer *l, Expr *e);
+Operand lower_list_repeat(Lowerer *l, Expr *e);
+Place lower_list_index(Lowerer *l, Expr *e);   // the element's place, bounds checked
+void lower_for_list(Lowerer *l, Stmt *s);
 
 // lower_pattern.c
 Operand build_variant(Lowerer *l, TypeId type, uint32_t index, ArgList args);
