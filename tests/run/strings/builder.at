@@ -1,0 +1,30 @@
+// std.strings: join, fromUtf8 and Builder; str.pushChar.
+
+import std.strings
+
+fn main() {
+    println(strings.join(["a", "b", "c"], ", "))
+    let empty: List<str> = []
+    println("[{strings.join(empty, ",")}]")
+    var s = "caf"
+    s.pushChar(0xE9)
+    s.pushChar(0x20AC)
+    s.pushChar(0x1F600)
+    println("{s} {s.len()}")
+    match strings.fromUtf8([0x68, 0xC3, 0xA9]) {
+        .Ok(t) => println("ok {t}")
+        .Err(e) => println("err {e.offset}")
+    }
+    let cases: List<List<u8>> = [[0x61, 0xFF], [0xC0, 0x80], [0xED, 0xA0, 0x80], [0xE2, 0x82]]
+    for k in 0..cases.len() {
+        let bad = cases[k].clone()
+        match strings.fromUtf8(bad) {
+            .Ok(t) => println("ok {t}")
+            .Err(e) => println("err {e.offset}")
+        }
+    }
+    var b = strings.Builder.new()
+    b.push("n = ")
+    b.pushChar(0x31)
+    println("{b.len()} {b.finish()}")
+}

@@ -58,7 +58,18 @@ for mut item in list { }   // borrows each element mutably; `list` must be mutab
 for i, item in list { }    // with the index (int)
 
 for key, value in map { }  // borrows keys and values, in insertion order
+
+for word in text.splitWhitespace() { }   // an iterator: `next()` until `None`
 ```
+
+A value whose type has `fn next(mut self) Option<T>` is an iterator
+(`Iterator<T>`, chapter 9): the loop calls `next` until it returns `None`,
+and the variable owns each item, which is dropped at the end of its
+iteration unless the body moves it. A temporary iterator lives until the
+end of the loop; an iterator in a variable is advanced in place, so the
+variable must be a `var`, and the loop leaves it where it stopped. Stage 0
+recognizes the method by its name and signature, until interfaces
+(roadmap 5.1).
 
 `break` and `continue` apply to the innermost loop. Labeled loops are
 **[planned]**.
