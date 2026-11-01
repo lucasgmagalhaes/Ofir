@@ -105,12 +105,13 @@ Operand lower_binary_op(Lowerer *l, Arith x) {
 // that a modification copies first (check_ref.c).
 static Operand str_view(Lowerer *l, Expr *e) {
     Operand value = lower_expr(l, e->as.unary.operand);
-    LocalId view = emit_temp(l, e->type, (Rvalue){.kind = RV_USE, .a = value});
+    value.type = type_id(TID_STR);
+    LocalId view = emit_temp(l, value.type, (Rvalue){.kind = RV_USE, .a = value});
     uint32_t *cap = ARENA_NEW(&l->sema->session->arena, uint32_t);
     *cap = 2;
     emit_store(l, (Place){.local = view, .path = {.fields = cap, .len = 1}},
                op_int(0, type_id(TID_INT)));
-    return op_copy(view, e->type);
+    return op_copy(view, value.type);
 }
 
 Operand lower_unary(Lowerer *l, Expr *e) {
@@ -118,7 +119,8 @@ Operand lower_unary(Lowerer *l, Expr *e) {
         return lower_field_read(l, e);   // a place reached through the pointer
     }
     if (e->as.unary.op == OP_REF || e->as.unary.op == OP_REF_MUT) {
-        if (e->type.id == TID_STR) {
+        const Ty *targs = type_get(l->types, l->body->targs);   // `&V` with V = str is a view
+        if (type_subst(l->types, e->type, targs->args, targs->arg_count).id == TID_STR) {
             return str_view(l, e);
         }
         return place_operand(lower_place(l, e->as.unary.operand), OPERAND_ADDR, e->type);
