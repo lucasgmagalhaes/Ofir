@@ -20,6 +20,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -53,12 +54,16 @@ def input_file(lines: int, profile: str) -> Path:
 
 def run_once(cmd: list[str]) -> tuple[float, int]:
     """Returns the wall time in milliseconds and the peak RSS in KiB."""
-    start = time.perf_counter()
-    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    _, status, usage = os.wait4(proc.pid, 0)
-    elapsed = (time.perf_counter() - start) * 1000
-    if os.waitstatus_to_exitcode(status) != 0:
-        sys.exit(f"benchmark command failed: {' '.join(cmd)}\n{proc.stderr.read().decode()}")
+    # stderr goes to a file: a pipe nobody reads would block a compiler that
+    # reports many diagnostics.
+    with tempfile.TemporaryFile() as errors:
+        start = time.perf_counter()
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=errors)
+        _, status, usage = os.wait4(proc.pid, 0)
+        elapsed = (time.perf_counter() - start) * 1000
+        if os.waitstatus_to_exitcode(status) != 0:
+            errors.seek(0)
+            sys.exit(f"benchmark command failed: {' '.join(cmd)}\n{errors.read().decode()}")
     rss = usage.ru_maxrss if sys.platform != "darwin" else usage.ru_maxrss // 1024
     return elapsed, rss
 
