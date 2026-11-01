@@ -77,6 +77,12 @@ panic: stack overflow
 and exits with status 101, like any other panic. Other faults are re-raised
 unchanged.
 
+Stage 0 (`runtime/src/stack.c`) takes the address of a local of `main` as
+the top of the stack and the soft `RLIMIT_STACK` (8 MiB when unlimited)
+as its size; a fault from there down to 1 MiB past the limit, which
+covers the guard page and the frames that jump over it, is an overflow.
+It handles `SIGBUS` too, which macOS raises for some overflows.
+
 ## 4. Rules
 
 - The runtime has no global constructors and no threads.
