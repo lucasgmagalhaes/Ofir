@@ -1,4 +1,7 @@
-//! `Box<T>`: an owned heap allocation (docs/std/collections.md).
+/**
+ * @module
+ * `Box<T>`: an owned heap allocation (docs/std/collections.md).
+ */
 
 extern "C" {
     fn astra_alloc(size: int) *mut u8
@@ -6,18 +9,62 @@ extern "C" {
 }
 
 extern "intrinsic" {
-    /// The size in bytes of a value of type `T` (spec 7.5).
+    /**
+     * The size in bytes of a value of type `T`, as laid out in memory
+     * (spec 7.5, chapter 13): what an allocation for one `T` needs.
+     *
+     * @typeParam T the type to measure
+     * @returns the size in bytes; 0 for `()`
+     * @example
+     * ```astra
+     * assert(sizeOf<i32>() == 4)
+     * assert(sizeOf<str>() == 24)
+     * ```
+     */
     pub fn sizeOf<T>() int
 }
 
-/// An owned heap allocation, which makes recursive types possible:
-/// `enum Expr { Number(int), Add(Box<Expr>, Box<Expr>) }`. `*b` reads the
-/// value, and the fields and methods of the value are reached through the
-/// box: `b.x`, `b.area()`.
+/**
+ * A value of type `T` on the heap, owned by the box: the box itself is one
+ * pointer.
+ *
+ * A type cannot contain itself by value (its size would be infinite), so
+ * recursive types hold their children in boxes. `*b` reads the value, and
+ * the fields and methods of the value are reached through the box:
+ * `b.x`, `b.area()`, `b.x = 1` (the box must then be `var`). Methods of
+ * `Box` itself (`unbox`) come first; `(*b).m()` calls the value's.
+ *
+ * Stage 0 frees a box only in `unbox`; drops come with roadmap 3.2.
+ *
+ * @typeParam T the type of the value
+ * @example
+ * ```astra
+ * enum Expr {
+ *     Number(int)
+ *     Add(Box<Expr>, Box<Expr>)
+ * }
+ *
+ * fn eval(e: Expr) int {
+ *     return match e {
+ *         .Number(n) => n
+ *         .Add(a, b) => eval(*a) + eval(*b)
+ *     }
+ * }
+ *
+ * let e = Expr.Add(Box.new(.Number(2)), Box.new(.Number(3)))   // eval(e) == 5
+ * ```
+ */
 @lang("box")
 pub struct Box<T> {
     ptr: *mut T
 
+    /**
+     * Moves a value to the heap.
+     *
+     * @param value the value to store
+     * @returns a box that owns the value
+     * @panics when the system is out of memory
+     */
     pub fn new(value: move T) Box<T> {
         let ptr = unsafe { astra_alloc(sizeOf<T>()) as *mut T }
         unsafe {
@@ -26,7 +73,16 @@ pub struct Box<T> {
         return Box{ptr}
     }
 
-    /// Moves the value out and frees the box.
+    /**
+     * Moves the value out of the box and frees the heap memory.
+     *
+     * @returns the value the box held
+     * @example
+     * ```astra
+     * let b = Box.new("text")
+     * let s = b.unbox()   // b can no longer be used
+     * ```
+     */
     pub fn unbox(move self) T {
         let value = unsafe { *self.ptr }
         unsafe {
