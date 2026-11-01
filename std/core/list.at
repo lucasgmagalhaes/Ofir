@@ -156,6 +156,105 @@ pub struct List<T> {
     }
 
     /**
+     * A borrow of an element, without panicking: the safe form of `l[i]`.
+     *
+     * @param i the position
+     * @returns `Some` with a reference to element `i`, or `None` outside
+     * `0..len()`
+     * @example
+     * ```astra
+     * let xs = [10, 20]
+     * if let Some(x) = xs.get(1) {
+     *     println("{x}")   // 20
+     * }
+     * ```
+     */
+    pub fn get(self, i: int) Option<&T> {
+        if i < 0 || i >= self.len {
+            return None
+        }
+        return Some(unsafe { &*self.ptr.add(i) })
+    }
+
+    /**
+     * A mutable borrow of an element, without panicking.
+     *
+     * @param i the position
+     * @returns `Some` with a mutable reference to element `i`, or `None`
+     * outside `0..len()`
+     * @example
+     * ```astra
+     * var xs = [1, 2]
+     * if let Some(x) = xs.getMut(0) {
+     *     *x = 10   // xs is [10, 2]
+     * }
+     * ```
+     */
+    pub fn getMut(mut self, i: int) Option<&mut T> {
+        if i < 0 || i >= self.len {
+            return None
+        }
+        return Some(unsafe { &mut *self.ptr.add(i) })
+    }
+
+    /**
+     * A borrow of the first element.
+     *
+     * @returns `Some` with a reference to it, or `None` for an empty list
+     */
+    pub fn first(self) Option<&T> {
+        return self.get(0)
+    }
+
+    /**
+     * A borrow of the last element.
+     *
+     * @returns `Some` with a reference to it, or `None` for an empty list
+     */
+    pub fn last(self) Option<&T> {
+        return self.get(self.len - 1)
+    }
+
+    /**
+     * A view of all the elements. A list is converted to a slice where
+     * one is expected, so this is rarely written.
+     *
+     * @returns a slice of the whole list
+     */
+    pub fn asSlice(self) &[T] {
+        return unsafe { Slice.fromRaw(self.ptr, self.len) }
+    }
+
+    /**
+     * A view of part of the list: `l[lo..hi]`.
+     *
+     * @param lo the first position
+     * @param hi the position after the last one
+     * @returns the elements `lo` to `hi - 1`
+     * @panics unless `0 <= lo <= hi <= len()`
+     * @example
+     * ```astra
+     * let xs = [10, 20, 30, 40]
+     * let middle = xs[1..3]   // [20, 30]
+     * ```
+     */
+    pub fn slice(self, lo: int, hi: int) &[T] {
+        checkRange(lo, hi, self.len)
+        return unsafe { Slice.fromRaw(self.ptr.add(lo), hi - lo) }
+    }
+
+    /**
+     * A view of the end of the list: `l[lo..]`.
+     *
+     * @param lo the first position
+     * @returns the elements from `lo` to the end
+     * @panics unless `0 <= lo <= len()`
+     */
+    pub fn sliceFrom(self, lo: int) &[T] {
+        return self.slice(lo, self.len)
+    }
+
+    /**
      * Removes the last element, in constant time.
      *
      * @returns `Some` with the last element, or `None` for an empty list

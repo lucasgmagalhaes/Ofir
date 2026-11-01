@@ -1,8 +1,9 @@
-// `Box<T>` (docs/std/collections.md): `*b` reads the value, and the fields
-// and methods of the value are reached through the box. The checker
-// rewrites these uses into a dereference of the box's pointer, `*(b.ptr)`,
-// which the lowering handles like any raw pointer. Inside the module that
-// declares `Box`, its own fields are reached as usual.
+// Dereferencing boxes and references. `Box<T>` (docs/std/collections.md):
+// `*b` reads the value, and the fields and methods of the value are reached
+// through the box; the checker rewrites these uses into a dereference of
+// the box's pointer, `*(b.ptr)`, which the lowering handles like any raw
+// pointer. Inside the module that declares `Box`, its own fields are
+// reached as usual. A reference `&T` is a pointer: `r.x` is `(*r).x`.
 
 #include "sema/check_internal.h"
 
@@ -29,10 +30,15 @@ TypeId box_deref(Checker *c, Expr *deref, TypeId box) {
     return type_get(c->types, ptr->type)->inner;
 }
 
-TypeId deref_box(Checker *c, Expr **place, TypeId type) {
+static bool own_box(Checker *c) {
+    return c->sema->box.id && sema_def(c->sema, c->sema->box)->module == c->sema->current;
+}
+
+TypeId deref_once(Checker *c, Expr **place, TypeId type) {
     TypeId inner;
-    if (sema_def(c->sema, c->sema->box)->module == c->sema->current ||
-        !box_inner(c, type, &inner)) {
+    const Ty *ty = type_get(c->types, type);
+    bool box = !own_box(c) && box_inner(c, type, &inner);
+    if (!box && ty->kind != TY_REF) {
         return type;
     }
     Expr *deref = ARENA_NEW(&c->sema->session->arena, Expr);
@@ -40,9 +46,32 @@ TypeId deref_box(Checker *c, Expr **place, TypeId type) {
     deref->span = (*place)->span;
     deref->as.unary.op = OP_DEREF;
     deref->as.unary.operand = *place;
-    deref->type = box_deref(c, deref, type);
+    deref->type = box ? box_deref(c, deref, type) : ty->inner;
     *place = deref;
-    return deref_box(c, place, deref->type);   // `Box<Box<T>>`
+    return deref->type;
+}
+
+TypeId auto_deref(Checker *c, Expr **place, TypeId type) {
+    for (;;) {   // `Box<Box<T>>`, `&Box<T>`
+        TypeId inner = deref_once(c, place, type);
+        if (type_eq(inner, type)) {
+            return type;
+        }
+        type = inner;
+    }
+}
+
+TypeId method_receiver(Checker *c, Expr **place, TypeId type, Symbol name) {
+    for (;;) {
+        TypeId inner;
+        bool through = type_get(c->types, type)->kind == TY_REF ||
+                       (box_inner(c, type, &inner) && !has_method(c, c->sema->box, name));
+        TypeId next = through ? deref_once(c, place, type) : type;
+        if (type_eq(next, type)) {
+            return type;
+        }
+        type = next;
+    }
 }
 
 bool is_box_deref(Checker *c, const Expr *e) {

@@ -3,6 +3,15 @@
 
 #include "sema/check_internal.h"
 
+bool sequence_elem(Checker *c, TypeId type, TypeId *elem) {
+    const Ty *ty = type_get(c->types, type);
+    if (c->sema->slice.id != 0 && ty->kind == TY_ADT && ty->data == c->sema->slice.id) {
+        *elem = ty->args[0];
+        return true;
+    }
+    return list_elem(c, type, elem);
+}
+
 bool list_elem(Checker *c, TypeId type, TypeId *elem) {
     const Ty *ty = type_get(c->types, type);
     if (c->sema->list.id == 0 || ty->kind != TY_ADT || ty->data != c->sema->list.id ||
@@ -47,7 +56,9 @@ TypeId check_list_literal(Checker *c, Expr *e, TypeId expected) {
                     "type, as in `let names: List<str> = []`");
         return type_id(TID_ERROR);
     }
-    return list_of(c, elem);
+    TypeId type = list_of(c, elem);
+    check_instance_storable(c, type, e->span);
+    return type;
 }
 
 // `[value; count]`: `count` copies of a Copy value.
@@ -63,20 +74,57 @@ TypeId check_list_repeat(Checker *c, Expr *e, TypeId expected) {
     return list_of(c, elem);
 }
 
-// `for x in list`: `x` is a copy of each element, so the elements must be
-// Copy until borrowing iterators (roadmap 2.21).
-TypeId check_for_list(Checker *c, Expr *list) {
-    TypeId type = check_expr(c, list, NO_TYPE);
+// `for x in list` or `for x in slice`: `x` borrows each element (spec 5.5);
+// stage 0 binds it to a copy of the bits, which is the same while there are
+// no drops (roadmap 3.2).
+TypeId check_for_list(Checker *c, Expr **list) {
+    TypeId type = check_expr(c, *list, NO_TYPE);
+    type = auto_deref(c, list, type);
     TypeId elem;
-    if (!list_elem(c, type, &elem)) {
+    if (!sequence_elem(c, type, &elem)) {
         if (type.id != TID_ERROR) {
-            check_error(c, "E0300", list->span, "mismatched types: `for` needs a range or a "
-                        "list, found %s", type_name(c, type));
+            check_error(c, "E0300", (*list)->span, "mismatched types: `for` needs a range, a "
+                        "list or a slice, found %s", type_name(c, type));
         }
         return type_id(TID_ERROR);
     }
-    require_copy(c, list->span, elem, "`for x in list`");
     return elem;
+}
+
+// `xs[a..b]`, `xs[a..]`, `xs[..b]`: rewritten to `xs.slice(a, b)` or
+// `xs.sliceFrom(a)`, methods of List, Slice and str.
+TypeId check_range_index(Checker *c, Expr *e) {
+    Arena *arena = &c->sema->session->arena;
+    Expr *base = e->as.index.base, *range = e->as.index.index;
+    Expr *lo = range->as.range.lo;
+    if (!lo) {
+        lo = ARENA_NEW(arena, Expr);
+        *lo = (Expr){.kind = EXPR_INT, .span = range->span};
+    }
+    Expr *hi = range->as.range.hi;
+    if (hi && range->as.range.inclusive) {   // `a..=b` is `a..b + 1`
+        Expr *one = ARENA_NEW(arena, Expr);
+        *one = (Expr){.kind = EXPR_INT, .span = hi->span, .as.int_value = 1};
+        Expr *sum = ARENA_NEW(arena, Expr);
+        *sum = (Expr){.kind = EXPR_BINARY, .span = hi->span};
+        sum->as.binary.op = OP_ADD;
+        sum->as.binary.lhs = hi;
+        sum->as.binary.rhs = one;
+        hi = sum;
+    }
+    uint32_t count = hi ? 2 : 1;
+    Arg *args = ARENA_ARRAY(arena, Arg, 2);
+    args[0] = (Arg){.value = lo};
+    args[1] = (Arg){.value = hi};
+    Expr *field = ARENA_NEW(arena, Expr);
+    *field = (Expr){.kind = EXPR_FIELD, .span = e->span};
+    field->as.field.base = base;
+    field->as.field.name = intern(&c->sema->session->names, hi ? SV("slice") : SV("sliceFrom"));
+    e->kind = EXPR_CALL;
+    e->as.call.callee = field;
+    e->as.call.args = (ArgList){.items = args, .len = count};
+    e->as.call.type_args = (TypeId){0};
+    return check_method_call(c, e, NO_TYPE);
 }
 
 // Stage 0 sorts the elements it can compare without bounds (roadmap 5.2).
@@ -98,4 +146,43 @@ void check_list_layout(Checker *c, const Def *def) {
         check_error(c, "E0806", def->span,
                     "`@lang(\"list\")` must declare `ptr: *mut T`, `len: int`, `cap: int`");
     }
+}
+
+static FnDecl *list_method(Checker *c, const char *name) {
+    FnList methods = sema_def(c->sema, c->sema->list)->item->as.struct_.methods;
+    for (uint32_t i = 0; i < methods.len; i++) {
+        if (sv_eq(symbol_name(&c->sema->session->names, methods.items[i]->name),
+                  sv_from_cstr(name))) {
+            return methods.items[i];
+        }
+    }
+    return NULL;
+}
+
+// A `List<T>` where a `&[T]` is expected (spec 2.12) becomes `list.asSlice()`.
+bool coerce_to_slice(Checker *c, Expr *e, TypeId found, TypeId expected) {
+    TypeId elem, wanted;
+    const Ty *ty = type_get(c->types, expected);
+    if (ty->kind != TY_ADT || ty->data != c->sema->slice.id || c->sema->slice.id == 0 ||
+        !list_elem(c, found, &elem) || !type_eq(elem, ty->args[0])) {
+        return false;
+    }
+    wanted = expected;
+    FnDecl *as_slice = list_method(c, "asSlice");
+    if (!as_slice) {
+        return false;
+    }
+    fn_signature(c, as_slice);
+    Arena *arena = &c->sema->session->arena;
+    Expr *list = ARENA_NEW(arena, Expr);
+    *list = *e;
+    Expr *field = ARENA_NEW(arena, Expr);
+    *field = (Expr){.kind = EXPR_FIELD, .span = e->span};
+    field->as.field.base = list;
+    field->as.field.name = as_slice->name;
+    field->as.field.res = (Res){RES_DEF, as_slice->def.id};
+    *e = (Expr){.kind = EXPR_CALL, .span = e->span, .type = wanted};
+    e->as.call.callee = field;
+    e->as.call.type_args = type_tuple(c->types, &elem, 1);
+    return true;
 }

@@ -98,7 +98,7 @@ static TypeId for_in(Checker *c, Stmt *s) {
         return type_id(TID_UNIT);
     }
     if (range->kind != EXPR_RANGE) {   // `for x in list`
-        set_local(c, s->as.for_.first_local, check_for_list(c, range));
+        set_local(c, s->as.for_.first_local, check_for_list(c, &s->as.for_.expr));
         return loop_body(c, s->as.for_.body, false);
     }
     if (!range->as.range.lo || !range->as.range.hi) {
@@ -136,6 +136,7 @@ static TypeId for_stmt(Checker *c, Stmt *s) {
 static TypeId return_stmt(Checker *c, Stmt *s) {
     if (s->as.expr) {
         coerce(c, s->as.expr, c->ret);
+        check_returned_ref(c, s->as.expr);
     } else if (!types_compatible(type_id(TID_UNIT), c->ret)) {
         check_error(c, "E0300", s->span, "mismatched types: expected %s, found ()",
                     type_name(c, c->ret));

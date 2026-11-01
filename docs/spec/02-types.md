@@ -235,6 +235,10 @@ let hello: &str = s[0..5]
 - Slicing is bounds checked. Slicing a `str` panics if a bound is not on a
   UTF-8 character boundary.
 - Slices are references, so they follow the rules of chapter 5.
+- `&[T]` is the std type `Slice<T>` (`std/core/slice.at`); `xs[a..b]` is
+  `xs.slice(a, b)` and `xs[a..]` is `xs.sliceFrom(a)`. Stage 0 treats
+  `&str` as a `str` whose capacity is 0, like a literal, and has no
+  `&mut [T]` yet.
 - As **parameter types**, `[T]` and `str` accept lists, arrays, slices and
   strings without writing `&`: `fn sum(xs: [int])` can be called as
   `sum(list)` or `sum(list[2..5])` (chapter 5.3).

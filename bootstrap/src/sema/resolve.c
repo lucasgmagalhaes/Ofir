@@ -92,6 +92,7 @@ static DefId *named_lang(Resolver *r, const Attribute *attr) {
                   : sv_eq(name, SV("list"))   ? &r->sema->list
                   : sv_eq(name, SV("option")) ? &r->sema->option
                   : sv_eq(name, SV("result")) ? &r->sema->result
+                  : sv_eq(name, SV("slice"))  ? &r->sema->slice
                                               : NULL;
     return slot && slot->id == 0 ? slot : NULL;
 }
@@ -113,7 +114,7 @@ static bool collect_lang(Resolver *r, const Item *item) {
     bool taken = prim && prim->kind == DEF_PRIMITIVE && r->sema->lang[prim->type.id].id;
     if (!std_module || !prim || prim->kind != DEF_PRIMITIVE || taken) {
         resolve_error(r, "E0805", attr->span,
-                      std_module ? "`@lang` needs a primitive type, `box` or `list`, declared "
+                      std_module ? "`@lang` needs a primitive type or a std type name, declared "
                                    "once: `@lang(\"str\")`"
                                  : "`@lang` is reserved to the standard library");
         return true;

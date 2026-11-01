@@ -21,6 +21,7 @@ import std.core.num.f32
 import std.core.num.f64
 import std.core.box
 import std.core.list
+import std.core.slice
 import std.core.option
 import std.core.result
 

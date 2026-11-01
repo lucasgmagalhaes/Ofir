@@ -80,12 +80,13 @@ static void lower_fn(Lowerer *l, Instance inst, BodySink sink, void *context) {
         const Local *local = &fn->locals.items[i];
         air_new_local(&body, fn->local_types[i], local->name, local->span);
     }
-    // `mut self` and `mut` parameters are passed by reference (spec 5.3).
-    if (fn->has_self && fn->self_mode == MODE_MUT) {
+    // `mut self`, `mut` parameters and the source of a returned borrow are
+    // passed by address (spec 5.3, 5.6).
+    if (fn->has_self && by_address(fn, -1)) {
         body.locals.data[1].by_ref = true;
     }
     for (uint32_t i = 0; i < fn->params.len; i++) {
-        if (fn->params.items[i].mode == MODE_MUT) {
+        if (by_address(fn, (int32_t)i)) {
             body.locals.data[air_local_of(fn->params.items[i].local).id].by_ref = true;
         }
     }
