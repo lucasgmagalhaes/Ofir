@@ -1,0 +1,38 @@
+// The borrowing iterators of str (roadmap 3.7): split, splitWhitespace,
+// lines and bytes; find, trim and replace.
+
+fn main() {
+    for field in "a,b,,c".split(",") {
+        print("[{field}]")
+    }
+    println("")
+    for word in "  to be  or\tnot ".splitWhitespace() {
+        print("<{word}>")
+    }
+    println("")
+    for line in "one\r\ntwo\n\nfour".lines() {
+        print("({line})")
+    }
+    println("")
+    var sum = 0
+    for b in "abc".bytes() {
+        sum += b as int
+    }
+    println("{sum} [{"  hi \n".trim()}] {"a-b-c".replace("-", ", ")} {"key=value".find("=") ?? -1}")
+    var parts = "x=1=2".split("=")
+    let key = parts.next() ?? ""
+    for rest in parts {
+        print("{key}:{rest} ")
+    }
+    println("")
+    let text = "hello world".toOwned()
+    var count = 0
+    for w in text.splitWhitespace() {
+        if w.len() > 0 {
+            count += 1
+        }
+    }
+    var none = "".lines()
+    var one = "".split(",")
+    println("{count} {none.next() ?? "none"} [{one.next() ?? "none"}] {one.next() ?? "end"}")
+}
