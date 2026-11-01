@@ -165,10 +165,9 @@ compiler/
 │   ├── pipeline.at           runs the phases in order
 │   └── toolchain.at          locating and invoking clang / linker
 ├── base/
-│   ├── arena.at
-│   ├── intern.at
-│   ├── span.at               source positions, file table
-│   └── index_vec.at          typed indices (NodeId, TypeId, ...)
+│   ├── intern.at             interned names (`Symbol`, `Interner`)
+│   ├── span.at               source positions, file table (`Span`, `SourceMap`)
+│   └── index_vec.at          typed indices (`Id<T>`, `IndexVec<T>`)
 ├── diag/
 │   ├── diagnostic.at         error/warning/note model
 │   ├── render.at             terminal rendering with source excerpts

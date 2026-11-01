@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Runs the `@test` functions of the standard library (roadmap 3.11).
+"""Runs the `@test` functions of the standard library (roadmap 3.11) and
+of the stage 1 compiler in `compiler/` (roadmap phase 4).
 
-Every std module with tests (in its `_test.at` file) is compiled with `astra test`, which
+Every module with tests (in its `_test.at` file) is compiled with `astra test`, which
 runs each test in a process of its own. Fails if any test fails. Then
 checks `astra test` itself: the standard output of each
 `tests/astra_test/*.at` must match its `.out` file.
@@ -17,11 +18,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+# The parts of `compiler/` that compile so far; each port adds its directory
+# (roadmap phase 4: base, diag, syntax, ...).
+DIRS = ["std", "compiler/base"]
+
+
 def modules_with_tests() -> list[Path]:
-    """The std modules with tests: the module of each `x_test.at` file
+    """The modules with tests: the module of each `x_test.at` file
     (spec 12.2), and any module with `@test` functions of its own."""
     found = set()
-    for path in sorted((ROOT / "std").rglob("*.at")):
+    for path in sorted(p for d in DIRS for p in (ROOT / d).rglob("*.at")):
         if path.stem.endswith("_test"):
             found.add(path.with_name(path.stem[:-len("_test")] + ".at"))
         elif any(line.startswith("@test") for line in path.read_text().splitlines()):
@@ -44,7 +50,7 @@ def main() -> int:
             sys.stdout.write(result.stdout)
             sys.stderr.write(result.stderr)
     modules = len(modules_with_tests())
-    print(f"std tests: {total} tests in {modules} modules, "
+    print(f"unit tests (std, compiler): {total} tests in {modules} modules, "
           f"{len(failed)} modules with failures")
     return 1 if failed or not check_fixtures(args.compiler) else 0
 

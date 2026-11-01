@@ -22,8 +22,11 @@ import parser.ast as ast
 - Imported modules are accessed by their last name segment:
   `lexer.tokenize(src)`, or by the alias given with `as`.
 - Importing a type (`import std.collections.Map`) brings that name into scope.
-- Imports are resolved relative to the project root (the directory of the
-  root file) and to the standard library.
+- Imports are resolved relative to the project root and to the standard
+  library. The project root is the nearest directory above the root file
+  that holds an `astra.toml`, or else the root file's own directory; a root
+  file inside a project is named after its path from there
+  (`compiler/base/intern.at` is `base.intern`).
 - Circular imports are allowed; declarations in a module can reference each
   other in any order.
 - An unused import produces a warning (chapter 12.6).

@@ -1,7 +1,9 @@
 // Loading the modules of a program (spec 7.1 and 7.2): the root file, then
 // every module it imports, transitively. `import a.b` is the file
-// `<root dir>/a/b.at` or `<root dir>/a/b/index.at`; `import std.x` is in the
-// standard library, and `std.core` (the prelude) is always loaded. When
+// `<root dir>/a/b.at` or `<root dir>/a/b/index.at`, where the root dir is
+// the project's (the nearest directory with an `astra.toml`) or the root
+// file's; `import std.x` is in the standard library, and `std.core` (the
+// prelude) is always loaded. When
 // `a.b` names a declaration rather than a module (`import
 // std.collections.Map`), its module `a` is loaded. Imports that match no
 // file are reported by the resolver (E0204).
@@ -143,24 +145,25 @@ static StrView root_name(Loader *ld, const char *input) {
     return (StrView){arena_strndup(&ld->p->session->arena, base, len), len};
 }
 
-// A root file inside the standard library is that std module (`astra
-// test std/core/str.at` tests `std.core.str`), so the prelude does not
-// load it a second time.
-static bool std_name(Loader *ld, const char *input, StrView *name) {
-    char file[PATH_MAX], dir[PATH_MAX];
-    if (!ld->has_std || !realpath(input, file) || !realpath(ld->std_dir, dir)) {
+// The dotted module name of `input` relative to the directory `dir`, with
+// `prefix` (`std.` for the standard library), if `input` is inside it.
+static bool name_under(Loader *ld, const char *input, const char *dir, const char *prefix,
+                       StrView *name) {
+    char file[PATH_MAX], base[PATH_MAX];
+    if (!realpath(input, file) || !realpath(dir, base)) {
         return false;
     }
-    size_t n = strlen(dir);
-    if (strncmp(file, dir, n) != 0 || file[n] != '/') {
+    size_t n = strlen(base);
+    if (strncmp(file, base, n) != 0 || file[n] != '/') {
         return false;
     }
     char dotted[PATH_SIZE];
-    int len = snprintf(dotted, sizeof dotted, "std.%s", file + n + 1);
-    if (len < 7 || len >= (int)sizeof dotted) {
+    int len = snprintf(dotted, sizeof dotted, "%s%s", prefix, file + n + 1);
+    int min = (int)strlen(prefix) + 4;   // at least `x.at`
+    if (len < min || len >= (int)sizeof dotted) {
         return false;
     }
-    len -= len > 13 && strcmp(dotted + len - 9, "/index.at") == 0 ? 9 : 3;   // or `.at`
+    len -= len > min + 5 && strcmp(dotted + len - 9, "/index.at") == 0 ? 9 : 3;   // or `.at`
     for (int i = 0; i < len; i++) {
         dotted[i] = dotted[i] == '/' ? '.' : dotted[i];
     }
@@ -168,17 +171,50 @@ static bool std_name(Loader *ld, const char *input, StrView *name) {
     return true;
 }
 
+// The project root (spec 7.2): the nearest directory above the root file
+// that holds an `astra.toml`; imports are resolved from there.
+static bool project_dir(const char *input, char out[PATH_SIZE]) {
+    char path[PATH_MAX];
+    if (!realpath(input, path)) {
+        return false;
+    }
+    for (char *slash = strrchr(path, '/'); slash && slash > path; slash = strrchr(path, '/')) {
+        *slash = '\0';
+        char toml[PATH_SIZE];
+        if (snprintf(toml, sizeof toml, "%s/astra.toml", path) < (int)sizeof toml &&
+            access(toml, R_OK) == 0) {
+            return snprintf(out, PATH_SIZE, "%s", path) < PATH_SIZE;
+        }
+    }
+    return false;
+}
+
+// The name of the root module. A file inside the standard library is that
+// std module (`astra test std/core/str.at` tests `std.core.str`) and a file
+// of a project is named from the project root (`base.intern`), so that an
+// import of it does not load it a second time.
+static StrView root_module_name(Loader *ld, const char *input, bool in_project) {
+    StrView name;
+    if (ld->has_std && name_under(ld, input, ld->std_dir, "std.", &name)) {
+        return name;
+    }
+    if (in_project && name_under(ld, input, ld->root_dir, "", &name)) {
+        return name;
+    }
+    return root_name(ld, input);
+}
+
 Program load_program(Pipeline *p, Module *root) {
     Loader ld = {.p = p};
     const char *slash = strrchr(p->opts->input, '/');
     int dir_len = slash ? (int)(slash - p->opts->input) : 1;
-    snprintf(ld.root_dir, sizeof ld.root_dir, "%.*s", dir_len, slash ? p->opts->input : ".");
+    bool in_project = project_dir(p->opts->input, ld.root_dir);
+    if (!in_project) {   // a single file: its own directory
+        snprintf(ld.root_dir, sizeof ld.root_dir, "%.*s", dir_len, slash ? p->opts->input : ".");
+    }
     static const char *const STD[] = {"../../std", "../lib/astra/std"};
     ld.has_std = find_installed(p->opts->argv0, "ASTRA_STD", STD, ARRAY_LEN(STD), ld.std_dir);
-    StrView name;
-    if (!std_name(&ld, p->opts->input, &name)) {
-        name = root_name(&ld, p->opts->input);
-    }
+    StrView name = root_module_name(&ld, p->opts->input, in_project);
     add_test_file(&ld, root, name, p->opts->input);
     VEC_PUSH(ld.modules, ((ProgramModule){.module = root, .name = name}));
     char core[PATH_SIZE];

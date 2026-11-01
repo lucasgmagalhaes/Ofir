@@ -37,7 +37,7 @@ check-format:
 check-leaks: stage0 runtime
 	$(PYTHON) tools/check_leaks.py --compiler $(BUILD)/stage0/astra
 
-# The `@test` functions of std (spec 12.2).
+# The `@test` functions of std and of the stage 1 compiler (spec 12.2).
 test-std: stage0 runtime
 	$(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage0/astra
 

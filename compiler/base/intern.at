@@ -1,0 +1,84 @@
+/**
+ * @module
+ * Interning: each distinct name is stored once and stands for a small
+ * number, so that comparing two names compares two integers.
+ */
+
+/**
+ * An interned name: its index in the `Interner` that made it.
+ */
+pub copy struct Symbol(int)
+
+/**
+ * The table of interned names. Interning the same text twice gives the same
+ * symbol; symbols count from 0 in the order the names were first seen.
+ *
+ * @example
+ * ```astra
+ * var names = Interner.new()
+ * let a = names.intern("main")
+ * assert(names.intern("main").0 == a.0 && names.name(a) == "main")
+ * ```
+ */
+pub struct Interner {
+    ids: Map<str, int>
+    names: List<str>
+
+    /**
+     * An empty table.
+     *
+     * @returns the table
+     */
+    pub fn new() Interner {
+        return Interner{ids: Map.new(), names: []}
+    }
+
+    /**
+     * The symbol of a name, added the first time the name is seen.
+     *
+     * @param text the name
+     * @returns its symbol
+     */
+    pub fn intern(mut self, text: str) Symbol {
+        if let .Some(id) = self.ids.get(text) {
+            return Symbol(*id)
+        }
+        let id = self.names.len()
+        self.names.push(text.toOwned())
+        self.ids.insert(text.toOwned(), id)
+        return Symbol(id)
+    }
+
+    /**
+     * The symbol of a name already interned, without adding it.
+     *
+     * @param text the name
+     * @returns its symbol, or `None` if it was never interned
+     */
+    pub fn find(self, text: str) Option<Symbol> {
+        return match self.ids.get(text) {
+            .Some(id) => .Some(Symbol(*id))
+            .None => .None
+        }
+    }
+
+    /**
+     * The text of a symbol.
+     *
+     * @param symbol a symbol of this table
+     * @returns a view of its name
+     * @panics when the symbol comes from another table
+     */
+    pub fn name(self, symbol: Symbol) str {
+        return self.names[symbol.0].sliceFrom(0)
+    }
+
+    /**
+     * The number of distinct names.
+     *
+     * @returns the count
+     */
+    pub fn len(self) int {
+        return self.names.len()
+    }
+}
