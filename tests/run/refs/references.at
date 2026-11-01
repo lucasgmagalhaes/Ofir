@@ -1,0 +1,77 @@
+// `&x`, `&mut x`, reading and writing through references, fields and
+// methods through them, and functions returning a borrow.
+
+struct Point {
+    x: int
+    y: int
+
+    fn sum(self) int {
+        return self.x + self.y
+    }
+
+    fn shift(mut self, by: int) {
+        self.x += by
+    }
+
+    // A borrow of a field of `self`: `self` is passed by address.
+    fn xRef(self) &int {
+        return &self.x
+    }
+
+    fn yMut(mut self) &mut int {
+        return &mut self.y
+    }
+}
+
+struct Team {
+    name: str
+    members: List<str>
+}
+
+fn bump(r: &mut int) {
+    *r += 1
+}
+
+// The only borrowed parameter lends the result.
+fn longest(team: Team) &str {
+    var best = &team.members[0]
+    for i in 1..team.members.len() {
+        if team.members[i].len() > best.len() {
+            best = &team.members[i]
+        }
+    }
+    return best
+}
+
+fn main() {
+    var n = 1
+    let r = &n
+    println("{*r} {r}")
+    var m = 10
+    let w = &mut m
+    *w = 20
+    bump(&mut m)
+    println("{m}")
+
+    var p = Point{x: 1, y: 2}
+    let pr = &mut p
+    pr.x = 5
+    pr.shift(10)
+    println("{pr.sum()} {p.x}")
+    println("{*p.xRef()}")
+    *p.yMut() = 40
+    println("{p.y}")
+
+    let team = Team{name: "core", members: ["ana", "bartholomew", "cy"]}
+    println(longest(team))
+
+    var xs = [10, 20, 30]
+    if let Some(first) = xs.get(0) {
+        println("first {first}")
+    }
+    println("{xs.get(5).isNone()} {*xs.last().unwrap()}")
+    if let Some(slot) = xs.getMut(1) {
+        *slot = 21
+    }
+    println("{xs[1]}")
+}
