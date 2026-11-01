@@ -1,8 +1,11 @@
-//! `List<T>`: a growable array (docs/std/collections.md).
-//!
-//! The compiler builds list literals with `withCapacity` and `push`, `[]`
-//! with `new` and `[x; n]` with `filled`, and indexes through `ptr` and
-//! `len` (`@lang("list")` fixes this layout).
+/**
+ * @module
+ * `List<T>`: a growable array (docs/std/collections.md).
+ *
+ * The compiler builds list literals with `withCapacity` and `push`, `[]`
+ * with `new` and `[x; n]` with `filled`, and reaches elements through
+ * `ptr` and `len` (`@lang("list")` fixes this layout).
+ */
 
 extern "C" {
     fn astra_alloc(size: int) *mut u8
@@ -17,24 +20,62 @@ extern "intrinsic" {
     fn lessThan<T>(a: T, b: T) bool
 }
 
+/**
+ * A growable array of values of type `T`, stored contiguously on the heap.
+ *
+ * Literals: `[1, 2, 3]`, `[0; 16]` (16 zeros), `[]` (type from the
+ * context). `l[i]` reads or writes element `i` and panics outside
+ * `0..l.len()`; `for x in l` visits the elements in order (stage 0: they
+ * must be Copy). Pushing doubles the capacity when it runs out, so it
+ * takes amortized constant time.
+ *
+ * @typeParam T the type of the elements
+ * @example
+ * ```astra
+ * var scores = [70, 95, 82]
+ * scores.push(64)
+ * scores.sort()
+ * println("{scores[0]} {scores[scores.len() - 1]}")   // 64 95
+ * ```
+ */
 @lang("list")
 pub struct List<T> {
     ptr: *mut T
     len: int
     cap: int
 
-    /// An empty list; nothing is allocated.
+    /**
+     * An empty list; nothing is allocated until the first push.
+     *
+     * @returns a list of length 0
+     */
     pub fn new() List<T> {
         return List{ptr: unsafe { 0 as *mut T }, len: 0, cap: 0}
     }
 
+    /**
+     * An empty list with room for `n` elements, to avoid reallocations
+     * when the final length is known.
+     *
+     * @param n the number of elements to make room for
+     * @returns a list of length 0 and capacity at least `n`
+     * @panics when the system is out of memory
+     */
     pub fn withCapacity(n: int) List<T> {
         var list: List<T> = List.new()
         list.reserve(n)
         return list
     }
 
-    /// `count` copies of `value`: the literal `[value; count]`.
+    /**
+     * A list of copies of one value: the literal `[value; count]`, which
+     * requires a Copy value.
+     *
+     * @param value the element to repeat
+     * @param count the length of the list
+     * @returns a list of `count` elements equal to `value`
+     * @panics when the system is out of memory
+     */
     pub fn filled(value: T, count: int) List<T> {
         var list: List<T> = List.withCapacity(count)
         for i in 0..count {
@@ -46,19 +87,40 @@ pub struct List<T> {
         return list
     }
 
+    /**
+     * The number of elements.
+     *
+     * @returns the length
+     */
     pub fn len(self) int {
         return self.len
     }
 
+    /**
+     * Whether the list has no elements.
+     *
+     * @returns true when the length is 0
+     */
     pub fn isEmpty(self) bool {
         return self.len == 0
     }
 
+    /**
+     * How many elements fit before the next reallocation.
+     *
+     * @returns the capacity, at least the length
+     */
     pub fn capacity(self) int {
         return self.cap
     }
 
-    /// Makes room for `extra` more elements; grows by doubling.
+    /**
+     * Makes room for more elements. The capacity at least doubles, so
+     * repeated pushes reallocate O(log n) times.
+     *
+     * @param extra how many more elements must fit
+     * @panics when the system is out of memory
+     */
     pub fn reserve(mut self, extra: int) {
         let needed = self.len + extra
         if needed <= self.cap {
@@ -72,7 +134,17 @@ pub struct List<T> {
         self.cap = cap
     }
 
-    /// Appends `x`; may allocate.
+    /**
+     * Appends an element at the end, in amortized constant time.
+     *
+     * @param x the element; the list takes ownership of it
+     * @panics when the system is out of memory
+     * @example
+     * ```astra
+     * var xs: List<int> = []
+     * xs.push(1)   // [1]
+     * ```
+     */
     pub fn push(mut self, x: move T) {
         if self.len == self.cap {
             self.reserve(1)
@@ -83,7 +155,16 @@ pub struct List<T> {
         self.len += 1
     }
 
-    /// Removes and returns the last element, or `None` if the list is empty.
+    /**
+     * Removes the last element, in constant time.
+     *
+     * @returns `Some` with the last element, or `None` for an empty list
+     * @example
+     * ```astra
+     * var stack = [1, 2]
+     * assert(stack.pop() ?? 0 == 2)
+     * ```
+     */
     pub fn pop(mut self) Option<T> {
         if self.len == 0 {
             return None
@@ -92,7 +173,18 @@ pub struct List<T> {
         return Some(unsafe { *self.ptr.add(self.len) })
     }
 
-    /// Inserts `x` at `i`, shifting the later elements; panics if `i > len`.
+    /**
+     * Inserts an element at a position, shifting the later ones: O(n).
+     *
+     * @param i the position of the new element, from 0 to `len()`
+     * @param x the element; the list takes ownership of it
+     * @panics when `i` is negative or greater than `len()`
+     * @example
+     * ```astra
+     * var xs = ["b", "c"]
+     * xs.insert(0, "a")   // ["a", "b", "c"]
+     * ```
+     */
     pub fn insert(mut self, i: int, x: move T) {
         if i < 0 || i > self.len {
             panic("insertion index {i} is out of bounds for a list of length {self.len}")
@@ -105,7 +197,14 @@ pub struct List<T> {
         self.len += 1
     }
 
-    /// Removes and returns the element at `i`, shifting the later ones.
+    /**
+     * Removes the element at a position, shifting the later ones to keep
+     * the order: O(n). `swapRemove` is O(1).
+     *
+     * @param i the position, in `0..len()`
+     * @returns the removed element
+     * @panics when `i` is outside `0..len()`
+     */
     pub fn remove(mut self, i: int) T {
         self.checkIndex(i)
         let x = unsafe { *self.ptr.add(i) }
@@ -116,7 +215,14 @@ pub struct List<T> {
         return x
     }
 
-    /// Removes the element at `i` and puts the last one in its place: O(1).
+    /**
+     * Removes the element at a position and moves the last element into
+     * its place: O(1), but the order changes.
+     *
+     * @param i the position, in `0..len()`
+     * @returns the removed element
+     * @panics when `i` is outside `0..len()`
+     */
     pub fn swapRemove(mut self, i: int) T {
         self.checkIndex(i)
         unsafe {
@@ -127,18 +233,36 @@ pub struct List<T> {
         }
     }
 
+    /**
+     * Removes every element; the capacity is kept for reuse.
+     */
     pub fn clear(mut self) {
         self.len = 0
     }
 
-    /// Keeps the first `n` elements.
+    /**
+     * Shortens the list to its first elements; a longer `n` changes
+     * nothing.
+     *
+     * @param n the number of elements to keep
+     */
     pub fn truncate(mut self, n: int) {
         if n >= 0 && n < self.len {
             self.len = n
         }
     }
 
-    /// Moves the elements of `other` to the end of this list.
+    /**
+     * Moves all the elements of another list to the end of this one.
+     *
+     * @param other the list to empty into this one; it is consumed
+     * @panics when the system is out of memory
+     * @example
+     * ```astra
+     * var xs = [1, 2]
+     * xs.extend([3, 4])   // [1, 2, 3, 4]
+     * ```
+     */
     pub fn extend(mut self, other: move List<T>) {
         self.reserve(other.len)
         unsafe {
@@ -148,6 +272,9 @@ pub struct List<T> {
         self.len += other.len
     }
 
+    /**
+     * Reverses the order of the elements, in place.
+     */
     pub fn reverse(mut self) {
         var i = 0
         var j = self.len - 1
@@ -162,8 +289,21 @@ pub struct List<T> {
         }
     }
 
-    /// Sorts in ascending order, keeping equal elements in their order: a
-    /// bottom-up merge sort through one buffer.
+    /**
+     * Sorts the elements in ascending order. The sort is stable (equal
+     * elements keep their order) and takes O(n log n) time: a bottom-up
+     * merge sort through one temporary buffer.
+     *
+     * Stage 0 sorts lists of int, float and str (E0313 otherwise), until
+     * generic bounds (roadmap 5.2).
+     *
+     * @panics when the system is out of memory
+     * @example
+     * ```astra
+     * var names = ["mia", "ana", "bob"]
+     * names.sort()   // ["ana", "bob", "mia"]
+     * ```
+     */
     pub fn sort(mut self) {
         if self.len < 2 {
             return
