@@ -1,0 +1,397 @@
+/**
+ * @module
+ * Exhaustiveness and reachability of `match` arms (stage 0:
+ * bootstrap/src/sema/exhaustive.c): the usefulness algorithm of Maranget,
+ * "Warnings for pattern matching" (2007). A row of patterns is useful after
+ * a matrix of rows when some value matches it and no row of the matrix; a
+ * match is exhaustive when `_` is not useful after its unguarded arms, and
+ * an arm is unreachable when it is not useful after the unguarded arms
+ * before it. Usefulness also gives a witness, shown in the error.
+ *
+ * Types with finitely many constructors are enums, bool, tuples, structs
+ * and `()`; integers, floats and str have infinitely many: literals and
+ * ranges never cover them. The patterns are first turned into `Pat` trees.
+ */
+
+import sema.check.Checker
+import sema.enums.variantsOf
+import sema.program.Program
+import sema.structs.fieldsOf
+import sema.structs.structFieldType
+import sema.structs.variantFieldType
+import sema.types.ERROR
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.MatchArm
+import syntax.ast.Pattern
+import syntax.ast.PatternKind
+
+// A pattern, as the algorithm sees it.
+enum Pat {
+    Wild
+    Opaque                               // a literal or range of an infinite type
+    Ctor(index: int, fields: List<Pat>)  // a variant, `true`/`false`, a tuple or struct
+    Or(alternatives: List<Pat>)
+}
+
+const WILD: int = -1
+const OPAQUE: int = -2
+
+fn head(p: &Pat) int {
+    return match *p {
+        .Wild => WILD
+        .Opaque => OPAQUE
+        .Ctor(index, _) => index
+        .Or(_) => WILD   // never asked: rows are split first
+    }
+}
+
+fn fieldOf(p: &Pat, i: int) Pat {
+    return match *p {
+        .Ctor(_, fields) => if i < fields.len() { fields[i].clone() } else { Pat.Wild }
+        _ => Pat.Wild
+    }
+}
+
+/**
+ * The `Pat` of a checked pattern.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param pattern the pattern
+ * @returns its tree
+ */
+fn toPat(c: mut Checker, p: Program, pattern: &Pattern) Pat {
+    let isPrelude = match c.res(pattern.id.0) {
+        .Def(_) => true
+        _ => false
+    }
+    let variant = c.members[c.module()][pattern.id.0]
+    return match pattern.kind {
+        .Wildcard => Pat.Wild
+        .Binding(_, _) => if isPrelude { Pat.Ctor(index(variant), []) } else { Pat.Wild }
+        .Variant(_, _, args, _) => Pat.Ctor(index(variant), toPats(c, p, &args))
+        .Tuple(items) => Pat.Ctor(0, toPats(c, p, &items))
+        .TupleStruct(_, args) => {
+            Pat.Ctor(if isPrelude { index(variant) } else { 0 }, toPats(c, p, &args))
+        }
+        .Struct(_, fields, _) => {
+            let ty = c.typeOf(pattern.id.0)
+            var out: List<Pat> = []
+            if c.types.kind(ty) == .Adt && c.info[c.types.get(ty).data].fields.isSome() {
+                let names = fieldsOf(c, c.types.get(ty).data).names.clone()
+                for i in 0..names.len() {
+                    var found = Pat.Wild
+                    for f in 0..fields.len() {
+                        if fields[f].name.0 == names[i].0 {
+                            if let .Some(inner) = fields[f].pattern {
+                                found = toPat(c, p, &inner)
+                            }
+                        }
+                    }
+                    out.push(found)
+                }
+            }
+            Pat.Ctor(0, out)
+        }
+        .Literal(value) => match value.kind {
+            .Bool(b) => Pat.Ctor(if b { 1 } else { 0 }, [])
+            _ => Pat.Opaque
+        }
+        .Range(_, _, _) => Pat.Opaque
+        .Or(alternatives) => Pat.Or(toPats(c, p, &alternatives))
+    }
+}
+
+// A variant index recorded by the pattern checker; 0 after an error.
+fn index(recorded: int) int {
+    return if recorded < 0 { 0 } else { recorded }
+}
+
+fn toPats(c: mut Checker, p: Program, list: &List<Pattern>) List<Pat> {
+    var out: List<Pat> = []
+    for i in 0..list.len() {
+        out.push(toPat(c, p, &list[i]))
+    }
+    return out
+}
+
+// ---------------------------------------------------------------------------
+// Types and constructors
+
+// The number of constructors of a type, 0 when there are infinitely many.
+fn ctorCount(c: Checker, ty: int) int {
+    let t = c.types.get(ty)
+    if t.kind == .Bool {
+        return 2
+    }
+    if t.kind == .Tuple || t.kind == .Unit {
+        return 1
+    }
+    if t.kind != .Adt {
+        return 0
+    }
+    if c.def(t.data).kind == .Enum {
+        return match c.info[t.data].variants {
+            .Some(info) => info.variants.len()
+            .None => 0
+        }
+    }
+    return if c.info[t.data].fields.isSome() { 1 } else { 0 }
+}
+
+fn arity(c: Checker, ty: int, ctor: int) int {
+    let t = c.types.get(ty)
+    if t.kind == .Tuple {
+        return t.args.len()
+    }
+    if t.kind != .Adt {
+        return 0   // bool, ()
+    }
+    if c.def(t.data).kind == .Enum {
+        return variantsOf(c, t.data).variants[ctor].types.len()
+    }
+    return fieldsOf(c, t.data).types.len()
+}
+
+fn fieldType(c: mut Checker, p: Program, ty: int, ctor: int, i: int) int {
+    let t = c.types.get(ty)
+    if t.kind == .Tuple {
+        return t.args[i]
+    }
+    if c.def(t.data).kind == .Enum {
+        return variantFieldType(c, p, ty, ctor, i)
+    }
+    return structFieldType(c, p, ty, i)
+}
+
+// ---------------------------------------------------------------------------
+// Matrices
+
+fn pushRow(m: mut List<List<Pat>>, row: move List<Pat>) {
+    if row.len() > 0 {
+        if let Pat.Or(alternatives) = row[0] {   // one row per alternative
+            for i in 0..alternatives.len() {
+                var alt = row.clone()
+                alt[0] = alternatives[i].clone()
+                pushRow(m, alt)
+            }
+            return
+        }
+    }
+    m.push(row)
+}
+
+// The row for a constructor of arity `n`: the head's fields, then the rest.
+fn specializeRow(row: &List<Pat>, n: int) List<Pat> {
+    var out: List<Pat> = []
+    for i in 0..n {
+        out.push(fieldOf(&row[0], i))
+    }
+    for i in 1..row.len() {
+        out.push(row[i].clone())
+    }
+    return out
+}
+
+fn specialize(m: &List<List<Pat>>, ctor: int, n: int) List<List<Pat>> {
+    var out: List<List<Pat>> = []
+    for r in 0..m.len() {
+        let h = head(&m[r][0])
+        if h == WILD || (h == ctor && h != OPAQUE) {
+            pushRow(out, specializeRow(&m[r], n))
+        }
+    }
+    return out
+}
+
+// The rows whose head is a wildcard, without it.
+fn defaultRows(m: &List<List<Pat>>) List<List<Pat>> {
+    var out: List<List<Pat>> = []
+    for r in 0..m.len() {
+        if head(&m[r][0]) == WILD {
+            pushRow(out, tail(&m[r], 1))
+        }
+    }
+    return out
+}
+
+fn tail(row: &List<Pat>, from: int) List<Pat> {
+    var out: List<Pat> = []
+    for i in from..row.len() {
+        out.push(row[i].clone())
+    }
+    return out
+}
+
+fn tailInts(list: &List<int>, from: int) List<int> {
+    var out: List<int> = []
+    for i in from..list.len() {
+        out.push(list[i])
+    }
+    return out
+}
+
+// ---------------------------------------------------------------------------
+// Witnesses: the text of a value that no row matches, one entry per column.
+
+fn ctorText(c: Checker, ty: int, ctor: int, fields: &List<str>, count: int) str {
+    let t = c.types.get(ty)
+    var text = ""
+    var n = count
+    if t.kind == .Bool {
+        text.push(if ctor != 0 { "true" } else { "false" })
+    } else if t.kind == .Adt {
+        let isEnum = c.def(t.data).kind == .Enum
+        let prelude = t.data == c.r.langItems[2] || t.data == c.r.langItems[3]
+        let name = if isEnum { variantsOf(c, t.data).variants[ctor].name } else { c.def(t.data).name }
+        if isEnum && !prelude {
+            text.push(".")
+        }
+        text.push(c.text(name))
+        let named = !isEnum && !fieldsOf(c, t.data).isTuple
+        if named {
+            text.push(if n > 0 { "\{..\}" } else { "\{\}" })
+            n = 0
+        }
+    }
+    if n > 0 || t.kind == .Tuple || t.kind == .Unit {
+        text.push("(")
+        for i in 0..n {
+            if i > 0 {
+                text.push(", ")
+            }
+            text.push(fields[i])
+        }
+        text.push(")")
+    }
+    return text
+}
+
+// `q` with the constructor `ctor` at its head: its fields join the columns.
+fn usefulCtor(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>, types: &List<int>,
+              ctor: int) Option<List<str>> {
+    let n = arity(c, types[0], ctor)
+    var sub: List<int> = []
+    for i in 0..n {
+        sub.push(fieldType(c, p, types[0], ctor, i))
+    }
+    for i in 1..types.len() {
+        sub.push(types[i])
+    }
+    let Some(w) = useful(c, p, &specialize(m, ctor, n), &specializeRow(q, n), &sub) else {
+        return .None
+    }
+    var out: List<str> = [ctorText(c, types[0], ctor, &w, n)]
+    for i in n..w.len() {
+        out.push(w[i].clone())
+    }
+    return .Some(out)
+}
+
+// `q` with a wildcard at its head.
+fn usefulWild(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>,
+              types: &List<int>) Option<List<str>> {
+    let count = ctorCount(c, types[0])
+    var present = List.filled(false, count + 1)
+    var seen = 0
+    for r in 0..m.len() {
+        let h = head(&m[r][0])
+        if h >= 0 && h < count && !present[h] {
+            present[h] = true
+            seen += 1
+        }
+    }
+    if count > 0 && seen == count {   // complete: some constructor must be useful
+        for ctor in 0..count {
+            if let .Some(w) = usefulCtor(c, p, m, q, types, ctor) {
+                return .Some(w)
+            }
+        }
+        return .None
+    }
+    let Some(w) = useful(c, p, &defaultRows(m), &tail(q, 1), &tailInts(types, 1)) else {
+        return .None
+    }
+    var first = "_".toOwned()
+    if seen > 0 {
+        for ctor in 0..count {
+            if !present[ctor] {   // a missing constructor, with wildcard fields
+                let n = arity(c, types[0], ctor)
+                first = ctorText(c, types[0], ctor, &List.filled("_".toOwned(), n), n)
+                break
+            }
+        }
+    }
+    var out: List<str> = [first]
+    for i in 0..w.len() {
+        out.push(w[i].clone())
+    }
+    return .Some(out)
+}
+
+// A witness that `q` is useful after `m`.
+fn useful(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>, types: &List<int>)
+        Option<List<str>> {
+    if q.len() == 0 {
+        return if m.len() == 0 { .Some([]) } else { .None }
+    }
+    if let Pat.Or(alternatives) = q[0] {
+        for i in 0..alternatives.len() {
+            var alt = q.clone()
+            alt[0] = alternatives[i].clone()
+            if let .Some(w) = useful(c, p, m, &alt, types) {
+                return .Some(w)
+            }
+        }
+        return .None
+    }
+    let h = head(&q[0])
+    if h == WILD {
+        return usefulWild(c, p, m, q, types)
+    }
+    if h == OPAQUE {   // a literal or range: only the wildcard rows surely cover it
+        let Some(w) = useful(c, p, &defaultRows(m), &tail(q, 1), &tailInts(types, 1)) else {
+            return .None
+        }
+        var out: List<str> = ["_".toOwned()]
+        for i in 0..w.len() {
+            out.push(w[i].clone())
+        }
+        return .Some(out)
+    }
+    return usefulCtor(c, p, m, q, types, h)
+}
+
+/**
+ * Reports E0500 when the arms of a `match` miss a value, and W0004 for an
+ * arm that the arms before it make unreachable.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the `match`
+ * @param arms its arms
+ * @param ty the type of the matched value
+ */
+pub fn checkExhaustive(c: mut Checker, p: Program, e: &Expr, arms: &List<MatchArm>, ty: int) {
+    if ty == ERROR {
+        return
+    }
+    let types: List<int> = [ty]
+    var m: List<List<Pat>> = []
+    for i in 0..arms.len() {
+        let row: List<Pat> = [toPat(c, p, &arms[i].pattern)]
+        if useful(c, p, &m, &row, &types).isNone() {
+            c.r.diags.warning("W0004", arms[i].pattern.span,
+                              "unreachable `match` arm: the arms before it match every value"
+                                  .toOwned())
+        }
+        if arms[i].guard.isNone() {
+            pushRow(m, row)
+        }
+    }
+    let wild: List<Pat> = [Pat.Wild]
+    if let .Some(w) = useful(c, p, &m, &wild, &types) {
+        c.error("E0500", e.span, "non-exhaustive `match`: `{w[0]}` is not covered")
+    }
+}

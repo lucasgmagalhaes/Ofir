@@ -1,0 +1,157 @@
+/**
+ * @module
+ * Dereferencing boxes and references (stage 0:
+ * bootstrap/src/sema/check_box.c). `*b` reads the value of a `Box<T>`, and
+ * the fields and methods of the value are reached through the box, as
+ * through a reference `&T`: `r.x` is `(*r).x`. Stage 0 rewrites these uses
+ * into dereferences; stage 1 records them in `Checker.derefs`, by the node
+ * whose value is dereferenced. Inside the module that declares `Box`, its
+ * own fields are reached as usual.
+ */
+
+import sema.check.Checker
+import sema.check_methods.hasMethod
+import sema.program.Program
+import sema.structs.structFieldType
+import sema.structs.structFields
+import base.intern.Symbol
+import syntax.ast.Expr
+
+/**
+ * The content type of a `Box<T>`.
+ *
+ * @param c the checker
+ * @param ty a type
+ * @returns T, if `ty` is a box
+ */
+pub fn boxInner(c: Checker, ty: int) Option<int> {
+    let t = c.types.get(ty)
+    if c.r.langItems[0] == 0 || t.kind != .Adt || t.data != c.r.langItems[0] {
+        return .None
+    }
+    return .Some(t.args[0])
+}
+
+/**
+ * The type `*b` reads for a box `b` of type `box`: the target of its
+ * pointer field.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param box a `Box<T>` type
+ * @returns T
+ */
+pub fn boxTarget(c: mut Checker, p: Program, box: int) int {
+    structFields(c, p, c.r.langItems[0])
+    let ptr = structFieldType(c, p, box, 0)
+    return c.types.get(ptr).inner
+}
+
+fn ownBox(c: Checker) bool {
+    let box = c.r.langItems[0]
+    return box != 0 && c.def(box).module == c.module()
+}
+
+// The type after one implicit dereference of a value of type `ty`, or `ty`.
+fn derefStep(c: mut Checker, p: Program, ty: int) int {
+    if !ownBox(c) && boxInner(c, ty).isSome() {
+        return boxTarget(c, p, ty)
+    }
+    if c.types.kind(ty) == .Ref {
+        return c.types.get(ty).inner
+    }
+    return ty
+}
+
+fn record(c: mut Checker, e: &Expr, steps: move List<int>) {
+    if steps.len() > 0 {
+        c.derefs[c.module()].insert(e.id.0, steps)
+    }
+}
+
+/**
+ * Dereferences the value of `e`, of type `ty`, while it is a box (except in
+ * the module declaring `Box`) or a reference: `Box<Box<T>>`, `&Box<T>`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the expression
+ * @param ty its type
+ * @returns the type of the dereferenced value
+ */
+pub fn autoDeref(c: mut Checker, p: Program, e: &Expr, ty: int) int {
+    var steps: List<int> = []
+    var current = ty
+    for {
+        let next = derefStep(c, p, current)
+        if next == current {
+            break
+        }
+        steps.push(current)
+        current = next
+    }
+    record(c, e, steps)
+    return current
+}
+
+/**
+ * The receiver of `e.name()`: through references, and through boxes unless
+ * `Box` itself has the method.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the receiver expression
+ * @param ty its type
+ * @param name the method
+ * @returns the type of the receiver
+ */
+pub fn methodReceiver(c: mut Checker, p: Program, e: &Expr, ty: int, name: Symbol) int {
+    var steps: List<int> = []
+    var current = ty
+    for {
+        let viaBox = boxInner(c, current).isSome() && !hasMethod(c, p, c.r.langItems[0], name)
+        let through = c.types.kind(current) == .Ref || viaBox
+        let next = if through { derefStep(c, p, current) } else { current }
+        if next == current {
+            break
+        }
+        steps.push(current)
+        current = next
+    }
+    record(c, e, steps)
+    return current
+}
+
+/**
+ * The implicit dereferences recorded for `e`.
+ *
+ * @param c the checker
+ * @param e an expression of the current module
+ * @returns the type before each one
+ */
+pub fn derefsOf(c: Checker, e: &Expr) List<int> {
+    return match c.derefs[c.module()].get(e.id.0) {
+        .Some(steps) => steps.clone()
+        .None => []
+    }
+}
+
+/**
+ * The type of the value of `e` once its implicit dereferences are done.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e an expression of the current module
+ * @returns its type
+ */
+pub fn adjustedType(c: mut Checker, p: Program, e: &Expr) int {
+    let steps = derefsOf(c, e)
+    if steps.len() == 0 {
+        return c.typeOf(e.id.0)
+    }
+    let last = steps[steps.len() - 1]
+    if boxInner(c, last).isSome() {
+        return boxTarget(c, p, last)
+    }
+    return c.types.get(last).inner
+}

@@ -1,0 +1,233 @@
+/**
+ * @module
+ * References (spec 5.6; stage 0: bootstrap/src/sema/check_ref.c): `&place`,
+ * `&mut place`, and the rules that keep references second-class (ADR
+ * 0002). There is no borrow checker yet (roadmap 4.10).
+ */
+
+import base.span.Span
+import sema.check.Checker
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check_place.placeRoot
+import sema.check_place.requireMutable
+import sema.def.Res
+import sema.expr_check.checkExpr
+import sema.program.Program
+import sema.structs.isCopy
+import sema.types.ERROR
+import sema.types.STR
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.Mode
+import syntax.ast.Op
+
+/**
+ * `&x` or `&mut x`. Stage 0 treats `&str` as `str`: a view whose
+ * modification copies it first, like a literal.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the expression
+ * @param operand the borrowed place
+ * @param mutable `&mut`
+ * @param expected the type the context expects
+ * @returns its type
+ */
+pub fn checkRef(c: mut Checker, p: Program, e: &Expr, operand: &Expr, mutable: bool,
+                expected: int) int {
+    let hint = if c.types.kind(expected) == .Ref { c.types.get(expected).inner } else { ERROR }
+    let ty = checkExpr(c, p, operand, hint)
+    if mutable {
+        requireMutable(c, p, operand)
+    }
+    if ty == STR {
+        if mutable {
+            return c.unsupported(e.span, "`&mut str` is")
+        }
+        return ty
+    }
+    return if ty == ERROR { ty } else { c.types.ref(ty, mutable) }
+}
+
+/**
+ * Whether a value of a type holds a reference: `&T`, a `ref struct`, or a
+ * type made of them.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @returns true if it does
+ */
+pub fn holdsRef(c: Checker, p: Program, ty: int) bool {
+    let t = c.types.get(ty)
+    if t.kind == .Ref {
+        return true
+    }
+    if t.kind == .Adt && isRefStruct(c, p, t.data) {
+        return true
+    }
+    if t.kind == .Adt || t.kind == .Tuple {
+        for i in 0..t.args.len() {
+            if holdsRef(c, p, t.args[i]) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+fn isRefStruct(c: Checker, p: Program, id: int) bool {
+    if c.def(id).item < 0 {
+        return false
+    }
+    return match itemOf(p, c.def(id)).kind {
+        .Struct(_, isRef, isTuple, _, _, _) => isRef && !isTuple
+        _ => false
+    }
+}
+
+/**
+ * Reports E0702 when a type holding a reference is stored.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the stored type
+ * @param span where
+ * @param where the place, for the message
+ */
+pub fn checkStorable(c: mut Checker, p: Program, ty: int, span: Span, where: str) {
+    if holdsRef(c, p, ty) {
+        c.error("E0702", span, "a reference cannot be stored in {where}: store an owned value, "
+                + "or declare a `ref struct`")
+    }
+}
+
+/**
+ * The type arguments of a container may not hold references; those of
+ * Option and Result may, and a `ref struct` may hold anything.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty an instance
+ * @param span where it is named
+ */
+pub fn checkInstanceStorable(c: mut Checker, p: Program, ty: int, span: Span) {
+    let t = c.types.get(ty)
+    if t.kind != .Adt || t.data == c.r.langItems[2] || t.data == c.r.langItems[3] {
+        return
+    }
+    if isRefStruct(c, p, t.data) {
+        return
+    }
+    let args = t.args.clone()
+    for i in 0..args.len() {
+        checkStorable(c, p, args[i], span, "a container or a struct")
+    }
+}
+
+fn lends(c: Checker, p: Program, mode: Mode, ty: int) bool {
+    return holdsRef(c, p, ty) || (mode == .Borrow && !isCopy(c, p, ty))
+}
+
+/**
+ * A function returning a reference borrows it from `self`, or else from
+ * its only borrowed parameter that can lend one (spec 5.6).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the function's `DefId`
+ * @param sig its signature
+ * @param selfType the type declaring the method
+ */
+pub fn checkBorrowSource(c: mut Checker, p: Program, id: int, sig: int, selfType: int) {
+    let ret = c.types.get(sig).inner
+    if !holdsRef(c, p, ret) {
+        return
+    }
+    let decl = fnOf(p, c.def(id))
+    c.info[id].returnsBorrow = true
+    if decl.hasSelf && decl.selfMode != .Move {
+        c.info[id].borrowSource = -1
+        c.info[id].sourceByRef = decl.selfMode == .Borrow && !holdsRef(c, p, selfType)
+        return
+    }
+    if decl.isUnsafe {   // the caller guarantees what the reference points to
+        c.info[id].returnsBorrow = false
+        return
+    }
+    let params = c.types.get(sig).args.clone()
+    var source = -1
+    var count = 0
+    for i in 0..decl.params.len() {
+        if i < params.len() && lends(c, p, decl.params[i].mode, params[i]) {
+            source = i
+            count += 1
+        }
+    }
+    if count != 1 {
+        let which = if count > 0 { "several of" } else { "none of" }
+        c.error("E0702", decl.span, "a function that returns a reference must borrow it from "
+                + "`self` or from its only borrowed parameter, which it has {which}")
+        c.info[id].returnsBorrow = false
+    }
+    c.info[id].borrowSource = source
+    c.info[id].sourceByRef = count == 1 && decl.params[source].mode == .Borrow &&
+                             !holdsRef(c, p, params[source])
+}
+
+/**
+ * `return &x` where `x` ends with the function, also inside `Some(&x)`
+ * (E0702).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param fnDef the function being checked
+ * @param value the returned value
+ */
+pub fn checkReturnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
+    if !c.info[fnDef].returnsBorrow {
+        return
+    }
+    var target = value
+    if let ExprKind.Call(_, args) = value.kind {
+        if args.len() == 1 {
+            target = &args[0].value   // `Some(&x)`, `Ok(&x)`
+        }
+    }
+    let ExprKind.Unary(op, operand) = target.kind else {
+        return
+    }
+    if op != .Ref && op != .RefMut {
+        return
+    }
+    let Some(root) = placeRoot(c, &*operand) else {
+        return
+    }
+    if root.1 > 0 {
+        return   // through an implicit dereference: not a local
+    }
+    let local = match root.0.kind {
+        .Ident(_) | .SelfValue => match c.res(root.0.id.0) {
+            .Local(id) => id
+            _ => -1
+        }
+        _ => -1
+    }
+    if local < 0 || isSource(c, p, fnDef, local) || holdsRef(c, p, c.localTypes[local]) {
+        return
+    }
+    let name = c.text(c.locals[local].name).toOwned()
+    c.error("E0702", target.span, "cannot return a reference to `{name}`, which ends with the "
+            + "function")
+}
+
+// Whether `local` is the parameter the function borrows from.
+fn isSource(c: Checker, p: Program, fnDef: int, local: int) bool {
+    let decl = fnOf(p, c.def(fnDef))
+    let source = c.info[fnDef].borrowSource
+    if source < 0 {
+        return decl.hasSelf && local == 0
+    }
+    return c.localAt(decl.params[source].id.0) == local
+}

@@ -15,7 +15,9 @@
 
 import base.intern.Symbol
 import base.span.Span
+import sema.check_ref.checkBorrowSource
 import sema.check_stmt.checkBlock
+import sema.check_unsafe.checkCSignature
 import sema.check_types.fnSignature
 import sema.check_types.ownerTypeOf
 import sema.check_types.resolveType
@@ -41,6 +43,7 @@ import syntax.ast.FnDecl
 import syntax.ast.Item
 import syntax.ast.ItemKind
 import syntax.ast.Mode
+import std.mem
 
 /**
  * What the checker knows of a declaration.
@@ -58,6 +61,12 @@ pub struct DefInfo {
     pub variants: Option<EnumInfo>
     /** A constant's value, when it could be computed. */
     pub value: Option<ConstValue>
+    /** A function that returns a reference (spec 5.6). */
+    pub returnsBorrow: bool
+    /** The parameter it borrows from; -1 for `self`. */
+    pub borrowSource: int
+    /** That parameter is borrowed, not a reference itself. */
+    pub sourceByRef: bool
 }
 
 /**
@@ -96,6 +105,17 @@ pub struct Checker {
     pub nodeTypes: List<List<int>>
     /** The types of the locals of each function, by module and the `NodeId` of the function. */
     pub localTypesOf: List<Map<int, List<int>>>
+    /** The implicit dereferences of an expression's value, by module and `NodeId`: the
+     * type before each one (a `&T` or a `Box<T>`), in order (stage 0 inserts `*e`). */
+    pub derefs: List<Map<int, List<int>>>
+    /** By module and `NodeId`: the field of `a.f` and `a.0`, the variant of a variant
+     * expression or pattern, the method (`DefId`) of a method call's callee, or -1. */
+    pub members: List<List<int>>
+    /** The type arguments of each generic call, as a tuple type, by module and `NodeId`. */
+    pub callTypeArgs: List<Map<int, int>>
+    /** The values converted from `List<T>` to `&[T]` (`list.asSlice()`), by module:
+     * `NodeId` to the element type. */
+    pub sliceCoercions: List<Map<int, int>>
     /** The type parameters in scope. */
     pub generics: Generics
     /** The locals of the function being checked. */
@@ -217,6 +237,16 @@ pub struct Checker {
      */
     pub fn setType(mut self, id: int, ty: int) {
         self.nodeTypes[self.r.current][id] = ty
+    }
+
+    /**
+     * Records the field, variant or method of a node of the current module.
+     *
+     * @param id the node's number
+     * @param member its index or `DefId`
+     */
+    pub fn setMember(mut self, id: int, member: int) {
+        self.members[self.r.current][id] = member
     }
 
     /**
@@ -354,7 +384,7 @@ pub fn fnOf(p: Program, def: &Def) &FnDecl {
 
 fn emptyInfo() DefInfo {
     return DefInfo{ty: ERROR, typed: false, checking: false, fields: .None, variants: .None,
-                   value: .None}
+                   value: .None, returnsBorrow: false, borrowSource: -1, sourceByRef: false}
 }
 
 /**
@@ -369,10 +399,18 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     var itemDefs: List<List<int>> = []
     var nodeTypes: List<List<int>> = []
     var localTypesOf: List<Map<int, List<int>>> = []
+    var derefs: List<Map<int, List<int>>> = []
+    var members: List<List<int>> = []
+    var callTypeArgs: List<Map<int, int>> = []
+    var sliceCoercions: List<Map<int, int>> = []
     for m in 0..p.modules.len() {
         itemDefs.push(List.filled(0, p.modules[m].module.items.len()))
         nodeTypes.push(List.filled(ERROR, p.modules[m].module.nodeCount))
         localTypesOf.push(Map.new())
+        derefs.push(Map.new())
+        members.push(List.filled(-1, p.modules[m].module.nodeCount))
+        callTypeArgs.push(Map.new())
+        sliceCoercions.push(Map.new())
     }
     for id in 0..r.defs.len() {
         info.push(emptyInfo())
@@ -382,7 +420,8 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
             itemDefs[def.module][def.item] = id
         }
     }
-    return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf,
+    return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
+                   members, callTypeArgs, sliceCoercions,
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1}
 }
@@ -403,7 +442,8 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
     let decl = fnOf(p, c.def(id))
     let outer = c.enterGenerics(Generics{owner: c.generics.owner.clone(),
                                          fnParams: decl.typeParams.clone()})
-    fnSignature(c, p, id)
+    let sig = fnSignature(c, p, id)
+    checkBorrowSource(c, p, id, sig, selfType)   // what callers need, now
     c.enterGenerics(outer)
     if decl.body.isSome() && c.module() != 0 && moduleInStd(p, c.module()) {
         return   // a program uses few std functions: the lowering checks them

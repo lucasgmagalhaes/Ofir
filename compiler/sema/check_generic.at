@@ -1,0 +1,262 @@
+/**
+ * @module
+ * Type arguments of generic calls, struct literals and variants (spec 8.5;
+ * stage 0: bootstrap/src/sema/check_generic.c). They come from what is
+ * written (`f<int>(x)`), then from the expected type, then from the value
+ * arguments, left to right: the first type found for a parameter is its
+ * argument, and the values are then checked against the substituted
+ * signature. In a signature, type parameter `i` is the callee's parameter
+ * `i`.
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.check.Checker
+import sema.check.Generics
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check.itemTypeParams
+import sema.check_list.checkMapKey
+import sema.check_types.resolveType
+import sema.expr_check.checkExpr
+import sema.expr_check.requireType
+import sema.program.Program
+import sema.types.ERROR
+import sema.types.NEVER
+import syntax.ast.Arg
+import syntax.ast.TypeExpr
+
+/**
+ * The type arguments of a generic use being inferred.
+ */
+pub struct Infer {
+    /** The parameters, for messages. */
+    pub params: Generics
+    /** The argument of each parameter, once known. */
+    pub args: List<int>
+    /** Whether each is known. */
+    pub known: List<bool>
+}
+
+/**
+ * The type parameters of a function: its type's, then its own.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the function's `DefId`
+ * @returns them
+ */
+pub fn fnGenerics(c: Checker, p: Program, id: int) Generics {
+    let def = c.def(id)
+    let owner = if def.item >= 0 { itemTypeParams(itemOf(p, def)) } else { [] }
+    return Generics{owner, fnParams: fnOf(p, def).typeParams.clone()}
+}
+
+/**
+ * Nothing inferred yet.
+ *
+ * @param params the parameters
+ * @returns the inference
+ */
+pub fn inferNew(params: move Generics) Infer {
+    let count = params.owner.len() + params.fnParams.len()
+    return Infer{params, args: List.filled(ERROR, count), known: List.filled(false, count)}
+}
+
+/**
+ * The explicit arguments of the type's parameters (`ofOwner`) or of the
+ * function's own (E0302).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param inf the inference
+ * @param ofOwner whether they are the type's
+ * @param list the written arguments
+ * @param span where
+ */
+pub fn inferExplicit(c: mut Checker, p: Program, inf: mut Infer, ofOwner: bool,
+                     list: &List<TypeExpr>, span: Span) {
+    let first = if ofOwner { 0 } else { inf.params.owner.len() }
+    let count = if ofOwner { inf.params.owner.len() } else { inf.params.fnParams.len() }
+    if list.len() != count {
+        c.error("E0302", span, "wrong number of type arguments: expected {count}, "
+                + "found {list.len()}")
+        return
+    }
+    for i in 0..count {
+        inf.args[first + i] = resolveType(c, p, &list[i])
+        inf.known[first + i] = true
+    }
+}
+
+/**
+ * Binds the type's parameters from `self`, an instance of the same type.
+ *
+ * @param c the checker
+ * @param inf the inference
+ * @param self the instance
+ * @param count the number of the type's parameters
+ */
+pub fn inferFromSelf(c: Checker, inf: mut Infer, self: int, count: int) {
+    let t = c.types.get(self)
+    if t.kind != .Adt {
+        return
+    }
+    for i in 0..count {
+        if i < t.args.len() {
+            inf.args[i] = t.args[i]
+            inf.known[i] = true
+        }
+    }
+}
+
+fn hasInner(c: Checker, ty: int) bool {
+    let kind = c.types.kind(ty)
+    return kind == .Ref || kind == .Ptr || kind == .Slice || kind == .Array || kind == .Fn
+}
+
+/**
+ * Binds the parameters in `pattern` by matching it against `actual`.
+ *
+ * @param c the checker
+ * @param inf the inference
+ * @param pattern a type with the callee's parameters
+ * @param actual the type found
+ */
+pub fn inferFrom(c: Checker, inf: mut Infer, pattern: int, actual: int) {
+    let pt = c.types.get(pattern)
+    if !pt.hasParam || actual == ERROR || actual == NEVER {
+        return
+    }
+    if pt.kind == .Param {
+        if pt.data < inf.args.len() && !inf.known[pt.data] {
+            inf.args[pt.data] = actual
+            inf.known[pt.data] = true
+        }
+        return
+    }
+    let at = c.types.get(actual)
+    if at.kind != pt.kind || at.args.len() != pt.args.len() ||
+       (pt.kind == .Adt && at.data != pt.data) {
+        return   // a mismatch, reported when the argument is checked
+    }
+    if hasInner(c, pattern) {
+        inferFrom(c, inf, pt.inner, at.inner)
+    }
+    for i in 0..pt.args.len() {
+        inferFrom(c, inf, pt.args[i], at.args[i])
+    }
+}
+
+fn allKnown(c: Checker, inf: &Infer, pattern: int) bool {
+    let pt = c.types.get(pattern)
+    if !pt.hasParam {
+        return true
+    }
+    if pt.kind == .Param {
+        return pt.data >= inf.args.len() || inf.known[pt.data]
+    }
+    if hasInner(c, pattern) && !allKnown(c, inf, pt.inner) {
+        return false
+    }
+    for i in 0..pt.args.len() {
+        if !allKnown(c, inf, pt.args[i]) {
+            return false
+        }
+    }
+    return true
+}
+
+/**
+ * `pattern` with the arguments substituted, or `ERROR` if some are unknown.
+ *
+ * @param c the checker
+ * @param inf the inference
+ * @param pattern a type with the callee's parameters
+ * @returns the hint
+ */
+pub fn inferHint(c: mut Checker, inf: &Infer, pattern: int) int {
+    return if allKnown(c, inf, pattern) { inferApply(c, inf, pattern) } else { ERROR }
+}
+
+/**
+ * `pattern` with the arguments substituted.
+ *
+ * @param c the checker
+ * @param inf the inference
+ * @param pattern a type with the callee's parameters
+ * @returns the type
+ */
+pub fn inferApply(c: mut Checker, inf: &Infer, pattern: int) int {
+    return c.types.subst(pattern, inf.args)
+}
+
+/**
+ * Reports E0330 for each parameter still unknown.
+ *
+ * @param c the checker
+ * @param inf the inference
+ * @param span where
+ */
+pub fn inferFinish(c: mut Checker, inf: mut Infer, span: Span) {
+    for i in 0..inf.args.len() {
+        if inf.known[i] {
+            continue
+        }
+        let owner = inf.params.owner.len()
+        let name = if i < owner { inf.params.owner[i] } else { inf.params.fnParams[i - owner] }
+        c.error("E0330", span, "cannot infer the type parameter `{c.text(name)}`: write the "
+                + "type arguments, as in `f<int>(x)`")
+        inf.args[i] = ERROR
+        inf.known[i] = true
+    }
+}
+
+/**
+ * Checks the arguments of a generic callee: binds its parameters from the
+ * expected type and the arguments, then checks the arguments against the
+ * result.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param callId the call's `NodeId`, to record its type arguments
+ * @param span the call
+ * @param args the arguments
+ * @param params the parameter types of the signature
+ * @param ret its result type
+ * @param inf the inference
+ * @param expected the type the context expects
+ * @returns the result type
+ */
+pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, args: &List<Arg>,
+                        params: &List<int>, ret: int, inf: mut Infer, expected: int) int {
+    if args.len() != params.len() {
+        c.error("E0302", span, "wrong number of arguments: expected {params.len()}, "
+                + "found {args.len()}")
+    }
+    inferFrom(c, inf, ret, expected)
+    for i in 0..args.len() {
+        let arg = &args[i].value
+        if args[i].name.isSome() {
+            c.unsupported(arg.span, "named arguments are")
+        }
+        let param = if i < params.len() { params[i] } else { ERROR }
+        let hint = if i < params.len() { inferHint(c, &inf, param) } else { ERROR }
+        let found = checkExpr(c, p, arg, hint)
+        inferFrom(c, inf, param, found)
+    }
+    inferFinish(c, inf, span)
+    for i in 0..args.len() {
+        if i < params.len() {
+            let wanted = inferApply(c, &inf, params[i])
+            requireType(c, &args[i].value, c.typeOf(args[i].value.id.0), wanted)
+        }
+    }
+    if callId >= 0 {
+        let targs = c.types.tuple(inf.args)
+        c.callTypeArgs[c.module()].insert(callId, targs)
+    }
+    let result = inferApply(c, &inf, ret)
+    checkMapKey(c, p, result, span)
+    return result
+}
