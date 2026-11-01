@@ -21,6 +21,28 @@ static Operand binary(Lowerer *l, Op op, TypeId type, Operand a, Operand b) {
     return value_of(l, type, (Rvalue){.kind = RV_BINARY, .op = op, .a = a, .b = b});
 }
 
+// `x.checkedCast<T>()`: `Some(x as T)`, or `None` when x is out of T's range.
+static Operand checked_cast(Lowerer *l, TypeId option, Operand value) {
+    TypeId to = type_get(l->types, option)->args[0];
+    value = op_copy(to_local(l, value), value.type);
+    Operand fails = value_of(l, type_id(TID_BOOL), (Rvalue){.kind = RV_CAST_FAILS, .a = value,
+                                                            .to = to});
+    LocalId dest = new_temp(l, option);
+    BlockId some = air_new_block(l->body), none = air_new_block(l->body);
+    BlockId join = air_new_block(l->body);
+    terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = fails, .target = none, .other = some});
+    switch_to(l, some);
+    Operand cast = value_of(l, to, (Rvalue){.kind = RV_CAST, .a = value, .to = to});
+    emit_assign(l, dest, (Rvalue){.kind = RV_USE,
+                                  .a = variant_value(l, option, 0, &cast, 1)});   // Some
+    emit_goto(l, join);
+    switch_to(l, none);
+    emit_assign(l, dest, (Rvalue){.kind = RV_USE, .a = variant_value(l, option, 1, NULL, 0)});
+    emit_goto(l, join);
+    switch_to(l, join);
+    return op_copy(dest, option);
+}
+
 // The methods still built in: `x.wrappingCast<T>()`, `x.saturatingCast<T>()`
 // and `p.add(n)`. The others are in std (ADR 0019).
 static Operand builtin_call(Lowerer *l, Expr *call) {
@@ -31,6 +53,7 @@ static Operand builtin_call(Lowerer *l, Expr *call) {
         return value_of(l, call->type, (Rvalue){.kind = RV_CAST, .a = self, .to = call->type});
     case BM_SATURATING_CAST:
         return value_of(l, call->type, (Rvalue){.kind = RV_SATURATE, .a = self, .to = call->type});
+    case BM_CHECKED_CAST: return checked_cast(l, call->type, self);
     default: {
         Operand offset = lower_expr(l, call->as.call.args.items[0].value);
         return value_of(l, self.type, (Rvalue){.kind = RV_PTR_ADD, .a = self, .b = offset});

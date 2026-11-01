@@ -116,6 +116,14 @@ void lower_for_list(Lowerer *l, Stmt *s);
 
 // lower_pattern.c
 Operand build_variant(Lowerer *l, TypeId type, uint32_t index, ArgList args);
+Operand variant_value(Lowerer *l, TypeId type, uint32_t index, const Operand *fields,
+                      uint32_t count);
+Operand is_variant(Lowerer *l, Place place, TypeId type, uint32_t index);   // a bool
+Place variant_field(Lowerer *l, Place place, uint32_t index, uint32_t field);
+
+// lower_option.c: `?` and `??`
+Operand lower_try(Lowerer *l, Expr *e);
+Operand lower_coalesce(Lowerer *l, Expr *e);
 Operand enum_equality(Lowerer *l, Op op, Operand a, Operand b);
 Operand lower_tuple(Lowerer *l, Expr *e);
 // Tests `p` against the value at `place`: jumps to `fail` if it does not

@@ -142,6 +142,14 @@ TypeId check_for_list(Checker *c, Expr *list);   // the type of the loop variabl
 void check_list_sort(Checker *c, Expr *call);
 void check_list_layout(Checker *c, const Def *def);
 
+// check_option.c: `?`, `??` and unused results (spec 6)
+bool option_inner(Checker *c, TypeId type, TypeId *value);   // whether `type` is Option<value>
+bool result_parts(Checker *c, TypeId type, TypeId *value, TypeId *error);
+TypeId check_try(Checker *c, Expr *e);
+TypeId check_coalesce(Checker *c, Expr *e, TypeId expected);
+void check_unused_result(Checker *c, const Expr *e);   // E0305
+void check_wrapper_layout(Checker *c, DefId id);       // E0806
+
 // check_user_method.c
 // The struct or enum named by `e`, `Point` or `Pair<int, str>`; its type
 // arguments go to `args`.
@@ -169,6 +177,9 @@ EnumInfo *enum_of(Checker *c, TypeId type, DefId *id);
 int64_t variant_index(const EnumInfo *info, Symbol name);
 TypeId check_variant_shorthand(Checker *c, Expr *e, TypeId expected);
 bool check_qualified_variant(Checker *c, Expr *e, DefId id, TypeHints hints, TypeId *out);
+// `Some(x)` (`args` set) or `None` (`args` NULL), named by `def`, a DEF_VARIANT.
+TypeId check_prelude_variant(Checker *c, Expr *e, const Def *def, const ArgList *args,
+                             TypeId expected);
 
 // check_match.c
 TypeId check_match(Checker *c, Expr *e, TypeId expected, bool as_value);

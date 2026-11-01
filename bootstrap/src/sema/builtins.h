@@ -14,6 +14,7 @@
 typedef enum {
     BM_WRAPPING_CAST,
     BM_SATURATING_CAST,
+    BM_CHECKED_CAST,
     BM_PTR_ADD,
     BM_COUNT,
 } BuiltinMethod;
@@ -24,6 +25,7 @@ typedef enum {
     BT_SELF,      // the receiver type
     BT_INT,
     BT_TARGET,    // the type argument: x.wrappingCast<T>() returns T
+    BT_OPTION,    // Option of the type argument: x.checkedCast<T>()
 } BuiltinType;
 
 typedef enum { RECV_INT, RECV_PTR } Receiver;

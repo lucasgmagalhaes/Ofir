@@ -112,10 +112,15 @@ static void check_item(Checker *c, Item *item) {
         check_methods(c, item, item->as.struct_.methods);
         break;
     }
-    case ITEM_ENUM:
-        enum_variants(c, scope_module(&c->sema->scope, item->name));
+    case ITEM_ENUM: {
+        DefId id = scope_module(&c->sema->scope, item->name);
+        enum_variants(c, id);
+        if (id.id == c->sema->option.id || id.id == c->sema->result.id) {
+            check_wrapper_layout(c, id);
+        }
         check_methods(c, item, item->as.enum_.methods);
         break;
+    }
     case ITEM_CONST: case ITEM_GLOBAL:
         check_const(c, sema_def(c->sema, scope_module(&c->sema->scope, item->name)));
         break;

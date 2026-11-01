@@ -25,7 +25,10 @@ enum Option<T> {
 }
 ```
 
-`Ok`, `Err`, `Some` and `None` are in scope everywhere without a prefix.
+`Ok`, `Err`, `Some` and `None` are in scope everywhere without a prefix,
+in expressions and in patterns (`Some(x)`, `None`). They are declared in
+`std/core/option.at` and `result.at`, marked `@lang("option")` and
+`@lang("result")`.
 
 ```astra
 fn parsePort(s: str) Result<u16, str> {

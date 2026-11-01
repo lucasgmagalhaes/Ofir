@@ -10,6 +10,8 @@ import std.core.ints
 import std.core.floats
 import std.core.box
 import std.core.list
+import std.core.option
+import std.core.result
 
 /// The result of comparing two values.
 pub copy enum Ordering {

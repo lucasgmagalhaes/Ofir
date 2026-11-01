@@ -60,7 +60,8 @@ The specification declares methods inside the body of their type (ADR
 - Until generic bounds (roadmap 5.2), three methods stay built into the
   compiler because their signature needs a type argument restricted to
   integers, or any pointer element type:
-  `x.wrappingCast<T>()`, `x.saturatingCast<T>()` and `p.add(n)`; the
+  `x.wrappingCast<T>()`, `x.saturatingCast<T>()`, `x.checkedCast<T>()`
+  (which returns an `Option<T>`) and `p.add(n)`; the
   constants `I.MIN`, `I.MAX`, `F.NAN`, `F.INFINITY` and `F.EPSILON` too.
 
 - The C runtime keeps only the process entry, panics, allocation and the
