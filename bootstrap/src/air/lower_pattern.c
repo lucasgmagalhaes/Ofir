@@ -30,16 +30,30 @@ static Operand discriminant(Lowerer *l, TypeId type, uint32_t index) {
 }
 
 // A variant value: the tag, then each payload field.
-Operand build_variant(Lowerer *l, TypeId type, uint32_t index, ArgList args) {
+Operand variant_value(Lowerer *l, TypeId type, uint32_t index, const Operand *fields,
+                      uint32_t count) {
     LocalId dest = new_temp(l, type);
     Place place = {.local = dest};
-    const VariantInfo *v = &enum_info(l, type)->variants[index];
-    for (uint32_t i = 0; i < args.len && i < v->count; i++) {
-        Operand value = lower_expr(l, args.items[i].value);
-        emit_store(l, child(l, child(l, place, PATH_VARIANT | index), i), value);
+    for (uint32_t i = 0; i < count; i++) {
+        emit_store(l, child(l, child(l, place, PATH_VARIANT | index), i), fields[i]);
     }
     emit_store(l, child(l, place, 0), discriminant(l, type, index));
     return op_copy(dest, type);
+}
+
+Operand build_variant(Lowerer *l, TypeId type, uint32_t index, ArgList args) {
+    uint32_t count = enum_info(l, type)->variants[index].count;
+    count = args.len < count ? args.len : count;
+    Operand *fields = ARENA_ARRAY(&l->sema->session->arena, Operand, count + 1);
+    for (uint32_t i = 0; i < count; i++) {
+        fields[i] = lower_expr(l, args.items[i].value);
+    }
+    return variant_value(l, type, index, fields, count);
+}
+
+// Field `field` of variant `index` of the enum value at `place`.
+Place variant_field(Lowerer *l, Place place, uint32_t index, uint32_t field) {
+    return child(l, child(l, place, PATH_VARIANT | index), field);
 }
 
 // `a == b` on enums without payloads compares the tags.
@@ -73,6 +87,11 @@ static void test(Lowerer *l, Operand cond, BlockId fail) {
 
 static Operand compare(Lowerer *l, Op op, TypeId type, Operand a, Operand b) {
     return lower_binary_op(l, (Arith){.op = op, .type = type, .a = a, .b = b});
+}
+
+// Whether the enum value at `place`, of type `type`, is variant `index`.
+Operand is_variant(Lowerer *l, Place place, TypeId type, uint32_t index) {
+    return compare(l, OP_EQ, type_id(TID_I32), tag_of(l, place), discriminant(l, type, index));
 }
 
 static void lower_patterns(Lowerer *l, PatternList list, Place place, uint32_t prefix,
