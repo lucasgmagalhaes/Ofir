@@ -226,6 +226,7 @@ runtime/
 │   ├── io.c                  writes and the standard output buffer
 │   ├── format.c, str.c       numbers and strings for interpolation
 │   ├── os.c                  arguments, environment, exit, running programs (std.os)
+│   ├── stack.c               stack overflow detection
 │   └── fs.c                  files, directories, standard input (std.fs, std.io)
 └── Makefile
 ```
