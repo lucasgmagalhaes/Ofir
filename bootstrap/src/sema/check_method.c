@@ -39,6 +39,10 @@ void require_mutable(Checker *c, Expr *place) {
         return;
     }
     bool ok = false;
+    if (e->kind == EXPR_UNARY && is_box_deref(c, e)) {   // through a box: the box is modified
+        require_mutable(c, e->as.unary.operand->as.field.base);
+        return;
+    }
     if (e->kind == EXPR_UNARY) {   // `*p`: writable through a `*mut T`
         const Ty *ptr = type_get(c->types, e->as.unary.operand->type);
         ok = (ptr->kind == TY_PTR && ptr->data) || e->type.id == TID_ERROR;
@@ -195,6 +199,10 @@ TypeId check_method_call(Checker *c, Expr *call, TypeId expected) {
         return no_method(c, call, type_name_def->type);
     }
     TypeId self = check_expr(c, base, NO_TYPE);
+    TypeId inner;
+    if (box_inner(c, self, &inner) && !has_method(c, c->sema->box, field->as.field.name)) {
+        self = deref_box(c, &field->as.field.base, self);   // a method of the boxed value
+    }
     if (type_get(c->types, self)->kind == TY_ADT) {
         DefId id = {type_get(c->types, self)->data};
         return check_user_method(c, call, id, false, (TypeHints){self, expected});
@@ -221,7 +229,8 @@ TypeId check_field(Checker *c, Expr *e, TypeId expected) {
     }
     const Def *primitive = primitive_name(c, e->as.field.base);
     if (!primitive) {
-        return check_struct_field(c, e, check_expr(c, e->as.field.base, NO_TYPE));
+        TypeId type = check_expr(c, e->as.field.base, NO_TYPE);
+        return check_struct_field(c, e, deref_box(c, &e->as.field.base, type));
     }
     e->as.field.base->type = primitive->type;
     const Ty *ty = type_get(c->types, primitive->type);

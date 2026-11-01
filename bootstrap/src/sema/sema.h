@@ -87,6 +87,7 @@ typedef struct {
     Vec(Def) defs;       // defs.data[0] is unused: DefId 0 means "none"
     Scope scope;         // its module table is the current module's
     DefId lang[TID_BUILTIN_COUNT];   // the `@lang` declaration of each primitive type
+    DefId box;           // `@lang("box") struct Box<T>`, which the compiler dereferences
 } Sema;
 
 void sema_init(Sema *sema, Session *session, Program program);

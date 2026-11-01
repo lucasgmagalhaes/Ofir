@@ -18,6 +18,10 @@ static FnDecl *find_method(Checker *c, DefId owner, Symbol name) {
     return NULL;
 }
 
+bool has_method(Checker *c, DefId owner, Symbol name) {
+    return find_method(c, owner, name) != NULL;
+}
+
 void check_visible(Checker *c, uint32_t module, bool is_pub, Symbol name, Span span) {
     if (module != c->sema->current && !is_pub) {
         check_error(c, "E0202", span, "`" SV_FMT "` is private to module `" SV_FMT "`",
