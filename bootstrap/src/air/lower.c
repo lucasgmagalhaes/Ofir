@@ -66,15 +66,16 @@ LocalId to_local(Lowerer *l, Operand operand) {
     return emit_temp(l, operand.type, (Rvalue){.kind = RV_USE, .a = operand});
 }
 
-static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
+static void lower_fn(Lowerer *l, Instance inst, BodySink sink, void *context) {
+    FnDecl *fn = inst.fn;
     Def *def = sema_def(l->sema, fn->def);
-    const Ty *sig = type_get(l->types, def->type);
-    AirBody body = {.def = fn->def, .name = fn->name};
+    Ty sig = *type_get(l->types, def->type);
+    AirBody body = {.def = fn->def, .targs = inst.targs, .name = fn->name};
     body.is_main = l->sema->current == 0 && def->item && def->item->kind == ITEM_FN &&
                    sv_eq(symbol_name(&l->sema->session->names, fn->name), SV("main"));
     body.param_count = fn->params.len + (fn->has_self ? 1 : 0);
     l->body = &body;
-    air_new_local(&body, sig->inner, (Symbol){0}, fn->span);   // the return value
+    air_new_local(&body, sig.inner, (Symbol){0}, fn->span);   // the return value
     for (uint32_t i = 0; i < fn->locals.len; i++) {
         const Local *local = &fn->locals.items[i];
         air_new_local(&body, fn->local_types[i], local->name, local->span);
@@ -91,8 +92,9 @@ static void lower_fn(Lowerer *l, FnDecl *fn, BodySink sink, void *context) {
     l->block = air_new_block(&body);
     lower_block(l, fn->body, false);
     // Falling off the end returns (); other functions were checked to return.
-    TermKind end = sig->inner.id == TID_UNIT ? TERM_RETURN : TERM_UNREACHABLE;
+    TermKind end = sig.inner.id == TID_UNIT ? TERM_RETURN : TERM_UNREACHABLE;
     air_terminate(&body, l->block, (Terminator){.kind = end});
+    mono_body(l, &body);
     sink(context, &body);
     air_body_free(&body);
 }
@@ -111,32 +113,18 @@ static void check_main(Sema *sema) {
     }
 }
 
-void reach(Lowerer *l, FnDecl *fn) {
-    while (l->reached.len <= fn->def.id) {
-        VEC_PUSH(l->reached, false);
-    }
-    if (fn->body && !l->reached.data[fn->def.id]) {
-        l->reached.data[fn->def.id] = true;
-        VEC_PUSH(l->pending, fn);
-    }
-}
-
 // The roots: `main` and the `extern "C" fn` functions, which C may call.
 // Declarations stage 0 cannot compile yet are reported here.
 static void find_roots(Lowerer *l, ItemList items) {
     for (uint32_t i = 0; i < items.len; i++) {
         Item *item = items.items[i];
-        bool is_struct = item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT;
-        bool generic = is_struct ? item->as.struct_.type_params.len > 0
-                       : item->kind == ITEM_ENUM ? item->as.enum_.type_params.len > 0
-                                                 : false;
         if (item->kind == ITEM_FN && item->as.fn->body) {
             bool is_main = l->sema->current == 0 &&
                            sv_eq(symbol_name(&l->sema->session->names, item->name), SV("main"));
             if (is_main || item->as.fn->abi.len > 0) {
-                reach(l, item->as.fn);
+                reach(l, item->as.fn, type_id(TID_UNIT));
             }
-        } else if (generic || item->kind == ITEM_GLOBAL) {
+        } else if (item->kind == ITEM_GLOBAL) {
             diag_error(&l->sema->session->diags, "E0901", item->span,
                        "compiling this declaration is not supported yet");
         }
@@ -153,12 +141,11 @@ void lower_program(Sema *sema, BodySink sink, void *context) {
         find_roots(&l, sema->module->items);
     }
     for (size_t next = 0; next < l.pending.len; next++) {
-        FnDecl *fn = l.pending.data[next];
-        sema_enter(sema, sema_def(sema, fn->def)->module);
-        lower_fn(&l, fn, sink, context);
+        Instance inst = l.pending.data[next];
+        sema_enter(sema, sema_def(sema, inst.fn->def)->module);
+        lower_fn(&l, inst, sink, context);
     }
     sema_enter(sema, 0);
     VEC_FREE(l.loops);
-    VEC_FREE(l.pending);
-    VEC_FREE(l.reached);
+    mono_free(&l);
 }

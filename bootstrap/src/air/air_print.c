@@ -21,6 +21,15 @@ static const char *type_str(AirPrinter *p, TypeId type) {
     return p->buf.data;
 }
 
+// `<int, str>` for an instance; nothing when `targs` is ().
+static void type_args(AirPrinter *p, TypeId targs) {
+    const Ty *ty = type_get(&p->sema->types, targs);
+    for (uint32_t i = 0; targs.id != TID_UNIT && i < ty->arg_count; i++) {
+        fprintf(p->out, "%s%s", i ? ", " : "<", type_str(p, ty->args[i]));
+    }
+    fputs(targs.id != TID_UNIT ? ">" : "", p->out);
+}
+
 static void string_literal(AirPrinter *p, StrView text) {
     fputc('"', p->out);
     for (size_t i = 0; i < text.len; i++) {
@@ -136,7 +145,9 @@ static void statement(AirPrinter *p, const AirStmt *s) {
             fprintf(p->out, "call %s(", runtime_fn_name(s->as.call.rt));
         } else {
             StrView name = def_name(p->sema, s->as.call.fn.id);
-            fprintf(p->out, "call " SV_FMT "(", SV_ARG(name));
+            fprintf(p->out, "call " SV_FMT, SV_ARG(name));
+            type_args(p, s->as.call.targs);
+            fputc('(', p->out);
         }
         for (uint32_t i = 0; i < s->as.call.arg_count; i++) {
             fputs(i ? ", " : "", p->out);
@@ -170,8 +181,9 @@ static void terminator(AirPrinter *p, const Terminator *t) {
 }
 
 static void body(AirPrinter *p, const AirBody *b) {
-    fprintf(p->out, "fn " SV_FMT "%s {\n", SV_ARG(symbol_name(p->names, b->name)),
-            b->is_main ? " (entry)" : "");
+    fprintf(p->out, "fn " SV_FMT, SV_ARG(symbol_name(p->names, b->name)));
+    type_args(p, b->targs);
+    fprintf(p->out, "%s {\n", b->is_main ? " (entry)" : "");
     for (size_t i = 0; i < b->locals.len; i++) {
         const AirLocal *local = &b->locals.data[i];
         const char *role = i == 0 ? "return" : i <= b->param_count ? "param" : "let";

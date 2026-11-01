@@ -111,6 +111,7 @@ typedef struct {
             bool runtime;       // a runtime function, else a user function
             RuntimeFn rt;
             DefId fn;
+            TypeId targs;       // the type arguments of a generic fn, a tuple; else ()
             Operand *args;
             uint32_t arg_count;
         } call;
@@ -158,8 +159,11 @@ typedef struct {
 } AirLocal;
 
 // Local 0 is the return value; locals 1..param_count are the parameters.
+// The body of an instance of a generic function has its types substituted
+// (air/mono.c): no TY_PARAM remains.
 typedef struct {
     DefId def;
+    TypeId targs;     // the type arguments of the instance, a tuple; () if not generic
     Symbol name;
     bool is_main;
     uint32_t param_count;
