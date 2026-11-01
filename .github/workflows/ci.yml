@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-24.04, macos-15]
         # Oldest and newest supported LLVM versions (ADR 0001).
         # Bump the newest one when a new LLVM release is published.
         llvm: ["17", "21"]
