@@ -98,6 +98,7 @@ int driver_build(const Options *opts) {
     timer_start(&total);
     Session session;
     session_init(&session);
+    session.diags.deny_warnings = opts->deny_warnings;
     Pipeline p = {.session = &session, .opts = opts, .timer = &phase};
     bool ok = run_phases(&p);
     diags_render(&session.diags, &session.sources, opts->format, stderr);

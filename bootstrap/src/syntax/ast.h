@@ -52,6 +52,7 @@ typedef struct {
     Symbol name;
     Span span;
     bool mutable;
+    bool used;          // set by the resolver: some expression names it
 } Local;
 
 // ---------------------------------------------------------------------------

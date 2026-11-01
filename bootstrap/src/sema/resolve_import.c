@@ -65,6 +65,7 @@ void resolve_import(Resolver *r, const Item *item) {
     SymbolList path = item->as.import.path;
     Symbol last = path.items[path.len - 1];
     Symbol name = item->as.import.alias.id ? item->as.import.alias : last;
+    VEC_PUSH(r->sema->imports, ((ImportUse){r->sema->current, name, item->span, false}));
     int64_t module = find_module(r, path, path.len);
     if (module >= 0) {   // a module
         VEC_PUSH(r->sema->defs, ((Def){.kind = DEF_MODULE, .name = name, .span = item->span,

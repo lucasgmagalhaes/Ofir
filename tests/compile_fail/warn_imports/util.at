@@ -1,0 +1,8 @@
+pub struct Pair {
+    pub a: int
+    pub b: int
+}
+
+pub fn twice(n: int) int {
+    return n * 2
+}
