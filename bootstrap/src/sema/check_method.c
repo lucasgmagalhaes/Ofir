@@ -213,7 +213,13 @@ static TypeId primitive_method(Checker *c, Expr *call, TypeId self, TypeId expec
     Receiver receiver = receiver_of(type_get(c->types, self), &known);
     const BuiltinInfo *info = known ? builtin_method(&c->sema->session->names, receiver, name)
                                     : NULL;
-    return info ? call_builtin(c, call, info, self) : no_method(c, call, self);
+    if (info) {
+        return call_builtin(c, call, info, self);
+    }
+    if (sv_eq(name_of(c, name), SV("clone"))) {
+        return check_derived_clone(c, call, self);
+    }
+    return no_method(c, call, self);
 }
 
 TypeId check_method_call(Checker *c, Expr *call, TypeId expected) {

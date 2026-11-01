@@ -1,0 +1,25 @@
+// `.clone()` needs every part to be cloneable (spec 5.1).
+
+struct Handle {
+    fd: int
+
+    fn drop(mut self) {
+    }
+}
+
+struct Wrap {
+    h: Handle
+}
+
+fn dup<T>(x: T) T {
+    return x.clone()             // error[E0322]: type `T` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
+}
+
+fn main() {
+    let w = Wrap{h: Handle{fd: 1}}
+    let _a = w.clone()           // error[E0322]: type `Wrap` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
+    let l = [Handle{fd: 2}]
+    let _b = l.clone()           // error[E0322]: type `List<Handle>` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
+    let _c = (1, Handle{fd: 3}).clone()   // error[E0322]: type `(int, Handle)` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
+    let _d = 5.clone(1)          // error[E0302]: `clone` takes no arguments
+}

@@ -53,10 +53,10 @@ static bool seen(Lowerer *l, uint64_t key) {
     return false;
 }
 
-// The drop glue of the type in `targs`, once (air/lower_drop.c).
-static void reach_glue(Lowerer *l, TypeId targs) {
-    if (!seen(l, instance_key((DefId){0}, targs))) {
-        VEC_PUSH(l->pending, ((Instance){NULL, targs}));
+// The glue `glue` of the type in `targs`, once (lower_drop.c, lower_clone.c).
+static void reach_glue(Lowerer *l, DefId glue, TypeId targs) {
+    if (!seen(l, instance_key(glue, targs))) {
+        VEC_PUSH(l->pending, ((Instance){NULL, targs, glue}));
     }
 }
 
@@ -84,7 +84,7 @@ void reach(Lowerer *l, FnDecl *fn, TypeId targs) {
         l->too_deep = true;
         return;
     }
-    VEC_PUSH(l->pending, ((Instance){fn, targs}));
+    VEC_PUSH(l->pending, ((Instance){fn, targs, {0}}));
 }
 
 typedef struct {
@@ -146,8 +146,8 @@ void mono_body(Lowerer *l, AirBody *body) {
         const AirBlock *block = &body->blocks.data[b];
         for (size_t i = 0; i < block->stmts.len; i++) {
             const AirStmt *stmt = &block->stmts.data[i];
-            if (stmt->kind == AIR_CALL && !stmt->as.call.runtime && stmt->as.call.fn.id == 0) {
-                reach_glue(l, stmt->as.call.targs);
+            if (stmt->kind == AIR_CALL && !stmt->as.call.runtime && is_glue(stmt->as.call.fn)) {
+                reach_glue(l, stmt->as.call.fn, stmt->as.call.targs);
             } else if (stmt->kind == AIR_CALL && !stmt->as.call.runtime) {
                 reach(l, sema_def(l->sema, stmt->as.call.fn)->fn, stmt->as.call.targs);
             }

@@ -63,6 +63,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0319 | invalid or duplicate enum discriminant | stage 0 |
 | E0320 | no variant `V` in enum `E`, or the enum of `.V` is unknown | stage 0 |
 | E0321 | this operation needs a value of a Copy type | stage 0 |
+| E0322 | type `T` cannot be cloned: a part of it has `drop` but no `clone` | stage 0 |
 | E0330 | cannot infer the type parameter `T`: write the type arguments | stage 0 |
 | E0331 | instantiating `f` nests types more than 64 levels deep | stage 0 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |

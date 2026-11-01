@@ -1,0 +1,78 @@
+// `.clone()` (spec 5.1): std clones for str, List and Box, the derived
+// clone of structs, enums and tuples, and a user `clone` method.
+
+struct Person {
+    name: str
+    tags: List<str>
+    age: int
+}
+
+enum Tree {
+    Leaf(int)
+    Node(Box<Tree>, Box<Tree>)
+}
+
+fn sum(t: Tree) int {
+    return match t {
+        .Leaf(n) => n
+        .Node(a, b) => sum(*a) + sum(*b)
+    }
+}
+
+// A user clone: counts the copies.
+struct Counted {
+    id: int
+    label: str
+
+    fn clone(self) Counted {
+        println("cloning {self.id}")
+        return Counted{id: self.id + 100, label: self.label.toOwned()}
+    }
+}
+
+struct Noisy {
+    name: str
+
+    fn clone(self) Noisy {
+        return Noisy{name: "{self.name}'"}
+    }
+
+    fn drop(mut self) {
+        println("drop {self.name}")
+    }
+}
+
+fn main() {
+    let a = Person{name: "ada".toOwned(), tags: ["x".toOwned(), "y".toOwned()], age: 36}
+    var b = a.clone()
+    b.name.push("!")
+    b.tags.push("z".toOwned())
+    println("{a.name} {a.tags.len()} / {b.name} {b.tags.len()} {b.age}")
+
+    let t = Tree.Node(Box.new(Tree.Leaf(1)), Box.new(Tree.Node(Box.new(Tree.Leaf(2)),
+                                                               Box.new(Tree.Leaf(3)))))
+    let u = t.clone()
+    println("sums {sum(t)} {sum(u)}")
+
+    var ages: Map<str, int> = Map.new()
+    ages.insert("ada".toOwned(), 36)
+    var older = ages.clone()
+    older.insert("alan".toOwned(), 41)
+    println("maps {ages.len()} {older.len()}")
+
+    let maybe: Option<str> = .Some("hi".toOwned())
+    let pair = (maybe.clone(), [1, 2, 3].clone())
+    println("{pair.0 ?? "none"} {pair.1.len()}")
+
+    let c = Counted{id: 1, label: "one".toOwned()}
+    let copies = [c.clone(), c.clone()]
+    println("{copies[0].id} {copies[1].label}")
+
+    let n = Noisy{name: "n".toOwned()}
+    let list = [n.clone()]
+    let again = list.clone()
+    println("lists {list.len()} {again.len()}")
+
+    let r = &a
+    println("{r.clone().name} {5.clone()} {"lit".clone()}")
+}

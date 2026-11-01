@@ -14,6 +14,8 @@ extern "intrinsic" {
     fn dropInPlace<T>(p: *mut T)
     // Consumes a value without dropping it.
     fn forget<T>(value: move T)
+    // What `value.clone()` does for any `T` (roadmap 3.3).
+    fn cloneOf<T>(value: T) T
 
     /**
      * The size in bytes of a value of type `T`, as laid out in memory
@@ -96,6 +98,20 @@ pub struct Box<T> {
         }
         forget(self)   // the value was moved out: dropping the box would drop it twice
         return value
+    }
+
+    /**
+     * A new box holding a clone of this one's value.
+     *
+     * @returns a box that owns its own copy of the value
+     * @example
+     * ```astra
+     * let a = Box.new("text".toOwned())
+     * let b = a.clone()   // a and b can both be used
+     * ```
+     */
+    pub fn clone(self) Box<T> {
+        return unsafe { Box.new(cloneOf(*self.ptr)) }
     }
 
     // Drops the value, then frees the memory (spec 5.2).
