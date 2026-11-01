@@ -81,7 +81,7 @@ interfaces (roadmap 5.1). Doc tests are planned.
 @bench
 fn benchSort(b: mut Bencher) {
     var data = randomList(10_000)
-    b.run(fn() => data.sort())
+    b.run(() => data.sort())
 }
 ```
 

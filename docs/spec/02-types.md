@@ -64,7 +64,7 @@ operations yield NaN, nothing panics.
 - `==` and `<` use IEEE semantics, so `NaN != NaN`. For this reason floats
   do **not** satisfy the `Eq`, `Ord` and `Hash` interfaces (chapter 9.9):
   they cannot be `Map` keys, and sorting them uses
-  `list.sortBy(fn(a, b) => a.totalCmp(b))`.
+  `list.sortBy((a, b) => a.totalCmp(b))`.
 - Textual form (interpolation, `Display`): the **shortest** decimal that
   converts back to the same value, always with a `.` or an exponent:
   `1.0`, `0.1`, `1e+21`, `-0.0`. Special values print as `NaN`, `inf` and

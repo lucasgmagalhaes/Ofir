@@ -28,6 +28,7 @@ changed by writing a new record that supersedes the old one.
 | [0020](0020-documentation-comments.md) | Documentation comments in the style of JSDoc | Accepted |
 | [0021](0021-type-operators.md) | Type operators: `keyof`, indexed access, mapped and conditional types | Accepted |
 | [0022](0022-union-types.md) | Union types as anonymous tagged enums | Accepted |
+| [0023](0023-arrow-closures.md) | Closures are written as arrow functions | Accepted |
 
 ## Template
 

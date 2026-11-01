@@ -1,27 +1,47 @@
 # 10. Closures
 
 A closure is an anonymous function that can capture variables from the
-scope where it is created.
+scope where it is created. Function types (`fn(A) R`, `move fn(A) R`) are
+in 10.2; the closures themselves are written as arrow functions (10.1).
 
 ## 10.1 Syntax
 
+Closures are arrow functions, as in JavaScript (ADR 0023):
+
 ```astra
-let double = fn(x: int) int {
+let names = users.map(u => u.name.clone())      // one parameter, types inferred
+users.sortBy((a, b) => a.age - b.age)           // several parameters
+test(arg => println(arg))
+let add = (a: int, b: int) int => a + b         // written types
+let double = (x: int) int => {                  // block body
     return x * 2
 }
-let add = fn(a: int, b: int) int => a + b         // expression body
-let names = users.map(fn(u) => u.name.clone())    // types inferred
-let greet = move fn() => println("hi {name}")     // captures by value
+let greet = move () => println("hi {name}")     // captures by value
 ```
 
 ```ebnf
-Closure      = [ "move" ] "fn" "(" [ ClosureParam { "," ClosureParam } ] ")"
-               [ Type ] ( Block | "=>" Expr ) .
-ClosureParam = identifier [ ":" Type ] .
+Closure      = [ "move" ] ClosureHead "=>" ( Expr | Block ) .
+ClosureHead  = identifier
+             | "(" [ ClosureParam { "," ClosureParam } [ "," ] ] ")" [ Type ] .
+ClosureParam = identifier [ ":" [ Mode ] Type ] .
 ```
 
-Parameter and return types can be omitted when they can be inferred from
-the expected function type.
+- One parameter without a type may go without parentheses: `x => x + 1`.
+  No parameter, several, or written types need them: `() => 0`,
+  `(a, b) => a + b`, `(x: int) => x`.
+- Parameter and result types can be omitted when they can be inferred from
+  the expected function type; the result type comes after `)`, as in a
+  function signature: `(x: int) int => x * 2`.
+- The body is an expression or a block. In a block, `return` returns from
+  the closure.
+- A closure is recognized by looking ahead: an identifier followed by `=>`,
+  or a parenthesized list whose `)` is followed by `=>` or by a type and
+  `=>`. Anything else in parentheses is a parenthesized expression or a
+  tuple.
+- In a `match` guard (`pattern if guard => body`), a closure must be in
+  parentheses: the first `=>` ends the guard.
+- The newline rule (chapter 1.3) lets the body start on the next line
+  after `=>`.
 
 ## 10.2 Two function types
 
@@ -65,7 +85,7 @@ from how the body uses it:
 
 ```astra
 var count = 0
-let increment = fn() {   // captures `count` by &mut
+let increment = () => {   // captures `count` by &mut
     count += 1
 }
 increment()
@@ -83,7 +103,7 @@ call belongs in a struct with methods.
 
 ```astra
 fn makeGreeter(name: str) move fn() str {
-    return move fn() str => "hello, {name}"
+    return move () str => "hello, {name}"
 }
 ```
 

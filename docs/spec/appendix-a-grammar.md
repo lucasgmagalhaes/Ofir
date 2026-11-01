@@ -215,8 +215,9 @@ Cond          = Expr | "let" Pattern "=" Expr .
 MatchExpr     = "match" Expr "{" { MatchArm } "}" .
 MatchArm      = Pattern [ "if" Expr ] "=>" ( Expr | Block ) ( "," | NL ) .
 
-Closure       = [ "move" ] "fn" "(" [ ClosureParam { "," ClosureParam } ] ")"
-                [ Type ] ( Block | "=>" Expr ) .
+Closure       = [ "move" ] ClosureHead "=>" ( Expr | Block ) .   (* chapter 10.1 *)
+ClosureHead   = identifier
+              | "(" [ ClosureParam { "," ClosureParam } [ "," ] ] ")" [ Type ] .
 ClosureParam  = identifier [ ":" [ Mode ] Type ] .
 
 Literal       = int_lit | float_lit | string_lit | raw_string_lit
@@ -250,6 +251,9 @@ FieldPat      = identifier [ ":" Pattern ] .
 ## A.8 Rules not expressed by the grammar
 
 - `var x` must have a type, a value, or both (`var x: int`, `var x = 0`).
+- A closure is recognized by bounded lookahead (chapter 10.1): an
+  identifier followed by `=>`, or `( ... )` followed by `=>` or by a type
+  and `=>`. In a `match` guard, a closure is written in parentheses.
 - A `let` pattern must be irrefutable (it cannot fail to match).
 - `Variant = int_lit` (explicit discriminant) is allowed only in enums with
   no payloads; values must be distinct. With `@repr(C)`, they define the C
