@@ -150,7 +150,7 @@ earlier accordingly).
 | 3.9 | `std.os` S0 entries: args, env, exit, `run` | M | **done**: `tests/run/system/os.at` runs `clang --version`; runtime `os.c` (`posix_spawnp`, both streams captured) |
 | 3.10 | Runtime: stack overflow detection | S | **done**: `runtime/src/stack.c` (`sigaltstack` + `SIGSEGV`/`SIGBUS` handler); `tests/panic/stack_overflow*` pass |
 | 3.11 | `@test` functions and `astra test` | M | **done**: `astra test` (`air/lower_test.c`, `driver_test.c`), one process per test; `make test-std` (`tools/run_std_tests.py`) in `make test`; `tests/astra_test/` |
-| 3.11a | First generated-code benchmarks (`fib`, `nbody`, `binary_trees`) against C | M | ratio to C recorded in `bench/HISTORY.md` |
+| 3.11a | First generated-code benchmarks (`fib`, `nbody`, `binary_trees`) against C | M | **done**: `bench/run_programs.py`; `binary_trees` 1.01, `nbody` 1.04, `fib` 1.80 (overflow checks; 1.0 with wrapping arithmetic), in `bench/HISTORY.md` |
 | 3.12 | Freeze review: all suites under ASan/UBSan, fix leaks and crashes | M | **M2: stage 0 complete** → release 0.1 |
 
 ## Phase 4 — Self-hosting (milestones M3 and M4)

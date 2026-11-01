@@ -94,3 +94,22 @@ SSA values instead of allocas) and deduplicated string constants, which
 would also make clang faster (16 s at -O0 for this input).
 
 Binary size of `examples/hello.at`: 17,440 bytes, 14,584 stripped.
+
+## Generated code against C (roadmap 3.11a)
+
+`bench/run_programs.py`: each program of `bench/programs` built with
+`astra build --release` against its C version in `bench/baselines` built
+with `clang -O2`, median of 3 runs, machine A, clang 18. The outputs agree.
+
+| Commit | Program | Astra (ms) | C (ms) | Astra / C |
+|--------|---------|-----------:|-------:|----------:|
+| `0e0f46c` | `binary_trees` (depth 18) | 2,736.7 | 2,707.7 | 1.01 |
+| `0e0f46c` | `fib` (35) | 59.7 | 33.1 | 1.80 |
+| `0e0f46c` | `nbody` (5M steps) | 326.1 | 313.7 | 1.04 |
+
+`fib` pays for the overflow checks of `+` and `-` (spec 2.2): they keep
+LLVM from turning one of the two recursive calls into a loop, as it does
+for C. Written with `wrappingAdd` and `wrappingSub`, the same program
+takes 32.6 ms, as fast as C. Allocation (`binary_trees`, one `malloc`
+per box on both sides) and floating point with bounds-checked list
+indexing (`nbody`) are within 5% of C.
