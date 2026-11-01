@@ -103,6 +103,8 @@ typedef struct {
     DefId option, result;   // `@lang("option")`, `@lang("result")`: `?`, `??`, bare variants
     DefId slice;         // `@lang("slice") ref struct Slice<T>`: the type `&[T]`
     DefId map;           // `@lang("map") struct Map<K, V>`: `for key, value in map`
+    bool testing;        // `astra test`: the `@test` functions are the roots, not `main`
+    Vec(FnDecl *) tests; // filled by the lowering when testing, in program order
 } Sema;
 
 void sema_init(Sema *sema, Session *session, Program program);
@@ -110,6 +112,14 @@ void sema_free(Sema *sema);
 
 // The attribute `@name(...)` of a declaration, or NULL.
 const Attribute *find_attribute(const Sema *sema, AttributeList attributes, const char *name);
+
+// A `@test` function that `astra test` does not run (all of them in other
+// builds, and those of std modules other than the root): not resolved,
+// checked or compiled, so that tests cost nothing elsewhere (spec 12.2).
+bool skipped_test(const Sema *sema, const Item *item);
+
+// Whether module `module` belongs to the standard library (`std.*`).
+bool module_in_std(const Sema *sema, uint32_t module);
 
 // The `@lang` declaration of a primitive type, or NULL.
 Def *lang_def(Sema *sema, TypeId type);

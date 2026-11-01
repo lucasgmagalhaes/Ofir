@@ -31,6 +31,8 @@ typedef struct {
     Timer *timer;
     FileId file;
     char exe[PATH_SIZE];   // the executable, once built
+    char **tests;          // `astra test`: the name of each test, by index
+    size_t test_count;
 } Pipeline;
 
 // driver_paths.c: `$env`, else the first of `places` (relative to the
@@ -49,6 +51,12 @@ Program load_program(Pipeline *p, Module *root);
 Next run_backend(Pipeline *p, Sema *sema);
 
 // Runs the program and returns its exit status (128 + signal if killed).
-int run_program(const char *exe);
+// `arg` may be NULL.
+int run_program(const char *exe, const char *arg);
+
+// driver_test.c: runs each test in a process of its own and reports.
+int run_tests(const Pipeline *p);
+void keep_test_names(Pipeline *p, const Sema *sema);
+void free_test_names(Pipeline *p);
 
 #endif

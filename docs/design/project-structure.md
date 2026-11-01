@@ -126,6 +126,7 @@ bootstrap/
 │   │   ├── lower_clone.c     clone glue, the derived `.clone()` and `cloneOf<T>`
 │   │   ├── lower_drop.c      drop glue, `dropInPlace<T>` and `forget<T>`
 │   │   ├── lower_iter.c      `for x in it`: `next()` until `None`
+│   │   ├── lower_test.c      `astra test`: the tests as roots, the generated entry point
 │   │   ├── lower_scope.c     drop scopes, drop flags (also per moved part), temporaries
 │   │   ├── lower_option.c    `?` and `??`
 │   │   ├── mono.c            monomorphization: instances, type substitution
@@ -145,6 +146,7 @@ bootstrap/
 │   ├── driver_modules.c      loading the root file, its imports and the prelude
 │   ├── driver_paths.c        finding the installed runtime and std
 │   ├── driver_backend.c      lowering, code generation, clang, `run`
+│   ├── driver_test.c         `astra test`: one process per test, the report
 │   └── driver_internal.h     state shared by the driver files
 └── tests/                    unit tests for the C code (base/, lexer)
 ```

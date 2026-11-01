@@ -23,7 +23,10 @@ static void runtime_call(Gen *g, const AirStmt *s) {
         args[i] = gen_operand(g, s->as.call.args[i]);
     }
     RuntimeFn fn = s->as.call.rt;
-    const char *ret = fn == RT_STR_EQ ? "i1" : fn == RT_STR_CMP ? "i32" : "void";
+    const char *ret = fn == RT_STR_EQ      ? "i1"
+                      : fn == RT_STR_CMP   ? "i32"
+                      : fn == RT_TEST_INDEX ? "i64"
+                                            : "void";
     char result[16] = "";
     if (s->has_dest) {
         next_temp(g, result);

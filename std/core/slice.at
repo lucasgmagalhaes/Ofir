@@ -144,3 +144,12 @@ pub fn checkRange(lo: int, hi: int, len: int) {
         panic("range {lo}..{hi} is out of bounds for a length of {len}")
     }
 }
+
+@test
+fn slicesViewPartOfAList() {
+    let items = [1, 2, 3, 4, 5]
+    let middle = items[1..4]
+    assert(middle.len() == 3 && *middle.first().unwrap() == 2 && *middle.last().unwrap() == 4)
+    assert(middle.get(3).isNone())
+    assert(middle.sliceFrom(2).len() == 1)
+}

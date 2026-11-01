@@ -53,7 +53,14 @@ fn addWorks() {
 
 - `astra test` compiles the project with all `@test` functions and runs
   each one in a separate process, so a panic fails only that test.
-- Tests are excluded from normal builds.
+- Tests are excluded from normal builds: their bodies are not even
+  checked, but their signatures are (E0205).
+
+Stage 0: `astra test <file.at>` runs the tests of every module of the
+program except the std modules, plus those of the root file, which may be
+a std module (`astra test std/core/split.at`); `make test-std` runs the
+tests of std. A test returns `()`; `Result` tests and `assertEq` await
+interfaces (roadmap 5.1). Doc tests are planned.
 - `assertEq(a, b)` prints both values (using `Debug`) when they differ.
 
 ## 12.3 Benchmarks

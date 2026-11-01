@@ -189,6 +189,10 @@ TypeId method_targs(Lowerer *l, TypeId type);
 bool is_iterator(Lowerer *l, TypeId type);
 void lower_for_iter(Lowerer *l, Stmt *s);
 
+// lower_test.c: `astra test`
+void find_tests(Lowerer *l, uint32_t module);
+void lower_test_main(Lowerer *l, BodySink sink, void *context);
+
 // lower_clone.c
 Operand clone_value(Lowerer *l, Operand value, TypeId type);   // `type` is concrete
 void lower_clone_glue(Lowerer *l, TypeId targs, BodySink sink, void *context);

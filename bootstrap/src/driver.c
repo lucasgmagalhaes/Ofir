@@ -60,6 +60,7 @@ static Next run_sema(Pipeline *p, Program program) {
     timer_start(p->timer);
     Sema sema;
     sema_init(&sema, p->session, program);
+    sema.testing = strcmp(p->opts->command, "test") == 0;
     resolve_program(&sema);
     if (!diags_has_errors(&p->session->diags)) {
         check_program(&sema);
@@ -70,6 +71,7 @@ static Next run_sema(Pipeline *p, Program program) {
     Next next = STOP;
     if (!diags_has_errors(&p->session->diags) && p->opts->stop_after != STOP_AFTER_CHECK) {
         next = run_backend(p, &sema);
+        keep_test_names(p, &sema);
     }
     sema_free(&sema);
     return next;
@@ -104,8 +106,12 @@ int driver_build(const Options *opts) {
     diags_render(&session.diags, &session.sources, opts->format, stderr);
     session_free(&session);
     timer_report(&total, "total", "");
+    int status = ok ? 0 : 1;
     if (ok && p.exe[0] && strcmp(opts->command, "run") == 0) {
-        return run_program(p.exe);
+        status = run_program(p.exe, NULL);
+    } else if (ok && p.exe[0] && strcmp(opts->command, "test") == 0) {
+        status = run_tests(&p);
     }
-    return ok ? 0 : 1;
+    free_test_names(&p);
+    return status;
 }
