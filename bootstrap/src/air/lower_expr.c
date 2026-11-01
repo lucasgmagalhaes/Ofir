@@ -47,7 +47,8 @@ static Operand call(Lowerer *l, Expr *e) {
     if (callee->kind == EXPR_FIELD) {
         return lower_method_call(l, e);
     }
-    Def *def = sema_def(l->sema, (DefId){callee->as.ident.res.index});
+    Res res = callee->kind == EXPR_GENERIC ? callee->as.generic.res : callee->as.ident.res;
+    Def *def = sema_def(l->sema, (DefId){res.index});
     ArgList args = e->as.call.args;
     if (def->kind == DEF_STRUCT) {
         return lower_constructor(l, e);
@@ -81,11 +82,11 @@ Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver) {
         sv_eq(def->item->as.extern_.abi, SV("intrinsic"))) {
         return lower_intrinsic(l, e, fn);
     }
-    reach(l, fn);
     ArgList args = e->as.call.args;
     uint32_t first = receiver ? 1 : 0;
     AirStmt s = {.kind = AIR_CALL};
-    s.as.call.fn = fn->def;
+    s.as.call.fn = fn->def;   // reached by mono_body, once the type arguments are known
+    s.as.call.targs = fn_type_param_count(def) > 0 ? e->as.call.type_args : type_id(TID_UNIT);
     s.as.call.arg_count = args.len + first;
     s.as.call.args = ARENA_ARRAY(&l->sema->session->arena, Operand, args.len + first + 1);
     if (receiver) {

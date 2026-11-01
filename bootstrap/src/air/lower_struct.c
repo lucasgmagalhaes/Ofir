@@ -106,10 +106,12 @@ Operand lower_struct_literal(Lowerer *l, Expr *e) {
         base = to_local(l, lower_expr(l, e->as.struct_.base));
     }
     for (uint32_t f = 0; f < info->count; f++) {
-        if (!given[f]) {
-            items[f] = e->as.struct_.base ? base_field(l, base, f, info->types[f])
-                                          : lower_expr(l, info->defaults[f]);   // at each use
+        if (given[f]) {
+            continue;
         }
+        items[f] = e->as.struct_.base
+                       ? base_field(l, base, f, struct_field_type(l->sema, e->type, f))
+                       : lower_expr(l, info->defaults[f]);   // evaluated at each use
     }
     return aggregate(l, e->type, items, info->count);
 }

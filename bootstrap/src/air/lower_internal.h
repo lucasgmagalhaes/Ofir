@@ -18,14 +18,24 @@ typedef struct {
     FieldPath path;
 } Place;
 
+// A function to compile: a function that is not generic (targs `()`), or
+// an instance of a generic one.
+typedef struct {
+    FnDecl *fn;
+    TypeId targs;
+} Instance;
+
 typedef struct {
     Sema *sema;
     TypeTable *types;
     AirBody *body;
     BlockId block;          // where the next statement goes
     Vec(Loop) loops;
-    Vec(FnDecl *) pending;  // functions reached by a call, still to lower
-    Vec(bool) reached;      // by DefId
+    Vec(Instance) pending;  // functions reached by a call, still to lower
+    Vec(bool) reached;      // by DefId, for functions that are not generic
+    uint64_t *instances;    // the generic instances reached: open addressing of
+    uint32_t instance_count, instance_cap;   // DefId << 32 | targs, 0 = empty
+    bool too_deep;          // E0331 was reported
 } Lowerer;
 
 static inline LocalId air_local_of(LocalId ast_local) {
@@ -63,9 +73,16 @@ LocalId to_local(Lowerer *l, Operand operand);   // a local holding the operand
 // lower_expr.c
 Operand lower_expr(Lowerer *l, Expr *e);
 Operand emit_user_call(Lowerer *l, Expr *e, FnDecl *fn, Expr *receiver);
-// Queues `fn` to be lowered: only functions reachable from `main` are.
-void reach(Lowerer *l, FnDecl *fn);
 bool type_is_value(TypeId type);   // false for () and !
+
+// mono.c: monomorphization (docs/design/compiler-architecture.md, 10)
+// Queues `fn` with the type arguments `targs` (a tuple, `()` if it is not
+// generic) to be lowered: only functions reachable from `main` are.
+void reach(Lowerer *l, FnDecl *fn, TypeId targs);
+// Substitutes the instance's type arguments into a lowered body, then
+// reaches the functions it calls.
+void mono_body(Lowerer *l, AirBody *body);
+void mono_free(Lowerer *l);
 
 // lower_ops.c
 typedef struct {
