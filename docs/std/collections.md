@@ -49,6 +49,12 @@ copies a slice into a new list (S0 for Copy element types).
 
 A hash map iterating in insertion order (spec 2.6). Requires `K: Eq + Hash`.
 
+Stage 0: `Map` is written in `std/core/map.at` (a list of entries in
+insertion order and an open-addressing table), and keys are integers,
+bool, str or tuples of them (E0313), hashed by `std/core/hash.at` until
+bounds. `keys()` and `values()` wait for iterators; `for key, value in
+map` visits the entries.
+
 | Method | Description | S0 |
 |--------|-------------|:--:|
 | `fn new() Map<K, V>` | | ✓ |
