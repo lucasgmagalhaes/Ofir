@@ -156,6 +156,7 @@ TypeId check_struct_field(Checker *c, Expr *e, TypeId base) {
 
 TypeId check_tuple_field(Checker *c, Expr *e) {
     TypeId base = check_expr(c, e->as.tuple_field.base, NO_TYPE);
+    base = deref_box(c, &e->as.tuple_field.base, base);
     const Ty *ty = type_get(c->types, base);
     if (ty->kind == TY_TUPLE && e->as.tuple_field.index < ty->arg_count) {
         return ty->args[e->as.tuple_field.index];

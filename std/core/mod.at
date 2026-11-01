@@ -2,11 +2,13 @@
 //! without an import (spec 7.4, docs/std/core.md).
 //!
 //! The methods of the primitive types live in the submodules, as `@lang`
-//! declarations (ADR 0019).
+//! declarations (ADR 0019). The public declarations of the submodules
+//! (`std.core.box`, ...) belong to the prelude too.
 
 import std.core.str
 import std.core.ints
 import std.core.floats
+import std.core.box
 
 /// The result of comparing two values.
 pub copy enum Ordering {
