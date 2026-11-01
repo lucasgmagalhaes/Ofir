@@ -107,12 +107,12 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.12 | Parameter modes (borrow, `mut`, `move`) for parameters and `self`, `for mut`, `[T]`/`str` view parameters; explicit `&T`/`&mut T` locals, auto-deref, `*` | M | **in progress**: modes of parameters and `self` done (`mut` by reference); `for mut` done; views, `&T` locals and `*` remain |
 | 2.13 | Tuples and destructuring `let` | S | **done**: `tests/run/enums/patterns` |
 | 2.14 | Enums: layout, construction, `.Variant` shorthand | M | **done**: `tests/run/enums/*` |
-| 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards; Copy bindings through references | L | **done** with sequential arm tests (decision trees later, if profiles ask for them); `examples/shapes.at` waits for `List` (2.20) |
+| 2.15 | `match`: decision trees, literal, range, variant, tuple, struct patterns, guards; Copy bindings through references | L | **done** with sequential arm tests (decision trees later, if profiles ask for them); `examples/shapes.at` runs since `List` (2.20) |
 | 2.16 | Exhaustiveness checking (usefulness algorithm) | M | **in progress**: conservative check in place (`tests/compile_fail/types/enums`); the usefulness algorithm remains |
 | 2.17 | `if let`, `let ... else`, `??` | S | **done** except `??` (needs `Option`, 2.22): `tests/run/enums/if_let` |
 | 2.18 | Generic functions, structs and enums **without bounds**; monomorphization and mangling | L | **done**: `tests/run/generics_basic/*`, `tests/compile_fail/types/generics*`; type arguments are inferred from the receiver, the expected type and the arguments |
 | 2.19 | `Box<T>` and recursive enums | M | **done**: `tests/run/box/expr_tree.at`; `Box` is written in `std/core/box.at` with `@lang("box")` and the `sizeOf<T>()` intrinsic; a box is freed by `unbox` until drops (3.2) |
-| 2.20 | `List<T>` (std/collections.md S0 entries): literals, bounds checks, `for` over lists with Copy loop variables, `sort` | L | `tests/run/list/*`, `tests/panic/bounds*` pass |
+| 2.20 | `List<T>` (std/collections.md S0 entries): literals, bounds checks, `for` over lists with Copy loop variables, `sort` | L | **done**: `tests/run/list/*`, `tests/panic/bounds_list*`; written in `std/core/list.at` (`@lang("list")`); `pop`, `get`, `first`, `last` wait for `Option` and borrows (2.21, 2.22), `contains` and `join` for bounds; `sort` takes int, float and str |
 | 2.21 | Slices `&[T]` and `&str`, range indexing, built-in borrow-returning methods (`get`, `first`, `last`, `getMut`) | M | tests pass |
 | 2.22 | `Option<T>`, `Result<T, E>`, `?` (equal error types), `unwrap`, `expect`, unused-`Result` error | M | `tests/run/errors/*` pass |
 | 2.23 | `Map<K, V>`: insertion order, deterministic hashing of integers, `str` and tuples | L | `tests/run/map/*` pass |
@@ -248,7 +248,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. `List<T>` (2.20) and slices (2.21), written in `std` like `Box`, then
-   `Option`/`Result` and `?` (2.22).
+1. `Option`/`Result` and `?` (2.22) in `std`, then slices and borrowing
+   methods (2.21: `get`, `first`, `last`, `pop` return `Option`).
 
 See also the [risk register](risks.md).
