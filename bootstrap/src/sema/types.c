@@ -41,6 +41,12 @@ static void rehash(TypeTable *table) {
 }
 
 static TypeId push(TypeTable *table, Ty ty, uint32_t slot) {
+    bool has_inner = ty.kind == TY_REF || ty.kind == TY_PTR || ty.kind == TY_SLICE ||
+                     ty.kind == TY_ARRAY || ty.kind == TY_FN;
+    ty.has_param = ty.kind == TY_PARAM || (has_inner && table->types[ty.inner.id].has_param);
+    for (uint32_t i = 0; i < ty.arg_count; i++) {
+        ty.has_param = ty.has_param || table->types[ty.args[i].id].has_param;
+    }
     if (ty.arg_count > 0) {
         TypeId *args = ARENA_ARRAY(table->arena, TypeId, ty.arg_count);
         memcpy(args, ty.args, ty.arg_count * sizeof(TypeId));
@@ -114,6 +120,43 @@ TypeId type_fn(TypeTable *table, const TypeId *params, uint32_t count, TypeId re
                        (Ty){.kind = TY_FN, .inner = ret, .arg_count = count, .args = params});
 }
 
+TypeId type_param(TypeTable *table, uint32_t index, Symbol name) {
+    return type_intern(table, (Ty){.kind = TY_PARAM, .data = index, .inner = {name.id}});
+}
+
+TypeId type_subst(TypeTable *table, TypeId type, const TypeId *args, uint32_t count) {
+    Ty ty = *type_get(table, type);   // a copy: interning may move the table
+    if (!ty.has_param || count == 0) {
+        return type;
+    }
+    if (ty.kind == TY_PARAM) {
+        return ty.data < count ? args[ty.data] : type;
+    }
+    if (ty.kind != TY_TUPLE && ty.kind != TY_ADT) {
+        ty.inner = type_subst(table, ty.inner, args, count);   // ref, ptr, slice, array, fn
+    }
+    TypeId small[8];
+    TypeId *items = ty.arg_count <= 8 ? small : ARENA_ARRAY(table->arena, TypeId, ty.arg_count);
+    for (uint32_t i = 0; i < ty.arg_count; i++) {
+        items[i] = type_subst(table, ty.args[i], args, count);
+    }
+    ty.args = items;
+    return type_intern(table, ty);
+}
+
+uint32_t type_depth(const TypeTable *table, TypeId type) {
+    const Ty *ty = type_get(table, type);
+    uint32_t deepest = ty->kind == TY_REF || ty->kind == TY_PTR || ty->kind == TY_SLICE ||
+                               ty->kind == TY_ARRAY || ty->kind == TY_FN
+                           ? type_depth(table, ty->inner)
+                           : 0;
+    for (uint32_t i = 0; i < ty->arg_count; i++) {
+        uint32_t d = type_depth(table, ty->args[i]);
+        deepest = d > deepest ? d : deepest;
+    }
+    return deepest + 1;
+}
+
 bool type_is_integer(const TypeTable *table, TypeId id) {
     return type_get(table, id)->kind == TY_INT;
 }
@@ -126,18 +169,18 @@ bool type_is_numeric(const TypeTable *table, TypeId id) {
 // The 64-bit types are printed with their usual alias names.
 static const char *const INT_NAMES[] = {"i8", "i16", "i32", "int", "u8", "u16", "u32", "uint"};
 
-static void list_text(StrBuf *out, const TypeTable *table, const Ty *ty, AdtNameFn adt_name,
+static void list_text(StrBuf *out, const TypeTable *table, const Ty *ty, TypeNameFn name_of,
                       const void *context) {
     for (uint32_t i = 0; i < ty->arg_count; i++) {
         if (i > 0) {
             strbuf_append_cstr(out, ", ");
         }
-        ty_text(out, table, ty->args[i], adt_name, context);
+        ty_text(out, table, ty->args[i], name_of, context);
     }
 }
 
 // check-sizes: table
-void ty_text(StrBuf *out, const TypeTable *table, TypeId id, AdtNameFn adt_name,
+void ty_text(StrBuf *out, const TypeTable *table, TypeId id, TypeNameFn name_of,
              const void *context) {
     const Ty *ty = type_get(table, id);
     switch (ty->kind) {
@@ -152,12 +195,12 @@ void ty_text(StrBuf *out, const TypeTable *table, TypeId id, AdtNameFn adt_name,
     case TY_PTR:
         strbuf_push(out, ty->kind == TY_REF ? '&' : '*');
         strbuf_append_cstr(out, ty->data ? "mut " : "");
-        ty_text(out, table, ty->inner, adt_name, context);
+        ty_text(out, table, ty->inner, name_of, context);
         break;
     case TY_SLICE:
     case TY_ARRAY:
         strbuf_push(out, '[');
-        ty_text(out, table, ty->inner, adt_name, context);
+        ty_text(out, table, ty->inner, name_of, context);
         if (ty->kind == TY_ARRAY) {
             strbuf_appendf(out, "; %u", ty->data);
         }
@@ -165,30 +208,36 @@ void ty_text(StrBuf *out, const TypeTable *table, TypeId id, AdtNameFn adt_name,
         break;
     case TY_TUPLE:
         strbuf_push(out, '(');
-        list_text(out, table, ty, adt_name, context);
+        list_text(out, table, ty, name_of, context);
         strbuf_append_cstr(out, ty->arg_count == 1 ? ",)" : ")");
         break;
     case TY_FN:
         strbuf_append_cstr(out, "fn(");
-        list_text(out, table, ty, adt_name, context);
+        list_text(out, table, ty, name_of, context);
         strbuf_push(out, ')');
         if (!type_eq(ty->inner, type_id(TID_UNIT))) {
             strbuf_push(out, ' ');
-            ty_text(out, table, ty->inner, adt_name, context);
+            ty_text(out, table, ty->inner, name_of, context);
         }
         break;
     case TY_ADT:
-        if (adt_name) {
-            strbuf_append(out, adt_name(context, ty->data));
+        if (name_of) {
+            strbuf_append(out, name_of(context, ty));
         } else {
             strbuf_appendf(out, "adt%u", ty->data);
         }
         if (ty->arg_count > 0) {
             strbuf_push(out, '<');
-            list_text(out, table, ty, adt_name, context);
+            list_text(out, table, ty, name_of, context);
             strbuf_push(out, '>');
         }
         break;
-    case TY_PARAM: strbuf_appendf(out, "T%u", ty->data); break;
+    case TY_PARAM:
+        if (name_of) {
+            strbuf_append(out, name_of(context, ty));
+        } else {
+            strbuf_appendf(out, "T%u", ty->data);
+        }
+        break;
     }
 }

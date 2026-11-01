@@ -1,0 +1,21 @@
+// A generic type and function used from another module.
+
+pub struct Cell<T> {
+    pub value: T
+
+    pub fn new(value: move T) Cell<T> {
+        return Cell{value}
+    }
+
+    pub fn get(move self) T {
+        return self.value
+    }
+}
+
+pub struct Point {
+    pub x: int
+}
+
+pub fn wrapped<T>(value: move T) Cell<T> {
+    return Cell.new(value)
+}

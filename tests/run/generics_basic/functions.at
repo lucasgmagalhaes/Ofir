@@ -1,0 +1,32 @@
+// Generic functions: inference from the arguments and the expected type,
+// explicit type arguments, and generic code calling generic code.
+
+fn identity<T>(x: move T) T {
+    return x
+}
+
+fn first<A, B>(a: move A, b: move B) A {
+    return a
+}
+
+fn swap<A, B>(pair: move (A, B)) (B, A) {
+    let (a, b) = pair
+    return (b, a)
+}
+
+fn keep<T>(x: move T) T {
+    return identity(first(x, 0))
+}
+
+fn main() {
+    println("{identity(42)}")
+    println(identity("hello"))
+    let small: u8 = identity(200)
+    println("{small}")
+    println("{first(1.5, "ignored")}")
+    let (s, n) = swap((7, "seven"))
+    println("{s} {n}")
+    println("{identity<i16>(-3)}")
+    println("{keep(9) + 1}")
+    println(keep("kept"))
+}

@@ -88,7 +88,12 @@ where
 ## 8.5 Explicit type arguments
 
 Type arguments are normally inferred from arguments and from the expected
-type. They can be written explicitly:
+type. In order, they come from what is written, the receiver (`s.push(x)`
+on a `Stack<int>`), the expected type, then the value arguments from left
+to right; the first type found for a parameter is its argument, and the
+arguments are then checked against the substituted signature. A parameter
+that none of them determines is an error (E0330). They can be written
+explicitly:
 
 ```astra
 let xs = List<int>.new()

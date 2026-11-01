@@ -169,19 +169,20 @@ static TypeId cast(Checker *c, Expr *e) {
 // ---------------------------------------------------------------------------
 // Calls
 
-TypeId check_args(Checker *c, Expr *call, const Ty *sig) {
+TypeId check_args(Checker *c, Expr *call, const Ty *signature) {
+    Ty sig = *signature;   // a copy: interning may move the type table
     ArgList args = call->as.call.args;
-    if (args.len != sig->arg_count) {
+    if (args.len != sig.arg_count) {
         check_error(c, "E0302", call->span,
-                    "wrong number of arguments: expected %u, found %u", sig->arg_count, args.len);
+                    "wrong number of arguments: expected %u, found %u", sig.arg_count, args.len);
     }
     for (uint32_t i = 0; i < args.len; i++) {
         if (args.items[i].name.id != 0) {
             unsupported(c, args.items[i].value->span, "named arguments are");
         }
-        coerce(c, args.items[i].value, i < sig->arg_count ? sig->args[i] : NO_TYPE);
+        coerce(c, args.items[i].value, i < sig.arg_count ? sig.args[i] : NO_TYPE);
     }
-    return sig->inner;
+    return sig.inner;
 }
 
 // print(str), println(str), panic(str) ! and assert(bool).
@@ -192,52 +193,82 @@ static TypeId builtin_call(Checker *c, Expr *call, Builtin builtin) {
     return check_args(c, call, &sig);
 }
 
-static TypeId check_fn_call(Checker *c, Expr *e, const Def *def, const Ty *sig) {
+static TypeId check_fn_call(Checker *c, Expr *e, const Def *def, TypeList explicit,
+                            TypeId expected) {
     if (is_unsafe_fn(def)) {
         require_unsafe(c, e->span, "calling an `unsafe` or `extern` function");
     }
-    TypeId ret = check_args(c, e, sig);
-    if (def->kind == DEF_FN) {
-        check_mut_args(c, def->fn, e);
+    const Ty *sig = type_get(c->types, def->type);
+    TypeId ret;
+    if (fn_type_param_count(def) == 0) {
+        if (explicit.len > 0) {
+            check_error(c, "E0302", e->as.call.callee->span,
+                        "`" SV_FMT "` takes no type arguments", SV_ARG(def_name(c, def)));
+        }
+        ret = check_args(c, e, sig);
+    } else {
+        Infer inf = infer_new(c, fn_generics(def));
+        if (explicit.len > 0) {
+            infer_explicit(c, &inf, false, explicit, e->as.call.callee->span);
+        }
+        ret = check_generic_args(c, e, sig, &inf, expected);
     }
+    check_mut_args(c, def->fn, e);
     return ret;
 }
 
-static TypeId call(Checker *c, Expr *e) {
+// The definition a callee names, `f` or `f<int>`; RES_NONE otherwise.
+static Res callee_res(const Expr *callee) {
+    if (callee->kind == EXPR_IDENT) {
+        return callee->as.ident.res;
+    }
+    return callee->kind == EXPR_GENERIC ? callee->as.generic.res : (Res){0};
+}
+
+static TypeId not_a_function(Checker *c, Expr *e, TypeId type) {
+    if (type.id != TID_ERROR) {
+        check_error(c, "E0311", e->as.call.callee->span,
+                    "expression of type `%s` is not a function", type_name(c, type));
+    }
+    for (uint32_t i = 0; i < e->as.call.args.len; i++) {
+        check_expr(c, e->as.call.args.items[i].value, NO_TYPE);
+    }
+    return type_id(TID_ERROR);
+}
+
+static TypeId call(Checker *c, Expr *e, TypeId expected) {
     Expr *callee = e->as.call.callee;
     if (callee->kind == EXPR_FIELD) {
-        return check_method_call(c, e);
+        return check_method_call(c, e, expected);
     }
-    TypeId type;
-    if (callee->kind == EXPR_IDENT && callee->as.ident.res.kind == RES_DEF) {
-        Def *def = sema_def(c->sema, (DefId){callee->as.ident.res.index});
-        if (def->kind == DEF_BUILTIN) {
-            return builtin_call(c, e, def->builtin);
-        }
-        if (def->kind == DEF_STRUCT) {
-            callee->type = type_id(TID_UNIT);
-            return check_constructor(c, e, (DefId){callee->as.ident.res.index});
-        }
-        type = def->kind == DEF_FN ? fn_signature(c, def->fn) : def_value(c, def, callee->span);
-    } else {
-        type = check_expr(c, callee, NO_TYPE);
+    Res res = callee_res(callee);
+    if (res.kind != RES_DEF) {
+        TypeId type = check_expr(c, callee, NO_TYPE);
+        const Ty *sig = type_get(c->types, type);
+        return sig->kind == TY_FN ? check_args(c, e, sig) : not_a_function(c, e, type);
     }
-    callee->type = type;
-    const Ty *sig = type_get(c->types, type);
-    if (sig->kind == TY_FN && callee->kind == EXPR_IDENT && callee->as.ident.res.kind == RES_DEF) {
-        return check_fn_call(c, e, sema_def(c->sema, (DefId){callee->as.ident.res.index}), sig);
+    TypeList explicit = callee->kind == EXPR_GENERIC ? callee->as.generic.args : (TypeList){0};
+    Def *def = sema_def(c->sema, (DefId){res.index});
+    if (def->kind == DEF_BUILTIN && explicit.len == 0) {
+        return builtin_call(c, e, def->builtin);
     }
-    if (sig->kind != TY_FN) {
-        if (sig->kind != TY_ERROR) {
-            check_error(c, "E0311", callee->span, "expression of type `%s` is not a function",
-                        type_name(c, type));
-        }
-        for (uint32_t i = 0; i < e->as.call.args.len; i++) {
-            check_expr(c, e->as.call.args.items[i].value, NO_TYPE);
-        }
-        return type_id(TID_ERROR);
+    if (def->kind == DEF_STRUCT) {
+        callee->type = type_id(TID_UNIT);
+        return check_constructor(c, e, (DefId){res.index}, explicit, expected);
     }
-    return check_args(c, e, sig);
+    if (def->kind == DEF_FN) {
+        callee->type = fn_signature(c, def->fn);
+        return check_fn_call(c, e, def, explicit, expected);
+    }
+    callee->type = def_value(c, def, callee->span);
+    return not_a_function(c, e, callee->type);
+}
+
+// `Name<T>` outside of a call, a struct literal or `Name<T>.f()`.
+static TypeId generic_value(Checker *c, Expr *e) {
+    check_error(c, "E0310", e->span, "expected a value, found `" SV_FMT "` with type arguments",
+                SV_ARG(symbol_name(&c->sema->session->names, e->as.generic.name)));
+    return type_id(TID_ERROR);
 }
 
 // ---------------------------------------------------------------------------
@@ -267,19 +298,19 @@ static TypeId synthesize(Checker *c, Expr *e, TypeId expected) {
     case EXPR_UNARY: return unary(c, e, expected);
     case EXPR_BINARY: return binary(c, e, expected);
     case EXPR_CAST: return cast(c, e);
-    case EXPR_CALL: return call(c, e);
+    case EXPR_CALL: return call(c, e, expected);
     case EXPR_IF: return check_if(c, e, expected, true);
     case EXPR_BLOCK: return check_block(c, e->as.block, expected, true);
     case EXPR_UNSAFE: return check_unsafe_block(c, e, expected, true);
     case EXPR_TUPLE: return tuple(c, e, expected);
     case EXPR_SELF_TYPE: return type_id(TID_ERROR);   // replaced by the resolver
-    case EXPR_GENERIC: return unsupported(c, e->span, "generic types are");
+    case EXPR_GENERIC: return generic_value(c, e);
     case EXPR_RANGE: return unsupported(c, e->span, "ranges outside of `for` are");
     case EXPR_INDEX: return check_index(c, e);
-    case EXPR_FIELD: return check_field(c, e);
+    case EXPR_FIELD: return check_field(c, e, expected);
     case EXPR_TUPLE_FIELD: return check_tuple_field(c, e);
     case EXPR_TRY: return unsupported(c, e->span, "the `?` operator is");
-    case EXPR_STRUCT: return check_struct_literal(c, e);
+    case EXPR_STRUCT: return check_struct_literal(c, e, expected);
     case EXPR_ARRAY: case EXPR_ARRAY_REPEAT: return unsupported(c, e->span, "arrays are");
     case EXPR_VARIANT: return check_variant_shorthand(c, e, expected);
     case EXPR_MATCH: return check_match(c, e, expected, true);
@@ -306,13 +337,19 @@ static bool weakens_pointer(Checker *c, TypeId found, TypeId expected) {
            type_eq(f->inner, x->inner);
 }
 
-TypeId coerce(Checker *c, Expr *e, TypeId expected) {
-    TypeId found = check_expr(c, e, expected);
+void require_type(Checker *c, const Expr *e, TypeId found, TypeId expected) {
     if (!types_compatible(found, expected) && !weakens_pointer(c, found, expected)) {
         char expected_name[64];
         snprintf(expected_name, sizeof expected_name, "%s", type_name(c, expected));
         check_error(c, "E0300", e->span, "mismatched types: expected %s, found %s",
                     expected_name, type_name(c, found));
+    }
+}
+
+TypeId coerce(Checker *c, Expr *e, TypeId expected) {
+    TypeId found = check_expr(c, e, expected);
+    if (!types_compatible(found, expected)) {   // the common case stays inline
+        require_type(c, e, found, expected);
     }
     return found;
 }
@@ -328,6 +365,7 @@ TypeId check_const(Checker *c, Def *def) {
     }
     def->checking = true;
     uint32_t saved_module = sema_enter(c->sema, def->module);
+    Generics outer = enter_generics(c, (Generics){0});
     TypeExpr *annotation = def->item->as.const_.type;
     Expr *value = def->item->as.const_.value;
     TypeId type = annotation ? resolve_type(c, annotation) : NO_TYPE;
@@ -336,6 +374,7 @@ TypeId check_const(Checker *c, Def *def) {
     if (def->kind == DEF_CONST) {
         def->value = const_eval(c, value);   // while `checking` is set: catches cycles
     }
+    enter_generics(c, outer);
     sema_enter(c->sema, saved_module);
     def->checking = false;
     def->typed = true;

@@ -33,9 +33,11 @@ typedef struct {
     TyKind kind;
     uint32_t data;      // int: IntKind; float: bits; ref, ptr: mutable; array: length;
                         // adt: DefId; param: index
-    TypeId inner;       // ref, ptr, slice, array: element; fn: return type
+    TypeId inner;       // ref, ptr, slice, array: element; fn: return type;
+                        // param: its name (a Symbol id), for messages
     uint32_t arg_count; // tuple: elements; fn: parameters; adt: type arguments
     const TypeId *args;
+    bool has_param;     // set by type_intern: a TY_PARAM occurs in the type
 } Ty;
 
 // The types created by `types_init`, in this order.
@@ -80,13 +82,23 @@ TypeId type_slice(TypeTable *table, TypeId elem);
 TypeId type_tuple(TypeTable *table, const TypeId *elems, uint32_t count);
 TypeId type_fn(TypeTable *table, const TypeId *params, uint32_t count, TypeId ret);
 
+// The type parameter number `index` of a generic declaration. The type
+// parameters of a type come first, then those of its method.
+TypeId type_param(TypeTable *table, uint32_t index, Symbol name);
+
+// `type` with each TY_PARAM `i` replaced by `args[i]` (spec 8.6).
+TypeId type_subst(TypeTable *table, TypeId type, const TypeId *args, uint32_t count);
+
+// How deeply types nest in `type`: 1 for `int`, 2 for `Pair<int, int>`.
+uint32_t type_depth(const TypeTable *table, TypeId type);
+
 bool type_is_integer(const TypeTable *table, TypeId id);
 bool type_is_numeric(const TypeTable *table, TypeId id);
 
-// Appends the source spelling of a type, as in `&mut List<int>`. ADT names
-// come from `adt_name`, which may be NULL in tests.
-typedef StrView (*AdtNameFn)(const void *context, uint32_t def);
-void ty_text(StrBuf *out, const TypeTable *table, TypeId id, AdtNameFn adt_name,
+// Appends the source spelling of a type, as in `&mut List<int>`. The names
+// of ADTs and type parameters come from `name_of`, which may be NULL in tests.
+typedef StrView (*TypeNameFn)(const void *context, const Ty *ty);
+void ty_text(StrBuf *out, const TypeTable *table, TypeId id, TypeNameFn name_of,
              const void *context);
 
 #endif

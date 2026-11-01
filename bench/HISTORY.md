@@ -47,6 +47,7 @@ helpers, and building lists directly in the arena. Memory: 32-byte tokens
 |--------|--------|-------------:|----------:|--------:|---------:|
 | `c37458a` | baseline: first resolver and type checker | 561,991,670 | 140.1 | 0.71M | 70,048 |
 | `770ed99` | prelude `std/core` parsed and checked (ADR 0019) | 568,762,187 | 127.0 | 0.79M | 68,812 |
+| `c78cce1` | generics (2.18); the common case of `coerce` inlined | 567,130,671 | 122.1 | 0.82M | 68,748 |
 
 On the same input, stopping after the parser costs 489.4M instructions:
 resolution and type checking add 72.6M (13% of the total, a third of the
@@ -60,11 +61,17 @@ lexer).
 | `f0a5e18` | buffered writer instead of printf | 2,382,338,156 | — | — | 226,072 |
 | `5f311c6` | one function lowered and generated at a time | 2,377,803,874 | 442.9 | 0.23M | 81,500 |
 | `770ed99` | prelude `std/core`; only functions reachable from `main` lowered | 2,694,652,488 | 463.9 | 0.22M | 68,800 |
+| `c78cce1` | generics (2.18): calls walked once more to reach instances | 2,705,084,632 | 495.7 | 0.20M | 68,776 |
 
 The prelude (690 lines of `std/core`) costs a fixed 2.6M instructions per
 compilation: +4.4% on check-10k, +0.6% on check-100k, an accepted
 regression (ADR 0019). Most of it is `ints.at`, one copy of the methods per
-integer type; generics (2.18) will reduce it to one declaration. Only the
+integer type; generic bounds (5.2) will reduce it to one declaration.
+
+Until `2da11c2`, `make bench-compare` ran the base compiler without the
+prelude (it looked for `std` in the wrong place), which overstated every
+regression measured against a base that has one by about 2.6M
+instructions. Only the
 std functions a program reaches are lowered, so nothing reaches LLVM unless
 it is used.
 

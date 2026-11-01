@@ -94,12 +94,13 @@ bootstrap/
 │   │   ├── check_match.c     `match` and exhaustiveness
 │   │   ├── check_method.c    method calls on primitives (std methods, then built-ins)
 │   │   ├── check_user_method.c method calls on user types
+│   │   ├── check_generic.c   type arguments: explicit and inferred
 │   │   ├── check_unsafe.c    `unsafe` contexts and raw pointers
 │   │   ├── structs.c         struct fields, literals, `@lang` layouts
 │   │   ├── enums.c           enum variants and payloads
 │   │   ├── const_eval.c/.h   constant evaluation
-│   │   ├── builtins.c/.h     the methods still built in until generics (ADR 0019)
-│   │   └── generics.c        generic signatures and bounds (planned)
+│   │   ├── builtins.c/.h     the methods still built in until bounds (ADR 0019)
+│   │   └── bounds.c          generic bounds and `where` clauses (planned)
 │   ├── air/
 │   │   ├── air.c/.h          Astra Intermediate Representation
 │   │   ├── air_print.c/.h    AIR dump (`--emit=air`)
@@ -113,12 +114,12 @@ bootstrap/
 │   │   ├── lower_intrinsic.c `extern "intrinsic"` calls → AIR operations
 │   │   ├── lower_pattern.c   patterns and `match`
 │   │   ├── lower_struct.c    struct and enum values
-│   │   ├── moves.c           moves, definite initialization, drop flags (planned)
-│   │   └── mono.c            monomorphization (planned)
+│   │   ├── mono.c            monomorphization: instances, type substitution
+│   │   └── moves.c           moves, definite initialization, drop flags (planned)
 │   ├── codegen/
 │   │   ├── llvm.c/.h         AIR → textual LLVM IR: module, names, constants
 │   │   ├── llvm_internal.h   state shared by the generator files
-│   │   ├── llvm_types.c      struct, enum and tuple types, field paths
+│   │   ├── llvm_types.c      struct, enum and tuple types and instances, field paths
 │   │   ├── llvm_body.c       functions, statements, terminators
 │   │   ├── llvm_ops.c        operands and rvalues
 │   │   ├── llvm_misc.c       string, float and pointer operations, aggregates
