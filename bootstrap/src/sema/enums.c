@@ -152,6 +152,13 @@ static TypeId build(Checker *c, VariantUse use, TypeHints hints) {
     return check_args(c, &call, &sig);
 }
 
+// `Some(x)`, `None`, `Ok(v)`, `Err(e)`: the variants the prelude names.
+TypeId check_prelude_variant(Checker *c, Expr *e, const Def *def, const ArgList *args,
+                             TypeId expected) {
+    VariantUse use = {e, args, (DefId){def->target}, def->variant};
+    return build(c, use, (TypeHints){type_id(TID_ERROR), expected});
+}
+
 static TypeId no_variant(Checker *c, Span span, Symbol name, TypeId type) {
     check_error(c, "E0320", span, "no variant `" SV_FMT "` in `%s`", SV_ARG(name_of(c, name)),
                 type_name(c, type));

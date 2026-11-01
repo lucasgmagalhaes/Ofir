@@ -6,6 +6,7 @@ static const BuiltinInfo TABLE[] = {
     {"wrappingCast", RECV_INT, BM_WRAPPING_CAST, MODE_BORROW, {BT_NONE, BT_NONE}, BT_TARGET, true},
     {"saturatingCast", RECV_INT, BM_SATURATING_CAST, MODE_BORROW, {BT_NONE, BT_NONE}, BT_TARGET,
      true},
+    {"checkedCast", RECV_INT, BM_CHECKED_CAST, MODE_BORROW, {BT_NONE, BT_NONE}, BT_OPTION, true},
     {"add", RECV_PTR, BM_PTR_ADD, MODE_BORROW, {BT_INT, BT_NONE}, BT_SELF, false},
 };
 

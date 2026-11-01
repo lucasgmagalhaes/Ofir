@@ -51,9 +51,34 @@ static Pattern *binding_pattern(Resolver *r, Symbol name, Span span) {
 
 static void declare_patterns(Resolver *r, PatternList list, bool reuse);
 
+// `None` and `Some(x)` in a pattern name the prelude's variants, not a new
+// binding or a tuple struct: they become variant patterns.
+static void prelude_variant(Resolver *r, Pattern *p) {
+    Symbol name = p->kind == PAT_BINDING ? p->as.binding.name
+                  : p->kind == PAT_TUPLE_STRUCT && p->as.tuple_struct.path.len == 1
+                      ? p->as.tuple_struct.path.items[0]
+                      : (Symbol){0};
+    DefId def = name.id ? scope_module(&r->sema->scope, name) : (DefId){0};
+    if (def.id == 0 || sema_def(r->sema, def)->kind != DEF_VARIANT) {
+        return;
+    }
+    if (p->kind == PAT_BINDING && p->as.binding.mutable) {
+        resolve_error(r, "E0200", p->span, "`" SV_FMT "` is a variant, not a variable",
+                      SV_ARG(resolver_name(r, name)));
+    }
+    PatternList args = p->kind == PAT_TUPLE_STRUCT ? p->as.tuple_struct.args : (PatternList){0};
+    bool has_args = p->kind == PAT_TUPLE_STRUCT;
+    p->kind = PAT_VARIANT;
+    p->as.variant.path = (SymbolList){0};
+    p->as.variant.name = name;
+    p->as.variant.args = args;
+    p->as.variant.has_args = has_args;
+}
+
 // Declares the bindings of a pattern. With `reuse`, a name already bound in
 // this block keeps its local: the alternatives of `a | b` bind the same names.
 static void declare_pattern(Resolver *r, Pattern *p, bool reuse) {
+    prelude_variant(r, p);
     switch (p->kind) {
     case PAT_BINDING: {
         Symbol name = p->as.binding.name;

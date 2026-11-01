@@ -87,9 +87,12 @@ static DefId *named_lang(Resolver *r, const Attribute *attr) {
     if (!arg || arg->kind != EXPR_STR || !in_std(r)) {
         return NULL;
     }
-    DefId *slot = sv_eq(arg->as.str, SV("box"))    ? &r->sema->box
-                  : sv_eq(arg->as.str, SV("list")) ? &r->sema->list
-                                                   : NULL;
+    StrView name = arg->as.str;
+    DefId *slot = sv_eq(name, SV("box"))      ? &r->sema->box
+                  : sv_eq(name, SV("list"))   ? &r->sema->list
+                  : sv_eq(name, SV("option")) ? &r->sema->option
+                  : sv_eq(name, SV("result")) ? &r->sema->result
+                                              : NULL;
     return slot && slot->id == 0 ? slot : NULL;
 }
 
@@ -124,6 +127,16 @@ static bool collect_lang(Resolver *r, const Item *item) {
     return true;
 }
 
+// The variants of Option and Result are names of their own: `Some(x)`,
+// `None`, `Ok(v)`, `Err(e)`, which the prelude exports (spec 6.1).
+static void declare_variants(Resolver *r, const Item *item, DefId owner) {
+    for (uint32_t i = 0; i < item->as.enum_.variants.len; i++) {
+        const Variant *v = &item->as.enum_.variants.items[i];
+        declare_item(r, (Def){.kind = DEF_VARIANT, .name = v->name, .span = v->span,
+                              .item = item, .is_pub = true, .target = owner.id, .variant = i});
+    }
+}
+
 static void collect_item(Resolver *r, const Item *item) {
     if ((item->kind == ITEM_STRUCT || item->kind == ITEM_TUPLE_STRUCT) && collect_lang(r, item)) {
         return;
@@ -146,11 +159,14 @@ static void collect_item(Resolver *r, const Item *item) {
             item->kind == ITEM_ENUM) {
             check_members(r, item);
         }
-        DefId *slot = item->kind == ITEM_STRUCT
+        DefId *slot = item->kind == ITEM_STRUCT || item->kind == ITEM_ENUM
                           ? named_lang(r, find_attribute(r->sema, item->attributes, "lang"))
                           : NULL;
         if (slot) {
             *slot = scope_module(&r->sema->scope, item->name);
+        }
+        if (slot && item->kind == ITEM_ENUM) {
+            declare_variants(r, item, *slot);
         }
         break;
     }
