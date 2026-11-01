@@ -67,7 +67,10 @@ Values are dropped in reverse order of declaration. Dropping a value:
 1. calls its `drop` method, if it has one;
 2. then drops each field, in declaration order.
 
-Temporaries are dropped at the end of the statement that created them.
+Temporaries are dropped at the end of the statement that created them
+(of a condition, for the condition of an `if` or a loop). `let _ = value`
+drops the value at once. A struct or enum with a `drop` method is dropped
+whole: moving a field out of it is an error (E0602).
 
 If a value is moved on some paths only, the compiler inserts a hidden drop
 flag so it is dropped exactly once. This is the only runtime cost of the

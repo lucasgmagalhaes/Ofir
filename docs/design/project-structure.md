@@ -121,6 +121,8 @@ bootstrap/
 │   │   ├── lower_struct.c    struct and enum values
 │   │   ├── lower_list.c      list literals, bounds-checked elements, `for` over lists and maps
 │   │   ├── lower_hash.c      `hashOf<K>` and `equals<K>` for Map keys
+│   │   ├── lower_drop.c      drop glue, `dropInPlace<T>` and `forget<T>`
+│   │   ├── lower_scope.c     drop scopes, drop flags (also per moved part), temporaries
 │   │   ├── lower_option.c    `?` and `??`
 │   │   ├── mono.c            monomorphization: instances, type substitution
 │   │   ├── moves.c           move analysis: states, statements, loops (E0600-E0602)
@@ -297,6 +299,7 @@ tools/
 ├── verify_selfhost.sh        compare stage2 and stage3 outputs
 ├── check_sizes.py            size rules of the style guide (make test)
 ├── check_docs.py             documentation comments of std, ADR 0020 (make test)
+├── check_leaks.py            every run test under valgrind (make check-leaks)
 ├── gen_core_numbers.py       generates std/core/num/
 ├── fmt/                      `astra fmt` [planned]
 └── lsp/                      language server [planned]
