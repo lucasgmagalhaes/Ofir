@@ -141,5 +141,7 @@ TypeId check_generic_args(Checker *c, Expr *call, const Ty *signature, Infer *in
         require_type(c, arg, arg->type, infer_apply(c, inf, sig.args[i]));
     }
     call->as.call.type_args = type_tuple(c->types, inf->args, inf->count);
-    return infer_apply(c, inf, sig.inner);
+    TypeId ret = infer_apply(c, inf, sig.inner);
+    check_map_key(c, ret, call->span);
+    return ret;
 }

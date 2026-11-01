@@ -66,6 +66,12 @@ Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn) {
     if (sv_eq(name, SV("lessThan"))) {
         return less_than(l, call);
     }
+    if (sv_eq(name, SV("hashOf"))) {
+        return lower_hash_of(l, call);
+    }
+    if (sv_eq(name, SV("equals"))) {
+        return lower_equals(l, call);
+    }
     const Intrinsic *op = find(name);
     if (!op) {
         diag_error(&l->sema->session->diags, "E0805", fn->span, "unknown intrinsic");

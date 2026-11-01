@@ -115,7 +115,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.20 | `List<T>` (std/collections.md S0 entries): literals, bounds checks, `for` over lists with Copy loop variables, `sort` | L | **done**: `tests/run/list/*`, `tests/panic/bounds_list*`; written in `std/core/list.at` (`@lang("list")`); `pop`, `get`, `first`, `last` wait for `Option` and borrows (2.21, 2.22), `contains` and `join` for bounds; `sort` takes int, float and str |
 | 2.21 | Slices `&[T]` and `&str`, range indexing, built-in borrow-returning methods (`get`, `first`, `last`, `getMut`) | M | **done**: `tests/run/refs/*`, `tests/compile_fail/types/references.at`; `&T`, `&mut T` and the second-class rules (E0702); `Slice<T>` in `std/core/slice.at`; borrows are not checked until the borrow checker (4.7); `&str` is a `str` view, `&mut [T]` and `Option.asRef` wait |
 | 2.22 | `Option<T>`, `Result<T, E>`, `?` (equal error types), `unwrap`, `expect`, unused-`Result` error | M | **done**: `tests/run/errors/*`; written in `std/core/option.at` and `result.at` (`@lang("option")`, `@lang("result")`); `Some`, `None`, `Ok`, `Err` in scope everywhere; `List.pop`; `asRef` waits for references (2.21) |
-| 2.23 | `Map<K, V>`: insertion order, deterministic hashing of integers, `str` and tuples | L | `tests/run/map/*` pass |
+| 2.23 | `Map<K, V>`: insertion order, deterministic hashing of integers, `str` and tuples | L | **done**: `tests/run/map/*`; written in `std/core/map.at` and `hash.at`, keys hashed through the `hashOf`/`equals` intrinsics; `for key, value in map` and `for i, x in list` |
 | 2.24 | Warnings: unused variables, unused imports, unreachable code; `--deny-warnings` | S | `tests/compile_fail/warn_*` pass |
 
 ## Phase 2b — Standard library in Astra (ADR 0019)

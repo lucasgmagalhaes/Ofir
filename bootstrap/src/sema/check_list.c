@@ -3,6 +3,8 @@
 
 #include "sema/check_internal.h"
 
+#include <string.h>
+
 bool sequence_elem(Checker *c, TypeId type, TypeId *elem) {
     const Ty *ty = type_get(c->types, type);
     if (c->sema->slice.id != 0 && ty->kind == TY_ADT && ty->data == c->sema->slice.id) {
@@ -74,21 +76,68 @@ TypeId check_list_repeat(Checker *c, Expr *e, TypeId expected) {
     return list_of(c, elem);
 }
 
-// `for x in list` or `for x in slice`: `x` borrows each element (spec 5.5);
-// stage 0 binds it to a copy of the bits, which is the same while there are
-// no drops (roadmap 3.2).
-TypeId check_for_list(Checker *c, Expr **list) {
-    TypeId type = check_expr(c, *list, NO_TYPE);
-    type = auto_deref(c, list, type);
-    TypeId elem;
-    if (!sequence_elem(c, type, &elem)) {
-        if (type.id != TID_ERROR) {
-            check_error(c, "E0300", (*list)->span, "mismatched types: `for` needs a range, a "
-                        "list or a slice, found %s", type_name(c, type));
-        }
-        return type_id(TID_ERROR);
+bool map_parts(Checker *c, TypeId type, TypeId *key, TypeId *value) {
+    const Ty *ty = type_get(c->types, type);
+    if (c->sema->map.id == 0 || ty->kind != TY_ADT || ty->data != c->sema->map.id ||
+        ty->arg_count != 2) {
+        return false;
     }
-    return elem;
+    *key = ty->args[0];
+    *value = ty->args[1];
+    return true;
+}
+
+// The keys Map can hash and compare without bounds (roadmap 5.2).
+static bool hashable(Checker *c, TypeId type) {
+    const Ty *ty = type_get(c->types, type);
+    if (ty->kind == TY_TUPLE) {
+        for (uint32_t i = 0; i < ty->arg_count; i++) {
+            if (!hashable(c, ty->args[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    bool in_std = c->sema->program.items[c->sema->current].name.len >= 3 &&
+                  memcmp(c->sema->program.items[c->sema->current].name.ptr, "std", 3) == 0;
+    return ty->kind == TY_INT || ty->kind == TY_BOOL || ty->kind == TY_STR ||
+           ty->kind == TY_ERROR || (ty->kind == TY_PARAM && in_std);
+}
+
+void check_map_key(Checker *c, TypeId type, Span span) {
+    TypeId key, value;
+    if (map_parts(c, type, &key, &value) && !hashable(c, key)) {
+        check_error(c, "E0313", span, "`Map` keys must be integers, bool, str or tuples of "
+                    "them in stage 0, not `%s`", type_name(c, key));
+    }
+}
+
+// `for x in list`, `for i, x in list` (with the index), `for key, value in
+// map`. The variables borrow the elements (spec 5.5); stage 0 binds them to
+// copies of the bits, which is the same while there are no drops (3.2).
+void check_for_collection(Checker *c, Stmt *s) {
+    Expr **expr = &s->as.for_.expr;
+    TypeId type = auto_deref(c, expr, check_expr(c, *expr, NO_TYPE));
+    bool two = s->as.for_.second.id != 0;
+    TypeId first = type_id(TID_ERROR), second = type_id(TID_ERROR), elem, key, value;
+    if (sequence_elem(c, type, &elem)) {
+        first = two ? type_id(TID_INT) : elem;
+        second = elem;
+    } else if (map_parts(c, type, &key, &value)) {
+        if (!two) {
+            check_error(c, "E0300", (*expr)->span, "iterate a map with two variables: "
+                        "`for key, value in map`");
+        }
+        first = key;
+        second = value;
+    } else if (type.id != TID_ERROR) {
+        check_error(c, "E0300", (*expr)->span, "mismatched types: `for` needs a range, a "
+                    "list, a slice or a map, found %s", type_name(c, type));
+    }
+    c->local_types[s->as.for_.first_local.id] = first;
+    if (two) {
+        c->local_types[s->as.for_.second_local.id] = second;
+    }
 }
 
 // `xs[a..b]`, `xs[a..]`, `xs[..b]`: rewritten to `xs.slice(a, b)` or

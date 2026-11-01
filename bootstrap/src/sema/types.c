@@ -62,6 +62,9 @@ static TypeId push(TypeTable *table, Ty ty, uint32_t slot) {
 }
 
 TypeId type_intern(TypeTable *table, Ty ty) {
+    if (ty.kind == TY_REF && !ty.data && ty.inner.id == TID_STR) {
+        return type_id(TID_STR);   // stage 0: `&str` is a `str` view (sema/check_ref.c)
+    }
     if ((table->count + 1) * 2 > table->slots_cap) {
         rehash(table);   // keep the load factor under 1/2
     }
