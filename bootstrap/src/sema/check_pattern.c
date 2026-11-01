@@ -166,7 +166,10 @@ void check_pattern(Checker *c, Pattern *p, TypeId type) {
     p->type = type;
     switch (p->kind) {
     case PAT_WILDCARD: break;
-    case PAT_BINDING: c->local_types[p->as.binding.local.id] = type; break;
+    case PAT_BINDING:
+        c->local_types[p->as.binding.local.id] = type;
+        note_owned(c, type);
+        break;
     case PAT_LITERAL: literal_pattern(c, p, type); break;
     case PAT_RANGE: range_pattern(c, p, type); break;
     case PAT_VARIANT: variant_pattern(c, p, type); break;

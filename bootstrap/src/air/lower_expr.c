@@ -156,10 +156,20 @@ static void store(Lowerer *l, LocalId dest, bool has_dest, Operand value) {
     }
 }
 
+// A condition, whose temporaries end with it.
+Operand lower_condition(Lowerer *l, Expr *e) {
+    temp_scope_enter(l);
+    Operand cond = lower_expr(l, e);
+    cond = op_copy(to_local(l, cond), cond.type);
+    temp_scope_leave(l);
+    return cond;
+}
+
 static Operand lower_if(Lowerer *l, Expr *e) {
     bool has_value = type_is_value(e->type);
     LocalId dest = has_value ? new_temp(l, e->type) : (LocalId){0};
-    Operand cond = lower_expr(l, e->as.if_.cond);
+    Operand cond = e->as.if_.let_pattern ? lower_expr(l, e->as.if_.cond)
+                                         : lower_condition(l, e->as.if_.cond);
     BlockId then = air_new_block(l->body), other = air_new_block(l->body);
     BlockId join = air_new_block(l->body);
     if (e->as.if_.let_pattern) {   // the pattern's tests jump to `else` on a mismatch
@@ -170,7 +180,13 @@ static Operand lower_if(Lowerer *l, Expr *e) {
                                   .other = other});
     }
     switch_to(l, then);
-    store(l, dest, has_value, lower_block(l, e->as.if_.then, has_value));
+    drop_scope_enter(l);   // the bindings of `if let` live in the `then` block
+    if (e->as.if_.let_pattern) {
+        own_bindings(l, e->as.if_.let_pattern);
+    }
+    Operand then_value = lower_block(l, e->as.if_.then, has_value);
+    store(l, dest, has_value, then_value);
+    drop_scope_leave(l);
     emit_goto(l, join);
     switch_to(l, other);
     Expr *else_ = e->as.if_.else_;
@@ -194,7 +210,9 @@ static Operand logical(Lowerer *l, Expr *e) {
     terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = lhs, .target = is_and ? rhs : join,
                               .other = is_and ? join : rhs});
     switch_to(l, rhs);
+    temp_scope_enter(l);   // evaluated on one path only
     emit_assign(l, dest, (Rvalue){.kind = RV_USE, .a = lower_expr(l, e->as.binary.rhs)});
+    temp_scope_leave(l);
     emit_goto(l, join);
     switch_to(l, join);
     return lhs;
@@ -215,7 +233,20 @@ static Operand binary(Lowerer *l, Expr *e) {
 }
 
 // check-sizes: table
+static Operand lower_kind(Lowerer *l, Expr *e);
+
 Operand lower_expr(Lowerer *l, Expr *e) {
+    bool forwarded = l->forward;   // only for `e` itself, not its parts
+    l->forward = false;
+    Operand value = lower_kind(l, e);
+    if (e->moves) {   // the local's value is moved out: it is not dropped
+        note_moved(l, e);
+    }
+    l->forward = forwarded;
+    return own_temp(l, e, value);   // a temporary, if no one consumes it
+}
+
+static Operand lower_kind(Lowerer *l, Expr *e) {
     switch (e->kind) {
     case EXPR_INT: return int_literal(l, e);
     case EXPR_FLOAT:

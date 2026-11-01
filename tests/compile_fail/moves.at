@@ -66,3 +66,14 @@ fn fromForVariable(names: List<str>) {
 
 fn main() {
 }
+
+struct Guarded {
+    name: str
+
+    fn drop(mut self) {
+    }
+}
+
+fn fromDropType(g: move Guarded) str {
+    return g.name                // error[E0602]: cannot move out of a field of `Guarded`, which has a `drop` method: use `mem.replace`
+}

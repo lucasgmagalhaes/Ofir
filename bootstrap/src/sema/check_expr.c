@@ -340,6 +340,7 @@ TypeId check_unsafe_block(Checker *c, Expr *e, TypeId expected, bool as_value) {
 
 TypeId check_expr(Checker *c, Expr *e, TypeId expected) {
     e->type = synthesize(c, e, expected);
+    note_value(c, e);
     return e->type;
 }
 

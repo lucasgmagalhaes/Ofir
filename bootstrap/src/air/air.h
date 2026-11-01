@@ -111,7 +111,7 @@ typedef struct {
         struct {
             bool runtime;       // a runtime function, else a user function
             RuntimeFn rt;
-            DefId fn;
+            DefId fn;           // 0 for the drop glue of the type in `targs`
             TypeId targs;       // the type arguments of a generic fn, a tuple; else ()
             Operand *args;
             uint32_t arg_count;
@@ -163,7 +163,7 @@ typedef struct {
 // The body of an instance of a generic function has its types substituted
 // (air/mono.c): no TY_PARAM remains.
 typedef struct {
-    DefId def;
+    DefId def;        // 0 for drop glue: `targs` is then the tuple of the dropped type
     TypeId targs;     // the type arguments of the instance, a tuple; () if not generic
     Symbol name;
     bool is_main;

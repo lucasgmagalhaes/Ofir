@@ -139,8 +139,17 @@ StrView sema_type_name(const void *context, const Ty *ty) {
 }
 
 void note_import_use(Sema *sema, Symbol name) {
-    for (size_t i = sema->imports.len; i > 0; i--) {   // the current module's are recent
+    DefId id = scope_module(&sema->scope, name);
+    const Def *def = id.id ? sema_def(sema, id) : NULL;
+    if (def && def->module == sema->current && !def->in_prelude && def->kind != DEF_MODULE) {
+        return;   // the module's own declaration, not an import
+    }
+    // The imports are recorded module by module, in order.
+    for (size_t i = sema->imports.len; i > 0; i--) {
         ImportUse *use = &sema->imports.data[i - 1];
+        if (use->module < sema->current) {
+            break;
+        }
         if (use->module == sema->current && symbol_eq(use->name, name)) {
             use->used = true;
         }
