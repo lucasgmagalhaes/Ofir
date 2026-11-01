@@ -67,4 +67,9 @@ An owned heap allocation.
 | `fn unbox(move self) T` | moves the value out and frees the box | ✓ |
 
 `Box<T>` dereferences automatically for field access and method calls;
-`*b` reads the value.
+`*b` reads the value. A method of `Box` itself (`unbox`) takes precedence
+over a method of the same name of the value; `(*b).m()` calls the latter.
+
+Stage 0: `Box` is declared in `std/core/box.at`, marked `@lang("box")` so
+that the compiler knows which type to dereference. Until drops (roadmap
+3.2) a box is freed only by `unbox`.
