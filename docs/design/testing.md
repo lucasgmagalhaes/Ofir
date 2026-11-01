@@ -58,6 +58,12 @@ annotated error of each function is reported with the right code and line,
 and ignores messages. Tests that need several errors in one function or
 exact messages are tagged `// requires: stage1`.
 
+Warnings are annotated the same way (`// warning[W0001]: ...`). A test
+that annotates at least one warning must annotate all of them; a test of
+errors ignores warnings, such as the unused variables it needs to trigger
+its errors. `run` tests are compiled with `--deny-warnings`: programs that
+run, examples included, are warning-free.
+
 Error codes come from the registry in [`docs/errors`](../errors/README.md).
 
 ### Panic tests
