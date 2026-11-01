@@ -42,10 +42,29 @@ static Operand size_of(Lowerer *l, Expr *call) {
     return op_copy(emit_temp(l, type_id(TID_INT), rv), type_id(TID_INT));
 }
 
+// `lessThan<T>(a, b)`: `a < b` for the instance's type (int, float or str,
+// which the checker ensures), so the type argument is substituted now.
+static Operand less_than(Lowerer *l, Expr *call) {
+    const Ty *targs = type_get(l->types, l->body->targs);
+    TypeId type = type_get(l->types, call->as.call.type_args)->args[0];
+    type = type_subst(l->types, type, targs->args, targs->arg_count);
+    ArgList args = call->as.call.args;
+    Operand a = lower_expr(l, args.items[0].value);
+    a = settle(l, a, args.items[1].value);
+    Operand b = lower_expr(l, args.items[1].value);
+    a.type = type;
+    b.type = type;
+    return lower_binary_op(l, (Arith){.op = OP_LT, .type = type, .a = a, .b = b,
+                                      .span = call->span});
+}
+
 Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn) {
     StrView name = symbol_name(&l->sema->session->names, fn->name);
     if (sv_eq(name, SV("sizeOf"))) {
         return size_of(l, call);
+    }
+    if (sv_eq(name, SV("lessThan"))) {
+        return less_than(l, call);
     }
     const Intrinsic *op = find(name);
     if (!op) {

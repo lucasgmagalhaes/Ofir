@@ -122,6 +122,9 @@ TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type, Typ
     check_visible(c, sema_def(c->sema, owner)->module, fn->is_pub, name, field->span);
     field->as.field.res = (Res){RES_DEF, fn->def.id};
     TypeId ret = method_args(c, call, fn, hints);
+    if (owner.id == c->sema->list.id && sv_eq(name_of(c, name), SV("sort"))) {
+        check_list_sort(c, call);
+    }
     check_mut_args(c, fn, call);
     return ret;
 }

@@ -51,7 +51,7 @@ static void lower_assign(Lowerer *l, Stmt *s) {
 }
 
 // The body of a loop; `latch` is where `continue` goes.
-static void loop_body(Lowerer *l, Block *body, BlockId latch, BlockId exit) {
+void lower_loop_body(Lowerer *l, Block *body, BlockId latch, BlockId exit) {
     VEC_PUSH(l->loops, ((Loop){.break_to = exit, .continue_to = latch}));
     lower_block(l, body, false);
     l->loops.len--;
@@ -72,7 +72,7 @@ static void lower_while(Lowerer *l, Stmt *s) {
         emit_goto(l, body);
     }
     switch_to(l, body);
-    loop_body(l, s->as.for_.body, header, exit);
+    lower_loop_body(l, s->as.for_.body, header, exit);
     switch_to(l, exit);
 }
 
@@ -99,7 +99,7 @@ static void lower_for_range(Lowerer *l, Stmt *s) {
     terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = go, .target = body, .other = exit});
     switch_to(l, body);
     emit_assign(l, air_local_of(s->as.for_.first_local), (Rvalue){.kind = RV_USE, .a = current});
-    loop_body(l, s->as.for_.body, latch, exit);
+    lower_loop_body(l, s->as.for_.body, latch, exit);
     switch_to(l, latch);
     BlockId step = air_new_block(l->body);
     if (inclusive) {   // stop at hi itself, before an increment that could overflow
@@ -139,7 +139,9 @@ static void lower_stmt(Lowerer *l, Stmt *s) {
         break;
     case STMT_ASSIGN: lower_assign(l, s); break;
     case STMT_FOR:
-        if (s->as.for_.kind == FOR_IN) {
+        if (s->as.for_.kind == FOR_IN && s->as.for_.expr->kind != EXPR_RANGE) {
+            lower_for_list(l, s);
+        } else if (s->as.for_.kind == FOR_IN) {
             lower_for_range(l, s);
         } else {
             lower_while(l, s);

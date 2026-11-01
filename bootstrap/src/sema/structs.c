@@ -7,15 +7,26 @@ static StrView name_of(Checker *c, Symbol name) {
     return symbol_name(&c->sema->session->names, name);
 }
 
-static bool is_copy_type(Checker *c, TypeId type) {
+// Spec 2.9. A type parameter without bounds may stand for any type, so it
+// is not Copy.
+bool type_is_copy(Checker *c, TypeId type) {
     const Ty *ty = type_get(c->types, type);
-    if (ty->kind == TY_ADT) {
-        const Def *def = sema_def(c->sema, (DefId){ty->data});
-        return def->kind == DEF_STRUCT && def->item->as.struct_.is_copy;
+    switch (ty->kind) {
+    case TY_ADT: {
+        const Item *item = sema_def(c->sema, (DefId){ty->data})->item;
+        return item->kind == ITEM_ENUM ? item->as.enum_.is_copy : item->as.struct_.is_copy;
     }
-    // The primitive types except str. A type parameter without bounds may
-    // stand for any type, so it is not Copy.
-    return ty->kind != TY_STR && ty->kind != TY_PARAM;
+    case TY_TUPLE:
+        for (uint32_t i = 0; i < ty->arg_count; i++) {
+            if (!type_is_copy(c, ty->args[i])) {
+                return false;
+            }
+        }
+        return true;
+    case TY_ARRAY: return type_is_copy(c, ty->inner);
+    case TY_STR: case TY_PARAM: case TY_SLICE: return false;
+    default: return true;
+    }
 }
 
 // The fields of an instance of a generic type hold its type arguments by
@@ -75,7 +86,7 @@ static void fill_fields(Checker *c, Def *def, StructInfo *info) {
         if (field->default_value) {
             coerce(c, field->default_value, info->types[i]);
         }
-        if (info->is_copy && !is_copy_type(c, info->types[i]) && info->types[i].id != TID_ERROR) {
+        if (info->is_copy && !type_is_copy(c, info->types[i]) && info->types[i].id != TID_ERROR) {
             check_error(c, "E0317", field->span,
                         "a `copy struct` can only have fields of Copy types, not `%s`",
                         type_name(c, info->types[i]));

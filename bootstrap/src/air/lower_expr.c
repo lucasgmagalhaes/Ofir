@@ -201,6 +201,8 @@ Operand lower_expr(Lowerer *l, Expr *e) {
     case EXPR_TUPLE_FIELD: return lower_field_read(l, e);
     case EXPR_STRUCT: return lower_struct_literal(l, e);
     case EXPR_INDEX: return lower_index(l, e);
+    case EXPR_ARRAY: return lower_list_literal(l, e);
+    case EXPR_ARRAY_REPEAT: return lower_list_repeat(l, e);
     case EXPR_IF: return lower_if(l, e);
     case EXPR_BLOCK: case EXPR_UNSAFE:
         return lower_block(l, e->as.block, type_is_value(e->type));

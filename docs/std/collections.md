@@ -34,6 +34,13 @@ from context).
 | `fn join(self, sep: str) str where T: Display` | allocates | ✓ |
 
 Indexing `l[i]` and slicing `l[a..b]` are bounds checked (spec 4.9).
+
+Stage 0: `List` is written in `std/core/list.at`, marked `@lang("list")`;
+the compiler builds literals with its `withCapacity`, `push`, `new` and
+`filled`, and reaches elements through its `ptr` and `len` fields.
+`for x in list` copies each element, so the element type must be Copy
+(E0321) until borrowing iterators; `sort` accepts int, float and str
+elements until bounds.
 A `[T]` parameter accepts a `List<T>` (spec 5.3); slice methods (`len`, `get`, `first`, `last`,
 `contains`, `iter`) are shared. The slice method `fn toList(self) List<T> where T: Clone`
 copies a slice into a new list (S0 for Copy element types).
