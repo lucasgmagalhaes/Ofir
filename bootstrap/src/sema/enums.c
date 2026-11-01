@@ -9,7 +9,8 @@ static StrView name_of(Checker *c, Symbol name) {
     return symbol_name(&c->sema->session->names, name);
 }
 
-static void fill_variant(Checker *c, const Variant *decl, VariantInfo *v, int64_t *next) {
+static void fill_variant(Checker *c, const Variant *decl, VariantInfo *v, int64_t *next,
+                         bool copy) {
     Arena *arena = &c->sema->session->arena;
     v->name = decl->name;
     v->count = decl->fields.len;
@@ -19,6 +20,10 @@ static void fill_variant(Checker *c, const Variant *decl, VariantInfo *v, int64_
         v->field_names[f] = decl->fields.items[f].name;
         v->types[f] = resolve_type(c, decl->fields.items[f].type);
         check_not_recursive(c, v->types[f], decl->span);
+        if (copy && !type_is_copy(c, v->types[f]) && v->types[f].id != TID_ERROR) {
+            check_error(c, "E0317", decl->span, "a `copy enum` can only have fields of Copy "
+                        "types, not `%s`", type_name(c, v->types[f]));
+        }
     }
     v->discriminant = *next;
     if (decl->discriminant) {
@@ -65,7 +70,8 @@ EnumInfo *enum_variants(Checker *c, DefId id) {
     def->checking = true;
     int64_t next = 0;
     for (uint32_t i = 0; i < info->count; i++) {
-        fill_variant(c, &item->as.enum_.variants.items[i], &info->variants[i], &next);
+        fill_variant(c, &item->as.enum_.variants.items[i], &info->variants[i], &next,
+                     item->as.enum_.is_copy);
         info->has_payload = info->has_payload || info->variants[i].count > 0;
     }
     def->checking = false;
