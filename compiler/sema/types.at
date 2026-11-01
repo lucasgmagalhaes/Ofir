@@ -1,0 +1,383 @@
+/**
+ * @module
+ * Types (stage 0: bootstrap/src/sema/types.c): hash-consed, so that each
+ * distinct type exists once and type equality compares two ids. A type id
+ * is an `int`, its index in the `TypeTable`; the built-in types have the
+ * fixed ids `ERROR` to `STR`.
+ */
+
+/**
+ * The forms of a type.
+ */
+pub copy enum TyKind {
+    /** After a reported error: compatible with every type. */
+    Error
+    /** `()` */
+    Unit
+    /** `!` */
+    Never
+    /** `bool` */
+    Bool
+    /** `i8` to `u64`; `data` is the `IntKind` number (0-3 signed, 4-7 unsigned). */
+    Int
+    /** `f32`, `f64`; `data` is the width. */
+    Float
+    /** `str` */
+    Str
+    /** `&T`, `&mut T`; `data` is 1 when mutable. */
+    Ref
+    /** `*T`, `*mut T`; `data` is 1 when mutable. */
+    Ptr
+    /** `[T]` */
+    Slice
+    /** `[T; N]`; `data` is the length. */
+    Array
+    /** `(A, B)` */
+    Tuple
+    /** `fn(A, B) R`; `inner` is the result. */
+    Fn
+    /** A struct or an enum; `data` is its `DefId`, `args` its type arguments. */
+    Adt
+    /** A type parameter; `data` is its index, `inner` its name (a symbol). */
+    Param
+}
+
+/**
+ * A type.
+ */
+pub struct Ty {
+    /** Its form. */
+    pub kind: TyKind
+    /** What `kind` says. */
+    pub data: int
+    /** The element of a reference, pointer, slice or array; a function's result. */
+    pub inner: int
+    /** A tuple's elements, a function's parameters, an ADT's type arguments. */
+    pub args: List<int>
+    /** A type parameter occurs in it. */
+    pub hasParam: bool
+}
+
+/** The error type. */
+pub const ERROR: int = 0
+/** `()` */
+pub const UNIT: int = 1
+/** `!` */
+pub const NEVER: int = 2
+/** `bool` */
+pub const BOOL: int = 3
+/** `i8` */
+pub const I8: int = 4
+/** `i16` */
+pub const I16: int = 5
+/** `i32` */
+pub const I32: int = 6
+/** `i64` and `int` */
+pub const I64: int = 7
+/** `u8` */
+pub const U8: int = 8
+/** `u16` */
+pub const U16: int = 9
+/** `u32` */
+pub const U32: int = 10
+/** `u64` and `uint` */
+pub const U64: int = 11
+/** `f32` */
+pub const F32: int = 12
+/** `f64` and `float` */
+pub const F64: int = 13
+/** `str` */
+pub const STR: int = 14
+/** The number of built-in types. */
+pub const BUILTIN_COUNT: int = 15
+
+/**
+ * The table of every type of a program.
+ */
+pub struct TypeTable {
+    types: List<Ty>
+    slots: List<int>   // open addressing: type id + 1, 0 when empty
+
+    /**
+     * A table with the built-in types, in the order of their ids.
+     *
+     * @returns the table
+     */
+    pub fn new() TypeTable {
+        var table = TypeTable{types: [], slots: List.filled(0, 256)}
+        table.intern(.Error, 0, 0, [])
+        table.intern(.Unit, 0, 0, [])
+        table.intern(.Never, 0, 0, [])
+        table.intern(.Bool, 0, 0, [])
+        for k in 0..8 {
+            table.intern(.Int, k, 0, [])
+        }
+        table.intern(.Float, 32, 0, [])
+        table.intern(.Float, 64, 0, [])
+        table.intern(.Str, 0, 0, [])
+        assert(table.types.len() == BUILTIN_COUNT)
+        return table
+    }
+
+    /**
+     * A type.
+     *
+     * @param id its id
+     * @returns the type
+     */
+    pub fn get(self, id: int) &Ty {
+        return &self.types[id]
+    }
+
+    /**
+     * The form of a type.
+     *
+     * @param id its id
+     * @returns its kind
+     */
+    pub fn kind(self, id: int) TyKind {
+        return self.types[id].kind
+    }
+
+    /**
+     * The number of types.
+     *
+     * @returns the count
+     */
+    pub fn len(self) int {
+        return self.types.len()
+    }
+
+    /**
+     * The id of a type, created the first time. `&str` is `str` in stage 0:
+     * a view whose capacity is 0.
+     *
+     * @param kind its form
+     * @param data its data
+     * @param inner its inner type, or 0
+     * @param args its arguments
+     * @returns its id
+     */
+    pub fn intern(mut self, kind: TyKind, data: int, inner: int, args: [int]) int {
+        if kind == .Ref && data == 0 && inner == STR {
+            return STR
+        }
+        if (self.types.len() + 1) * 2 > self.slots.len() {
+            self.rehash()
+        }
+        let mask = self.slots.len() - 1
+        var i = hashOf(kind, data, inner, args) & mask
+        for self.slots[i] != 0 {
+            let id = self.slots[i] - 1
+            if same(&self.types[id], kind, data, inner, args) {
+                return id
+            }
+            i = (i + 1) & mask
+        }
+        let nested = kind == .Ref || kind == .Ptr || kind == .Slice || kind == .Array ||
+                     kind == .Fn
+        var hasParam = kind == .Param || (nested && self.types[inner].hasParam)
+        var copied: List<int> = []
+        for a in 0..args.len() {
+            hasParam = hasParam || self.types[args[a]].hasParam
+            copied.push(args[a])
+        }
+        self.slots[i] = self.types.len() + 1
+        self.types.push(Ty{kind, data, inner, args: copied, hasParam})
+        return self.types.len() - 1
+    }
+
+    fn rehash(mut self) {
+        let size = self.slots.len() * 2
+        var slots = List.filled(0, size)
+        for id in 0..self.types.len() {
+            let t = &self.types[id]
+            var i = hashOf(t.kind, t.data, t.inner, t.args) & (size - 1)
+            for slots[i] != 0 {
+                i = (i + 1) & (size - 1)
+            }
+            slots[i] = id + 1
+        }
+        self.slots = slots
+    }
+
+    /**
+     * `&T` or `&mut T`.
+     *
+     * @param inner T
+     * @param mutable whether it is `&mut`
+     * @returns the reference type
+     */
+    pub fn ref(mut self, inner: int, mutable: bool) int {
+        return self.intern(.Ref, if mutable { 1 } else { 0 }, inner, [])
+    }
+
+    /**
+     * `*T` or `*mut T`.
+     *
+     * @param inner T
+     * @param mutable whether it is `*mut`
+     * @returns the pointer type
+     */
+    pub fn ptr(mut self, inner: int, mutable: bool) int {
+        return self.intern(.Ptr, if mutable { 1 } else { 0 }, inner, [])
+    }
+
+    /**
+     * A tuple; `()` without elements.
+     *
+     * @param elems the element types
+     * @returns the tuple type
+     */
+    pub fn tuple(mut self, elems: [int]) int {
+        return if elems.len() == 0 { UNIT } else { self.intern(.Tuple, 0, 0, elems) }
+    }
+
+    /**
+     * A function type.
+     *
+     * @param params the parameter types
+     * @param ret the result type
+     * @returns the function type
+     */
+    pub fn fnType(mut self, params: [int], ret: int) int {
+        return self.intern(.Fn, 0, ret, params)
+    }
+
+    /**
+     * A struct or enum with type arguments.
+     *
+     * @param def its `DefId`
+     * @param args its type arguments
+     * @returns the type
+     */
+    pub fn adt(mut self, def: int, args: [int]) int {
+        return self.intern(.Adt, def, 0, args)
+    }
+
+    /**
+     * The type parameter number `index` of a generic declaration: those of
+     * a type come first, then those of its method.
+     *
+     * @param index its position
+     * @param name its name's symbol, for messages
+     * @returns the type
+     */
+    pub fn param(mut self, index: int, name: int) int {
+        return self.intern(.Param, index, name, [])
+    }
+
+    /**
+     * `ty` with each type parameter `i` replaced by `args[i]` (spec 8.6).
+     *
+     * @param ty a type
+     * @param args the arguments
+     * @returns the substituted type
+     */
+    pub fn subst(mut self, ty: int, args: [int]) int {
+        if !self.types[ty].hasParam || args.len() == 0 {
+            return ty
+        }
+        let kind = self.types[ty].kind
+        let data = self.types[ty].data
+        if kind == .Param {
+            return if data < args.len() { args[data] } else { ty }
+        }
+        var inner = self.types[ty].inner
+        if kind != .Tuple && kind != .Adt {
+            inner = self.subst(inner, args)   // ref, ptr, slice, array, fn
+        }
+        var items: List<int> = []
+        for i in 0..self.types[ty].args.len() {
+            let arg = self.types[ty].args[i]
+            items.push(self.subst(arg, args))
+        }
+        return self.intern(kind, data, inner, items)
+    }
+
+    /**
+     * How deeply types nest: 1 for `int`, 2 for `Pair<int, int>`.
+     *
+     * @param ty a type
+     * @returns its depth
+     */
+    pub fn depth(self, ty: int) int {
+        let t = &self.types[ty]
+        let nested = t.kind == .Ref || t.kind == .Ptr || t.kind == .Slice || t.kind == .Array ||
+                     t.kind == .Fn
+        var deepest = if nested { self.depth(t.inner) } else { 0 }
+        for i in 0..t.args.len() {
+            let d = self.depth(t.args[i])
+            if d > deepest {
+                deepest = d
+            }
+        }
+        return deepest + 1
+    }
+
+    /**
+     * Whether a type is an integer type.
+     *
+     * @param ty a type
+     * @returns true for `i8` to `u64`
+     */
+    pub fn isInteger(self, ty: int) bool {
+        return self.types[ty].kind == .Int
+    }
+
+    /**
+     * Whether a type is an integer or float type.
+     *
+     * @param ty a type
+     * @returns true for numbers
+     */
+    pub fn isNumeric(self, ty: int) bool {
+        let kind = self.types[ty].kind
+        return kind == .Int || kind == .Float
+    }
+}
+
+fn kindNumber(kind: TyKind) int {
+    return match kind {
+        .Error => 0
+        .Unit => 1
+        .Never => 2
+        .Bool => 3
+        .Int => 4
+        .Float => 5
+        .Str => 6
+        .Ref => 7
+        .Ptr => 8
+        .Slice => 9
+        .Array => 10
+        .Tuple => 11
+        .Fn => 12
+        .Adt => 13
+        .Param => 14
+    }
+}
+
+fn mix(h: int, value: int) int {
+    return (h ^ (value * 40503 + 2654435769)) * 31 % 1000000007
+}
+
+fn hashOf(kind: TyKind, data: int, inner: int, args: [int]) int {
+    var h = mix(kindNumber(kind), data)
+    h = mix(h, inner)
+    for i in 0..args.len() {
+        h = mix(h, args[i])
+    }
+    return if h < 0 { -h } else { h }
+}
+
+fn same(t: &Ty, kind: TyKind, data: int, inner: int, args: [int]) bool {
+    if t.kind != kind || t.data != data || t.inner != inner || t.args.len() != args.len() {
+        return false
+    }
+    for i in 0..args.len() {
+        if t.args[i] != args[i] {
+            return false
+        }
+    }
+    return true
+}

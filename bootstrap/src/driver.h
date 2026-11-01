@@ -10,6 +10,7 @@ typedef enum {
     EMIT_TOKENS,   // print the tokens and stop
     EMIT_AST,      // print the syntax tree and stop
     EMIT_NAMES,    // print what the names of the root module resolve to, and stop
+    EMIT_TYPES,    // print the types of the root module's declarations and locals, and stop
     EMIT_AIR,      // print the AIR and stop
     EMIT_LLVM,     // write <output>.ll and stop
 } Emit;
