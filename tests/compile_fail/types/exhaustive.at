@@ -1,0 +1,71 @@
+enum Error {
+    Empty
+    BadDigit(u8)
+    TooLarge
+}
+
+struct Point {
+    x: int
+    y: bool
+}
+
+fn nested(r: Result<int, Error>) int {
+    return match r {             // error[E0500]: non-exhaustive `match`: `Err(.TooLarge)` is not covered
+        Ok(n) => n
+        Err(.Empty) => 0
+        Err(.BadDigit(_)) => 1
+    }
+}
+
+fn pairs(a: bool, b: bool) int {
+    return match (a, b) {        // error[E0500]: non-exhaustive `match`: `(false, true)` is not covered
+        (true, _) => 1
+        (false, false) => 2
+    }
+}
+
+fn options(o: Option<Option<int>>) int {
+    return match o {             // error[E0500]: non-exhaustive `match`: `Some(None)` is not covered
+        Some(Some(n)) => n
+        None => 0
+    }
+}
+
+fn fields(p: Point) int {
+    return match p {             // error[E0500]: non-exhaustive `match`: `Point{..}` is not covered
+        Point{x: 0, ..} => 0
+        Point{y: true, ..} => 1
+    }
+}
+
+fn guarded(n: Option<int>) int {
+    return match n {             // error[E0500]: non-exhaustive `match`: `Some(_)` is not covered
+        Some(v) if v > 0 => v
+        None => 0
+    }
+}
+
+fn numbers(n: int) str {
+    return match n {             // error[E0500]: non-exhaustive `match`: `_` is not covered
+        0 => "zero"
+        1..=9 => "digit"
+    }
+}
+
+fn unreachable(o: Option<int>) int {
+    return match o {
+        Some(n) => n
+        None => 0
+        Some(5) => 5             // warning[W0004]: unreachable `match` arm: the arms before it match every value
+    }
+}
+
+fn afterWildcard(b: bool) int {
+    return match b {
+        _ => 0
+        true => 1                // warning[W0004]: unreachable `match` arm: the arms before it match every value
+    }
+}
+
+fn main() {
+}
