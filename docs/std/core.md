@@ -38,6 +38,10 @@ enum Result<T, E> { Ok(value: T)  Err(error: E) }
 | `fn mapErr<F>(move self, f: fn(move E) F) Result<T, F>` | | |
 | `fn map<U>(move self, f: fn(move T) U) Result<U, E>` | | |
 
+Stage 0: `asRef` waits for references (roadmap 2.21), and `Result.unwrap`
+panics with a fixed message until `Debug` (bounds); `err()` returns the
+error as an Option.
+
 `opt ?? default` (spec 4.8) is the operator form of `unwrapOr` with a lazily
 evaluated default.
 
