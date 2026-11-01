@@ -227,10 +227,22 @@ void mark_c_used(Gen *g, DefId def) {
     g->c_used.data[def.id] = true;
 }
 
+// Whether a C function with the name of `id` is already declared: several
+// modules may declare the same C function.
+static bool declared_before(Gen *g, uint32_t id) {
+    StrView name = def_name(g, (DefId){id});
+    for (uint32_t other = 0; other < id; other++) {
+        if (g->c_used.data[other] && sv_eq(def_name(g, (DefId){other}), name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // `declare` for each function of an extern block that is called.
 static void c_decls(Gen *g) {
     for (uint32_t id = 0; id < g->c_used.len; id++) {
-        if (!g->c_used.data[id]) {
+        if (!g->c_used.data[id] || declared_before(g, id)) {
             continue;
         }
         const Ty *sig = type_get(g->types, sema_def(g->sema, (DefId){id})->type);
