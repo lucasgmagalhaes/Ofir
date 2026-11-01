@@ -122,10 +122,22 @@ void infer_finish(Checker *c, Infer *inf, Span span);
 // type and the arguments, then checks the arguments against the result.
 TypeId check_generic_args(Checker *c, Expr *call, const Ty *sig, Infer *inf, TypeId expected);
 
+// check_box.c: `Box<T>`, dereferenced by the compiler
+// Whether `type` is `Box<T>`; T goes to `inner`.
+bool box_inner(Checker *c, TypeId type, TypeId *inner);
+// `*b` for a box `b` of type `box`: rewritten to `*(b.ptr)`; returns T.
+TypeId box_deref(Checker *c, Expr *deref, TypeId box);
+// Replaces `*place`, of type `type`, by its value while it is a box (except
+// in the module declaring Box); returns the type of the result.
+TypeId deref_box(Checker *c, Expr **place, TypeId type);
+// Whether the dereference `e` reads through a box (`*(b.ptr)`).
+bool is_box_deref(Checker *c, const Expr *e);
+
 // check_user_method.c
 // The struct or enum named by `e`, `Point` or `Pair<int, str>`; its type
 // arguments go to `args`.
 bool type_name_of(Checker *c, const Expr *e, DefId *out, TypeList *args);
+bool has_method(Checker *c, DefId owner, Symbol name);   // declared in the type's body
 // The type `Name<args>` names, or TID_ERROR for a generic type written
 // without arguments, whose arguments are inferred.
 TypeId named_instance(Checker *c, DefId id, TypeList args, Span span);
