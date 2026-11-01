@@ -1,0 +1,58 @@
+// Fields and methods through a box, writing through a box, boxes of boxes,
+// a generic recursive list, and sizeOf.
+
+struct Point {
+    x: int
+    y: int
+
+    fn sum(self) int {
+        return self.x + self.y
+    }
+
+    fn shift(mut self, by: int) {
+        self.x += by
+    }
+}
+
+enum List<T> {
+    Nil
+    Cons(T, Box<List<T>>)
+
+    fn len(self) int {
+        return match self {
+            .Nil => 0
+            .Cons(_, rest) => 1 + rest.len()
+        }
+    }
+}
+
+fn prepend<T>(list: move List<T>, value: move T) List<T> {
+    return .Cons(value, Box.new(list))
+}
+
+fn main() {
+    var b = Box.new(Point{x: 1, y: 2})
+    println("{b.x} {b.y} {b.sum()}")
+    b.x = 10
+    b.shift(5)
+    println("{b.x} {(*b).sum()}")
+    *b = Point{x: 0, y: 0}
+    println("{b.sum()}")
+
+    let bb = Box.new(Box.new("deep"))
+    println("{**bb} {bb.len()}")
+    let pair = Box.new((7, "seven"))
+    println("{pair.0} {pair.1}")
+
+    let list = prepend(prepend(prepend(List<str>.Nil, "c"), "b"), "a")
+    println("{list.len()}")
+    if let .Cons(head, rest) = list {
+        if let .Cons(second, _) = *rest {
+            println("{head} {second}")
+        }
+    }
+
+    println("{sizeOf<i32>()} {sizeOf<Point>()} {sizeOf<str>()} {sizeOf<Box<Point>>()} {sizeOf<()>()}")
+    let p = b.unbox()
+    println("{p.x}")
+}

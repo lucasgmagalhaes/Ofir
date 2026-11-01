@@ -1,0 +1,48 @@
+// A recursive enum through Box: an expression tree, evaluated, printed and
+// simplified.
+
+enum Expr {
+    Number(int)
+    Neg(Box<Expr>)
+    Add(Box<Expr>, Box<Expr>)
+    Mul(Box<Expr>, Box<Expr>)
+}
+
+fn num(n: int) Box<Expr> {
+    return Box.new(Expr.Number(n))
+}
+
+fn eval(e: Expr) int {
+    return match e {
+        .Number(n) => n
+        .Neg(inner) => -eval(*inner)
+        .Add(a, b) => eval(*a) + eval(*b)
+        .Mul(a, b) => eval(*a) * eval(*b)
+    }
+}
+
+fn show(e: Expr) str {
+    return match e {
+        .Number(n) => "{n}"
+        .Neg(inner) => "-{show(*inner)}"
+        .Add(a, b) => "({show(*a)} + {show(*b)})"
+        .Mul(a, b) => "{show(*a)} * {show(*b)}"
+    }
+}
+
+// Counts the nodes, with the boxes moved out of the tree.
+fn size(e: move Expr) int {
+    return match e {
+        .Number(_) => 1
+        .Neg(inner) => 1 + size(inner.unbox())
+        .Add(a, b) => 1 + size(a.unbox()) + size(b.unbox())
+        .Mul(a, b) => 1 + size(a.unbox()) + size(b.unbox())
+    }
+}
+
+fn main() {
+    // (2 + 3) * -(4)
+    let e = Expr.Mul(Box.new(Expr.Add(num(2), num(3))), Box.new(Expr.Neg(num(4))))
+    println("{show(e)} = {eval(e)}")
+    println("{size(e)} nodes")
+}
