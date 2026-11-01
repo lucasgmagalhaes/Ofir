@@ -111,7 +111,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.16 | Exhaustiveness checking (usefulness algorithm) | M | **in progress**: conservative check in place (`tests/compile_fail/types/enums`); the usefulness algorithm remains |
 | 2.17 | `if let`, `let ... else`, `??` | S | **done** except `??` (needs `Option`, 2.22): `tests/run/enums/if_let` |
 | 2.18 | Generic functions, structs and enums **without bounds**; monomorphization and mangling | L | **done**: `tests/run/generics_basic/*`, `tests/compile_fail/types/generics*`; type arguments are inferred from the receiver, the expected type and the arguments |
-| 2.19 | `Box<T>` and recursive enums | M | expression tree test program runs |
+| 2.19 | `Box<T>` and recursive enums | M | **done**: `tests/run/box/expr_tree.at`; `Box` is written in `std/core/box.at` with `@lang("box")` and the `sizeOf<T>()` intrinsic; a box is freed by `unbox` until drops (3.2) |
 | 2.20 | `List<T>` (std/collections.md S0 entries): literals, bounds checks, `for` over lists with Copy loop variables, `sort` | L | `tests/run/list/*`, `tests/panic/bounds*` pass |
 | 2.21 | Slices `&[T]` and `&str`, range indexing, built-in borrow-returning methods (`get`, `first`, `last`, `getMut`) | M | tests pass |
 | 2.22 | `Option<T>`, `Result<T, E>`, `?` (equal error types), `unwrap`, `expect`, unused-`Result` error | M | `tests/run/errors/*` pass |
@@ -248,8 +248,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. `Box<T>` and recursive enums (2.19), written in `std` on top of the
-   generics of 2.18 and raw pointers; then `List<T>` (2.20) and
-   `Option`/`Result` (2.22).
+1. `List<T>` (2.20) and slices (2.21), written in `std` like `Box`, then
+   `Option`/`Result` and `?` (2.22).
 
 See also the [risk register](risks.md).

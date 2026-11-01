@@ -49,6 +49,9 @@ The following names are available in every module without imports:
 - `Some`, `None`, `Ok`, `Err`
 - the built-in functions below
 
+They are the public declarations of `std.core` and of its submodules
+(`std.core.box`, ...), which every program loads.
+
 ## 7.5 Built-in functions
 
 ```astra
