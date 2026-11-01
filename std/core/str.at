@@ -59,6 +59,56 @@ pub struct str {
     }
 
     /**
+     * A string that takes over a buffer of `len` bytes of UTF-8 text: it
+     * is freed when the string is dropped.
+     *
+     * @param ptr the first byte
+     * @param len the number of bytes
+     * @param cap the size of the buffer; with 0 the buffer is freed now
+     * @returns the string
+     * @safety `ptr` must come from `astra_alloc` with room for `cap`
+     * bytes (or be null), hold valid UTF-8, and nothing else may free it
+     */
+    pub unsafe fn fromParts(ptr: *mut u8, len: int, cap: int) str {
+        if cap == 0 {
+            astra_free(ptr)
+            return ""
+        }
+        var s = ""
+        s.ptr = ptr as *u8
+        s.len = len
+        s.cap = cap
+        return s
+    }
+
+    /**
+     * A copy of `len` bytes of UTF-8 text, as from C.
+     *
+     * @param ptr the first byte
+     * @param len the number of bytes
+     * @returns the new string
+     * @safety `ptr` must point to `len` readable bytes of valid UTF-8
+     */
+    pub unsafe fn fromRaw(ptr: *u8, len: int) str {
+        var s = str.withCapacity(len)
+        if len > 0 {
+            memcpy(s.ptr as *mut u8, ptr, len as u64)
+        }
+        s.len = len
+        return s
+    }
+
+    /**
+     * The address of the first byte, for C functions that read the text.
+     * It is not followed by a NUL.
+     *
+     * @returns the pointer; reading through it requires `unsafe`
+     */
+    pub fn asPtr(self) *u8 {
+        return self.ptr
+    }
+
+    /**
      * The length in bytes, not in characters: `"é".len()` is 2.
      *
      * @returns the number of bytes

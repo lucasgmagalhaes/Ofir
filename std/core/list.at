@@ -57,6 +57,21 @@ pub struct List<T> {
     }
 
     /**
+     * Takes over a buffer of `len` initialized elements: the list frees it
+     * when it is dropped.
+     *
+     * @param ptr the first element
+     * @param len the number of elements
+     * @param cap the number of elements the buffer can hold
+     * @returns the list
+     * @safety `ptr` must come from `astra_alloc` with room for `cap`
+     * elements (or be null with `cap == 0`), and nothing else may free it
+     */
+    pub unsafe fn fromParts(ptr: *mut T, len: int, cap: int) List<T> {
+        return List{ptr, len, cap}
+    }
+
+    /**
      * An empty list with room for `n` elements, to avoid reallocations
      * when the final length is known.
      *

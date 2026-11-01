@@ -1,0 +1,18 @@
+createDirAll: ok
+createDirAll again: ok
+exists true false
+write b: ok
+write a: ok
+write bytes: ok
+line [one]
+line [two]
+bytes 4 255
+entry a.txt true
+entry b.txt true
+entry c.bin true
+remove a.txt: ok
+remove b.txt: ok
+remove c.bin: ok
+gone true
+remove missing: No such file or directory
+bad path: Invalid argument
