@@ -113,7 +113,7 @@ Each task covers lexer → parser → checker → lowering → codegen → tests
 | 2.18 | Generic functions, structs and enums **without bounds**; monomorphization and mangling | L | **done**: `tests/run/generics_basic/*`, `tests/compile_fail/types/generics*`; type arguments are inferred from the receiver, the expected type and the arguments |
 | 2.19 | `Box<T>` and recursive enums | M | **done**: `tests/run/box/expr_tree.at`; `Box` is written in `std/core/box.at` with `@lang("box")` and the `sizeOf<T>()` intrinsic; a box is freed by `unbox` until drops (3.2) |
 | 2.20 | `List<T>` (std/collections.md S0 entries): literals, bounds checks, `for` over lists with Copy loop variables, `sort` | L | **done**: `tests/run/list/*`, `tests/panic/bounds_list*`; written in `std/core/list.at` (`@lang("list")`); `pop`, `get`, `first`, `last` wait for `Option` and borrows (2.21, 2.22), `contains` and `join` for bounds; `sort` takes int, float and str |
-| 2.21 | Slices `&[T]` and `&str`, range indexing, built-in borrow-returning methods (`get`, `first`, `last`, `getMut`) | M | tests pass |
+| 2.21 | Slices `&[T]` and `&str`, range indexing, built-in borrow-returning methods (`get`, `first`, `last`, `getMut`) | M | **done**: `tests/run/refs/*`, `tests/compile_fail/types/references.at`; `&T`, `&mut T` and the second-class rules (E0702); `Slice<T>` in `std/core/slice.at`; borrows are not checked until the borrow checker (4.7); `&str` is a `str` view, `&mut [T]` and `Option.asRef` wait |
 | 2.22 | `Option<T>`, `Result<T, E>`, `?` (equal error types), `unwrap`, `expect`, unused-`Result` error | M | **done**: `tests/run/errors/*`; written in `std/core/option.at` and `result.at` (`@lang("option")`, `@lang("result")`); `Some`, `None`, `Ok`, `Err` in scope everywhere; `List.pop`; `asRef` waits for references (2.21) |
 | 2.23 | `Map<K, V>`: insertion order, deterministic hashing of integers, `str` and tuples | L | `tests/run/map/*` pass |
 | 2.24 | Warnings: unused variables, unused imports, unreachable code; `--deny-warnings` | S | `tests/compile_fail/warn_*` pass |
@@ -248,7 +248,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Slices and borrowing (2.21): `&[T]`, `&str`, `get`, `first`, `last`
-   returning `Option<&T>`, then `Map<K, V>` (2.23) in `std`.
+1. `Map<K, V>` (2.23) in `std`, then the warnings of 2.24, which close
+   phase 2.
 
 See also the [risk register](risks.md).
