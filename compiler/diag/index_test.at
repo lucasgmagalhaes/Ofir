@@ -1,0 +1,54 @@
+// The tests of `diag` (spec 12.2): the output must match stage 0's.
+
+import base.span.FileId
+import base.span.SourceMap
+import base.span.Span
+
+fn sample() SourceMap {
+    var map = SourceMap.new()
+    map.add("a.at".toOwned(), "fn main() \{\n\tlet x = 1 +\n\}\n".toOwned())
+    return map
+}
+
+@test
+fn humanFormatMatchesStageZero() {
+    var diags = Diagnostics.new()
+    let span = Span{file: FileId(0), start: 22, end: 23}
+    diags.error("E0101", span, "expected an expression".toOwned())
+    let text = diags.render(sample(), .Human)
+    let expected = "error[E0101]: expected an expression\n" +
+        " --> a.at:2:11\n" +
+        "  |\n" +
+        "2 | \tlet x = 1 +\n" +
+        "  | \t         ^\n\n"
+    assert(text == expected)
+}
+
+@test
+fn shortFormatIsSortedAndDeduplicated() {
+    var diags = Diagnostics.new()
+    let late = Span{file: FileId(0), start: 13, end: 16}
+    diags.warning("W0001", late, "unused variable `x`".toOwned())
+    diags.error("E0200", Span{file: FileId(0), start: 3, end: 7}, "cannot find `main`".toOwned())
+    diags.warning("W0001", late, "unused variable `x`".toOwned())
+    assert(diags.errorCount() == 1 && diags.len() == 3)
+    let text = diags.render(sample(), .Short)
+    assert(text == "a.at:1:4: error[E0200]: cannot find `main`\n" +
+        "a.at:2:2: warning[W0001]: unused variable `x`\n")
+}
+
+@test
+fn denyWarningsMakesErrors() {
+    var diags = Diagnostics.new()
+    diags.denyWarnings = true
+    diags.warning("W0001", noSpan(), "unused".toOwned())
+    assert(diags.hasErrors())
+}
+
+@test
+fn caretStopsAtTheEndOfTheLine() {
+    var diags = Diagnostics.new()
+    diags.error("E0003", Span{file: FileId(0), start: 0, end: 40}, "unterminated".toOwned())
+    let text = diags.render(sample(), .Human)
+    assert(text.endsWith("1 | fn main() \{\n  | ^^^^^^^^^^^^\n\n"))
+}

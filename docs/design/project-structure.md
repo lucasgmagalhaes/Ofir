@@ -169,9 +169,7 @@ compiler/
 │   ├── span.at               source positions, file table (`Span`, `SourceMap`)
 │   └── index_vec.at          typed indices (`Id<T>`, `IndexVec<T>`)
 ├── diag/
-│   ├── diagnostic.at         error/warning/note model
-│   ├── render.at             terminal rendering with source excerpts
-│   └── codes.at              stable error codes (E0001, ...)
+│   └── index.at              `diag`: diagnostics and their rendering (stage 0's format)
 ├── syntax/
 │   ├── token.at              token kinds and values
 │   ├── cursor.at             position in a source file

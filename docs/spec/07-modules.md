@@ -29,6 +29,8 @@ import parser.ast as ast
   (`compiler/base/intern.at` is `base.intern`).
 - Circular imports are allowed; declarations in a module can reference each
   other in any order.
+- Importing the same declaration or module twice into a module is allowed
+  (a test file may repeat the imports of its module).
 - An unused import produces a warning (chapter 12.6).
 
 ## 7.3 Visibility
