@@ -8,6 +8,7 @@ extern "C" {
     fn memcmp(a: *u8, b: *u8, n: u64) i32
     fn astra_alloc(size: int) *mut u8
     fn astra_realloc(p: *mut u8, size: int) *mut u8
+    fn astra_free(p: *mut u8)
 }
 
 /**
@@ -234,6 +235,16 @@ pub struct str {
         var out = ""
         out.push(self)
         return out
+    }
+
+    // Frees the heap buffer when the string is dropped (spec 5.2); a
+    // literal or a view (`cap == 0`) has none.
+    fn drop(mut self) {
+        if self.cap > 0 {
+            unsafe {
+                astra_free(self.ptr as *mut u8)
+            }
+        }
     }
 
     // Whether a character starts at byte `i` (or `i` is the end): UTF-8
