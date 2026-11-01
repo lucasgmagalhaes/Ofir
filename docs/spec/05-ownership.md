@@ -209,6 +209,13 @@ list.push(4)           // ok
 A borrow lasts from the point where it is created to its **last use**
 (non-lexical borrows).
 
+**Stage 0** checks where references may be stored and returned (E0702),
+and that writes go through `&mut`, but does not check borrows against
+moves and mutations of what they borrow: that is the borrow checker of the
+self-hosted compiler (roadmap 4.7). A function that returns a borrow
+receives its source by address, so that the borrow points into the
+caller's value.
+
 ### Returning a borrow
 
 A function may return a reference (or a `ref struct`, or an `Option`/`Result`
