@@ -164,7 +164,7 @@ Each port is verified by comparing outputs with stage 0.
 | 4.2 | `compiler/diag` | S | **done**: `diag` (`Diagnostics`, human and short formats, sorted and deduplicated as stage 0 does); tests compare with stage 0's output |
 | 4.3 | `compiler/syntax/lexer` (starting from the 0.8 prototype) | M | **done**: `main tokens <file>` identical to stage 0's `--emit=tokens` (output, errors, status) on every `.at` file of the repository and 200 mutated ones (`make compare-stages`, `tools/compare_stages.py`); `checkedAdd/Sub/Mul/Div` and `parse` for the numeric types in std |
 | 4.4 | `compiler/syntax/parser` + AST printer | L | **done (M3)**: `main ast <file>` identical to stage 0's `--emit=ast` on every `.at` file of the repository, `compiler/` included, and on mutated sources (`make compare-stages`); found and fixed in stage 0: a double free when matching a value in a box, a partial move kept across loop iterations, a crash printing a tree after errors |
-| 4.5 | Resolver and module loading | M | resolve errors identical |
+| 4.5 | Resolver and module loading | M | **done**: `compiler/driver/modules` loads the program as stage 0 does, `compiler/sema/resolve*` binds every name; `main names <file>` equals stage 0's new `--emit=names` (what each name resolves to, the locals of each function) with the same errors and warnings on every file of the repository and on mutated sources; the AST numbers its nodes (`NodeId`) so that results are kept beside it; `fs.canonicalize` |
 | 4.6 | Type checker | L | `tests/compile_fail` pass |
 | 4.7 | AIR, lowering, move analysis, drop elaboration, monomorphization | L | `--emit=air` equivalent to stage 0 |
 | 4.8 | LLVM codegen and layout | L | `tests/run` and `tests/panic` pass with stage 1 built by stage 0 |

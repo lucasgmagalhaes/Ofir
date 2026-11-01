@@ -22,11 +22,11 @@ import syntax.parser.Parser
  * @param start where it began
  * @returns the node
  */
-pub fn newExpr(p: Parser, kind: move ExprKind, start: Span) Expr {
-    return Expr{kind, span: p.spanSince(start)}
+pub fn newExpr(p: mut Parser, kind: move ExprKind, start: Span) Expr {
+    return Expr{id: p.newId(), kind, span: p.spanSince(start)}
 }
 
-fn binary(p: Parser, op: Op, lhs: move Expr, rhs: move Expr) Expr {
+fn binary(p: mut Parser, op: Op, lhs: move Expr, rhs: move Expr) Expr {
     let start = lhs.span
     return newExpr(p, .Binary(op, Box.new(lhs), Box.new(rhs)), start)
 }

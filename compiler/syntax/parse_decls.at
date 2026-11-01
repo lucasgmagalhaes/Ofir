@@ -38,7 +38,7 @@ fn param(p: mut Parser) Param {
     if p.accept(.Eq) {
         defaultValue = .Some(parseExpr(p))
     }
-    return Param{name, mode, ty, defaultValue, span: p.spanSince(start)}
+    return Param{id: p.newId(), name, mode, ty, defaultValue, span: p.spanSince(start)}
 }
 
 // `[mut | move] self` as the first parameter of a method: its mode.
@@ -86,9 +86,10 @@ pub fn parseFn(p: mut Parser, header: move ItemHeader, withBody: bool) FnDecl {
     if withBody {
         body = .Some(parseBlock(p))
     }
-    return FnDecl{span: p.spanSince(header.span), name, attributes: header.attributes,
-                  isPub: header.isPub, isUnsafe: false, abi: "", typeParams,
-                  hasSelf: selfMode.isSome(), selfMode: selfMode ?? .Borrow, params, ret, body}
+    return FnDecl{id: p.newId(), span: p.spanSince(header.span), name,
+                  attributes: header.attributes, isPub: header.isPub, isUnsafe: false, abi: "",
+                  typeParams, hasSelf: selfMode.isSome(), selfMode: selfMode ?? .Borrow, params,
+                  ret, body}
 }
 
 // ---------------------------------------------------------------------------

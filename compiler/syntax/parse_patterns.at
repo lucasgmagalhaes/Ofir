@@ -12,8 +12,8 @@ import syntax.parse_primary.atLiteral
 import syntax.parse_primary.parseLiteral
 import syntax.parser.Parser
 
-fn newPattern(p: Parser, kind: move PatternKind, start: Span) Pattern {
-    return Pattern{kind, span: p.spanSince(start)}
+fn newPattern(p: mut Parser, kind: move PatternKind, start: Span) Pattern {
+    return Pattern{id: p.newId(), kind, span: p.spanSince(start)}
 }
 
 // `(p, q)` after the `(`; also the arguments of variants and tuple structs.
@@ -66,7 +66,7 @@ fn structPattern(p: mut Parser, path: move List<Symbol>, start: Span) Pattern {
         if p.accept(.Colon) {
             pattern = .Some(parsePattern(p))
         }
-        fields.push(FieldPattern{name, pattern})
+        fields.push(FieldPattern{id: p.newId(), name, pattern})
         p.skipNewlines()
         if !p.accept(.Comma) {
             break

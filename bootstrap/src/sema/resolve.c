@@ -25,6 +25,68 @@ StrView resolver_name(const Resolver *r, Symbol name) {
     return symbol_name(&r->sema->session->names, name);
 }
 
+// ---------------------------------------------------------------------------
+// --emit=names: a trace of what the root module's names resolve to, which
+// stage 1's resolver must reproduce (roadmap 4.5).
+
+bool tracing(const Resolver *r) {
+    return r->sema->trace && r->sema->current == 0;
+}
+
+void trace(Resolver *r, Span span, const char *format, ...) {
+    if (!tracing(r)) {
+        return;
+    }
+    LineCol at = source_line_col(&r->sema->session->sources, span.file, span.start);
+    fprintf(r->sema->trace, "%u:%u ", at.line, at.column);
+    va_list args;
+    va_start(args, format);
+    vfprintf(r->sema->trace, format, args);
+    va_end(args);
+    fputc('\n', r->sema->trace);
+}
+
+static const char *const DEF_KINDS[] = {
+    [DEF_FN] = "fn", [DEF_BUILTIN] = "builtin", [DEF_PRIMITIVE] = "primitive",
+    [DEF_STRUCT] = "struct", [DEF_ENUM] = "enum", [DEF_CONST] = "const",
+    [DEF_GLOBAL] = "global", [DEF_TYPE_ALIAS] = "alias", [DEF_MODULE] = "module",
+    [DEF_VARIANT] = "variant",
+};
+
+// `local 3`, `fn std.core.str.len`, `module std.fs`, `error`.
+static void res_text(Resolver *r, Res res, StrBuf *out) {
+    if (res.kind == RES_LOCAL) {
+        strbuf_appendf(out, "local %u", res.index);
+        return;
+    }
+    if (res.kind != RES_DEF || res.index == 0) {
+        strbuf_append_cstr(out, "error");
+        return;
+    }
+    const Def *def = sema_def(r->sema, (DefId){res.index});
+    strbuf_append_cstr(out, DEF_KINDS[def->kind]);
+    strbuf_append_cstr(out, " ");
+    if (def->kind == DEF_MODULE) {
+        strbuf_append(out, r->sema->program.items[def->target].name);
+        return;
+    }
+    if (!def->in_prelude) {
+        strbuf_append(out, r->sema->program.items[def->module].name);
+        strbuf_append_cstr(out, ".");
+    }
+    strbuf_append(out, resolver_name(r, def->name));
+}
+
+void trace_use(Resolver *r, const char *what, Symbol name, Span span, Res res) {
+    if (!tracing(r)) {
+        return;
+    }
+    StrBuf text = {0};
+    res_text(r, res, &text);
+    trace(r, span, "%s " SV_FMT " -> %s", what, SV_ARG(resolver_name(r, name)), text.data);
+    strbuf_free(&text);
+}
+
 // Registers a top-level name; a module declaration may hide a prelude name.
 void declare_item(Resolver *r, Def def) {
     def.module = r->sema->current;
@@ -242,6 +304,9 @@ static void resolve_pass(Resolver *r, int pass) {
 // that modules may refer to each other in any order (spec 7.2).
 void resolve_program(Sema *sema) {
     Resolver r = {.sema = sema};
+    for (uint32_t m = 0; sema->trace && m < sema->program.len; m++) {
+        fprintf(sema->trace, "module %u " SV_FMT "\n", m, SV_ARG(sema->program.items[m].name));
+    }
     r.self_name = intern(&sema->session->names, SV("self"));
     r.wildcard = intern(&sema->session->names, SV("_"));
     for (int pass = 0; pass < 3; pass++) {

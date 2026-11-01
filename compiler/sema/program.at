@@ -1,0 +1,26 @@
+/**
+ * @module
+ * The modules of a program, as the loader gives them to the resolver.
+ */
+
+import syntax.ast.Module
+
+/**
+ * A module of the program.
+ */
+pub struct ProgramModule {
+    /** Its dotted name: `syntax.parser`, `std.core`; the root's is named
+     * after its file (spec 7.1). */
+    pub name: str
+    /** Its tree. */
+    pub module: Module
+}
+
+/**
+ * The modules of a program: the root first, then `std.core` and the
+ * imported ones in the order they were found.
+ */
+pub struct Program {
+    /** The modules. */
+    pub modules: List<ProgramModule>
+}

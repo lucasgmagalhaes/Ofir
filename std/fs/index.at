@@ -14,6 +14,7 @@ extern "C" {
     fn astra_write_file(path: *u8, len: int, data: *u8, n: int) i32
     fn astra_path_exists(path: *u8, len: int) bool
     fn astra_remove_file(path: *u8, len: int) i32
+    fn astra_canonicalize(path: *u8, len: int, out: *mut Buffer) i32
     fn astra_create_dir_all(path: *u8, len: int) i32
     fn astra_read_dir(path: *u8, len: int, out: *mut Buffer) i32
 }
@@ -94,6 +95,25 @@ pub fn writeString(path: str, text: str) Result<(), IoError> {
  */
 pub fn exists(path: str) bool {
     return unsafe { astra_path_exists(path.asPtr(), path.len()) }
+}
+
+/**
+ * The absolute path of an existing file or directory, with no `.`, `..`
+ * or symbolic link left in it.
+ *
+ * @param path the path to resolve
+ * @returns the canonical path
+ * @example
+ * ```astra
+ * import std.fs
+ *
+ * let here = fs.canonicalize(".")?
+ * ```
+ */
+pub fn canonicalize(path: str) Result<str, IoError> {
+    var out = Buffer.new()
+    io.check(unsafe { astra_canonicalize(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
+    return .Ok(unsafe { out.intoStr() })
 }
 
 /**

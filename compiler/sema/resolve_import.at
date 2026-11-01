@@ -1,0 +1,186 @@
+/**
+ * @module
+ * Imports and module-qualified names (spec 7.2 and 7.3; stage 0:
+ * bootstrap/src/sema/resolve_import.c). `import parser.lexer` binds `lexer`
+ * to the module; `import std.collections.Map` binds `Map` to that module's
+ * declaration. An expression `lexer.tokenize` resolves to the declaration.
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.def.Def
+import sema.def.Res
+import sema.program.Program
+import sema.resolve.Resolver
+import sema.trace.traceUse
+import syntax.ast.Expr
+
+// The dotted name of the first `count` segments of `path`.
+fn dotted(r: Resolver, path: &List<Symbol>, count: int) str {
+    var out = ""
+    for i in 0..count {
+        if i > 0 {
+            out.push(".")
+        }
+        out.push(r.text(path[i]))
+    }
+    return out
+}
+
+// The module named by the first `count` segments of `path`, or -1.
+fn findModule(r: Resolver, path: &List<Symbol>, count: int) int {
+    let name = dotted(r, path, count)
+    if name.len() >= 511 {   // as stage 0's buffer
+        return -1
+    }
+    for m in 0..r.moduleNames.len() {
+        if r.moduleNames[m] == name {
+            return m
+        }
+    }
+    return -1
+}
+
+/**
+ * The declaration `name` of module `index`, reported when it is missing or
+ * private; modules do not re-export their imports.
+ *
+ * @param r the resolver
+ * @param index a module
+ * @param name the name
+ * @param span where it is used
+ * @returns its `DefId`, or 0 when it is missing
+ */
+pub fn moduleMember(r: mut Resolver, index: int, name: Symbol, span: Span) int {
+    let id = r.scope.moduleIn(index, name)
+    if id == 0 || r.def(id).inPrelude || r.def(id).module != index {
+        r.error("E0200", span,
+                "cannot find `{r.text(name)}` in module `{r.programName(index)}`")
+        return 0
+    }
+    if !r.def(id).isPub {
+        r.error("E0202", span, "`{r.text(name)}` is private to module `{r.programName(index)}`")
+    }
+    return id
+}
+
+// The same declaration, or the same module imported twice (a test file may
+// repeat its module's imports).
+fn sameTarget(r: Resolver, a: int, b: int) bool {
+    let x = r.def(a)
+    let y = r.def(b)
+    return a == b || (x.kind == .Module && y.kind == .Module && x.target == y.target)
+}
+
+fn bind(r: mut Resolver, name: Symbol, id: int, span: Span) {
+    let existing = r.scope.module(name)
+    if existing != 0 && sameTarget(r, existing, id) {
+        return
+    }
+    if existing != 0 && !r.def(existing).inPrelude {
+        r.error("E0201", span, "`{r.text(name)}` is defined more than once")
+        return
+    }
+    r.scope.setModule(name, id)
+}
+
+/**
+ * Binds the name of an `import` in the current module.
+ *
+ * @param r the resolver
+ * @param program the program
+ * @param path the imported path
+ * @param alias the `as` name, if any
+ * @param span the import
+ */
+pub fn resolveImport(r: mut Resolver, program: Program, path: &List<Symbol>,
+                     alias: Option<Symbol>, span: Span) {
+    let name = alias ?? path[path.len() - 1]
+    bindImport(r, path, name, span)
+    traceUse(r, "import", name, span, .Def(r.scope.module(name)))
+}
+
+fn bindImport(r: mut Resolver, path: &List<Symbol>, name: Symbol, span: Span) {
+    let module = findModule(r, path, path.len())
+    if module >= 0 {   // a module
+        var def = Def{kind: .Module, name, span, isPub: false, inPrelude: false, lang: false,
+                      module: r.current, item: -1, member: -1, target: module, primitive: -1}
+        let id = r.addDef(def)
+        bind(r, name, id, span)
+        return
+    }
+    let owner = if path.len() > 1 { findModule(r, path, path.len() - 1) } else { -1 }
+    if owner < 0 {
+        r.error("E0204", span, "cannot find module `{dotted(r, path, path.len())}`")
+        return
+    }
+    let member = moduleMember(r, owner, path[path.len() - 1], span)   // a declaration
+    if member != 0 {
+        bind(r, name, member, span)
+    }
+}
+
+/**
+ * `m.name` where `m` names an imported module: resolves to the declaration.
+ *
+ * @param r the resolver
+ * @param e the field expression
+ * @param base its base, already resolved
+ * @param name the field's name
+ */
+pub fn resolveQualified(r: mut Resolver, e: &Expr, base: &Expr, name: Symbol) {
+    let isName = match base.kind {
+        .Ident(_) => true
+        .Field(_, _, _) => true   // `a.b.c` where `a.b` was a module member
+        _ => false
+    }
+    let target = match r.tables[r.current].res[base.id.0] {
+        .Def(id) => id
+        _ => 0
+    }
+    if !isName || target == 0 || r.def(target).kind != .Module {
+        return
+    }
+    let member = moduleMember(r, r.def(target).target, name, e.span)
+    let res: Res = if member != 0 { .Def(member) } else { .Error }
+    r.setRes(e.id.0, res)
+    traceUse(r, "member", name, e.span, res)
+}
+
+// `std.core` and its submodules form the prelude.
+fn inCore(r: Resolver, m: int) bool {
+    let name = r.programName(m)
+    return name == "std.core" || (name.len() > 9 && name.startsWith("std.core."))
+}
+
+// Makes the public declarations of the prelude module `core` visible in
+// every other module, below the module's own declarations (spec 7.4).
+fn exportCore(r: mut Resolver, core: int) {
+    for name in 0..r.scope.symbols() {
+        let id = r.scope.moduleIn(core, Symbol(name))
+        if id == 0 || !r.def(id).isPub || r.def(id).module != core {
+            continue
+        }
+        for m in 0..r.moduleNames.len() {
+            let own = r.scope.moduleIn(m, Symbol(name))
+            if m != core && (own == 0 || r.def(own).inPrelude) {
+                r.scope.setIn(m, Symbol(name), id)
+            }
+        }
+    }
+}
+
+/**
+ * Exports the prelude modules (`std.core` and `std.core.*`) to the others,
+ * once every module's declarations are known.
+ *
+ * @param r the resolver
+ * @param program the program
+ */
+pub fn importPrelude(r: mut Resolver, program: Program) {
+    for m in 0..program.modules.len() {
+        if inCore(r, m) {
+            exportCore(r, m)
+        }
+    }
+}

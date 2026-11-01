@@ -5,11 +5,15 @@
  *
  *     main tokens <file.at>   the tokens, as `astra build --emit=tokens`
  *     main ast <file.at>      the syntax tree, as `astra build --emit=ast`
+ *     main names <file.at>    what the names resolve to, as `--emit=names`
  */
 
 import base.intern.Interner
 import base.span.SourceMap
 import diag.Diagnostics
+import driver.modules.Front
+import driver.modules.loadProgram
+import sema.resolve.resolveProgram
 import std.fs
 import std.os
 import syntax.ast_print.printModule
@@ -19,8 +23,9 @@ import syntax.token_print.printTokens
 
 fn main() {
     let args = os.args()
-    if args.len() != 3 || (args[1] != "tokens" && args[1] != "ast") {
-        eprintln("usage: main tokens|ast <file.at>")
+    let command = if args.len() == 3 { args[1].clone() } else { "" }
+    if command != "tokens" && command != "ast" && command != "names" {
+        eprintln("usage: main tokens|ast|names <file.at>")
         os.exit(2)
     }
     let path = args[2].clone()
@@ -30,6 +35,10 @@ fn main() {
             eprintln("error[E0900]: cannot read `{path}`")
             os.exit(1)
         }
+    }
+    if command == "names" {
+        names(path, text)
+        return
     }
     var map = SourceMap.new()
     let file = map.add(path, text)
@@ -54,4 +63,32 @@ fn main() {
     if parsed.diags.hasErrors() {
         os.exit(1)
     }
+}
+
+// `main names <file.at>`: loads and resolves the program (roadmap 4.5).
+fn names(path: str, text: move str) {
+    var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
+    let file = front.map.add(path.clone(), text)
+    let parsed = front.parseFile(file)
+    if front.diags.hasErrors() {   // as stage 0: the root's errors stop before loading
+        fail(front.diags, front.map)
+    }
+    let Some(root) = parsed else {
+        fail(front.diags, front.map)
+    }
+    let program = loadProgram(path, root, front)
+    if front.diags.hasErrors() {
+        fail(front.diags, front.map)
+    }
+    let r = resolveProgram(program, front.names, front.diags, front.map, true)
+    print(r.trace.out)
+    eprint(r.diags.render(r.map, .Human))
+    if r.diags.hasErrors() {
+        os.exit(1)
+    }
+}
+
+fn fail(diags: Diagnostics, map: SourceMap) ! {
+    eprint(diags.render(map, .Human))
+    os.exit(1)
 }

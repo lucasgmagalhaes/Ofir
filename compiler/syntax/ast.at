@@ -3,12 +3,19 @@
  * The abstract syntax tree (spec appendix A), as stage 0's
  * (bootstrap/src/syntax/ast.h) without its semantic annotations: the AST is
  * a faithful representation of the source, and later phases keep their
- * results beside it.
+ * results beside it, in tables indexed by the `NodeId` of the nodes.
  */
 
 import base.intern.Symbol
 import base.span.FileId
 import base.span.Span
+
+/**
+ * The number of a node of a module's tree: expressions, patterns,
+ * statements, parameters, functions and the fields of literals and
+ * patterns, numbered from 0 in the order the parser finishes them.
+ */
+pub copy struct NodeId(int)
 
 /**
  * How a parameter receives its argument (spec 5.3).
@@ -82,6 +89,8 @@ pub enum TypeKind {
  * A pattern of `let`, `match` and `if let`.
  */
 pub struct Pattern {
+    /** Its number. */
+    pub id: NodeId
     /** What it is. */
     pub kind: PatternKind
     /** Where it is written. */
@@ -116,6 +125,8 @@ pub enum PatternKind {
  * A field of a struct pattern.
  */
 pub struct FieldPattern {
+    /** Its number: the shorthand `x` binds a variable there. */
+    pub id: NodeId
     /** The field. */
     pub name: Symbol
     /** Its pattern; `None` for the shorthand `x`. */
@@ -129,6 +140,8 @@ pub struct FieldPattern {
  * An expression.
  */
 pub struct Expr {
+    /** Its number. */
+    pub id: NodeId
     /** What it is. */
     pub kind: ExprKind
     /** Where it is written. */
@@ -211,6 +224,8 @@ pub struct Arg {
  * A field of a struct literal.
  */
 pub struct FieldInit {
+    /** Its number: the shorthand `x` reads the name there. */
+    pub id: NodeId
     /** The field. */
     pub name: Symbol
     /** Its value; `None` for the shorthand `x`. */
@@ -248,6 +263,8 @@ pub copy enum ForKind {
  * A statement.
  */
 pub struct Stmt {
+    /** Its number. */
+    pub id: NodeId
     /** What it is. */
     pub kind: StmtKind
     /** Where it is written. */
@@ -306,6 +323,8 @@ pub struct Attribute {
  * A parameter of a function.
  */
 pub struct Param {
+    /** Its number. */
+    pub id: NodeId
     /** Its name. */
     pub name: Symbol
     /** How it receives its argument. */
@@ -322,6 +341,8 @@ pub struct Param {
  * A function or a method.
  */
 pub struct FnDecl {
+    /** Its number. */
+    pub id: NodeId
     /** Where it is written. */
     pub span: Span
     /** Its name. */
@@ -437,6 +458,8 @@ pub enum ItemKind {
 pub struct Module {
     /** The file. */
     pub file: FileId
+    /** The number of nodes: their ids are below it. */
+    pub nodeCount: int
     /** The text of its module documentation comments (`@module`). */
     pub docs: List<str>
     /** Its declarations. */

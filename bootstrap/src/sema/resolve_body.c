@@ -19,12 +19,21 @@ static LocalId declare_local(Resolver *r, Symbol name, Span span, bool mutable) 
                       SV_ARG(resolver_name(r, name)));
     }
     LocalId id = {(uint32_t)r->locals.len};
+    trace(r, span, "local %u " SV_FMT, id.id, SV_ARG(resolver_name(r, name)));
     VEC_PUSH(r->locals, ((Local){.name = name, .span = span, .mutable = mutable}));
     scope_declare(scope, name, id);
     return id;
 }
 
+static Res find(Resolver *r, Symbol name, Span span);
+
 static Res lookup(Resolver *r, Symbol name, Span span) {
+    Res res = find(r, name, span);
+    trace_use(r, "use", name, span, res);
+    return res;
+}
+
+static Res find(Resolver *r, Symbol name, Span span) {
     LocalId local;
     if (scope_local(&r->sema->scope, name, &local)) {
         r->locals.data[local.id].used = true;
@@ -67,6 +76,7 @@ static void prelude_variant(Resolver *r, Pattern *p) {
     if (def.id == 0 || sema_def(r->sema, def)->kind != DEF_VARIANT) {
         return;
     }
+    trace_use(r, "variant", name, p->span, (Res){RES_DEF, def.id});
     if (p->kind == PAT_BINDING && p->as.binding.mutable) {
         resolve_error(r, "E0200", p->span, "`" SV_FMT "` is a variant, not a variable",
                       SV_ARG(resolver_name(r, name)));
@@ -192,6 +202,7 @@ static void resolve_self(Resolver *r, Expr *e) {
     LocalId local;
     if (scope_local(&r->sema->scope, r->self_name, &local)) {
         e->as.ident.res = (Res){RES_LOCAL, local.id};
+        trace_use(r, "use", r->self_name, e->span, e->as.ident.res);
     } else {
         resolve_error(r, "E0200", e->span, "`self` is only available in methods");
         e->as.ident.res = (Res){RES_ERROR, 0};
@@ -209,6 +220,7 @@ static void resolve_self_type(Resolver *r, Expr *e) {
     e->kind = EXPR_IDENT;
     e->as.ident.name = r->owner->name;
     e->as.ident.res = (Res){RES_DEF, scope_module(&r->sema->scope, r->owner->name).id};
+    trace_use(r, "use Self as", r->owner->name, e->span, e->as.ident.res);
 }
 
 void resolve_expr(Resolver *r, Expr *e) {
@@ -339,6 +351,12 @@ static void warn_unused_locals(Resolver *r, const FnDecl *fn) {
 
 void resolve_fn(Resolver *r, FnDecl *fn) {
     Scope *scope = &r->sema->scope;
+    if (r->owner) {
+        trace(r, fn->span, "fn " SV_FMT "." SV_FMT, SV_ARG(resolver_name(r, r->owner->name)),
+              SV_ARG(resolver_name(r, fn->name)));
+    } else {
+        trace(r, fn->span, "fn " SV_FMT, SV_ARG(resolver_name(r, fn->name)));
+    }
     scope_reset_locals(scope);
     r->locals.len = 0;
     scope_enter(scope);

@@ -11,6 +11,7 @@ import base.span.FileId
 import base.span.Span
 import diag.Diagnostics
 import syntax.ast.Module
+import syntax.ast.NodeId
 import syntax.parse_items.moduleItems
 import syntax.token.Token
 import syntax.token.TokenKind
@@ -49,6 +50,18 @@ pub struct Parser {
     pub diags: Diagnostics
     /** The contextual keywords (spec 1.5). */
     pub words: Words
+    /** The id of the next node. */
+    pub nextId: int
+
+    /**
+     * Numbers a new node.
+     *
+     * @returns its id
+     */
+    pub fn newId(mut self) NodeId {
+        self.nextId += 1
+        return NodeId(self.nextId - 1)
+    }
 
     /**
      * The kind of the token `ahead` positions after the current one; past
@@ -370,9 +383,9 @@ pub fn parse(file: FileId, src: str, tokens: move List<Token>, names: move Inter
     let words = Words{move: names.find("move"), type: names.find("type"), ref: names.find("ref"),
                       where: names.find("where"), wildcard: names.find("_")}
     var p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
-                   recovering: false, names, diags, words}
+                   recovering: false, names, diags, words, nextId: 0}
     let items = moduleItems(p)
-    let module = Module{file, docs, items}
+    let module = Module{file, nodeCount: p.nextId, docs, items}
     return ParseResult{module, names: p.names, diags: p.diags}
 }
 

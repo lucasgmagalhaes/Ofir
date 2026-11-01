@@ -72,7 +72,19 @@ static void bind(Resolver *r, Symbol name, DefId id, Span span) {
     scope_set_module(&r->sema->scope, name, id);
 }
 
+static void bind_import(Resolver *r, const Item *item);
+
 void resolve_import(Resolver *r, const Item *item) {
+    bind_import(r, item);
+    if (tracing(r)) {
+        SymbolList path = item->as.import.path;
+        Symbol name = item->as.import.alias.id ? item->as.import.alias : path.items[path.len - 1];
+        Res res = {RES_DEF, scope_module(&r->sema->scope, name).id};
+        trace_use(r, "import", name, item->span, res);
+    }
+}
+
+static void bind_import(Resolver *r, const Item *item) {
     SymbolList path = item->as.import.path;
     Symbol last = path.items[path.len - 1];
     Symbol name = item->as.import.alias.id ? item->as.import.alias : last;
@@ -115,6 +127,7 @@ void resolve_qualified(Resolver *r, Expr *e) {
     e->kind = EXPR_IDENT;
     e->as.ident.name = name;
     e->as.ident.res = member.id ? (Res){RES_DEF, member.id} : (Res){RES_ERROR, 0};
+    trace_use(r, "member", name, e->span, e->as.ident.res);
 }
 
 // `std.core` and its submodules, `std.core.box`, ... form the prelude.

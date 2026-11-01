@@ -19,8 +19,8 @@ import syntax.parse_patterns.parsePattern
 import syntax.parse_types.parseType
 import syntax.parser.Parser
 
-fn newStmt(p: Parser, kind: move StmtKind, start: Span) Stmt {
-    return Stmt{kind, span: p.spanSince(start)}
+fn newStmt(p: mut Parser, kind: move StmtKind, start: Span) Stmt {
+    return Stmt{id: p.newId(), kind, span: p.spanSince(start)}
 }
 
 fn optionalType(p: mut Parser) Option<TypeExpr> {
@@ -31,8 +31,8 @@ fn optionalType(p: mut Parser) Option<TypeExpr> {
 }
 
 // The value of `let` when `=` is missing: an empty tuple, as nothing else.
-fn missingValue(p: Parser) Expr {
-    return Expr{kind: .Tuple([]), span: p.here()}
+fn missingValue(p: mut Parser) Expr {
+    return Expr{id: p.newId(), kind: .Tuple([]), span: p.here()}
 }
 
 // `let pattern: T = value` and `let pattern = value else { ... }`.

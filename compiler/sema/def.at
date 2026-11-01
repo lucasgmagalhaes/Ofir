@@ -1,0 +1,113 @@
+/**
+ * @module
+ * Declarations and what names resolve to (stage 0:
+ * bootstrap/src/sema/sema.h). A `Def` is a declaration of the program or of
+ * the prelude, numbered by its index in `Defs`; index 0 means "none".
+ */
+
+import base.intern.Symbol
+import base.span.Span
+
+/**
+ * What a declaration is.
+ */
+pub copy enum DefKind {
+    /** A function or a method. */
+    Fn
+    /** `print`, `println`, `panic`, `assert`. */
+    Builtin
+    /** `int`, `str`, ...: a primitive type. */
+    Primitive
+    /** A struct, also a tuple struct. */
+    Struct
+    /** An enum. */
+    Enum
+    /** A constant. */
+    Const
+    /** A global variable. */
+    Global
+    /** `type Name = T` */
+    TypeAlias
+    /** An imported module: `target` is its index in the program. */
+    Module
+    /** `Some`, `None`, `Ok`, `Err`: variant `member` of the enum `target`. */
+    Variant
+}
+
+/**
+ * The name of a kind, as `--emit=names` prints it.
+ *
+ * @param kind the kind
+ * @returns its name
+ */
+pub fn kindName(kind: DefKind) str {
+    return match kind {
+        .Fn => "fn"
+        .Builtin => "builtin"
+        .Primitive => "primitive"
+        .Struct => "struct"
+        .Enum => "enum"
+        .Const => "const"
+        .Global => "global"
+        .TypeAlias => "alias"
+        .Module => "module"
+        .Variant => "variant"
+    }
+}
+
+/**
+ * A declaration.
+ */
+pub struct Def {
+    /** What it is. */
+    pub kind: DefKind
+    /** Its name. */
+    pub name: Symbol
+    /** Where it is declared; empty for the prelude. */
+    pub span: Span
+    /** `pub` */
+    pub isPub: bool
+    /** One of the built-in names of the prelude. */
+    pub inPrelude: bool
+    /** A `@lang` declaration: the body of a primitive type. */
+    pub lang: bool
+    /** The module that declares it (its index in the program). */
+    pub module: int
+    /** Its item in that module, or -1. */
+    pub item: int
+    /** Its method, function of an `extern` block or variant in the item, or -1. */
+    pub member: int
+    /** A module: the imported one; a variant: the `DefId` of its enum. */
+    pub target: int
+    /** A primitive: its type number (`uint` and `u64` share one). */
+    pub primitive: int
+}
+
+/**
+ * What a name stands for at one place.
+ */
+pub copy enum Res {
+    /** Not a name, or not resolved. */
+    None
+    /** A local variable: its index in the function. */
+    Local(id: int)
+    /** A declaration: its `DefId`. */
+    Def(id: int)
+    /** An error was reported. */
+    Error
+}
+
+/**
+ * A local variable of a function: parameters, `self`, and the bindings of
+ * its body, numbered in the order they are declared.
+ */
+pub struct Local {
+    /** Its name. */
+    pub name: Symbol
+    /** Where it is declared. */
+    pub span: Span
+    /** `var`, `mut` parameter or binding. */
+    pub mutable: bool
+    /** Whether it is read somewhere. */
+    pub used: bool
+}

@@ -20,6 +20,7 @@ static void print_usage(FILE *out) {
           "  -o <path>                 output path\n"
           "  --emit=tokens             print the tokens and stop\n"
           "  --emit=ast                print the syntax tree and stop\n"
+          "  --emit=names              print what the names resolve to and stop\n"
           "  --emit=air                print the intermediate representation and stop\n"
           "  --emit=llvm               write <output>.ll and stop\n"
           "  --release                 optimize the program\n"
@@ -40,6 +41,8 @@ static bool parse_option(int argc, char **argv, int *i, Options *opts) {
         opts->emit = EMIT_TOKENS;
     } else if (strcmp(arg, "--emit=ast") == 0) {
         opts->emit = EMIT_AST;
+    } else if (strcmp(arg, "--emit=names") == 0) {
+        opts->emit = EMIT_NAMES;
     } else if (strcmp(arg, "--emit=air") == 0) {
         opts->emit = EMIT_AIR;
     } else if (strcmp(arg, "--emit=llvm") == 0) {

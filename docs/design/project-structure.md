@@ -160,6 +160,7 @@ mirrors the structure of stage 1 so that porting is mechanical.
 compiler/
 ├── main.at                   command line entry point
 ├── driver/
+│   ├── modules.at            loading the root file, its imports and the prelude
 │   ├── cli.at                argument parsing, subcommands
 │   ├── session.at            compilation options, target, paths
 │   ├── pipeline.at           runs the phases in order
@@ -182,9 +183,14 @@ compiler/
 │   ├── ast_text.at           types, patterns and literals as text
 │   └── ast_print.at          the `--emit=ast` format
 ├── sema/
+│   ├── program.at            the modules of a program
+│   ├── def.at                declarations (`Def`), resolutions (`Res`), locals
+│   ├── scope.at              module tables and the binding stack of locals
+│   ├── resolve.at            declarations and the passes; `resolveProgram`
+│   ├── resolve_import.at     imports, `m.name`, the prelude
+│   ├── resolve_body.at       function bodies, patterns, locals
+│   ├── trace.at              the `--emit=names` format
 │   ├── types.at
-│   ├── scope.at
-│   ├── resolve.at
 │   ├── check_items.at        declarations, signatures
 │   ├── check_exprs.at        expressions and statements
 │   ├── infer.at              type inference (unification)
