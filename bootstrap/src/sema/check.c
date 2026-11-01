@@ -105,6 +105,10 @@ static void check_item(Checker *c, Item *item) {
         if (lang) {
             check_lang_layout(c, lang, owner);
         }
+        if (type_get(c->types, owner)->kind == TY_ADT &&
+            type_get(c->types, owner)->data == c->sema->list.id) {
+            check_list_layout(c, sema_def(c->sema, c->sema->list));
+        }
         check_methods(c, item, item->as.struct_.methods);
         break;
     }

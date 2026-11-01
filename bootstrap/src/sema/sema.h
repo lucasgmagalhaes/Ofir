@@ -88,6 +88,7 @@ typedef struct {
     Scope scope;         // its module table is the current module's
     DefId lang[TID_BUILTIN_COUNT];   // the `@lang` declaration of each primitive type
     DefId box;           // `@lang("box") struct Box<T>`, which the compiler dereferences
+    DefId list;          // `@lang("list") struct List<T>`: literals, indexing, `for`
 } Sema;
 
 void sema_init(Sema *sema, Session *session, Program program);
