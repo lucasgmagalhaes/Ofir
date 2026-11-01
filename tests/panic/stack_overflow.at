@@ -1,0 +1,10 @@
+// panic: stack overflow
+// Unbounded recursion ends in a panic, not a segmentation fault (spec 6).
+
+fn depth(n: int) int {
+    return depth(n + 1) + 1
+}
+
+fn main() {
+    println("{depth(0)}")
+}

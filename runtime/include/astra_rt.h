@@ -39,6 +39,10 @@ _Noreturn void astra_panic_bounds(int64_t index, int64_t len, const AstraLoc *lo
 _Noreturn void astra_panic_assert(const AstraLoc *loc);
 _Noreturn void astra_panic_str(const AstraStr *msg, const AstraLoc *loc);   // panic("...")
 
+// Reports a fault near the end of the main stack as `panic: stack
+// overflow` (exit status 101); `top` is an address in main's frame.
+void astra_stack_guard_init(void *top);
+
 // ---------------------------------------------------------------------------
 // Memory: never returns NULL (panics when out of memory).
 
