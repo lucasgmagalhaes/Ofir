@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ASTRA_VERSION "0.0.0"
+#define ASTRA_VERSION "0.1.0"
 
 static void print_usage(FILE *out) {
     fputs("usage: astra <command> [arguments]\n"

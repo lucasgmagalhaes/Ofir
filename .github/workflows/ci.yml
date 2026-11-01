@@ -44,3 +44,11 @@ jobs:
 
       - name: Build and test
         run: make test
+
+      # Memory checks of the generated programs (Linux: valgrind, and gcc's
+      # sanitizer runtimes).
+      - name: Leaks and sanitizers
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y valgrind
+          make check-leaks check-asan
