@@ -160,7 +160,7 @@ Each port is verified by comparing outputs with stage 0.
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 4.1 | `compiler/base`: generic typed index vectors, interning, spans | M | **done**: `base.span` (spans, `SourceMap`, line/column), `base.intern`, `base.index_vec` (`Id<T>`, `IndexVec<T>`), 8 tests in `make test-std`; `compiler/ofir.toml` makes `compiler/` the import root |
+| 4.1 | `compiler/base`: generic typed index vectors, interning, spans | M | **done**: `base.span` (spans, `SourceMap`, line/column), `base.intern`, `base.index_vec` (`Id<T>`, `IndexVec<T>`), 8 tests in `make test-std`; `compiler/ofir.json` makes `compiler/` the import root |
 | 4.2 | `compiler/diag` | S | **done**: `diag` (`Diagnostics`, human and short formats, sorted and deduplicated as stage 0 does); tests compare with stage 0's output |
 | 4.3 | `compiler/syntax/lexer` (starting from the 0.8 prototype) | M | **done**: `main tokens <file>` identical to stage 0's `--emit=tokens` (output, errors, status) on every `.of` file of the repository and 200 mutated ones (`make compare-stages`, `tools/compare_stages.py`); `checkedAdd/Sub/Mul/Div` and `parse` for the numeric types in std |
 | 4.4 | `compiler/syntax/parser` + AST printer | L | **done (M3)**: `main ast <file>` identical to stage 0's `--emit=ast` on every `.of` file of the repository, `compiler/` included, and on mutated sources (`make compare-stages`); found and fixed in stage 0: a double free when matching a value in a box, a partial move kept across loop iterations, a crash printing a tree after errors |
@@ -217,7 +217,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 6.2 | `ofir fmt` implementing the [style guide](style-guide.md) | M |
 | 6.3 | Language server (diagnostics, go to definition, completion) | L |
 | 6.4 | `ofir doc` and doc tests | M |
-| 6.5 | Package manager: `ofir.toml` dependencies, lock file, registry design | L |
+| 6.5 | Package manager: `ofir.json` dependencies, lock file, registry design | L |
 | 6.6 | Incremental and parallel compilation | L |
 | 6.7 | Seeded `Map` hasher, labeled loops, const generics | M |
 | 6.7a | Compile-time code: `comptime`, `std.meta`, `comptime for`/`if`, `@tag` (spec chapter 15) | L |

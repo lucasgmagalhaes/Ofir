@@ -4,7 +4,7 @@
  * bootstrap/src/driver_modules.c): the root file, then every module it
  * imports, transitively. `import a.b` is the file `<root dir>/a/b.of` or
  * `<root dir>/a/b/index.of`, where the root dir is the project's (the
- * nearest directory with an `ofir.toml`) or the root file's; `import
+ * nearest directory with an `ofir.json`) or the root file's; `import
  * std.x` is in the standard library, and `std.core` (the prelude) is always
  * loaded. When `a.b` names a declaration rather than a module (`import
  * std.collections.Map`), its module `a` is loaded. Imports that match no
@@ -199,7 +199,7 @@ fn nameUnder(input: str, dir: str, prefix: str) Option<str> {
 }
 
 // The project root (spec 7.2): the nearest directory above the root file
-// that holds an `ofir.toml`.
+// that holds an `ofir.json`.
 fn projectDir(input: str) Option<str> {
     let Ok(path) = fs.canonicalize(input) else {
         return .None
@@ -211,7 +211,7 @@ fn projectDir(input: str) Option<str> {
             return .None
         }
         dir = dir.slice(0, slash).toOwned()
-        if fs.exists("{dir}/ofir.toml") {
+        if fs.exists("{dir}/ofir.json") {
             return .Some(dir)
         }
     }

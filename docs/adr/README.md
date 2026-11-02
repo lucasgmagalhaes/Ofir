@@ -31,6 +31,7 @@ changed by writing a new record that supersedes the old one.
 | [0023](0023-arrow-closures.md) | Closures are written as arrow functions | Accepted |
 | [0024](0024-any.md) | `Any`: values of any type through `dyn Any` | Accepted |
 | [0025](0025-name-ofir.md) | The language is named Ofir | Accepted |
+| [0026](0026-manifest-jsonc.md) | The manifest is `ofir.json`, JSON with comments | Accepted |
 
 ## Template
 

@@ -11,7 +11,7 @@ When the formatter exists it is the authority; until then, this document is.
 - **Braces:** the opening `{` stays on the line of its construct; `else`
   follows the closing `}` on the same line.
 - **One statement per line.**
-- **No inline blocks** (`[fmt] inline-blocks = false`, the default): the
+- **No inline blocks** (`"fmt": {"inlineBlocks": false}`, the default): the
   body of a function and the block of a statement (`if`, `else`, `for`,
   `unsafe`, a `match` arm, the `else` of `let ... else`) always start on
   the line after `{`, and `}` closes on a line of its own, even for a

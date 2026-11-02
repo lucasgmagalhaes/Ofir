@@ -46,10 +46,12 @@ project uses [Semantic Versioning](https://semver.org/).
 - The language is renamed Ofir (ADR 0025): source files end in `.of`, the
   compiler is `ofir`, the manifest `ofir.toml`, the environment variables
   `OFIR_*` and the runtime symbols `ofir_*`.
+- The manifest is `ofir.json`, JSON with comments and trailing commas
+  (ADR 0026), instead of `ofir.toml`.
 - A directory's module file is `index.of` (was `mod.of`).
 - Tests live in a `name_test.of` file next to the module, part of the
   module; only `ofir test` loads it. The std tests moved there.
-- Style: no inline blocks (`[fmt] inline-blocks = false`). Function and
+- Style: no inline blocks (`"fmt": {"inlineBlocks": false}`). Function and
   statement bodies always go on their own lines; `make check-format`
   (`tools/check_format.py`, with `--fix`) enforces it in `make test`.
 
