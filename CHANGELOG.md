@@ -27,6 +27,9 @@ project uses [Semantic Versioning](https://semver.org/).
   and the run and panic tests pass with stage 1 (`make test-stage1`).
 - Stage 1 driver (roadmap 4.9): stage 0's command line, `ofir test`
   included; every test passes with stage 1 as the compiler.
+- Self-hosting (roadmap 4.13): stage 1 builds itself (stage 2), which
+  builds itself (stage 3); `make verify` checks that both write the same
+  LLVM IR for `compiler/`.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 

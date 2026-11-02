@@ -172,7 +172,7 @@ Each port is verified by comparing outputs with stage 0.
 | 4.10 | Borrow checker: loans, liveness, conflicts (spec 5.5) | L | `tests/borrow/*` pass |
 | 4.11 | Escape rules for references and borrowed function values (spec 5.4, 10.2) | M | tests pass |
 | 4.12 | Fix the compiler's own code until it passes its borrow checker | M | `compiler/` compiles with no borrow errors |
-| 4.13 | Stage 1 builds itself (stage 2), stage 2 builds itself (stage 3) | M | stage 2 and stage 3 `.ll` outputs are identical |
+| 4.13 | Stage 1 builds itself (stage 2), stage 2 builds itself (stage 3) | M | **done** (before 4.10–4.12, which it does not need): `make verify` (part of `make test`) builds stage 2 and stage 3; their LLVM IR for `compiler/` is identical, and equal to stage 0's |
 | 4.14 | `make verify` in CI; publish the first seed (bootstrap.md) | S | **M4: self-hosted** → release 0.2 |
 
 From M4 on, new features are implemented only in stage 1. Stage 0 is

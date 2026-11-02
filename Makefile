@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 stage1 runtime unit runner-selftest test test-std test-stage1 compare-stages check-format check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
+.PHONY: all stage0 stage1 stage2 verify runtime unit runner-selftest test test-std test-stage1 compare-stages check-format check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
 
 all: stage0 runtime
 
@@ -54,6 +54,21 @@ stage1: stage0 runtime
 	mkdir -p $(BUILD)/stage1
 	OFIR_STD=$(abspath std) $(BUILD)/stage0/ofir build compiler/main.of -o $(BUILD)/stage1/ofir
 
+# Stage 2: the compiler built by stage 1 (roadmap 4.13).
+STAGE_ENV = OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a
+stage2: stage1
+	mkdir -p $(BUILD)/stage2
+	$(STAGE_ENV) $(BUILD)/stage1/ofir build compiler/main.of -o $(BUILD)/stage2/ofir
+
+# Stage 2 builds itself (stage 3): both write the same LLVM IR for compiler/.
+verify: stage2
+	mkdir -p $(BUILD)/stage3
+	$(STAGE_ENV) $(BUILD)/stage2/ofir build compiler/main.of -o $(BUILD)/stage3/ofir
+	$(STAGE_ENV) $(BUILD)/stage2/ofir build compiler/main.of --emit=llvm -o $(BUILD)/stage2/self
+	$(STAGE_ENV) $(BUILD)/stage3/ofir build compiler/main.of --emit=llvm -o $(BUILD)/stage3/self
+	cmp $(BUILD)/stage2/self.ll $(BUILD)/stage3/self.ll
+	@echo "verify: stage 2 and stage 3 generate the same LLVM IR for compiler/"
+
 # Every test with stage 1 as the compiler (roadmap 4.8, 4.9).
 test-stage1: stage1
 	OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a \
@@ -61,7 +76,7 @@ test-stage1: stage1
 	OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a \
 	    $(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage1/ofir
 
-test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std compare-stages test-stage1
+test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std compare-stages test-stage1 verify
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/ofir
 
 # Performance (docs/design/performance.md)
