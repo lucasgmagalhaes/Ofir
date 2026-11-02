@@ -1,0 +1,1248 @@
+/**
+ * @module
+ * Code generation: AIR to textual LLVM IR (ADR 0001), accepted by LLVM 17
+ * and later (stage 0: bootstrap/src/codegen/llvm*.c).
+ *
+ * Each AIR local is an `alloca` in the entry block (`%l<N>`); LLVM's mem2reg
+ * promotes them to registers. SSA temporaries are `%t<N>`. String literals,
+ * source locations and intrinsic declarations are collected while the
+ * functions are generated and written after them. An enum is
+ * `{ i32 tag, [K x i64] payload }`: the payload is large enough for the
+ * largest variant, each variant being a struct of its fields laid over it.
+ */
+
+import air.air.AirBody
+import air.air.AirStmt
+import air.air.FieldPath
+import air.air.FloatFn
+import air.air.GLUE_CLONE
+import air.air.GLUE_DROP
+import air.air.Operand
+import air.air.PanicKind
+import air.air.Rvalue
+import air.air.RuntimeFn
+import air.air.Terminator
+import air.air.VARIANT_STEP
+import air.air.isGlue
+import air.air.noPath
+import air.air.opCopy
+import air.air.runtimeName
+import base.span.Span
+import sema.check.Checker
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check.itemTypeParams
+import sema.enums.enumVariants
+import sema.enums.variantsOf
+import sema.program.Program
+import sema.structs.fieldsOf
+import sema.structs.structFieldType
+import sema.structs.structFields
+import sema.structs.variantFieldType
+import sema.types.ERROR
+import sema.types.I32
+import sema.types.NEVER
+import sema.types.UNIT
+import syntax.ast.ItemKind
+import syntax.ast.Op
+
+/** A generated value: its LLVM type and its text (`%t3`, `42`, `true`, ...). */
+pub struct Value {
+    /** Its LLVM type. */
+    pub ty: str
+    /** Its text. */
+    pub text: str
+}
+
+/** The state of the generator. */
+pub struct Gen {
+    /** The module so far. */
+    pub module: str
+    /** The function being generated. */
+    pub out: str
+    /** String literals and locations, written at the end. */
+    pub globals: str
+    /** Struct type definitions not written yet. */
+    pub typeDefs: str
+    /** The number of `@.str.N`. */
+    pub strCount: int
+    /** The number of `@.loc.N`. */
+    pub locCount: int
+    /** [signed][add, sub, mul][i8, i16, i32, i64]: the overflow intrinsics used. */
+    pub overflowUsed: List<bool>
+    /** [function][f32, f64]: the float intrinsics used. */
+    pub floatFnUsed: List<bool>
+    /** The next `%t` number in this function. */
+    pub temp: int
+    /** By `FileId`: whether `@.file.<id>` exists. */
+    pub filesEmitted: Map<int, bool>
+    /** The LLVM name of each struct or enum type, by type. */
+    pub adtTypes: Map<int, str>
+    /** By `DefId`: the functions of extern blocks to declare. */
+    pub cUsed: List<bool>
+}
+
+fn hexDigit(n: u64) str {
+    return "0123456789ABCDEF".slice(n as int, n as int + 1).toOwned()
+}
+
+// A byte as two upper-case hex digits.
+fn hexByte(b: u8) str {
+    return "{hexDigit((b >> 4) as u64)}{hexDigit((b & 15) as u64)}"
+}
+
+fn escapedBytes(out: mut str, text: str) {
+    for i in 0..text.len() {
+        let c = text[i]
+        if c < 0x20 || c >= 0x7f || c == b'"' || c == b'\\' {
+            out.push("\\")
+            out.push(hexByte(c))
+        } else {
+            out.push(text.slice(i, i + 1))
+        }
+    }
+}
+
+// The bits of a double, through its memory.
+fn floatBits(value: float) u64 {
+    let x = value
+    unsafe {
+        let p = &x as *float
+        return *(p as *u64)
+    }
+}
+
+fn intBits(data: int) int {
+    return match data % 4 {
+        0 => 8
+        1 => 16
+        2 => 32
+        _ => 64
+    }
+}
+
+/**
+ * Whether a type has a value in LLVM: false for (), ! and the error type.
+ *
+ * @param ty the type
+ * @returns true if it does
+ */
+pub fn hasValue(ty: int) bool {
+    return ty != UNIT && ty != NEVER && ty != ERROR
+}
+
+/**
+ * A new generator.
+ *
+ * @returns the generator
+ */
+pub fn newGen() Gen {
+    return Gen{module: "", out: "", globals: "", typeDefs: "", strCount: 0, locCount: 0,
+               overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
+               temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: []}
+}
+
+fn nextTemp(g: mut Gen) str {
+    let t = "%t{g.temp}"
+    g.temp += 1
+    return t
+}
+
+// ---------------------------------------------------------------------------
+// Types
+
+/**
+ * The LLVM type of an Ofir type.
+ *
+ * @param g the generator
+ * @param c the checker
+ * @param p the program
+ * @param ty the type, concrete
+ * @returns its LLVM type
+ */
+pub fn llvmType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
+    let t = c.types.get(ty)
+    let kind = t.kind
+    let data = t.data
+    return match kind {
+        .Adt => adtType(g, c, p, ty)
+        .Param => panic("llvmType: a type parameter survived monomorphization")
+        .Tuple => tupleType(g, c, p, ty)
+        .Ref | .Ptr => "ptr".toOwned()
+        .Bool => "i1".toOwned()
+        .Int => "i{intBits(data)}"
+        .Float => if data == 32 { "float".toOwned() } else { "double".toOwned() }
+        .Str => "%ofir.str".toOwned()
+        _ => "void".toOwned()   // (), ! and the types the checker rejects
+    }
+}
+
+fn fieldType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
+    let t = llvmType(g, c, p, ty)
+    return if t == "void" { "\{\}".toOwned() } else { t }
+}
+
+copy struct Layout {
+    size: int
+    align: int
+}
+
+fn fieldsLayout(g: mut Gen, c: mut Checker, p: Program, types: &List<int>) Layout {
+    var size = 0
+    var align = 1
+    for i in 0..types.len() {
+        let f = layout(g, c, p, types[i])
+        size = (size + f.align - 1) / f.align * f.align + f.size
+        align = if f.align > align { f.align } else { align }
+    }
+    size = (size + align - 1) / align * align
+    return Layout{size: size, align: align}
+}
+
+// The field types of variant `v` of the enum instance `adt`, or of the
+// struct when `v` is -1.
+fn fieldTypes(c: mut Checker, p: Program, adt: int, v: int) List<int> {
+    let id = c.types.get(adt).data
+    var types: List<int> = []
+    if v < 0 {
+        structFields(c, p, id)
+        let count = fieldsOf(c, id).types.len()
+        for i in 0..count {
+            types.push(structFieldType(c, p, adt, i))
+        }
+    } else {
+        let count = variantsOf(c, id).variants[v].types.len()
+        for i in 0..count {
+            types.push(variantFieldType(c, p, adt, v, i))
+        }
+    }
+    return types
+}
+
+// The payload words of an enum: enough for its largest variant.
+fn payloadWords(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
+    let id = c.types.get(adt).data
+    enumVariants(c, p, id)
+    var largest = 0
+    for v in 0..variantsOf(c, id).variants.len() {
+        let types = fieldTypes(c, p, adt, v)
+        let l = fieldsLayout(g, c, p, &types)
+        largest = if l.size > largest { l.size } else { largest }
+    }
+    return (largest + 7) / 8
+}
+
+fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
+    let t = c.types.get(ty)
+    let kind = t.kind
+    let data = t.data
+    return match kind {
+        .Bool => Layout{size: 1, align: 1}
+        .Int => Layout{size: intBits(data) / 8, align: intBits(data) / 8}
+        .Float => Layout{size: data / 8, align: data / 8}
+        .Str => Layout{size: 24, align: 8}
+        .Ref | .Ptr => Layout{size: 8, align: 8}
+        .Tuple => {
+            let args = c.types.get(ty).args.clone()
+            fieldsLayout(g, c, p, &args)
+        }
+        .Adt => {
+            if c.def(data).kind == .Struct {
+                let types = fieldTypes(c, p, ty, -1)
+                fieldsLayout(g, c, p, &types)
+            } else {
+                let words = payloadWords(g, c, p, ty)
+                let size = if words > 0 { 8 + 8 * words } else { 4 }
+                let align = if words > 0 { 8 } else { 4 }
+                Layout{size: size, align: align}
+            }
+        }
+        _ => Layout{size: 0, align: 1}
+    }
+}
+
+// `<int, geo.Point>`: the type arguments of an instance, for its name.
+fn typeArgsText(c: Checker, targs: int) str {
+    let args = c.types.get(targs).args.clone()
+    var out = ""
+    for i in 0..args.len() {
+        out.push(if i > 0 { ", " } else { "<" })
+        out.push(c.qualifiedTypeName(args[i]))
+    }
+    out.push(">")
+    return out
+}
+
+// `%"Shape.3"`, or `%"Pair<int, str>.5"` for an instance: the DefId keeps
+// same-named types apart.
+fn nameType(c: mut Checker, ty: int, suffix: str) str {
+    let id = c.types.get(ty).data
+    let args = c.types.get(ty).args.clone()
+    var out = "%\"{c.text(c.def(id).name)}"
+    if args.len() > 0 {
+        out.push(typeArgsText(c, c.types.tuple(args)))
+    }
+    out.push(".{id}{suffix}\"")
+    return out
+}
+
+fn define(g: mut Gen, c: mut Checker, p: Program, name: str, types: &List<int>) {
+    for i in 0..types.len() {
+        let _ = fieldType(g, c, p, types[i])   // the field types first: no interleaving
+    }
+    g.typeDefs.push("{name} = type \{ ")
+    for i in 0..types.len() {
+        if i > 0 {
+            g.typeDefs.push(", ")
+        }
+        g.typeDefs.push(fieldType(g, c, p, types[i]))
+    }
+    g.typeDefs.push(" \}\n")
+}
+
+/**
+ * The LLVM type of variant `v` of an enum.
+ *
+ * @param c the checker
+ * @param adt the enum type
+ * @param v the variant
+ * @returns its name
+ */
+pub fn variantType(c: mut Checker, adt: int, v: int) str {
+    return nameType(c, adt, ".{v}")
+}
+
+fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
+    let words = payloadWords(g, c, p, adt)
+    let id = c.types.get(adt).data
+    for v in 0..variantsOf(c, id).variants.len() {
+        let types = fieldTypes(c, p, adt, v)
+        define(g, c, p, variantType(c, adt, v), &types)
+    }
+    if words > 0 {
+        g.typeDefs.push("{name} = type \{ i32, [{words} x i64] \}\n")
+    } else {
+        g.typeDefs.push("{name} = type \{ i32 \}\n")
+    }
+}
+
+fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
+    if let .Some(known) = g.adtTypes.get(ty) {
+        return known.clone()
+    }
+    let id = c.types.get(ty).data
+    let name = nameType(c, ty, "")
+    g.adtTypes.insert(ty, name.clone())
+    if c.def(id).kind == .Enum {
+        defineEnum(g, c, p, ty, name.clone())
+        return name
+    }
+    var types: List<int> = []
+    if c.info[id].fields.isSome() {
+        types = fieldTypes(c, p, ty, -1)
+    }
+    define(g, c, p, name.clone(), &types)
+    return name
+}
+
+// A tuple is a literal LLVM struct type, `{ i64, double }`.
+fn tupleType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
+    let args = c.types.get(ty).args.clone()
+    var out = "\{ "
+    for i in 0..args.len() {
+        if i > 0 {
+            out.push(", ")
+        }
+        out.push(fieldType(g, c, p, args[i]))
+    }
+    out.push(" \}")
+    return out
+}
+
+// The address of a place: `%l<N>` itself, or a getelementptr to the field.
+fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: int,
+                path: &FieldPath) str {
+    var base = "%l{local}"
+    if path.deref {   // the local holds the address of the value
+        base = nextTemp(g)
+        g.out.push("  {base} = load ptr, ptr %l{local}\n")
+    }
+    var current = body.locals[local].ty
+    let pointer = c.types.get(current)
+    if path.deref && (pointer.kind == .Ptr || pointer.kind == .Ref) {   // `*p`, `*r`
+        current = pointer.inner
+    }
+    var variant = false
+    var index = 0
+    for i in 0..path.fields.len() {
+        let entry = path.fields[i]
+        let next = nextTemp(g)
+        if entry >= VARIANT_STEP {   // view the payload as a variant
+            let container = llvmType(g, c, p, current)
+            g.out.push("  {next} = getelementptr inbounds {container}, ptr {base}, i32 0, i32 1\n")
+            variant = true
+            index = entry - VARIANT_STEP
+            base = next
+            continue
+        }
+        let container = if variant { variantType(c, current, index) } else {
+            llvmType(g, c, p, current)
+        }
+        g.out.push("  {next} = getelementptr inbounds {container}, ptr {base}, i32 0, "
+                   + "i32 {entry}\n")
+        let t = c.types.get(current)
+        let isEnum = t.kind == .Adt && c.def(t.data).kind == .Enum
+        if variant {
+            current = variantFieldType(c, p, current, index, entry)
+        } else if t.kind == .Tuple {
+            current = t.args[entry]
+        } else if isEnum {
+            current = I32
+        } else {   // a struct, or a primitive's fields from its `@lang` declaration
+            current = structFieldType(c, p, current, entry)
+        }
+        variant = false
+        base = next
+    }
+    return base
+}
+
+// ---------------------------------------------------------------------------
+// Names and globals
+
+fn isCFunction(c: Checker, p: Program, id: int) bool {
+    let def = c.def(id)
+    if def.kind != .Fn || def.item < 0 {
+        return false
+    }
+    let isExtern = match itemOf(p, c.loc(id)).kind {
+        .Extern(_, _) => true
+        _ => false
+    }
+    return isExtern || fnOf(p, c.loc(id)).abi.len() > 0
+}
+
+// User functions are prefixed so they never clash with C symbols; `main`
+// becomes the entry point called by the runtime.
+fn functionName(c: mut Checker, p: Program, id: int, targs: int, isMain: bool) str {
+    if isMain {
+        return "@ofir_main".toOwned()
+    }
+    if isGlue(id) {   // `ofir.drop<T>`, `ofir.clone<T>`
+        let glue = if id == GLUE_DROP { "drop" } else { "clone" }
+        return "@\"ofir.{glue}{typeArgsText(c, targs)}\""
+    }
+    if isCFunction(c, p, id) {   // a C function keeps its name
+        return "@{c.text(c.def(id).name)}"
+    }
+    let def = c.def(id)
+    var out = "@\"ofir."
+    if def.module != 0 {   // qualified by its module, except in the root module
+        out.push(c.r.moduleNames[def.module])
+        out.push(".")
+    }
+    if def.member >= 0 {
+        let item = itemOf(p, c.loc(id))
+        let isType = match item.kind {
+            .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
+            _ => false
+        }
+        if isType {   // a method: qualified by its type, `ofir.Point.norm`
+            out.push(c.text(item.name))
+            out.push(".")
+        }
+    }
+    out.push(c.text(def.name))
+    if targs != UNIT {   // an instance: `ofir.identity<int>`
+        out.push(typeArgsText(c, targs))
+    }
+    out.push("\"")
+    return out
+}
+
+fn stringGlobal(g: mut Gen, text: str) int {
+    let n = g.strCount
+    g.strCount += 1
+    g.globals.push("@.str.{n} = private unnamed_addr constant [{text.len()} x i8] c\"")
+    escapedBytes(g.globals, text)
+    g.globals.push("\"\n")
+    return n
+}
+
+// The location of a span, for panic messages: `@.loc.N`.
+fn locationGlobal(g: mut Gen, c: Checker, span: Span) int {
+    let file = c.r.map.file(span.file)
+    let pos = file.lineCol(span.start)
+    let id = span.file.0
+    if g.filesEmitted.get(id).isNone() {
+        g.filesEmitted.insert(id, true)
+        let path = file.path.clone()
+        g.globals.push("@.file.{id} = private unnamed_addr constant [{path.len() + 1} x i8] c\"")
+        escapedBytes(g.globals, path)
+        g.globals.push("\\00\"\n")
+    }
+    let n = g.locCount
+    g.locCount += 1
+    g.globals.push("@.loc.{n} = private unnamed_addr constant %ofir.loc \{ ptr @.file.{id}, "
+                   + "i32 {pos.line}, i32 {pos.column} \}\n")
+    return n
+}
+
+// ---------------------------------------------------------------------------
+// Operands and rvalues
+
+// LLVM integers are sign-agnostic: the bit pattern as a signed number of
+// the type's width.
+fn intText(value: u64, bits: int) str {
+    let ones: u64 = 18446744073709551615
+    let mask = if bits == 64 { ones } else { ((1 as u64) << (bits as u64)) - 1 }
+    var v = value & mask
+    if bits < 64 && ((v >> ((bits - 1) as u64)) & 1) == 1 {
+        v = v | (mask ^ ones)   // sign-extend
+    }
+    return "{v.wrappingCast<i64>()}"
+}
+
+fn floatText(value: float, isF32: bool) str {
+    let exact = if isF32 { (value as f32) as float } else { value }
+    let bits = floatBits(exact)
+    var out = "0x"
+    var shift = 60
+    for shift >= 0 {
+        out.push(hexDigit((bits >> (shift as u64)) & 15))
+        shift -= 4
+    }
+    return out
+}
+
+fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) Value {
+    let ty = llvmType(g, c, p, o.ty)
+    return match o.kind {
+        .Copy => {
+            if ty == "void" {
+                Value{ty: ty, text: ""}   // a local of type (): nothing to load
+            } else {
+                let at = placeAddress(g, c, p, body, o.local, &o.path)
+                let t = nextTemp(g)
+                g.out.push("  {t} = load {ty}, ptr {at}\n")
+                Value{ty: ty, text: t}
+            }
+        }
+        .Addr => Value{ty: "ptr".toOwned(), text: placeAddress(g, c, p, body, o.local, &o.path)}
+        .Int => Value{ty: ty, text: intText(o.bits, intBits(c.types.get(o.ty).data))}
+        .Float => Value{ty: ty, text: floatText(o.float, c.types.get(o.ty).data == 32)}
+        .Bool => Value{ty: ty, text: if o.truth { "true".toOwned() } else { "false".toOwned() }}
+        .Str => {
+            let n = stringGlobal(g, o.text)
+            Value{ty: ty, text: "\{ ptr @.str.{n}, i64 {o.text.len()}, i64 0 \}"}
+        }
+        .Unit => Value{ty: "void".toOwned(), text: ""}
+    }
+}
+
+fn intOp(op: Op, signed: bool) str {
+    let name = match op {
+        .Add => "add"
+        .Sub => "sub"
+        .Mul => "mul"
+        .Div => if signed { "sdiv" } else { "udiv" }
+        .Rem => if signed { "srem" } else { "urem" }
+        .And => "and"
+        .Or => "or"
+        .Xor => "xor"
+        .Shl => "shl"
+        .Shr => if signed { "ashr" } else { "lshr" }
+        .Eq => "icmp eq"
+        .Ne => "icmp ne"
+        .Lt => if signed { "icmp slt" } else { "icmp ult" }
+        .Le => if signed { "icmp sle" } else { "icmp ule" }
+        .Gt => if signed { "icmp sgt" } else { "icmp ugt" }
+        .Ge => if signed { "icmp sge" } else { "icmp uge" }
+        _ => "add"
+    }
+    return name.toOwned()
+}
+
+fn floatOp(op: Op) str {
+    let name = match op {
+        .Add => "fadd"
+        .Sub => "fsub"
+        .Mul => "fmul"
+        .Div => "fdiv"
+        .Rem => "frem"
+        .Eq => "fcmp oeq"
+        .Ne => "fcmp une"   // NaN != NaN is true
+        .Lt => "fcmp olt"
+        .Le => "fcmp ole"
+        .Gt => "fcmp ogt"
+        .Ge => "fcmp oge"
+        _ => "fadd"
+    }
+    return name.toOwned()
+}
+
+fn isSigned(c: Checker, ty: int) bool {
+    let t = c.types.get(ty)
+    return t.kind == .Int && t.data <= 3
+}
+
+// The cast instruction from one type to another, or "" for none.
+fn castOp(c: Checker, from: int, to: int) str {
+    let f = c.types.get(from)
+    let t = c.types.get(to)
+    let fromPtr = f.kind == .Ptr || f.kind == .Ref
+    let toPtr = t.kind == .Ptr || t.kind == .Ref
+    if fromPtr || toPtr {   // a reference is a pointer
+        let op = if fromPtr == toPtr { "" } else if fromPtr { "ptrtoint" } else { "inttoptr" }
+        return op.toOwned()
+    }
+    if f.kind == .Float && t.kind == .Float {
+        return if f.data < t.data { "fpext".toOwned() } else { "fptrunc".toOwned() }
+    }
+    if f.kind == .Float {
+        return if isSigned(c, to) { "fptosi".toOwned() } else { "fptoui".toOwned() }
+    }
+    if t.kind == .Float {
+        return if isSigned(c, from) { "sitofp".toOwned() } else { "uitofp".toOwned() }
+    }
+    let fromBits = intBits(f.data)
+    let toBits = intBits(t.data)
+    if fromBits == toBits {
+        return "".toOwned()   // same bits, different signedness
+    }
+    let op = if toBits < fromBits { "trunc" } else if isSigned(c, from) { "sext" } else { "zext" }
+    return op.toOwned()
+}
+
+fn castValue(g: mut Gen, c: mut Checker, p: Program, from: int, to: int, a: move Value) Value {
+    let op = castOp(c, from, to)
+    let target = llvmType(g, c, p, to)
+    if op == "" {
+        return Value{ty: target, text: a.text}
+    }
+    let t = nextTemp(g)
+    g.out.push("  {t} = {op} {a.ty} {a.text} to {target}\n")
+    return Value{ty: target, text: t}
+}
+
+copy struct Bounds {
+    below: bool
+    above: bool
+    min: i64
+    max: u64
+}
+
+fn bounds(c: Checker, from: int, to: int) Bounds {
+    let s = intBits(c.types.get(from).data)
+    let t = intBits(c.types.get(to).data)
+    let fs = c.types.get(from).data <= 3
+    let ts = c.types.get(to).data <= 3
+    let below = fs && (!ts || t < s)
+    let aboveSigned = if ts { t < s } else { t + 1 < s }
+    let aboveUnsigned = if ts { t <= s } else { t < s }
+    let above = if fs { aboveSigned } else { aboveUnsigned }
+    let one: u64 = 1
+    var min: i64 = 0
+    if ts {
+        min = if t == 64 { i64.MIN } else { 0 - ((one << ((t - 1) as u64)) as i64) }
+    }
+    let ones: u64 = 18446744073709551615
+    var max: u64 = 0
+    if ts {
+        max = (one << ((t - 1) as u64)) - 1
+    } else {
+        max = if t == 64 { ones } else { (one << (t as u64)) - 1 }
+    }
+    return Bounds{below: below, above: above, min: min, max: max}
+}
+
+// Combines two optional failure conditions with `or`.
+fn either(g: mut Gen, low: str, high: str) str {
+    if low.len() > 0 && high.len() > 0 {
+        let t = nextTemp(g)
+        g.out.push("  {t} = or i1 {low}, {high}\n")
+        return t
+    }
+    return if low.len() > 0 { low.toOwned() } else if high.len() > 0 { high.toOwned() } else {
+        "false".toOwned()
+    }
+}
+
+fn floatBound(value: float) str {
+    return floatText(value, false)
+}
+
+fn castFails(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue) Value {
+    let a = operand(g, c, p, body, &rv.a)
+    let from = rv.a.ty
+    let to = rv.to
+    if c.types.kind(from) == .Float {   // the value must be in [min, max + 1)
+        let t = intBits(c.types.get(to).data)
+        let signed = c.types.get(to).data <= 3
+        var power = 1.0
+        let exponent = if signed { t - 1 } else { t }
+        for _ in 0..exponent {
+            power = power * 2.0
+        }
+        let min = if signed { 0.0 - power } else { 0.0 }
+        let lo = floatBound(min)
+        let hi = floatBound(power)
+        let ge = nextTemp(g)
+        g.out.push("  {ge} = fcmp oge {a.ty} {a.text}, {lo}\n")
+        let lt = nextTemp(g)
+        g.out.push("  {lt} = fcmp olt {a.ty} {a.text}, {hi}\n")
+        let ok = nextTemp(g)
+        g.out.push("  {ok} = and i1 {ge}, {lt}\n")
+        let result = nextTemp(g)
+        g.out.push("  {result} = xor i1 {ok}, true\n")
+        return Value{ty: "i1".toOwned(), text: result}
+    }
+    let b = bounds(c, from, to)
+    var low = ""
+    var high = ""
+    if b.below {
+        low = nextTemp(g)
+        g.out.push("  {low} = icmp slt {a.ty} {a.text}, {b.min}\n")
+    }
+    if b.above {
+        high = nextTemp(g)
+        let cmp = if isSigned(c, from) { "sgt" } else { "ugt" }
+        g.out.push("  {high} = icmp {cmp} {a.ty} {a.text}, {b.max}\n")
+    }
+    return Value{ty: "i1".toOwned(), text: either(g, low, high)}
+}
+
+// `x.saturatingCast<T>()`: clamp in the source type, then convert.
+fn saturate(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue) Value {
+    let a = operand(g, c, p, body, &rv.a)
+    let b = bounds(c, rv.a.ty, rv.to)
+    var value = a.text.clone()
+    if b.below {
+        let test = nextTemp(g)
+        g.out.push("  {test} = icmp slt {a.ty} {value}, {b.min}\n")
+        let clamped = nextTemp(g)
+        g.out.push("  {clamped} = select i1 {test}, {a.ty} {b.min}, {a.ty} {value}\n")
+        value = clamped
+    }
+    if b.above {
+        let test = nextTemp(g)
+        let cmp = if isSigned(c, rv.a.ty) { "sgt" } else { "ugt" }
+        g.out.push("  {test} = icmp {cmp} {a.ty} {value}, {b.max}\n")
+        let clamped = nextTemp(g)
+        g.out.push("  {clamped} = select i1 {test}, {a.ty} {b.max}, {a.ty} {value}\n")
+        value = clamped
+    }
+    return castValue(g, c, p, rv.a.ty, rv.to, Value{ty: a.ty, text: value})
+}
+
+fn floatFnName(f: FloatFn) str {
+    let name = match f {
+        .Sqrt => "sqrt"
+        .Fabs => "fabs"
+        .Floor => "floor"
+        .Ceil => "ceil"
+        .Minnum => "minnum"
+        .Maxnum => "maxnum"
+    }
+    return name.toOwned()
+}
+
+fn floatFnIndex(f: FloatFn) int {
+    return match f {
+        .Sqrt => 0
+        .Fabs => 1
+        .Floor => 2
+        .Ceil => 3
+        .Minnum => 4
+        .Maxnum => 5
+    }
+}
+
+fn floatFn(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue) Value {
+    let binary = rv.floatFn == .Minnum || rv.floatFn == .Maxnum
+    let a = operand(g, c, p, body, &rv.a)
+    let b = if binary { operand(g, c, p, body, &rv.b) } else { a.clone() }   // loads first
+    let isF64 = a.ty == "double"
+    g.floatFnUsed[floatFnIndex(rv.floatFn) * 2 + if isF64 { 1 } else { 0 }] = true
+    let t = nextTemp(g)
+    let suffix = if isF64 { "f64" } else { "f32" }
+    g.out.push("  {t} = call {a.ty} @llvm.{floatFnName(rv.floatFn)}.{suffix}({a.ty} {a.text}")
+    if binary {
+        g.out.push(", {b.ty} {b.text}")
+    }
+    g.out.push(")\n")
+    return Value{ty: a.ty, text: t}
+}
+
+fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
+          destType: int) Value {
+    let ty = llvmType(g, c, p, destType)
+    match rv.kind {
+        .Use => {
+            let v = operand(g, c, p, body, &rv.a)
+            return Value{ty: ty, text: v.text}
+        }
+        .Binary => {
+            let a = operand(g, c, p, body, &rv.a)
+            let b = operand(g, c, p, body, &rv.b)
+            let float = c.types.kind(rv.a.ty) == .Float
+            let op = if float { floatOp(rv.op) } else { intOp(rv.op, isSigned(c, rv.a.ty)) }
+            let t = nextTemp(g)
+            g.out.push("  {t} = {op} {a.ty} {a.text}, {b.text}\n")
+            return Value{ty: ty, text: t}
+        }
+        .Checked => {
+            let a = operand(g, c, p, body, &rv.a)
+            let b = operand(g, c, p, body, &rv.b)
+            let signed = isSigned(c, rv.a.ty)
+            let op = if rv.op == .Add { 0 } else if rv.op == .Sub { 1 } else { 2 }
+            let width = c.types.get(rv.a.ty).data % 4
+            g.overflowUsed[(if signed { 12 } else { 0 }) + op * 4 + width] = true
+            let ops = ["add", "sub", "mul"]
+            let pair = nextTemp(g)
+            let sign = if signed { "s" } else { "u" }
+            g.out.push("  {pair} = call \{ {a.ty}, i1 \} @llvm.{sign}{ops[op]}.with.overflow."
+                       + "{a.ty}({a.ty} {a.text}, {a.ty} {b.text})\n")
+            let result = nextTemp(g)
+            g.out.push("  {result} = extractvalue \{ {a.ty}, i1 \} {pair}, 0\n")
+            let flag = nextTemp(g)
+            g.out.push("  {flag} = extractvalue \{ {a.ty}, i1 \} {pair}, 1\n")
+            g.out.push("  store i1 {flag}, ptr %l{rv.flag}\n")
+            return Value{ty: ty, text: result}
+        }
+        .Unary => {
+            let a = operand(g, c, p, body, &rv.a)
+            let t = nextTemp(g)
+            if rv.op == .Neg {
+                g.out.push("  {t} = fneg {a.ty} {a.text}\n")
+            } else {
+                g.out.push("  {t} = xor {a.ty} {a.text}, -1\n")   // also i1
+            }
+            return Value{ty: ty, text: t}
+        }
+        .Cast => {
+            let a = operand(g, c, p, body, &rv.a)
+            let v = castValue(g, c, p, rv.a.ty, rv.to, a)
+            return Value{ty: ty, text: v.text}
+        }
+        .CastFails => {
+            let v = castFails(g, c, p, body, rv)
+            return Value{ty: ty, text: v.text}
+        }
+        .Saturate => {
+            let v = saturate(g, c, p, body, rv)
+            return Value{ty: ty, text: v.text}
+        }
+        .PtrAdd => {
+            let a = operand(g, c, p, body, &rv.a)
+            let n = operand(g, c, p, body, &rv.b)
+            let elem = llvmType(g, c, p, c.types.get(rv.a.ty).inner)
+            let t = nextTemp(g)
+            g.out.push("  {t} = getelementptr {elem}, ptr {a.text}, i64 {n.text}\n")
+            return Value{ty: ty, text: t}
+        }
+        .Aggregate => {   // insertvalue of each field into poison
+            var current = "poison".toOwned()
+            for i in 0..rv.items.len() {
+                let field = operand(g, c, p, body, &rv.items[i])
+                if field.ty == "void" {
+                    continue   // a field of type (): nothing to store
+                }
+                let next = nextTemp(g)
+                g.out.push("  {next} = insertvalue {ty} {current}, {field.ty} {field.text}, {i}\n")
+                current = next
+            }
+            return Value{ty: ty, text: current}
+        }
+        .SizeOf => {   // the address of element 1 from null is the size
+            let end = nextTemp(g)
+            let t = fieldType(g, c, p, rv.to)
+            g.out.push("  {end} = getelementptr {t}, ptr null, i32 1\n")
+            let result = nextTemp(g)
+            g.out.push("  {result} = ptrtoint ptr {end} to i64\n")
+            return Value{ty: ty, text: result}
+        }
+        .StrLen => {
+            let s = operand(g, c, p, body, &rv.a)
+            let t = nextTemp(g)
+            g.out.push("  {t} = extractvalue %ofir.str {s.text}, 1\n")
+            return Value{ty: ty, text: t}
+        }
+        .StrByte => {
+            let s = operand(g, c, p, body, &rv.a)
+            let i = operand(g, c, p, body, &rv.b)
+            let ptr = nextTemp(g)
+            g.out.push("  {ptr} = extractvalue %ofir.str {s.text}, 0\n")
+            let at = nextTemp(g)
+            g.out.push("  {at} = getelementptr inbounds i8, ptr {ptr}, i64 {i.text}\n")
+            let t = nextTemp(g)
+            g.out.push("  {t} = load i8, ptr {at}\n")
+            return Value{ty: ty, text: t}
+        }
+        .FloatFn => {
+            let v = floatFn(g, c, p, body, rv)
+            return Value{ty: ty, text: v.text}
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Bodies
+
+fn storeAt(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, dest: int,
+           path: &FieldPath, v: &Value) {
+    if v.ty != "void" {
+        let at = placeAddress(g, c, p, body, dest, path)
+        g.out.push("  store {v.ty} {v.text}, ptr {at}\n")
+    }
+}
+
+fn runtimeCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt) {
+    var args: List<Value> = []
+    for i in 0..s.args.len() {
+        args.push(operand(g, c, p, body, &s.args[i]))
+    }
+    let ret = match s.rt {
+        .StrEq => "i1"
+        .StrCmp => "i32"
+        .TestIndex => "i64"
+        _ => "void"
+    }
+    var result = ""
+    if s.hasDest {
+        result = nextTemp(g)
+        g.out.push("  {result} = ")
+    } else {
+        g.out.push("  ")
+    }
+    g.out.push("call {ret} @{runtimeName(s.rt)}(")
+    for i in 0..args.len() {
+        let zext = if args[i].ty == "i1" { " zeroext" } else { "" }
+        g.out.push("{if i > 0 { ", " } else { "" }}{args[i].ty}{zext} {args[i].text}")
+    }
+    g.out.push(")\n")
+    if s.hasDest {
+        storeAt(g, c, p, body, s.dest, &noPath(), &Value{ty: ret.toOwned(), text: result})
+    }
+}
+
+fn userCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt) {
+    var values: List<Value> = []
+    for i in 0..s.args.len() {
+        values.push(operand(g, c, p, body, &s.args[i]))
+    }
+    let glue = isGlue(s.callee)
+    let cfn = !glue && isCFunction(c, p, s.callee)
+    if cfn && c.def(s.callee).member >= 0 {
+        for g.cUsed.len() <= s.callee {
+            g.cUsed.push(false)
+        }
+        g.cUsed[s.callee] = true
+    }
+    var retType = UNIT
+    if s.callee == GLUE_CLONE {
+        retType = c.types.get(s.targs).args[0]   // clone<T> returns T
+    } else if !glue {
+        let sig = c.info[s.callee].ty
+        let args = c.types.get(s.targs).args.clone()
+        retType = c.types.subst(c.types.get(sig).inner, args)
+    }
+    let ret = llvmType(g, c, p, retType)
+    let hasDest = s.hasDest && hasValue(retType)   // an instance may return ()
+    var result = ""
+    if hasDest {
+        result = nextTemp(g)
+        g.out.push("  {result} = ")
+    } else {
+        g.out.push("  ")
+    }
+    let zext = cfn && ret == "i1"
+    g.out.push("call {if cfn { "" } else { "fastcc " }}{if zext { "zeroext " } else { "" }}{ret} ")
+    g.out.push(functionName(c, p, s.callee, s.targs, false))
+    g.out.push("(")
+    var first = true
+    for i in 0..values.len() {
+        if values[i].ty != "void" {   // () arguments are not passed
+            let attr = if cfn && values[i].ty == "i1" { " zeroext" } else { "" }
+            g.out.push("{if first { "" } else { ", " }}{values[i].ty}{attr} {values[i].text}")
+            first = false
+        }
+    }
+    g.out.push(")\n")
+    if hasDest {
+        storeAt(g, c, p, body, s.dest, &noPath(), &Value{ty: ret, text: result})
+    }
+}
+
+fn statement(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt) {
+    if s.kind == .Call {
+        if s.runtime {
+            runtimeCall(g, c, p, body, s)
+        } else {
+            userCall(g, c, p, body, s)
+        }
+        return
+    }
+    var ty = body.locals[s.dest].ty
+    if s.destPath.fields.len() > 0 || s.destPath.deref {   // a field or `*p`: the operand's type
+        ty = s.value.a.ty
+    }
+    let v = rvalue(g, c, p, body, &s.value, ty)
+    storeAt(g, c, p, body, s.dest, &s.destPath, &v)
+}
+
+fn panicFn(kind: PanicKind) str {
+    let name = match kind {
+        .Overflow => "ofir_panic_overflow"
+        .DivZero => "ofir_panic_div_zero"
+        .Shift => "ofir_panic_shift"
+        .Cast => "ofir_panic_cast"
+        .Bounds => "ofir_panic_bounds"
+        .Assert => "ofir_panic_assert"
+    }
+    return name.toOwned()
+}
+
+fn terminator(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, t: &Terminator,
+              index: int) {
+    match t.kind {
+        .Goto => g.out.push("  br label %bb{t.target}\n")
+        .Branch => {
+            let cond = operand(g, c, p, body, &t.cond)
+            g.out.push("  br i1 {cond.text}, label %bb{t.target}, label %bb{t.other}\n")
+        }
+        .Assert => {   // the failing branch calls the panic function with the location
+            let cond = operand(g, c, p, body, &t.cond)
+            let loc = locationGlobal(g, c, t.span)
+            g.out.push("  br i1 {cond.text}, label %panic{index}, label %bb{t.target}\n")
+            g.out.push("panic{index}:\n")
+            if t.panic == .Bounds {   // the message shows the index and the length
+                let i = operand(g, c, p, body, &t.index)
+                let len = operand(g, c, p, body, &t.len)
+                g.out.push("  call void @ofir_panic_bounds(i64 {i.text}, i64 {len.text}, "
+                           + "ptr @.loc.{loc})\n")
+            } else {
+                g.out.push("  call void @{panicFn(t.panic)}(ptr @.loc.{loc})\n")
+            }
+            g.out.push("  unreachable\n")
+        }
+        .Panic => {
+            let msg = operand(g, c, p, body, &t.cond)
+            let loc = locationGlobal(g, c, t.span)
+            g.out.push("  call void @ofir_panic_str(ptr {msg.text}, ptr @.loc.{loc})\n")
+            g.out.push("  unreachable\n")
+        }
+        .Return => {
+            let ret = body.locals[0].ty
+            if hasValue(ret) {
+                let v = operand(g, c, p, body, &opCopy(0, ret))
+                g.out.push("  ret {v.ty} {v.text}\n")
+            } else {
+                g.out.push("  ret void\n")
+            }
+        }
+        .Unreachable | .None => g.out.push("  unreachable\n")
+    }
+}
+
+fn localType(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, i: int) str {
+    let local = &body.locals[i]
+    return if local.byRef { "ptr".toOwned() } else { llvmType(g, c, p, local.ty) }
+}
+
+fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
+    g.temp = 0
+    let ret = body.locals[0].ty
+    let cfn = !isGlue(body.def) && isCFunction(c, p, body.def)   // callable from C
+    let linkage = if body.isMain || cfn { "" } else { "internal fastcc " }
+    let retType = if body.isMain { "void".toOwned() } else { llvmType(g, c, p, ret) }
+    g.out.push("define {linkage}{retType} ")
+    g.out.push(functionName(c, p, body.def, body.targs, body.isMain))
+    g.out.push("(")
+    var first = true
+    for i in 1..body.paramCount + 1 {
+        let local = &body.locals[i]
+        if local.byRef || hasValue(local.ty) {
+            g.out.push("{if first { "" } else { ", " }}{localType(g, c, p, body, i)} %p{i}")
+            first = false
+        }
+    }
+    g.out.push(") nounwind \{\nstart:\n")
+    for i in 0..body.locals.len() {
+        let local = &body.locals[i]
+        if local.byRef || hasValue(local.ty) {
+            g.out.push("  %l{i} = alloca {localType(g, c, p, body, i)}\n")
+        }
+    }
+    for i in 1..body.paramCount + 1 {
+        let local = &body.locals[i]
+        if local.byRef || hasValue(local.ty) {
+            g.out.push("  store {localType(g, c, p, body, i)} %p{i}, ptr %l{i}\n")
+        }
+    }
+    g.out.push("  br label %bb0\n")
+    for b in 0..body.blocks.len() {
+        g.out.push("bb{b}:\n")
+        let block = &body.blocks[b]
+        for i in 0..block.stmts.len() {
+            statement(g, c, p, body, &block.stmts[i])
+        }
+        terminator(g, c, p, body, &block.term, b)
+    }
+    g.out.push("\}\n\n")
+}
+
+// ---------------------------------------------------------------------------
+// The module
+
+fn runtimeDecls() str {
+    var out = ""
+    out.push("declare void @ofir_print_str(ptr) nounwind\n")
+    out.push("declare void @ofir_print_int(i64) nounwind\n")
+    out.push("declare void @ofir_print_uint(i64) nounwind\n")
+    out.push("declare void @ofir_print_float(double) nounwind\n")
+    out.push("declare void @ofir_print_f32(float) nounwind\n")
+    out.push("declare void @ofir_print_bool(i1 zeroext) nounwind\n")
+    out.push("declare void @ofir_print_newline() nounwind\n")
+    out.push("declare i64 @ofir_test_index() nounwind\n")
+    out.push("declare void @ofir_str_push_str(ptr, ptr) nounwind\n")
+    out.push("declare void @ofir_str_push_int(ptr, i64) nounwind\n")
+    out.push("declare void @ofir_str_push_uint(ptr, i64) nounwind\n")
+    out.push("declare void @ofir_str_push_float(ptr, double) nounwind\n")
+    out.push("declare void @ofir_str_push_f32(ptr, float) nounwind\n")
+    out.push("declare void @ofir_str_push_bool(ptr, i1 zeroext) nounwind\n")
+    out.push("declare void @ofir_str_concat(ptr, ptr, ptr) nounwind\n")
+    out.push("declare zeroext i1 @ofir_str_eq(ptr, ptr) nounwind\n")
+    out.push("declare i32 @ofir_str_cmp(ptr, ptr) nounwind\n")
+    out.push("declare void @ofir_panic_overflow(ptr) noreturn cold nounwind\n")
+    out.push("declare void @ofir_panic_div_zero(ptr) noreturn cold nounwind\n")
+    out.push("declare void @ofir_panic_shift(ptr) noreturn cold nounwind\n")
+    out.push("declare void @ofir_panic_cast(ptr) noreturn cold nounwind\n")
+    out.push("declare void @ofir_panic_bounds(i64, i64, ptr) noreturn cold nounwind\n")
+    out.push("declare void @ofir_panic_assert(ptr) noreturn cold nounwind\n")
+    out.push("declare void @ofir_panic_str(ptr, ptr) noreturn cold nounwind\n")
+    return out
+}
+
+fn begin(g: mut Gen, c: mut Checker, p: Program) {
+    let root = c.r.map.file(p.modules[0].module.file)
+    var path = ""
+    escapedBytes(path, root.path)
+    g.module.push("; Generated by the Ofir stage 0 compiler.\nsource_filename = \"{path}\"\n\n")
+    g.module.push("%ofir.str = type \{ ptr, i64, i64 \}\n")
+    g.module.push("%ofir.loc = type \{ ptr, i32, i32 \}\n")
+    // Every struct is known after type checking. The definitions come first:
+    // LLVM needs a type's size when a function allocates it.
+    for i in 1..c.r.defs.len() {
+        let def = c.def(i)
+        let known = (def.kind == .Struct && c.info[i].fields.isSome() && !def.lang) ||
+                    (def.kind == .Enum && c.info[i].variants.isSome())
+        if known && itemTypeParams(itemOf(p, c.loc(i))).len() == 0 {
+            let ty = c.types.adt(i, [])
+            let _ = adtType(g, c, p, ty)
+        }
+    }
+    g.module.push(g.typeDefs)
+    g.module.push("\n")
+    g.typeDefs = ""
+}
+
+// LLVM needs a struct type's definition before an instruction that sizes
+// it, and the instances of generic types are defined as functions use
+// them: the types a function defined are written first, then the function.
+fn function(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
+    g.out = ""
+    genBody(g, c, p, body)
+    if g.typeDefs.len() > 0 {
+        g.module.push(g.typeDefs)
+        g.module.push("\n")
+        g.typeDefs = ""
+    }
+    g.module.push(g.out)
+}
+
+fn overflowDecls(g: mut Gen) {
+    let ops = ["add", "sub", "mul"]
+    let bits = [8, 16, 32, 64]
+    for i in 0..24 {
+        let s = i / 12
+        let op = i / 4 % 3
+        let b = i % 4
+        if g.overflowUsed[i] {
+            let n = bits[b]
+            let sign = if s == 1 { "s" } else { "u" }
+            g.module.push("declare \{ i{n}, i1 \} @llvm.{sign}{ops[op]}.with.overflow.i{n}(i{n}, "
+                          + "i{n})\n")
+        }
+    }
+}
+
+fn floatDecls(g: mut Gen) {
+    let names = ["sqrt", "fabs", "floor", "ceil", "minnum", "maxnum"]
+    for f in 0..6 {
+        for isF64 in 0..2 {
+            if !g.floatFnUsed[f * 2 + isF64] {
+                continue
+            }
+            let ty = if isF64 == 1 { "double" } else { "float" }
+            let suffix = if isF64 == 1 { "f64" } else { "f32" }
+            let second = if f >= 4 { ", {ty}" } else { "" }
+            g.module.push("declare {ty} @llvm.{names[f]}.{suffix}({ty}{second})\n")
+        }
+    }
+}
+
+// `declare` for each function of an extern block that is called; several
+// modules may declare the same C function.
+fn cDecls(g: mut Gen, c: mut Checker, p: Program) {
+    for id in 0..g.cUsed.len() {
+        if !g.cUsed[id] {
+            continue
+        }
+        var before = false
+        for other in 0..id {
+            if g.cUsed[other] && c.text(c.def(other).name) == c.text(c.def(id).name) {
+                before = true
+            }
+        }
+        if before {
+            continue
+        }
+        let sig = c.info[id].ty
+        let ret = llvmType(g, c, p, c.types.get(sig).inner)
+        g.module.push("declare {if ret == "i1" { "zeroext " } else { "" }}{ret} ")
+        g.module.push(functionName(c, p, id, UNIT, false))
+        g.module.push("(")
+        let args = c.types.get(sig).args.clone()
+        for i in 0..args.len() {
+            let ty = llvmType(g, c, p, args[i])
+            let zext = if ty == "i1" { " zeroext" } else { "" }
+            g.module.push("{if i > 0 { ", " } else { "" }}{ty}{zext}")
+        }
+        g.module.push(") nounwind\n")
+    }
+}
+
+/**
+ * The LLVM IR module of the lowered bodies, as stage 0's `--emit=llvm`
+ * writes it.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param bodies the bodies, in the order the lowering reached them
+ * @returns the module's text
+ */
+pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>) str {
+    var g = newGen()
+    begin(g, c, p)
+    for i in 0..bodies.len() {
+        function(g, c, p, &bodies[i])
+    }
+    g.module.push(runtimeDecls())
+    overflowDecls(g)
+    floatDecls(g)
+    cDecls(g, c, p)
+    g.module.push("\n")
+    g.module.push(g.globals)
+    return g.module
+}

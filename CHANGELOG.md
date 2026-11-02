@@ -22,6 +22,9 @@ project uses [Semantic Versioning](https://semver.org/).
 - Stage 1 AIR and lowering (roadmap 4.7): `main air` equals stage 0's
   `--emit=air` on every program of the repository, stage 1 itself
   included; drops, clones, hashes and monomorphization included.
+- Stage 1 LLVM codegen (roadmap 4.8): `main llvm` equals stage 0's
+  `--emit=llvm`; `main build` and `main run` compile programs with clang,
+  and the run and panic tests pass with stage 1 (`make test-stage1`).
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 

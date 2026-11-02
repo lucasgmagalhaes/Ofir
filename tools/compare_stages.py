@@ -28,7 +28,7 @@ from fuzz_frontend import mutate  # noqa: E402
 
 # stage 1 command -> the stage 0 option that it must match
 COMMANDS = {"tokens": "--emit=tokens", "ast": "--emit=ast", "names": "--emit=names",
-            "types": "--emit=types", "air": "--emit=air"}
+            "types": "--emit=types", "air": "--emit=air", "llvm": "--emit=llvm"}
 UNLOWERED = 3   # `main air`: the program uses a construct stage 1 does not lower yet
 SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 
@@ -42,13 +42,25 @@ def run(argv: list) -> tuple:
     return result.returncode, result.stdout, result.stderr
 
 
+def stage0_llvm(stage0: str, path: Path) -> tuple:
+    """Stage 0 writes `--emit=llvm` to `<output>.ll`: read it as the output."""
+    with tempfile.TemporaryDirectory() as tmp:
+        exe = Path(tmp) / "out"
+        status, _, stderr = run([stage0, "build", str(path), "--emit=llvm", "-o", str(exe)])
+        ll = exe.with_name("out.ll")
+        return status, ll.read_bytes() if ll.exists() else b"", stderr
+
+
 def compare(stage0: str, stage1: str, path: Path) -> tuple:
     problems = []
     lowered = False
     for command, option in COMMANDS.items():
-        expected = run([stage0, "build", str(path), option, "-o", "/dev/null"])
+        if command == "llvm":
+            expected = stage0_llvm(stage0, path)
+        else:
+            expected = run([stage0, "build", str(path), option, "-o", "/dev/null"])
         actual = run([stage1, command, str(path)])
-        if command == "air" and actual[0] == UNLOWERED:
+        if command in ("air", "llvm") and actual[0] == UNLOWERED:
             continue
         lowered = lowered or (command == "air" and actual[0] == 0)
         if expected[0] != 0 and actual[0] == expected[0] and actual[2] == expected[2]:

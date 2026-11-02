@@ -4,7 +4,7 @@
 BUILD  ?= build
 PYTHON ?= python3
 
-.PHONY: all stage0 runtime unit runner-selftest test test-std compare-stages check-format check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
+.PHONY: all stage0 stage1 runtime unit runner-selftest test test-std test-stage1 compare-stages check-format check-codes check-sizes check-docs check-leaks check-asan bench bench-compare clean
 
 all: stage0 runtime
 
@@ -49,7 +49,17 @@ check-asan: stage0 runtime
 compare-stages: stage0 runtime
 	$(PYTHON) tools/compare_stages.py --compiler $(BUILD)/stage0/ofir --fuzz 200
 
-test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std compare-stages
+# Stage 1, built by stage 0.
+stage1: stage0 runtime
+	mkdir -p $(BUILD)/stage1
+	OFIR_STD=$(abspath std) $(BUILD)/stage0/ofir build compiler/main.of -o $(BUILD)/stage1/ofir
+
+# The run and panic tests compiled by stage 1 (roadmap 4.8).
+test-stage1: stage1
+	OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a \
+	    $(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage1/ofir --stage 1 run panic
+
+test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std compare-stages test-stage1
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/ofir
 
 # Performance (docs/design/performance.md)
