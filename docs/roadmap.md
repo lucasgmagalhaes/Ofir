@@ -186,7 +186,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.1 | Returning borrows and `ref struct` (spec 5.6) | M | `List.iter()` written in Astra |
 | 5.2 | Generic bounds and `where` clauses | M | `tests/run/generics/*` pass |
 | 5.3 | Interfaces: declaration, structural satisfaction, assertions, default methods, embedding | L | `tests/run/interfaces/*` pass |
-| 5.4 | `dyn`: vtables, fat pointers, type switches, unsized types | M | `examples/interfaces.at` runs |
+| 5.4 | `dyn`: vtables, fat pointers, type switches, unsized types, `Any` and `typeName` (ADR 0024) | M | `examples/interfaces.at` runs |
 | 5.5 | Built-in interfaces derived automatically (`Eq`, `Ord`, `Hash`, `Clone`, `Debug`); `From` in `?` | M | `==` on structs, structs as map keys |
 | 5.6 | Rewrite `List`, `Map`, `Option`, `Result`, `Box` as generic Astra code in `std/` | L | built-in special cases removed from the compiler |
 | 5.7 | Closures: arrow syntax (`x => ...`, `move () => ...`, ADR 0023), `fn` and `move fn` types, captures, stack and heap environments | L | `tests/run/closures/*` pass |

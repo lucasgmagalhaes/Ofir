@@ -178,7 +178,53 @@ match shape {
 ```
 
 This requires the concrete type to be known to the compiler at the match
-site; the vtable carries a unique type id.
+site; the vtable carries a unique type id. A type switch needs a `_` arm,
+since the set of types behind a `dyn` is open (E0500). A type test that
+names a type that does not satisfy the interface can never match (E0354).
+A type test binds like any pattern (chapter 5.5): on a borrowed `dyn`
+value the binding borrows; on an owned `Box<dyn I>` it takes the value by
+move and the box is freed.
+
+### `Any`
+
+`Any` (ADR 0024), in `std.core` and the prelude, holds a value of any
+type:
+
+```astra
+pub interface Any {
+    fn typeName(self) str
+}
+```
+
+Every type satisfies `Any`, except the types that hold references (`&T`,
+a `ref struct`, a type with such a field), which cannot be stored (chapter
+5.6, E0702). The compiler provides `typeName` for every type, which cannot
+declare its own; it returns the type's name as written in messages:
+`"int"`, `"List<str>"`, `"app.Config"`. The value is recovered with a type
+switch:
+
+```astra
+fn describe(v: dyn Any) str {
+    return match v {
+        n: int => "the int {n}"
+        s: str => "the str {s}"
+        p: Point => "a point at {p.x}, {p.y}"
+        _ => "a {v.typeName()}"
+    }
+}
+
+fn takeConfig(value: move Box<dyn Any>) Option<Config> {
+    return match value {
+        c: Config => .Some(c)   // moved out of the box
+        _ => .None              // the box is dropped with its value
+    }
+}
+```
+
+`if let c: Config = value { ... }` tests a single type. There is no `any`
+type, no `is` operator and no reflection: a type test, which the compiler
+checks, is the only way to the concrete value. Two `dyn Any` values cannot
+be compared or hashed.
 
 ## 9.9 Built-in interfaces
 

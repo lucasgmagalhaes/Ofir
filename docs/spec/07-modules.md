@@ -52,7 +52,7 @@ pub fn tokenize(src: str) List<Token> { ... }
 
 The following names are available in every module without imports:
 
-- primitive types, `str`, `List`, `Map`, `Option`, `Result`, `Box`
+- primitive types, `str`, `List`, `Map`, `Option`, `Result`, `Box`, `Any`
 - `Some`, `None`, `Ok`, `Err`
 - the built-in functions below
 

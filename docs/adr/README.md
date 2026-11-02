@@ -29,6 +29,7 @@ changed by writing a new record that supersedes the old one.
 | [0021](0021-type-operators.md) | Type operators: `keyof`, indexed access, mapped and conditional types | Accepted |
 | [0022](0022-union-types.md) | Union types as anonymous tagged enums | Accepted |
 | [0023](0023-arrow-closures.md) | Closures are written as arrow functions | Accepted |
+| [0024](0024-any.md) | `Any`: values of any type through `dyn Any` | Accepted |
 
 ## Template
 
