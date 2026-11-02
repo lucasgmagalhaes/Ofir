@@ -295,20 +295,34 @@ pub struct Checker {
      */
     pub fn typeName(self, ty: int) str {
         var out = ""
-        self.appendType(out, ty)
+        self.appendType(out, ty, false)
         return out
     }
 
-    fn appendList(self, out: mut str, args: &List<int>) {
+    /**
+     * The spelling of a type with the structs and enums of modules other
+     * than the root qualified by their module: `Pair<int, geo.Point>`, as
+     * in the names of instances in LLVM IR.
+     *
+     * @param ty the type
+     * @returns its text
+     */
+    pub fn qualifiedTypeName(self, ty: int) str {
+        var out = ""
+        self.appendType(out, ty, true)
+        return out
+    }
+
+    fn appendList(self, out: mut str, args: &List<int>, qualified: bool) {
         for i in 0..args.len() {
             if i > 0 {
                 out.push(", ")
             }
-            self.appendType(out, args[i])
+            self.appendType(out, args[i], qualified)
         }
     }
 
-    fn appendType(self, out: mut str, ty: int) {
+    fn appendType(self, out: mut str, ty: int, qualified: bool) {
         let t = self.types.get(ty)
         match t.kind {
             .Error => out.push("\{error\}")
@@ -321,11 +335,11 @@ pub struct Checker {
             .Ref | .Ptr => {
                 out.push(if t.kind == .Ref { "&" } else { "*" })
                 out.push(if t.data != 0 { "mut " } else { "" })
-                self.appendType(out, t.inner)
+                self.appendType(out, t.inner, qualified)
             }
             .Slice | .Array => {
                 out.push("[")
-                self.appendType(out, t.inner)
+                self.appendType(out, t.inner, qualified)
                 if t.kind == .Array {
                     out.push("; {t.data}")
                 }
@@ -333,23 +347,28 @@ pub struct Checker {
             }
             .Tuple => {
                 out.push("(")
-                self.appendList(out, &t.args)
+                self.appendList(out, &t.args, qualified)
                 out.push(if t.args.len() == 1 { ",)" } else { ")" })
             }
             .Fn => {
                 out.push("fn(")
-                self.appendList(out, &t.args)
+                self.appendList(out, &t.args, qualified)
                 out.push(")")
                 if t.inner != UNIT {
                     out.push(" ")
-                    self.appendType(out, t.inner)
+                    self.appendType(out, t.inner, qualified)
                 }
             }
             .Adt => {
+                let module = self.r.defs[t.data].module
+                if qualified && module != 0 {
+                    out.push(self.r.moduleNames[module])
+                    out.push(".")
+                }
                 out.push(self.text(self.r.defs[t.data].name))
                 if t.args.len() > 0 {
                     out.push("<")
-                    self.appendList(out, &t.args)
+                    self.appendList(out, &t.args, qualified)
                     out.push(">")
                 }
             }

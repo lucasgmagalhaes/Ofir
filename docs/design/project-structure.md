@@ -234,13 +234,7 @@ compiler/
 ├── opt/                      Ofir-level passes before LLVM [planned]
 │   └── inline_small.of
 └── codegen/
-    ├── llvm/
-    │   ├── emit.of           AIR → LLVM IR text
-    │   ├── types.of          Ofir types → LLVM types
-    │   ├── abi.of            calling convention, C ABI
-    │   ├── intrinsics.of  overflow checks, memcpy, ...
-    │   └── debuginfo.of   DWARF metadata [planned]
-    └── layout.of             size, alignment, field offsets, niches
+    └── llvm.of               AIR → LLVM IR text: types, layout, names, bodies, the module
 ```
 
 ## `runtime/` — C runtime

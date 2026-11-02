@@ -12,8 +12,10 @@
 import air.air_print.AirPrinter
 import air.lower.lowerProgram
 import base.intern.Interner
+import codegen.llvm.generate
 import base.span.SourceMap
 import diag.Diagnostics
+import diag.Format
 import driver.modules.Front
 import driver.modules.loadProgram
 import sema.check.Checker
@@ -28,14 +30,63 @@ import syntax.lexer.tokenize
 import syntax.parser.parse
 import syntax.token_print.printTokens
 
+/** The command line of `main build` and `main run`. */
+struct Options {
+    /** The command. */
+    command: str
+    /** `--deny-warnings`: warnings are errors. */
+    deny: bool
+    /** `--message-format=short`. */
+    short: bool
+    /** `-o <path>`: the executable. */
+    output: Option<str>
+}
+
+fn usage() ! {
+    eprintln("usage: main tokens|ast|names|types|air|llvm <file.of>")
+    eprintln("       main build|run <file.of> [-o <exe>] [--deny-warnings] "
+             + "[--message-format=short]")
+    os.exit(2)
+}
+
+fn options(args: &List<str>) Options {
+    var opts = Options{command: args[1].clone(), deny: false, short: false, output: .None}
+    let building = opts.command == "build" || opts.command == "run"
+    if !building {
+        if args.len() != 3 {
+            usage()
+        }
+        return opts
+    }
+    var i = 3
+    for i < args.len() {
+        if args[i] == "--deny-warnings" {
+            opts.deny = true
+        } else if args[i] == "--message-format=short" {
+            opts.short = true
+        } else if args[i] == "-o" && i + 1 < args.len() {
+            opts.output = .Some(args[i + 1].clone())
+            i += 1
+        } else {
+            usage()
+        }
+        i += 1
+    }
+    return opts
+}
+
 fn main() {
     let args = os.args()
-    let command = if args.len() == 3 { args[1].clone() } else { "" }
+    if args.len() < 3 {
+        usage()
+    }
+    let opts = options(&args)
+    let command = opts.command.clone()
     let known = command == "tokens" || command == "ast" || command == "names" ||
-                command == "types" || command == "air"
+                command == "types" || command == "air" || command == "llvm" ||
+                command == "build" || command == "run"
     if !known {
-        eprintln("usage: main tokens|ast|names|types|air <file.of>")
-        os.exit(2)
+        usage()
     }
     let path = args[2].clone()
     let text = match fs.readToString(path) {
@@ -45,8 +96,8 @@ fn main() {
             os.exit(1)
         }
     }
-    if command == "names" || command == "types" || command == "air" {
-        names(path, text, command)
+    if command != "tokens" && command != "ast" {
+        names(path, text, opts)
         return
     }
     var map = SourceMap.new()
@@ -75,9 +126,11 @@ fn main() {
 }
 
 // `main names <file.of>`: loads and resolves the program (roadmap 4.5).
-fn names(path: str, text: move str, command: str) {
+fn names(path: str, text: move str, opts: Options) {
+    let command = opts.command.clone()
     let types = command != "names"
     var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
+    front.diags.denyWarnings = opts.deny
     let file = front.map.add(path.clone(), text)
     let parsed = front.parseFile(file)
     if front.diags.hasErrors() {   // as stage 0: the root's errors stop before loading
@@ -104,8 +157,12 @@ fn names(path: str, text: move str, command: str) {
         os.exit(1)
     }
     var c = checkProgram(program, r)
-    if command == "air" {
-        air(c, program)
+    if command == "air" || command == "llvm" {
+        air(c, program, command == "llvm")
+        return
+    }
+    if command == "build" || command == "run" {
+        build(c, program, path, opts)
         return
     }
     print(traceTypes(c, program))
@@ -118,7 +175,7 @@ fn names(path: str, text: move str, command: str) {
 // `main air <file.of>`: lowers the program (roadmap 4.7). Exits with 3, and
 // prints nothing, when the program uses a construct stage 1 does not lower
 // yet.
-fn air(c: mut Checker, program: Program) {
+fn air(c: mut Checker, program: Program, llvm: bool) {
     if c.r.diags.hasErrors() {   // as stage 0: no lowering after errors
         eprint(c.r.diags.render(c.r.map, .Human))
         os.exit(1)
@@ -128,14 +185,134 @@ fn air(c: mut Checker, program: Program) {
         eprintln("stage 1 does not lower {l.missing} yet")
         os.exit(3)
     }
-    var printer = AirPrinter{out: ""}
-    for i in 0..l.out.len() {
-        printer.body(c, &l.out[i])
+    if llvm {   // `main llvm`: the module stage 0's `--emit=llvm` writes (roadmap 4.8)
+        print(generate(c, program, &l.out))
+    } else {
+        var printer = AirPrinter{out: ""}
+        for i in 0..l.out.len() {
+            printer.body(c, &l.out[i])
+        }
+        print(printer.out)
     }
-    print(printer.out)
     eprint(c.r.diags.render(c.r.map, .Human))
     if c.r.diags.hasErrors() {
         os.exit(1)
+    }
+}
+
+fn render(c: Checker, opts: Options) str {
+    return c.r.diags.render(c.r.map, if opts.short { Format.Short } else { Format.Human })
+}
+
+// The runtime library: `OFIR_RUNTIME`, or next to the compiler, as stage 0
+// looks for it.
+fn runtimeLibrary() Option<str> {
+    if let .Some(path) = os.env("OFIR_RUNTIME") {
+        return .Some(path)
+    }
+    let Ok(exe) = os.executablePath() else {
+        return .None
+    }
+    var slash = -1
+    for i in 0..exe.len() {
+        if exe[i] == b'/' {
+            slash = i
+        }
+    }
+    let dir = if slash >= 0 { exe.slice(0, slash).toOwned() } else { ".".toOwned() }
+    let places = ["{dir}/../libofir_rt.a", "{dir}/../lib/ofir/libofir_rt.a"]
+    for i in 0..places.len() {
+        if fs.exists(places[i]) {
+            return .Some(places[i].clone())
+        }
+    }
+    return .None
+}
+
+// Where `main run` puts the executable: a name made from the source path,
+// so that parallel runs do not share it.
+fn runPath(path: str) str {
+    let full = match fs.canonicalize(path) {
+        .Ok(p) => p
+        .Err(_) => path.toOwned()
+    }
+    var name = ""
+    for i in 0..full.len() {
+        let c = full[i]
+        let plain = (c >= b'a' && c <= b'z') || (c >= b'A' && c <= b'Z') || (c >= b'0' &&
+                                                                          c <= b'9')
+        name.push(if plain { full.slice(i, i + 1) } else { "_" })
+    }
+    let dir = os.env("TMPDIR") ?? "/tmp".toOwned()
+    return "{dir}/ofir1-{name}"
+}
+
+// `main build` and `main run` (roadmap 4.8): the program is lowered, its
+// LLVM IR written next to the executable, and clang links it with the
+// runtime library, as stage 0 does.
+fn build(c: mut Checker, program: Program, path: str, opts: Options) {
+    if c.r.diags.hasErrors() {
+        eprint(render(c, opts))
+        os.exit(1)
+    }
+    let l = lowerProgram(c, program)
+    eprint(render(c, opts))
+    if c.r.diags.hasErrors() {
+        os.exit(1)
+    }
+    if l.unsupported {
+        eprintln("error[E0901]: stage 1 does not compile {l.missing} yet")
+        os.exit(1)
+    }
+    let exe = match opts.output {
+        .Some(o) => o.clone()
+        .None => if opts.command == "run" { runPath(path) } else {
+            let base = if path.endsWith(".of") { path.slice(0, path.len() - 3) } else {
+                path.sliceFrom(0)
+            }
+            base.toOwned()
+        }
+    }
+    let ll = "{exe}.ll"
+    if fs.writeString(ll, generate(c, program, &l.out)).isErr() {
+        eprintln("error[E0902]: cannot write `{ll}`")
+        os.exit(1)
+    }
+    let Some(runtime) = runtimeLibrary() else {
+        eprintln("error[E0902]: cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)")
+        os.exit(1)
+    }
+    let clang = os.env("OFIR_CLANG") ?? "clang".toOwned()
+    let linked = os.run(clang, ["-O0", "-Wno-override-module", ll.clone(), runtime, "-lm", "-o",
+                                exe.clone()])
+    let _ = fs.removeFile(ll)
+    let ok = match linked {
+        .Ok(out) => {
+            eprint(out.stderr)
+            out.status == 0
+        }
+        .Err(_) => false
+    }
+    if !ok {
+        eprintln("error[E0902]: clang failed to compile the generated code")
+        os.exit(1)
+    }
+    if opts.command != "run" {
+        return
+    }
+    let empty: List<str> = []
+    let result = os.run(exe, empty)
+    let _ = fs.removeFile(exe)
+    match result {
+        .Ok(out) => {
+            print(out.stdout)
+            eprint(out.stderr)
+            os.exit(out.status)
+        }
+        .Err(_) => {
+            eprintln("error[E0902]: cannot run `{exe}`")
+            os.exit(1)
+        }
     }
 }
 
