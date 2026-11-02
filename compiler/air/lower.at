@@ -39,6 +39,7 @@ import base.intern.Symbol
 import base.span.Span
 import diag.noSpan
 import sema.check.Checker
+import sema.check.checkLate
 import sema.check.fnOf
 import sema.check.itemOf
 import sema.check_methods.methodAt
@@ -909,7 +910,7 @@ fn reachGlue(l: mut Lowerer, glue: int, targs: int) {
 
 // Reaches the functions a lowered body calls.
 fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
-    if l.body.targs != UNIT {
+    if l.body.targs != UNIT && !isGlue(l.body.def) {
         l.fail("generic functions")
         return
     }
@@ -977,8 +978,7 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
     let decl = fnOf(p, c.loc(id))
     let module = c.def(id).module
     if moduleInStd(p, module) {
-        l.fail("std functions")
-        return
+        checkLate(c, p, id)   // a std body is checked when it is reached
     }
     let sig = c.info[id].ty
     var body = AirBody{def: id, targs: inst.targs, name: decl.name, isMain: isMainFn(c, p, id),
@@ -1027,6 +1027,73 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
 fn emptyBody() AirBody {
     return AirBody{def: 0, targs: UNIT, name: Symbol(0), isMain: false, paramCount: 0,
                    locals: [], blocks: []}
+}
+
+// ---------------------------------------------------------------------------
+// Drop glue
+
+/**
+ * The type arguments of a method of `ty`: those of the type.
+ *
+ * @param c the checker
+ * @param ty the type
+ * @returns a tuple, or ()
+ */
+pub fn methodTargs(c: mut Checker, ty: int) int {
+    let t = c.types.get(ty)
+    if t.kind != .Adt {
+        return UNIT
+    }
+    let args = t.args.clone()
+    return c.types.tuple(args)
+}
+
+fn fieldPlace(base: &Place, step: int, field: int) Place {
+    var fields = base.fields.clone()
+    if step != 0 {
+        fields.push(step)
+    }
+    fields.push(field)
+    return Place{local: base.local, fields: fields, deref: base.deref}
+}
+
+// The body of `drop<T>(p)`: T's `drop` method, then its fields.
+fn glueBody(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
+    let value = Place{local: 1, fields: [], deref: true}
+    let method = typeMethod(c, p, ty, "drop")
+    if method != 0 {
+        let targs = methodTargs(c, ty)
+        let selfRef = c.types.ref(ty, true)
+        emitCall(l, method, targs, [opCopy(1, selfRef)], -1)
+    }
+    let t = c.types.get(ty)
+    let isStruct = t.kind == .Adt && c.def(t.data).kind == .Struct
+    if t.kind == .Tuple || isStruct {
+        let count = if t.kind == .Tuple { t.args.len() } else { fieldsOf(c, t.data).types.len() }
+        for i in 0..count {
+            let field = if c.types.kind(ty) == .Tuple { c.types.get(ty).args[i] } else {
+                structFieldType(c, p, ty, i)
+            }
+            emitDrop(l, c, p, &fieldPlace(&value, 0, i), field)
+        }
+    } else if t.kind == .Adt {
+        l.fail("the drop glue of enums")
+    }
+}
+
+fn lowerGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
+    let ty = c.types.get(targs).args[0]
+    l.body = AirBody{def: GLUE_DROP, targs: targs, name: Symbol(0), isMain: false,
+                     paramCount: 1, locals: [], blocks: []}
+    l.body.newLocal(UNIT, .None, noSpan())
+    l.body.newLocal(c.types.ref(ty, true), .None, noSpan())
+    l.fnDef = 0
+    l.flags = []
+    l.block = l.body.newBlock()
+    glueBody(l, c, p, ty)
+    l.body.terminate(l.block, terminator(.Return))
+    monoBody(l, c, p)
+    l.out.push(mem.replace(l.body, emptyBody()))
 }
 
 // The root module must declare `fn main()`.
@@ -1101,7 +1168,12 @@ pub fn lowerProgram(c: mut Checker, p: Program) Lowerer {
         let inst = l.pending[next]
         next += 1
         if inst.def == 0 {
-            l.fail("drop and clone glue")
+            if inst.glue == GLUE_DROP {
+                c.enter(0)
+                lowerGlue(l, c, p, inst.targs)
+            } else {
+                l.fail("clone glue")
+            }
             continue
         }
         c.enter(c.def(inst.def).module)

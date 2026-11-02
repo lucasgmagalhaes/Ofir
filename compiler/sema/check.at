@@ -125,6 +125,8 @@ pub struct Checker {
     pub sliceCoercions: List<Map<int, int>>
     /** What the move analysis found, by module and `NodeId`: `moves.MOVES`, `moves.CONSUMED`. */
     pub moveFlags: List<Map<int, int>>
+    /** The functions whose body was checked, by `DefId`. */
+    pub bodyChecked: Map<int, bool>
     /** What the move analysis found of each function, by `DefId`. */
     pub fnMoves: Map<int, FnMoves>
     /** The type parameters in scope. */
@@ -465,6 +467,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
                    adjusted,
                    members, callTypeArgs, sliceCoercions, moveFlags, fnMoves: Map.new(),
+                   bodyChecked: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
                    shorthandSpan: noSpan()}
@@ -492,10 +495,45 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
     if decl.body.isSome() && c.module() != 0 && moduleInStd(p, c.module()) {
         return   // a program uses few std functions: the lowering checks them
     }
-    checkBody(c, p, id, selfType)
+    checkBody(c, p, id, selfType, false)
 }
 
-fn checkBody(c: mut Checker, p: Program, id: int, selfType: int) {
+/**
+ * Checks the body of a std function the lowering reached (stage 0:
+ * `sema_check_late`), then runs its move analysis; once per function.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the function's `DefId`
+ */
+pub fn checkLate(c: mut Checker, p: Program, id: int) {
+    if c.bodyChecked.get(id).isSome() || fnOf(p, c.loc(id)).body.isNone() {
+        return
+    }
+    let def = c.def(id)
+    let module = def.module
+    let previous = c.enter(module)
+    var selfType = ERROR
+    var owner: List<Symbol> = []
+    if def.member >= 0 {
+        let item = itemOf(p, c.loc(id))
+        let isType = match item.kind {
+            .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
+            _ => false
+        }
+        if isType {
+            selfType = ownerTypeOf(c, p, module, c.def(id).item)
+            owner = itemTypeParams(itemOf(p, c.loc(id)))
+        }
+    }
+    let outer = c.enterGenerics(Generics{owner: owner, fnParams: []})
+    checkBody(c, p, id, selfType, true)
+    c.enterGenerics(outer)
+    c.enter(previous)
+}
+
+fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
+    c.bodyChecked.insert(id, true)
     let decl = fnOf(p, c.loc(id))
     let outer = c.enterGenerics(Generics{owner: c.generics.owner.clone(),
                                          fnParams: decl.typeParams.clone()})
@@ -535,7 +573,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int) {
                 "function may reach its end without returning a value".toOwned())
     }
     // No cascade after type errors; std functions wait until the lowering reaches them.
-    if c.r.diags.errorCount() == errors && !moduleInStd(p, c.module()) {
+    if c.r.diags.errorCount() == errors && (late || !moduleInStd(p, c.module())) {
         checkMoves(c, p, id)
     }
     let types = mem.replace(c.localTypes, [])
