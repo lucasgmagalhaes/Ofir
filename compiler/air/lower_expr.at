@@ -54,6 +54,19 @@ import air.lower.tempScopeEnter
 import air.lower.tempScopeLeave
 import air.lower.terminate
 import air.lower.toLocal
+import base.intern.Symbol
+import sema.check_box.boxInner
+import sema.check_methods.BUILTIN_BASE
+import sema.check_methods.primitiveName
+import sema.enums.enumVariants
+import sema.enums.variantIndex
+import sema.enums.variantsOf
+import sema.moves_expr.viewType
+import sema.structs.fieldsOf
+import sema.structs.structFieldType
+import sema.structs.structFields
+import sema.types.U8
+import syntax.ast.FieldInit
 import base.span.Span
 import diag.noSpan
 import sema.check.Checker
@@ -125,48 +138,83 @@ fn fieldOf(c: Checker, e: &Expr) int {
     }
 }
 
-fn hasAdjustments(c: Checker, e: &Expr) bool {
-    return c.derefs[c.module()].get(e.id.0).isSome() ||
-           c.sliceCoercions[c.module()].get(e.id.0).isSome()
+fn derefCount(c: Checker, e: &Expr) int {
+    return match c.derefs[c.module()].get(e.id.0) {
+        .Some(steps) => steps.len()
+        .None => 0
+    }
 }
 
-// Collects the field positions of `e`, outermost last, and lowers its root.
-fn collectPath(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr,
-               fields: mut List<int>) Place {
-    if hasAdjustments(c, e) {
-        l.fail("implicit dereferences")
-        return Place{local: 0, fields: [], deref: false}
+// The type before the `i`th implicit dereference of `e`.
+fn stepType(c: Checker, e: &Expr, i: int) int {
+    return match c.derefs[c.module()].get(e.id.0) {
+        .Some(steps) => steps[i]
+        .None => c.typeOf(e.id.0)
+    }
+}
+
+fn coerced(c: Checker, e: &Expr) bool {
+    return c.sliceCoercions[c.module()].get(e.id.0).isSome()
+}
+
+fn noPlace() Place {
+    return Place{local: 0, fields: [], deref: false}
+}
+
+// Stage 0 rewrites `b`, a box, into `b.ptr` where it dereferences it: the
+// pointer field of `e` dereferenced `depth` times.
+fn boxPointer(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int) Operand {
+    var place = lowerPlaceAt(l, c, p, e, depth)
+    place.fields.push(0)
+    let ptr = structFieldType(c, p, viewType(c, e, depth), 0)
+    return placeOperand(&place, .Copy, ptr)
+}
+
+// `*e`, the `depth`th implicit dereference of `e`: the value is the address
+// of the place.
+fn derefPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int) Place {
+    let value = if boxInner(c, stepType(c, e, depth - 1)).isSome() {
+        boxPointer(l, c, p, e, depth - 1)
+    } else {
+        lowerView(l, c, p, e, depth - 1)
+    }
+    return Place{local: toLocal(l, value), fields: [], deref: true}
+}
+
+// The place of `e` dereferenced `depth` times.
+fn lowerPlaceAt(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int) Place {
+    if depth > 0 {
+        return derefPlace(l, c, p, e, depth)
     }
     match e.kind {
         .Field(base, _, _) => {
             let field = fieldOf(c, e)
             if field >= 0 {
-                let root = collectPath(l, c, p, &*base, fields)
-                fields.push(field)
-                return root
+                var place = lowerPlace(l, c, p, &*base)
+                place.fields.push(field)
+                return place
             }
         }
         .TupleField(base, index) => {
-            let root = collectPath(l, c, p, &*base, fields)
-            fields.push(index as int)
-            return root
+            var place = lowerPlace(l, c, p, &*base)
+            place.fields.push(index as int)
+            return place
         }
-        _ => {}
-    }
-    return rootPlace(l, c, p, e)
-}
-
-fn rootPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Place {
-    match e.kind {
         .Unary(op, operand) => {
             if op == .Deref {   // `*p`: the pointer's value is the address of the place
-                let local = toLocal(l, lowerExpr(l, c, p, &*operand))
-                return Place{local: local, fields: [], deref: true}
+                let value = if boxInner(c, viewType(c, &*operand, -1)).isSome() {
+                    boxPointer(l, c, p, &*operand, derefCount(c, &*operand))
+                } else {
+                    lowerExpr(l, c, p, &*operand)
+                }
+                return Place{local: toLocal(l, value), fields: [], deref: true}
             }
         }
-        .Index(_, _) => {
-            l.fail("indexing")
-            return Place{local: 0, fields: [], deref: false}
+        .Index(base, _) => {
+            if isList(c, viewType(c, &*base, -1)) {
+                l.fail("list indexing")
+                return noPlace()
+            }
         }
         .Ident(_) | .SelfValue => {
             if let Res.Local(id) = c.res(e.id.0) {
@@ -180,9 +228,16 @@ fn rootPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Place {
     return Place{local: local, fields: [], deref: false}
 }
 
+fn isList(c: Checker, ty: int) bool {
+    let t = c.types.get(ty)
+    return t.kind == .Adt && t.data != 0 && (t.data == c.r.langItems[1] ||
+                                             t.data == c.r.langItems[4])
+}
+
 /**
- * The place of `e`: a local and a field path. A root that is not a
- * variable, as in `make().x`, is evaluated into a temporary first.
+ * The place of `e`, with its implicit dereferences: a local and a field
+ * path. A root that is not a variable, as in `make().x`, is evaluated into
+ * a temporary first.
  *
  * @param l the lowering
  * @param c the checker
@@ -191,16 +246,18 @@ fn rootPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Place {
  * @returns its place
  */
 pub fn lowerPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Place {
-    var fields: List<int> = []
-    var place = collectPath(l, c, p, e, fields)
-    for i in 0..fields.len() {
-        place.fields.push(fields[i])
+    if coerced(c, e) {
+        l.fail("conversions to slices")
+        return noPlace()
     }
-    return place
+    return lowerPlaceAt(l, c, p, e, derefCount(c, e))
 }
 
 // The local and field path of a place expression; -1 if not a local's.
 fn placePath(c: Checker, e: &Expr, path: mut List<int>) int {
+    if derefCount(c, e) > 0 {
+        return -1   // a dereference, not a local
+    }
     match e.kind {
         .Field(base, _, _) => {
             let field = fieldOf(c, e)
@@ -295,9 +352,20 @@ fn ownTemp(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr,
  * @returns its value
  */
 pub fn lowerExpr(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
-    if hasAdjustments(c, e) {
-        l.fail("implicit dereferences and conversions")
+    if coerced(c, e) {
+        l.fail("conversions to slices")
         return unit()
+    }
+    return lowerView(l, c, p, e, derefCount(c, e))
+}
+
+// `e` dereferenced `depth` times.
+fn lowerView(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int) Operand {
+    if depth > 0 {   // `*e`: a place reached through the pointer
+        l.forward = false
+        let place = derefPlace(l, c, p, e, depth)
+        l.forward = false
+        return placeOperand(&place, .Copy, viewType(c, e, depth))
     }
     let forwarded = l.forward   // only for `e` itself, not its parts
     l.forward = false
@@ -338,15 +406,20 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
         .Call(callee, args) => call(l, c, p, e, &*callee, &args)
         .If(_, _, _, _) => lowerIf(l, c, p, e)
         .Block(block) | .Unsafe(block) => lowerBlock(l, c, p, &block, typeIsValue(ty))
-        .Field(_, _, _) => {
+        .Field(base, name, _) => {
             if fieldOf(c, e) >= 0 {
-                placeOperand(&lowerPlace(l, c, p, e), .Copy, ty)
+                placeOperand(&lowerPlaceAt(l, c, p, e, 0), .Copy, ty)
+            } else if primitiveName(c, &*base) >= 0 {
+                builtinConst(c, ty, name)
             } else {
-                l.fail("variants and methods")
+                l.fail("variants")
                 unit()
             }
         }
-        .TupleField(_, _) => placeOperand(&lowerPlace(l, c, p, e), .Copy, ty)
+        .TupleField(_, _) => placeOperand(&lowerPlaceAt(l, c, p, e, 0), .Copy, ty)
+        .Struct(_, fields, base) => structLiteral(l, c, p, e, &fields, base, ty)
+        .Tuple(elems) => aggregateOf(l, c, p, &elems, ty)
+        .Index(base, index) => lowerIndex(l, c, p, e, &*base, &*index)
         _ => {
             l.fail("this expression")
             unit()
@@ -368,7 +441,7 @@ fn constOperand(c: Checker, id: int, ty: int) Operand {
 
 fn name(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, ty: int) Operand {
     let Res.Def(id) = c.res(e.id.0) else {
-        return placeOperand(&lowerPlace(l, c, p, e), .Copy, ty)
+        return placeOperand(&lowerPlaceAt(l, c, p, e, 0), .Copy, ty)
     }
     let kind = c.def(id).kind
     if kind == .Const {   // evaluated by the checker
@@ -392,16 +465,22 @@ fn call(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
         _ => false
     }
     if !isName {
-        l.fail("method calls")
-        return unit()
+        return methodCall(l, c, p, e, callee, args)
     }
     let Res.Def(id) = c.res(callee.id.0) else {
         l.fail("calls of function values")
         return unit()
     }
     let kind = c.def(id).kind
-    if kind == .Struct || kind == .Variant {
-        l.fail("constructors")
+    if kind == .Struct {
+        var values: List<Expr> = []
+        for i in 0..args.len() {
+            values.push(args[i].value.clone())
+        }
+        return aggregateOf(l, c, p, &values, c.typeOf(e.id.0))
+    }
+    if kind == .Variant {
+        l.fail("variants")
         return unit()
     }
     if kind == .Builtin {
@@ -413,7 +492,7 @@ fn call(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
         }
         return unit()
     }
-    return emitUserCall(l, c, p, e, id, args)
+    return emitUserCall(l, c, p, e, id, args, .None)
 }
 
 // An argument: the address of the place for a `mut` parameter, else the
@@ -442,7 +521,7 @@ fn isIntrinsic(c: Checker, p: Program, id: int) bool {
 
 // A call of a user function.
 fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
-                args: &List<Arg>) Operand {
+                args: &List<Arg>, receiver: Option<&Expr>) Operand {
     if isIntrinsic(c, p, id) {
         l.fail("intrinsics")
         return unit()
@@ -462,6 +541,13 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
     }
     let paramCount = decl.params.len()
     var operands: List<Operand> = []
+    if let .Some(recv) = receiver {
+        var next: Option<&Expr> = .None
+        if args.len() > 0 {
+            next = .Some(&args[0].value)
+        }
+        operands.push(argument(l, c, p, recv, byAddress(c, p, id, -1), next))
+    }
     for i in 0..args.len() {
         var next: Option<&Expr> = .None
         if i + 1 < args.len() {
@@ -501,6 +587,220 @@ fn panicAssert(l: mut Lowerer, c: mut Checker, p: Program, call: &Expr, arg: &Ex
     }
     let fails = tempValue(l, BOOL, rvalue(.Unary, .Not, value, unit()))
     emitAssert(l, fails, .Assert, call.span)
+}
+
+// `base.name(args)`: a method declared in a type, an associated function, a
+// variant, or a built-in method.
+fn methodCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
+              args: &List<Arg>) Operand {
+    return match callee.kind {
+        .Field(base, name, _) => fieldCall(l, c, p, e, callee, &*base, name, args)
+        _ => {
+            l.fail("calls of function values")
+            unit()
+        }
+    }
+}
+
+fn fieldCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr, base: &Expr,
+             name: Symbol, args: &List<Arg>) Operand {
+    let owner = typeNameOf(c, base)
+    if owner != 0 && c.def(owner).kind == .Enum {
+        if enumVariants(c, p, owner) && variantIndex(variantsOf(c, owner), name) >= 0 {
+            l.fail("variants")
+            return unit()
+        }
+    }
+    let member = c.members[c.module()][callee.id.0]
+    if member > 0 {   // a method declared in a type
+        let hasSelf = fnOf(p, c.loc(member)).hasSelf
+        return emitUserCall(l, c, p, e, member, args, if hasSelf { Option.Some(base) } else {
+            Option.None
+        })
+    }
+    if member > BUILTIN_BASE {
+        l.fail("derived clones")
+        return unit()
+    }
+    let ty = c.typeOf(e.id.0)
+    let value = lowerExpr(l, c, p, base)
+    let which = BUILTIN_BASE - member
+    if which == 0 {   // `x.wrappingCast<T>()`
+        var rv = rvalue(.Cast, .Add, value, unit())
+        rv.to = ty
+        return tempValue(l, ty, rv)
+    }
+    if which == 1 {   // `x.saturatingCast<T>()`
+        var rv = rvalue(.Saturate, .Add, value, unit())
+        rv.to = ty
+        return tempValue(l, ty, rv)
+    }
+    if which == 2 {
+        l.fail("`checkedCast`")
+        return unit()
+    }
+    let offset = lowerExpr(l, c, p, &args[0].value)   // `p.add(n)`
+    let vty = value.ty
+    return tempValue(l, vty, rvalue(.PtrAdd, .Add, value, offset))
+}
+
+// `I.MIN`, `I.MAX`, `F.NAN`, `F.INFINITY`, `F.EPSILON`.
+fn builtinConst(c: Checker, ty: int, name: Symbol) Operand {
+    let t = c.types.get(ty)
+    let text = c.text(name)
+    if t.kind == .Int {
+        let bits = intBits(t.data)
+        let signed = t.data <= 3
+        let ones: u64 = 18446744073709551615
+        let max = if bits == 64 { ones } else { ((1 as u64) << (bits as u64)) - 1 }
+        var value: u64 = 0
+        if text == "MAX" {
+            value = if signed { max >> 1 } else { max }
+        } else if signed {
+            value = (1 as u64) << ((bits - 1) as u64)
+        }
+        return opInt(value, ty)
+    }
+    if text == "NAN" {
+        return opFloat(float.NAN, ty)
+    }
+    if text == "INFINITY" {
+        return opFloat(float.INFINITY, ty)
+    }
+    return opFloat(if t.data == 32 { 1.1920928955078125e-07 } else { 2.220446049250313e-16 }, ty)
+}
+
+// ---------------------------------------------------------------------------
+// Structs, tuples, indexing
+
+fn aggregate(l: mut Lowerer, ty: int, items: move List<Operand>) Operand {
+    var rv = rvalue(.Aggregate, .Add, unit(), unit())
+    rv.items = items
+    return tempValue(l, ty, rv)
+}
+
+// A tuple or a tuple struct: the values in order.
+fn aggregateOf(l: mut Lowerer, c: mut Checker, p: Program, elems: &List<Expr>, ty: int) Operand {
+    if elems.len() == 0 && c.types.kind(ty) == .Tuple {
+        return unit()
+    }
+    var items: List<Operand> = []
+    for i in 0..elems.len() {
+        var item = lowerExpr(l, c, p, &elems[i])
+        if i + 1 < elems.len() {
+            item = settle(l, item, &elems[i + 1])
+        }
+        items.push(item)
+    }
+    return aggregate(l, ty, items)
+}
+
+// The value of a field of a struct literal; the shorthand `x` reads the
+// variable.
+fn initValue(l: mut Lowerer, c: mut Checker, p: Program, init: &FieldInit) Operand {
+    if let .Some(value) = init.value {
+        return lowerExpr(l, c, p, &value)
+    }
+    let Res.Local(id) = c.res(init.id.0) else {
+        l.fail("this shorthand field")
+        return unit()
+    }
+    let local = id + 1
+    let place = Place{local: local, fields: [], deref: l.body.locals[local].byRef}
+    let value = placeOperand(&place, .Copy, c.typeOf(init.id.0))
+    if (c.moveFlags[c.module()].get(init.id.0).isSome() &&
+        (*c.moveFlags[c.module()].get(init.id.0).unwrap() & MOVES) != 0) {
+        noteMoved(l, local, &[])
+    }
+    return value
+}
+
+// Fields are evaluated in source order; omitted ones come from the `..base`
+// struct.
+fn structLiteral(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, fields: &List<FieldInit>,
+                 base: Option<Box<Expr>>, ty: int) Operand {
+    let id = c.types.get(ty).data
+    structFields(c, p, id)
+    let names = fieldsOf(c, id).names.clone()
+    let count = names.len()
+    var items: List<Operand> = []
+    var given: List<bool> = List.filled(false, count)
+    for _ in 0..count {
+        items.push(unit())
+    }
+    for i in 0..fields.len() {
+        var f = 0
+        for k in 0..count {
+            if names[k].0 == fields[i].name.0 {
+                f = k
+            }
+        }
+        var value = initValue(l, c, p, &fields[i])
+        if i + 1 < fields.len() {
+            if let .Some(next) = fields[i + 1].value {
+                value = settle(l, value, &next)
+            }
+        }
+        items[f] = value
+        given[f] = true
+    }
+    var baseLocal = 0
+    let hasBase = base.isSome()
+    if let .Some(b) = base {
+        baseLocal = toLocal(l, lowerExpr(l, c, p, &*b))
+    }
+    for f in 0..count {
+        if given[f] {
+            continue
+        }
+        if !hasBase {
+            l.fail("field defaults")
+            return unit()
+        }
+        let place = Place{local: baseLocal, fields: [f], deref: false}
+        items[f] = placeOperand(&place, .Copy, structFieldType(c, p, ty, f))
+    }
+    return aggregate(l, ty, items)
+}
+
+// Panics unless 0 <= index < len. The index is compared as unsigned, so a
+// negative one is out of range too (spec 2.1).
+fn boundsCheck(l: mut Lowerer, index: move Operand, len: move Operand, span: Span) {
+    var toIndex = rvalue(.Cast, .Add, index.clone(), unit())
+    toIndex.to = U64
+    let i = tempValue(l, U64, toIndex)
+    var toLen = rvalue(.Cast, .Add, len.clone(), unit())
+    toLen.to = U64
+    let n = tempValue(l, U64, toLen)
+    let outside = tempValue(l, BOOL, rvalue(.Binary, .Ge, i, n))
+    let next = l.body.newBlock()
+    var t = terminator(.Assert)
+    t.cond = outside
+    t.target = next
+    t.panic = .Bounds
+    t.index = index
+    t.len = len
+    t.span = span
+    l.body.terminate(l.block, t)
+    switchTo(l, next)
+}
+
+// `s[i]`, a byte of a str.
+fn lowerIndex(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
+              index: &Expr) Operand {
+    let isRange = match index.kind {
+        .Range(_, _, _) => true
+        _ => false
+    }
+    if isRange || isList(c, viewType(c, base, -1)) {
+        l.fail("list indexing and slices")
+        return unit()
+    }
+    let s = lowerExpr(l, c, p, base)
+    let i = opCopy(toLocal(l, lowerExpr(l, c, p, index)), I64)
+    let len = tempValue(l, I64, rvalue(.StrLen, .Add, s.clone(), unit()))
+    boundsCheck(l, i.clone(), len, e.span)
+    return tempValue(l, U8, rvalue(.StrByte, .Add, s, i))
 }
 
 // ---------------------------------------------------------------------------
@@ -920,9 +1220,14 @@ fn lowerLet(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, value
 // Whether `target` is written through a raw pointer: no old value is
 // dropped, as by `ptr.write`.
 fn throughRawPointer(c: Checker, target: &Expr) bool {
+    if derefCount(c, target) > 0 {
+        return false   // through a reference or a box
+    }
     return match target.kind {
         .Field(base, _, _) | .TupleField(base, _) => throughRawPointer(c, &*base)
-        .Unary(op, operand) => op == .Deref && c.types.kind(c.typeOf(operand.id.0)) == .Ptr
+        .Unary(op, operand) => {
+            op == .Deref && c.types.kind(viewType(c, &*operand, -1)) == .Ptr
+        }
         _ => false
     }
 }
