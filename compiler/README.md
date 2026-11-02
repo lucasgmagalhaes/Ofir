@@ -15,7 +15,8 @@ make compare-stages   # stage 1's output equals stage 0's on every .at file
 
 So far stage 1 has `base`, `diag`, the lexer, the parser, module loading
 (`driver/modules.at`), the resolver, the type checker and the move analysis
-(`sema/`);
-`main.at` has four commands, `main tokens|ast|names|types <file.at>`, the
-equivalents of `astra build --emit=tokens`, `--emit=ast`, `--emit=names`
-and `--emit=types`.
+(`sema/`), and the AIR with the start of the lowering (`air/`);
+`main.at` has five commands, `main tokens|ast|names|types|air <file.at>`, the
+equivalents of `astra build --emit=tokens`, `--emit=ast`, `--emit=names`,
+`--emit=types` and `--emit=air`. `main air` exits with status 3 on a program
+that uses a construct it does not lower yet.

@@ -1,0 +1,408 @@
+/**
+ * @module
+ * The text of AIR bodies, for `main air` (stage 0: `--emit=air`,
+ * bootstrap/src/air/air_print.c).
+ */
+
+import air.air.AirBody
+import air.air.AirStmt
+import air.air.FloatFn
+import air.air.GLUE_CLONE
+import air.air.GLUE_DROP
+import air.air.Operand
+import air.air.PanicKind
+import air.air.Rvalue
+import air.air.Terminator
+import air.air.runtimeName
+import sema.check.Checker
+import sema.types.UNIT
+import syntax.ast.Op
+
+fn opName(op: Op) str {
+    return match op {
+        .Add => "add"
+        .Sub => "sub"
+        .Mul => "mul"
+        .Div => "div"
+        .Rem => "rem"
+        .And => "and"
+        .Or => "or"
+        .Xor => "xor"
+        .Shl => "shl"
+        .Shr => "shr"
+        .Eq => "eq"
+        .Ne => "ne"
+        .Lt => "lt"
+        .Le => "le"
+        .Gt => "gt"
+        .Ge => "ge"
+        .Neg => "neg"
+        .Not => "not"
+        _ => "?"
+    }
+}
+
+fn panicName(kind: PanicKind) str {
+    return match kind {
+        .Overflow => "overflow"
+        .DivZero => "div_zero"
+        .Shift => "shift"
+        .Cast => "cast"
+        .Bounds => "bounds"
+        .Assert => "assert"
+    }
+}
+
+fn floatFnName(f: FloatFn) str {
+    return match f {
+        .Sqrt => "sqrt"
+        .Fabs => "fabs"
+        .Floor => "floor"
+        .Ceil => "ceil"
+        .Minnum => "minnum"
+        .Maxnum => "maxnum"
+    }
+}
+
+const HEX: str = "0123456789abcdef"
+
+fn stringLiteral(out: mut str, text: str) {
+    out.push("\"")
+    for i in 0..text.len() {
+        let c = text[i]
+        if c < 0x20 || c == b'"' || c == b'\\' || c >= 0x7f {
+            out.push("\\x")
+            out.push(HEX.slice((c >> 4) as int, (c >> 4) as int + 1))
+            out.push(HEX.slice((c & 15) as int, (c & 15) as int + 1))
+        } else {
+            out.push(text.slice(i, i + 1))
+        }
+    }
+    out.push("\"")
+}
+
+// The decimal digits of a float's shortest form, without leading zeros, and
+// the exponent of the first: 1.5e-7 is ("15", -7).
+fn decimalDigits(text: str) (str, int) {
+    var mantissa = text.clone()
+    var exponent = 0
+    if let .Some(e) = text.find("e") {
+        mantissa = text.slice(0, e).toOwned()
+        exponent = match int.parse(text.sliceFrom(e + 1)) {
+            .Ok(n) => n
+            .Err(_) => 0
+        }
+    }
+    var digits = ""
+    var point = -1
+    for i in 0..mantissa.len() {
+        if mantissa[i] == b'.' {
+            point = digits.len()
+        } else {
+            digits.push(mantissa.slice(i, i + 1))
+        }
+    }
+    if point < 0 {
+        point = digits.len()
+    }
+    var lead = 0
+    for lead < digits.len() - 1 && digits[lead] == b'0' {
+        lead += 1
+    }
+    return (digits.sliceFrom(lead).toOwned(), exponent + point - lead - 1)
+}
+
+// Rounds a digit string to `n` digits, half up; the exponent grows on a carry.
+fn roundDigits(digits: str, exponent: int, n: int) (str, int) {
+    if digits.len() <= n {
+        return (digits.toOwned(), exponent)
+    }
+    var kept: List<u8> = []
+    for i in 0..n {
+        kept.push(digits[i])
+    }
+    if digits[n] >= b'5' {
+        var i = n - 1
+        for i >= 0 && kept[i] == b'9' {
+            kept[i] = b'0'
+            i -= 1
+        }
+        if i < 0 {
+            kept.insert(0, b'1')
+            let _ = kept.pop()
+            var out = ""
+            for j in 0..kept.len() {
+                out.push(HEX.slice((kept[j] - b'0') as int, (kept[j] - b'0') as int + 1))
+            }
+            return (out, exponent + 1)
+        }
+        kept[i] += 1
+    }
+    var out = ""
+    for j in 0..kept.len() {
+        out.push(HEX.slice((kept[j] - b'0') as int, (kept[j] - b'0') as int + 1))
+    }
+    return (out, exponent)
+}
+
+fn trimZeros(digits: str) str {
+    var end = digits.len()
+    for end > 1 && digits[end - 1] == b'0' {
+        end -= 1
+    }
+    return digits.slice(0, end).toOwned()
+}
+
+/**
+ * A float as C's `printf("%g")` writes it: 6 significant digits, fixed
+ * notation for exponents from -4 to 5, trailing zeros removed.
+ *
+ * @param value the float
+ * @returns its text
+ */
+pub fn formatG(value: float) str {
+    let text = "{value}"
+    if text == "NaN" {
+        return "nan"
+    }
+    if text == "inf" || text == "-inf" {
+        return text.toOwned()
+    }
+    let negative = text.startsWith("-")
+    let body = if negative { text.sliceFrom(1) } else { text.sliceFrom(0) }
+    var out = if negative { "-" } else { "" }
+    let parts = decimalDigits(body)
+    if parts.0 == "0" {
+        out.push("0")
+        return out
+    }
+    let rounded = roundDigits(parts.0, parts.1, 6)
+    let digits = trimZeros(rounded.0)
+    let x = rounded.1
+    if x < -4 || x >= 6 {
+        out.push(digits.slice(0, 1))
+        if digits.len() > 1 {
+            out.push(".")
+            out.push(digits.sliceFrom(1))
+        }
+        out.push(if x < 0 { "e-" } else { "e+" })
+        let magnitude = if x < 0 { -x } else { x }
+        if magnitude < 10 {
+            out.push("0")
+        }
+        out.push("{magnitude}")
+        return out
+    }
+    if x < 0 {
+        out.push("0.")
+        for _ in 0..(-x - 1) {
+            out.push("0")
+        }
+        out.push(digits)
+        return out
+    }
+    if digits.len() <= x + 1 {
+        out.push(digits)
+        for _ in 0..(x + 1 - digits.len()) {
+            out.push("0")
+        }
+        return out
+    }
+    out.push(digits.slice(0, x + 1))
+    out.push(".")
+    out.push(digits.sliceFrom(x + 1))
+    return out
+}
+
+/** Writes AIR bodies as text. */
+pub struct AirPrinter {
+    /** The text so far. */
+    pub out: str
+
+    /**
+     * `<int, str>` for an instance; nothing when `targs` is ().
+     *
+     * @param c the checker
+     * @param targs the type arguments, a tuple
+     */
+    pub fn typeArgs(mut self, c: Checker, targs: int) {
+        if targs == UNIT {
+            return
+        }
+        let args = c.types.get(targs).args.clone()
+        for i in 0..args.len() {
+            self.out.push(if i > 0 { ", " } else { "<" })
+            self.out.push(c.typeName(args[i]))
+        }
+        self.out.push(">")
+    }
+
+    fn operand(mut self, c: Checker, o: &Operand) {
+        match o.kind {
+            .Copy | .Addr => {
+                if o.kind == .Addr {
+                    self.out.push("&")
+                }
+                if o.path.deref {
+                    self.out.push("*")
+                }
+                self.out.push("_{o.local}")
+                for i in 0..o.path.fields.len() {
+                    self.out.push(".{o.path.fields[i] as u64 & 4294967295}")
+                }
+            }
+            .Int => self.out.push("{o.bits}_{c.typeName(o.ty)}")
+            .Float => self.out.push("{formatG(o.float)}_{c.typeName(o.ty)}")
+            .Bool => self.out.push(if o.truth { "true" } else { "false" })
+            .Str => stringLiteral(self.out, o.text)
+            .Unit => self.out.push("()")
+        }
+    }
+
+    fn operands(mut self, c: Checker, name: str, a: &Operand, b: Option<&Operand>) {
+        self.out.push(name)
+        self.out.push(" ")
+        self.operand(c, a)
+        if let .Some(second) = b {
+            self.out.push(", ")
+            self.operand(c, second)
+        }
+    }
+
+    fn rvalue(mut self, c: Checker, rv: &Rvalue) {
+        match rv.kind {
+            .StrLen => self.operands(c, "str_len", &rv.a, .None)
+            .PtrAdd => self.operands(c, "ptr_add", &rv.a, .Some(&rv.b))
+            .SizeOf => self.out.push("size_of {c.typeName(rv.to)}")
+            .Aggregate => {
+                self.out.push("\{")
+                for i in 0..rv.items.len() {
+                    if i > 0 {
+                        self.out.push(", ")
+                    }
+                    self.operand(c, &rv.items[i])
+                }
+                self.out.push("\}")
+            }
+            .StrByte => self.operands(c, "str_byte", &rv.a, .Some(&rv.b))
+            .FloatFn => {
+                let two = rv.floatFn == .Minnum || rv.floatFn == .Maxnum
+                self.operands(c, floatFnName(rv.floatFn), &rv.a, if two { Option.Some(&rv.b) }
+                              else { Option.None })
+            }
+            .Saturate => {
+                self.operands(c, "saturate", &rv.a, .None)
+                self.out.push(" to {c.typeName(rv.to)}")
+            }
+            .Use => self.operand(c, &rv.a)
+            .Unary => {
+                self.out.push("{opName(rv.op)} ")
+                self.operand(c, &rv.a)
+            }
+            .Cast | .CastFails => {
+                self.out.push(if rv.kind == .Cast { "cast " } else { "cast_fails " })
+                self.operand(c, &rv.a)
+                self.out.push(" to {c.typeName(rv.to)}")
+            }
+            .Binary | .Checked => {
+                if rv.kind == .Checked {
+                    self.out.push("checked ")
+                }
+                self.out.push("{opName(rv.op)} ")
+                self.operand(c, &rv.a)
+                self.out.push(", ")
+                self.operand(c, &rv.b)
+                if rv.kind == .Checked {
+                    self.out.push(" (overflow: _{rv.flag})")
+                }
+            }
+        }
+    }
+
+    fn statement(mut self, c: Checker, s: &AirStmt) {
+        self.out.push("    ")
+        if s.hasDest {
+            self.out.push("_{s.dest}")
+            for i in 0..s.destPath.fields.len() {
+                self.out.push(".{s.destPath.fields[i] as u64 & 4294967295}")
+            }
+            self.out.push(" = ")
+        }
+        if s.kind == .Assign {
+            self.rvalue(c, &s.value)
+        } else {
+            if s.runtime {
+                self.out.push("call {runtimeName(s.rt)}(")
+            } else {
+                let name = if s.callee == GLUE_DROP { "drop" } else if s.callee == GLUE_CLONE {
+                    "clone"
+                } else {
+                    c.text(c.def(s.callee).name)
+                }
+                self.out.push("call {name}")
+                self.typeArgs(c, s.targs)
+                self.out.push("(")
+            }
+            for i in 0..s.args.len() {
+                if i > 0 {
+                    self.out.push(", ")
+                }
+                self.operand(c, &s.args[i])
+            }
+            self.out.push(")")
+        }
+        self.out.push("\n")
+    }
+
+    fn terminator(mut self, c: Checker, t: &Terminator) {
+        self.out.push("    ")
+        match t.kind {
+            .None => self.out.push("<unterminated>")
+            .Goto => self.out.push("goto bb{t.target}")
+            .Branch => {
+                self.out.push("branch ")
+                self.operand(c, &t.cond)
+                self.out.push(", bb{t.target}, bb{t.other}")
+            }
+            .Assert => {
+                self.out.push("assert not ")
+                self.operand(c, &t.cond)
+                self.out.push(", {panicName(t.panic)} -> bb{t.target}")
+            }
+            .Return => self.out.push("return")
+            .Panic => self.operands(c, "panic", &t.cond, .None)
+            .Unreachable => self.out.push("unreachable")
+        }
+        self.out.push("\n")
+    }
+
+    /**
+     * Writes a body.
+     *
+     * @param c the checker
+     * @param b the body
+     */
+    pub fn body(mut self, c: Checker, b: &AirBody) {
+        self.out.push("fn {c.text(b.name)}")
+        self.typeArgs(c, b.targs)
+        self.out.push(if b.isMain { " (entry) \{\n" } else { " \{\n" })
+        for i in 0..b.locals.len() {
+            let local = &b.locals[i]
+            let role = if i == 0 { "return" } else if i <= b.paramCount { "param" } else { "let" }
+            self.out.push("    {role} _{i}: {c.typeName(local.ty)}")
+            if let .Some(name) = local.name {
+                self.out.push("   // {c.text(name)}")
+            }
+            self.out.push("\n")
+        }
+        for i in 0..b.blocks.len() {
+            self.out.push("  bb{i}:\n")
+            let block = &b.blocks[i]
+            for j in 0..block.stmts.len() {
+                self.statement(c, &block.stmts[j])
+            }
+            self.terminator(c, &block.term)
+        }
+        self.out.push("\}\n\n")
+    }
+}

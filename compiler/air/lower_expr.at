@@ -1,0 +1,1188 @@
+/**
+ * @module
+ * Lowering of expressions, operators and statements (stage 0:
+ * bootstrap/src/air/lower_expr.c, lower_ops.c, lower_stmt.c,
+ * lower_struct.c). Integer arithmetic is checked (spec 2.2): every check is
+ * an explicit assertion.
+ */
+
+import air.air.Operand
+import air.air.Rvalue
+import air.air.isGlue
+import air.air.PanicKind
+import air.air.RuntimeFn
+import air.air.TermKind
+import air.air.branch
+import air.air.opAddr
+import air.air.opBool
+import air.air.opCopy
+import air.air.opFloat
+import air.air.opInt
+import air.air.opStr
+import air.air.opUnit
+import air.air.rvUse
+import air.air.rvalue
+import air.air.terminator
+import air.lower.LoopTarget
+import air.lower.Lowerer
+import air.lower.Place
+import air.lower.Temp
+import air.lower.assignDone
+import air.lower.assignPart
+import air.lower.byAddress
+import air.lower.concreteType
+import air.lower.dropBeforeAssign
+import air.lower.dropScopeEnter
+import air.lower.dropScopeLeave
+import air.lower.dropScopes
+import air.lower.dropTemps
+import air.lower.emitAssert
+import air.lower.emitAssign
+import air.lower.emitCall
+import air.lower.emitDrop
+import air.lower.emitGoto
+import air.lower.emitRuntime
+import air.lower.emitStore
+import air.lower.emitTemp
+import air.lower.needsDrop
+import air.lower.newTemp
+import air.lower.noteMoved
+import air.lower.ownLocal
+import air.lower.placeOperand
+import air.lower.switchTo
+import air.lower.tempScopeEnter
+import air.lower.tempScopeLeave
+import air.lower.terminate
+import air.lower.toLocal
+import base.span.Span
+import diag.noSpan
+import sema.check.Checker
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check.itemTypeParams
+import sema.check_methods.typeNameOf
+import sema.def.Res
+import sema.moves.CONSUMED
+import sema.moves.MOVES
+import sema.program.Program
+import sema.types.BOOL
+import sema.types.ERROR
+import sema.types.I32
+import sema.types.I64
+import sema.types.NEVER
+import sema.types.STR
+import sema.types.U64
+import sema.types.UNIT
+import syntax.ast.Arg
+import syntax.ast.Block
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.ForKind
+import syntax.ast.Op
+import syntax.ast.Pattern
+import syntax.ast.Stmt
+import syntax.ast.StmtKind
+
+/**
+ * Whether a type has values: false for (), ! and the error type.
+ *
+ * @param ty the type
+ * @returns true if it does
+ */
+pub fn typeIsValue(ty: int) bool {
+    return ty != UNIT && ty != NEVER && ty != ERROR
+}
+
+fn flagsOf(c: Checker, e: &Expr) int {
+    return match c.moveFlags[c.module()].get(e.id.0) {
+        .Some(f) => *f
+        .None => 0
+    }
+}
+
+fn tempValue(l: mut Lowerer, ty: int, value: move Rvalue) Operand {
+    return opCopy(emitTemp(l, ty, value), ty)
+}
+
+fn unit() Operand {
+    return opUnit(UNIT)
+}
+
+// ---------------------------------------------------------------------------
+// Places
+
+// The field of `a.f`, or -1 for a variant, a constant or an error.
+fn fieldOf(c: Checker, e: &Expr) int {
+    return match e.kind {
+        .Field(base, _, _) => {
+            if typeNameOf(c, &*base) != 0 {
+                -1
+            } else {
+                c.members[c.module()][e.id.0]
+            }
+        }
+        _ => -1
+    }
+}
+
+fn hasAdjustments(c: Checker, e: &Expr) bool {
+    return c.derefs[c.module()].get(e.id.0).isSome() ||
+           c.sliceCoercions[c.module()].get(e.id.0).isSome()
+}
+
+// Collects the field positions of `e`, outermost last, and lowers its root.
+fn collectPath(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr,
+               fields: mut List<int>) Place {
+    if hasAdjustments(c, e) {
+        l.fail("implicit dereferences")
+        return Place{local: 0, fields: [], deref: false}
+    }
+    match e.kind {
+        .Field(base, _, _) => {
+            let field = fieldOf(c, e)
+            if field >= 0 {
+                let root = collectPath(l, c, p, &*base, fields)
+                fields.push(field)
+                return root
+            }
+        }
+        .TupleField(base, index) => {
+            let root = collectPath(l, c, p, &*base, fields)
+            fields.push(index as int)
+            return root
+        }
+        _ => {}
+    }
+    return rootPlace(l, c, p, e)
+}
+
+fn rootPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Place {
+    match e.kind {
+        .Unary(op, operand) => {
+            if op == .Deref {   // `*p`: the pointer's value is the address of the place
+                let local = toLocal(l, lowerExpr(l, c, p, &*operand))
+                return Place{local: local, fields: [], deref: true}
+            }
+        }
+        .Index(_, _) => {
+            l.fail("indexing")
+            return Place{local: 0, fields: [], deref: false}
+        }
+        .Ident(_) | .SelfValue => {
+            if let Res.Local(id) = c.res(e.id.0) {
+                let local = id + 1
+                return Place{local: local, fields: [], deref: l.body.locals[local].byRef}
+            }
+        }
+        _ => {}
+    }
+    let local = toLocal(l, lowerExpr(l, c, p, e))
+    return Place{local: local, fields: [], deref: false}
+}
+
+/**
+ * The place of `e`: a local and a field path. A root that is not a
+ * variable, as in `make().x`, is evaluated into a temporary first.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param e the expression
+ * @returns its place
+ */
+pub fn lowerPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Place {
+    var fields: List<int> = []
+    var place = collectPath(l, c, p, e, fields)
+    for i in 0..fields.len() {
+        place.fields.push(fields[i])
+    }
+    return place
+}
+
+// The local and field path of a place expression; -1 if not a local's.
+fn placePath(c: Checker, e: &Expr, path: mut List<int>) int {
+    match e.kind {
+        .Field(base, _, _) => {
+            let field = fieldOf(c, e)
+            if field < 0 {
+                return -1
+            }
+            let local = placePath(c, &*base, path)
+            if path.len() < 7 {
+                path.push(field)
+            }
+            return local
+        }
+        .TupleField(base, index) => {
+            let local = placePath(c, &*base, path)
+            if path.len() < 7 {
+                path.push(index as int)
+            }
+            return local
+        }
+        .Ident(_) | .SelfValue => {
+            return match c.res(e.id.0) {
+                .Local(id) => id + 1
+                _ => -1
+            }
+        }
+        _ => {
+            return -1
+        }
+    }
+}
+
+// Reads a variable now when `next`, evaluated after it, could assign to it
+// (a block or an `if`): evaluation is left to right (spec 4.10).
+fn settle(l: mut Lowerer, value: move Operand, next: &Expr) Operand {
+    let mayAssign = match next.kind {
+        .Block(_) | .If(_, _, _, _) | .Unsafe(_) => true
+        _ => false
+    }
+    if !mayAssign || value.kind != .Copy {
+        return value
+    }
+    let ty = value.ty
+    return opCopy(emitTemp(l, ty, rvUse(value)), ty)
+}
+
+// ---------------------------------------------------------------------------
+// Temporaries
+
+// The expressions that make a new value (and those that pass on the value
+// of their last expression: `if`, `match`, blocks).
+fn makesValue(c: Checker, e: &Expr) bool {
+    return match e.kind {
+        .Call(_, _) | .Interp(_) | .Struct(_, _, _) | .Array(_) | .Repeat(_, _) |
+        .Tuple(_) | .Variant(_, _, _) | .Try(_) | .If(_, _, _, _) | .Match(_, _) |
+        .Block(_) | .Unsafe(_) => true
+        .Binary(op, _, _) => op == .Add || op == .Coalesce
+        .Field(base, _, _) => typeNameOf(c, &*base) != 0
+        _ => false
+    }
+}
+
+// A new value no one consumes: dropped at the end of the full expression.
+fn ownTemp(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr,
+           value: move Operand) Operand {
+    let forwarded = l.forward
+    l.forward = false
+    let consumed = (flagsOf(c, e) & CONSUMED) != 0
+    if forwarded || consumed || !makesValue(c, e) || l.tempScopes.len() == 0 ||
+       isGlue(l.body.def) || value.kind == .Unit {
+        return value
+    }
+    let ty = concreteType(l, c, c.typeOf(e.id.0))
+    if !needsDrop(l, c, p, ty) {
+        return value
+    }
+    let vty = value.ty
+    let local = toLocal(l, value)
+    l.temps.push(Temp{local: local, ty: ty})
+    return opCopy(local, vty)
+}
+
+// ---------------------------------------------------------------------------
+// Expressions
+
+/**
+ * Lowers an expression to an operand.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param e the expression
+ * @returns its value
+ */
+pub fn lowerExpr(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    if hasAdjustments(c, e) {
+        l.fail("implicit dereferences and conversions")
+        return unit()
+    }
+    let forwarded = l.forward   // only for `e` itself, not its parts
+    l.forward = false
+    let value = lowerKind(l, c, p, e)
+    if (flagsOf(c, e) & MOVES) != 0 {   // the local's value is moved out: it is not dropped
+        var path: List<int> = []
+        let local = placePath(c, e, path)
+        if local >= 0 {
+            noteMoved(l, local, &path)
+        }
+    }
+    l.forward = forwarded
+    return ownTemp(l, c, p, e, value)
+}
+
+fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    let ty = c.typeOf(e.id.0)
+    return match e.kind {
+        .Int(value) => {
+            if c.types.kind(ty) == .Float {   // `var x: float = 0`
+                opFloat(value as float, ty)
+            } else {
+                opInt(value, ty)
+            }
+        }
+        .Float(value) => opFloat(value, ty)
+        .Byte(value) => opInt(value as u64, ty)
+        .Bool(value) => opBool(value, BOOL)
+        .Str(value) => opStr(value, ty)
+        .Interp(parts) => interpolation(l, c, p, &parts)
+        .Ident(_) | .SelfValue => name(l, c, p, e, ty)
+        .Unary(op, operand) => unary(l, c, p, e, op, &*operand, ty)
+        .Binary(op, lhs, rhs) => binary(l, c, p, e, op, &*lhs, &*rhs)
+        .Cast(value, _) => {
+            let v = lowerExpr(l, c, p, &*value)
+            lowerCast(l, c, v, ty, e.span)
+        }
+        .Call(callee, args) => call(l, c, p, e, &*callee, &args)
+        .If(_, _, _, _) => lowerIf(l, c, p, e)
+        .Block(block) | .Unsafe(block) => lowerBlock(l, c, p, &block, typeIsValue(ty))
+        .Field(_, _, _) => {
+            if fieldOf(c, e) >= 0 {
+                placeOperand(&lowerPlace(l, c, p, e), .Copy, ty)
+            } else {
+                l.fail("variants and methods")
+                unit()
+            }
+        }
+        .TupleField(_, _) => placeOperand(&lowerPlace(l, c, p, e), .Copy, ty)
+        _ => {
+            l.fail("this expression")
+            unit()
+        }
+    }
+}
+
+fn constOperand(c: Checker, id: int, ty: int) Operand {
+    return match c.info[id].value {
+        .Some(v) => match v.kind {
+            .Int => opInt(v.bits, ty)
+            .Float => opFloat(v.f, ty)
+            .Bool => opBool(v.b, BOOL)
+            .Str => opStr(v.s, ty)
+        }
+        .None => unit()
+    }
+}
+
+fn name(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, ty: int) Operand {
+    let Res.Def(id) = c.res(e.id.0) else {
+        return placeOperand(&lowerPlace(l, c, p, e), .Copy, ty)
+    }
+    let kind = c.def(id).kind
+    if kind == .Const {   // evaluated by the checker
+        return constOperand(c, id, ty)
+    }
+    if kind == .Variant {
+        l.fail("variants")
+        return unit()
+    }
+    c.error("E0901", e.span, "global variables are not supported yet".toOwned())
+    return unit()
+}
+
+// ---------------------------------------------------------------------------
+// Calls
+
+fn call(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
+        args: &List<Arg>) Operand {
+    let isName = match callee.kind {
+        .Ident(_) | .Generic(_, _) => true
+        _ => false
+    }
+    if !isName {
+        l.fail("method calls")
+        return unit()
+    }
+    let Res.Def(id) = c.res(callee.id.0) else {
+        l.fail("calls of function values")
+        return unit()
+    }
+    let kind = c.def(id).kind
+    if kind == .Struct || kind == .Variant {
+        l.fail("constructors")
+        return unit()
+    }
+    if kind == .Builtin {
+        let which = c.def(id).primitive
+        if which == 2 || which == 3 {
+            panicAssert(l, c, p, e, &args[0].value, which == 2)
+        } else {
+            lowerPrint(l, c, p, &args[0].value, which == 1)
+        }
+        return unit()
+    }
+    return emitUserCall(l, c, p, e, id, args)
+}
+
+// An argument: the address of the place for a `mut` parameter, else the
+// value.
+fn argument(l: mut Lowerer, c: mut Checker, p: Program, arg: &Expr, byRef: bool,
+            next: Option<&Expr>) Operand {
+    if byRef {
+        return placeOperand(&lowerPlace(l, c, p, arg), .Addr, c.typeOf(arg.id.0))
+    }
+    let value = lowerExpr(l, c, p, arg)
+    return match next {
+        .Some(n) => settle(l, value, n)
+        .None => value
+    }
+}
+
+fn isIntrinsic(c: Checker, p: Program, id: int) bool {
+    if c.def(id).member < 0 {
+        return false
+    }
+    return match itemOf(p, c.loc(id)).kind {
+        .Extern(abi, _) => abi == "intrinsic"
+        _ => false
+    }
+}
+
+// A call of a user function.
+fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
+                args: &List<Arg>) Operand {
+    if isIntrinsic(c, p, id) {
+        l.fail("intrinsics")
+        return unit()
+    }
+    let decl = fnOf(p, c.loc(id))
+    let ownerParams = if c.def(id).member >= 0 {
+        itemTypeParams(itemOf(p, c.loc(id))).len()
+    } else {
+        0
+    }
+    var targs = UNIT
+    if decl.typeParams.len() + ownerParams > 0 {
+        targs = match c.callTypeArgs[c.module()].get(e.id.0) {
+            .Some(t) => *t
+            .None => UNIT
+        }
+    }
+    let paramCount = decl.params.len()
+    var operands: List<Operand> = []
+    for i in 0..args.len() {
+        var next: Option<&Expr> = .None
+        if i + 1 < args.len() {
+            next = .Some(&args[i + 1].value)
+        }
+        let byRef = i < paramCount && byAddress(c, p, id, i)
+        operands.push(argument(l, c, p, &args[i].value, byRef, next))
+    }
+    let ty = c.typeOf(e.id.0)
+    var dest = -1
+    var result = unit()
+    if typeIsValue(ty) {
+        dest = newTemp(l, ty)
+        result = opCopy(dest, ty)
+    }
+    emitCall(l, id, targs, operands, dest)
+    if ty == NEVER {
+        terminate(l, terminator(.Unreachable))
+    }
+    return result
+}
+
+fn address(l: mut Lowerer, value: move Operand) Operand {
+    let ty = value.ty
+    return opAddr(toLocal(l, value), ty)
+}
+
+fn panicAssert(l: mut Lowerer, c: mut Checker, p: Program, call: &Expr, arg: &Expr,
+               isPanic: bool) {
+    let value = lowerExpr(l, c, p, arg)
+    if isPanic {
+        var t = terminator(.Panic)
+        t.cond = address(l, value)
+        t.span = call.span
+        terminate(l, t)
+        return
+    }
+    let fails = tempValue(l, BOOL, rvalue(.Unary, .Not, value, unit()))
+    emitAssert(l, fails, .Assert, call.span)
+}
+
+// ---------------------------------------------------------------------------
+// `if`, `&&`, `||`
+
+// Assigns `value` to `dest` when the expression has a value.
+fn store(l: mut Lowerer, dest: int, hasDest: bool, value: move Operand) {
+    if hasDest && value.kind != .Unit {
+        emitAssign(l, dest, rvUse(value))
+    }
+}
+
+/**
+ * A condition, whose temporaries end with it.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param e the condition
+ * @returns its value, in a local
+ */
+pub fn lowerCondition(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    tempScopeEnter(l)
+    let cond = lowerExpr(l, c, p, e)
+    let ty = cond.ty
+    let result = opCopy(toLocal(l, cond), ty)
+    tempScopeLeave(l, c, p)
+    return result
+}
+
+fn lowerIf(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    let ty = c.typeOf(e.id.0)
+    let hasValue = typeIsValue(ty)
+    let dest = if hasValue { newTemp(l, ty) } else { 0 }
+    match e.kind {
+        .If(letPattern, condBox, then, otherwise) => {
+            if letPattern.isSome() {
+                l.fail("`if let`")
+                return unit()
+            }
+            let cond = lowerCondition(l, c, p, &*condBox)
+            let thenBlock = l.body.newBlock()
+            let other = l.body.newBlock()
+            let join = l.body.newBlock()
+            terminate(l, branch(cond, thenBlock, other))
+            switchTo(l, thenBlock)
+            dropScopeEnter(l)   // the bindings of `if let` live in the `then` block
+            let thenValue = lowerBlock(l, c, p, &then, hasValue)
+            store(l, dest, hasValue, thenValue)
+            dropScopeLeave(l, c, p)
+            emitGoto(l, join)
+            switchTo(l, other)
+            if let .Some(branchBox) = otherwise {
+                let other = &*branchBox
+                let value = match other.kind {
+                    .If(_, _, _, _) => lowerIf(l, c, p, other)
+                    .Block(block) => lowerBlock(l, c, p, &block, hasValue)
+                    _ => unit()
+                }
+                store(l, dest, hasValue, value)
+            }
+            emitGoto(l, join)
+            switchTo(l, join)
+        }
+        _ => {}
+    }
+    return if hasValue { opCopy(dest, ty) } else { unit() }
+}
+
+// `a && b` and `a || b` evaluate `b` only when needed.
+fn logical(l: mut Lowerer, c: mut Checker, p: Program, isAnd: bool, lhs: &Expr,
+           rhs: &Expr) Operand {
+    let dest = newTemp(l, BOOL)
+    emitAssign(l, dest, rvUse(lowerExpr(l, c, p, lhs)))
+    let rhsBlock = l.body.newBlock()
+    let join = l.body.newBlock()
+    let whenTrue = if isAnd { rhsBlock } else { join }
+    let whenFalse = if isAnd { join } else { rhsBlock }
+    terminate(l, branch(opCopy(dest, BOOL), whenTrue, whenFalse))
+    switchTo(l, rhsBlock)
+    tempScopeEnter(l)   // evaluated on one path only
+    emitAssign(l, dest, rvUse(lowerExpr(l, c, p, rhs)))
+    tempScopeLeave(l, c, p)
+    emitGoto(l, join)
+    switchTo(l, join)
+    return opCopy(dest, BOOL)
+}
+
+fn binary(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, op: Op, lhs: &Expr,
+          rhs: &Expr) Operand {
+    if op == .LogicalAnd || op == .LogicalOr {
+        return logical(l, c, p, op == .LogicalAnd, lhs, rhs)
+    }
+    if op == .Coalesce {
+        l.fail("`??`")
+        return unit()
+    }
+    let first = lowerExpr(l, c, p, lhs)
+    let a = settle(l, first, rhs)
+    let b = lowerExpr(l, c, p, rhs)
+    return lowerBinaryOp(l, c, op, c.typeOf(lhs.id.0), a, b, e.span)
+}
+
+// ---------------------------------------------------------------------------
+// Operators
+
+fn intBits(data: int) int {
+    return match data % 4 {
+        0 => 8
+        1 => 16
+        2 => 32
+        _ => 64
+    }
+}
+
+fn isSigned(c: Checker, ty: int) bool {
+    return c.types.get(ty).data <= 3
+}
+
+fn compare(l: mut Lowerer, op: Op, a: move Operand, b: move Operand) Operand {
+    return tempValue(l, BOOL, rvalue(.Binary, op, a, b))
+}
+
+fn checked(l: mut Lowerer, op: Op, ty: int, a: move Operand, b: move Operand, span: Span) Operand {
+    let flag = newTemp(l, BOOL)
+    var rv = rvalue(.Checked, op, a, b)
+    rv.flag = flag
+    let result = tempValue(l, ty, rv)
+    emitAssert(l, opCopy(flag, BOOL), .Overflow, span)
+    return result
+}
+
+// Division and remainder panic on a zero divisor and on MIN / -1.
+fn divide(l: mut Lowerer, c: Checker, op: Op, ty: int, a: move Operand, b: move Operand,
+          span: Span) Operand {
+    let zero = compare(l, .Eq, b.clone(), opInt(0, ty))
+    emitAssert(l, zero, .DivZero, span)
+    if isSigned(c, ty) {
+        let bits = intBits(c.types.get(ty).data)
+        let min = opInt((1 as u64) << ((bits - 1) as u64), ty)   // the bit pattern of MIN
+        let aMin = compare(l, .Eq, a.clone(), min)
+        let ones: u64 = 18446744073709551615
+        let bNeg = compare(l, .Eq, b.clone(), opInt(ones >> ((64 - bits) as u64), ty))
+        let both = tempValue(l, BOOL, rvalue(.Binary, .And, aMin, bNeg))
+        emitAssert(l, both, .Overflow, span)
+    }
+    return tempValue(l, ty, rvalue(.Binary, op, a, b))
+}
+
+// A shift by the bit width or more panics; a negative amount, seen as
+// unsigned, is out of range too.
+fn shift(l: mut Lowerer, c: Checker, op: Op, ty: int, a: move Operand, b: move Operand,
+         span: Span) Operand {
+    var cast = rvalue(.Cast, .Add, b.clone(), unit())
+    cast.to = U64
+    let amount = tempValue(l, U64, cast)
+    let bits = opInt(intBits(c.types.get(ty).data) as u64, U64)
+    let fails = compare(l, .Ge, amount, bits)
+    emitAssert(l, fails, .Shift, span)
+    return tempValue(l, ty, rvalue(.Binary, op, a, b))
+}
+
+fn strOp(l: mut Lowerer, op: Op, a: move Operand, b: move Operand) Operand {
+    if op == .Add {
+        let dest = newTemp(l, STR)
+        let x = address(l, a)
+        let y = address(l, b)
+        emitRuntime(l, .StrConcat, [opAddr(dest, STR), x, y], -1)
+        return opCopy(dest, STR)
+    }
+    let x = address(l, a)
+    let y = address(l, b)
+    let equality = op == .Eq || op == .Ne
+    let result = if equality { BOOL } else { I32 }
+    let dest = newTemp(l, result)
+    emitRuntime(l, if equality { RuntimeFn.StrEq } else { RuntimeFn.StrCmp }, [x, y], dest)
+    if op == .Eq {
+        return opCopy(dest, result)
+    }
+    if op == .Ne {
+        return tempValue(l, result, rvalue(.Unary, .Not, opCopy(dest, result), unit()))
+    }
+    return compare(l, op, opCopy(dest, result), opInt(0, result))   // cmp(a, b) < 0, ...
+}
+
+/**
+ * `a op b` on values of type `ty`.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param op the operator
+ * @param ty the type of both operands
+ * @param a the left operand
+ * @param b the right operand
+ * @param span where a failed check is reported
+ * @returns the result
+ */
+pub fn lowerBinaryOp(l: mut Lowerer, c: Checker, op: Op, ty: int, a: move Operand,
+                     b: move Operand, span: Span) Operand {
+    let kind = c.types.kind(ty)
+    if kind == .Str {
+        return strOp(l, op, a, b)
+    }
+    if kind == .Adt {   // == and != on enums without payloads
+        l.fail("enum equality")
+        return unit()
+    }
+    let comparison = op == .Eq || op == .Ne || op == .Lt || op == .Le || op == .Gt ||
+                     op == .Ge
+    if comparison {
+        return compare(l, op, a, b)
+    }
+    if kind == .Int {
+        if op == .Add || op == .Sub || op == .Mul {
+            return checked(l, op, ty, a, b, span)
+        }
+        if op == .Div || op == .Rem {
+            return divide(l, c, op, ty, a, b, span)
+        }
+        if op == .Shl || op == .Shr {
+            return shift(l, c, op, ty, a, b, span)
+        }
+    }
+    return tempValue(l, ty, rvalue(.Binary, op, a, b))
+}
+
+fn unary(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, op: Op, operand: &Expr,
+         ty: int) Operand {
+    if op == .Deref {
+        return placeOperand(&lowerPlace(l, c, p, e), .Copy, ty)   // reached through the pointer
+    }
+    if op == .Ref || op == .RefMut {
+        if concreteType(l, c, ty) == STR {
+            l.fail("`&str` views")
+            return unit()
+        }
+        return placeOperand(&lowerPlace(l, c, p, operand), .Addr, ty)
+    }
+    var value = lowerExpr(l, c, p, operand)
+    if op == .Neg && c.types.kind(ty) == .Int {
+        if value.kind == .Int {   // a negative literal, already range checked
+            value.bits = (0 as u64).wrappingSub(value.bits)
+            return value
+        }
+        return checked(l, .Sub, ty, opInt(0, ty), value, e.span)
+    }
+    return tempValue(l, ty, rvalue(.Unary, op, value, unit()))
+}
+
+// Integer conversions that can lose information, and float to integer
+// conversions, check that the value fits (spec 2.1).
+fn castNeedsCheck(c: Checker, from: int, to: int) bool {
+    let f = c.types.get(from)
+    let t = c.types.get(to)
+    if t.kind != .Int || f.kind == .Ptr {
+        return false
+    }
+    if f.kind == .Float {
+        return true
+    }
+    if f.kind != .Int || f.data == t.data {
+        return false
+    }
+    let sameSign = (f.data <= 3) == (t.data <= 3)
+    let fromBits = intBits(f.data)
+    let toBits = intBits(t.data)
+    return if sameSign { toBits < fromBits } else { !(t.data <= 3 && toBits > fromBits) }
+}
+
+/**
+ * `value as to`, checked when the value may not fit.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param value the value
+ * @param to the target type
+ * @param span where a failed check is reported
+ * @returns the converted value
+ */
+pub fn lowerCast(l: mut Lowerer, c: Checker, value: move Operand, to: int, span: Span) Operand {
+    if value.ty == to {
+        return value
+    }
+    if castNeedsCheck(c, value.ty, to) {
+        var fails = rvalue(.CastFails, .Add, value.clone(), unit())
+        fails.to = to
+        let check = tempValue(l, BOOL, fails)
+        emitAssert(l, check, .Cast, span)
+    }
+    var rv = rvalue(.Cast, .Add, value, unit())
+    rv.to = to
+    return tempValue(l, to, rv)
+}
+
+// ---------------------------------------------------------------------------
+// Interpolation and printing
+
+// The runtime function for one part, with the part widened to its argument
+// type (int64_t, uint64_t, double, float, bool or a str pointer).
+fn partFn(l: mut Lowerer, c: Checker, part: mut Operand, print: bool) RuntimeFn {
+    let t = c.types.get(part.ty)
+    if t.kind == .Int {
+        let signed = t.data <= 3
+        let widened = lowerCast(l, c, part.clone(), if signed { I64 } else { U64 }, noSpan())
+        part.kind = widened.kind
+        part.ty = widened.ty
+        part.local = widened.local
+        part.bits = widened.bits
+        part.path = widened.path
+        if signed {
+            return if print { RuntimeFn.PrintInt } else { RuntimeFn.StrPushInt }
+        }
+        return if print { RuntimeFn.PrintUint } else { RuntimeFn.StrPushUint }
+    }
+    if t.kind == .Float {
+        if t.data == 32 {
+            return if print { RuntimeFn.PrintF32 } else { RuntimeFn.StrPushF32 }
+        }
+        return if print { RuntimeFn.PrintFloat } else { RuntimeFn.StrPushFloat }
+    }
+    if t.kind == .Bool {
+        return if print { RuntimeFn.PrintBool } else { RuntimeFn.StrPushBool }
+    }
+    let addr = address(l, part.clone())
+    part.kind = addr.kind
+    part.local = addr.local
+    part.path = addr.path
+    return if print { RuntimeFn.PrintStr } else { RuntimeFn.StrPushStr }
+}
+
+// The value of "a {x} b": an empty str that each part is appended to.
+fn interpolation(l: mut Lowerer, c: mut Checker, p: Program, parts: &List<Expr>) Operand {
+    let dest = emitTemp(l, STR, rvUse(opStr("", STR)))
+    for i in 0..parts.len() {
+        var part = lowerExpr(l, c, p, &parts[i])
+        let f = partFn(l, c, part, false)
+        emitRuntime(l, f, [opAddr(dest, STR), part], -1)
+    }
+    return opCopy(dest, STR)
+}
+
+// print("a {x}") writes each part directly, without building the string.
+fn lowerPrint(l: mut Lowerer, c: mut Checker, p: Program, arg: &Expr, newline: bool) {
+    match arg.kind {
+        .Interp(parts) => {
+            for i in 0..parts.len() {
+                var part = lowerExpr(l, c, p, &parts[i])
+                let f = partFn(l, c, part, true)
+                emitRuntime(l, f, [part], -1)
+            }
+        }
+        _ => {
+            var part = lowerExpr(l, c, p, arg)
+            let f = partFn(l, c, part, true)
+            emitRuntime(l, f, [part], -1)
+        }
+    }
+    if newline {
+        emitRuntime(l, .PrintNewline, [], -1)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Statements
+
+fn assignOperand(l: mut Lowerer, dest: int, value: move Operand) {
+    if value.kind != .Unit {
+        emitAssign(l, dest, rvUse(value))
+    }
+}
+
+fn ownBindings(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern) {
+    match pattern.kind {
+        .Binding(_, _) => {
+            let local = c.localAt(pattern.id.0)
+            if local >= 0 {
+                ownLocal(l, c, p, local + 1, true)
+            }
+        }
+        .Variant(_, _, args, _) | .TupleStruct(_, args) | .Tuple(args) => {
+            for i in 0..args.len() {
+                ownBindings(l, c, p, &args[i])
+            }
+        }
+        .Or(alternatives) => ownBindings(l, c, p, &alternatives[0])   // same locals
+        .Struct(_, fields, _) => {
+            for i in 0..fields.len() {
+                match fields[i].pattern {
+                    .Some(inner) => ownBindings(l, c, p, &inner)
+                    .None => {
+                        let local = c.localAt(fields[i].id.0)
+                        if local >= 0 {
+                            ownLocal(l, c, p, local + 1, true)
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn lowerLet(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, value: &Expr) {
+    let v = lowerExpr(l, c, p, value)
+    match pattern.kind {
+        .Binding(_, _) => assignOperand(l, c.localAt(pattern.id.0) + 1, v)
+        .Wildcard => {}
+        _ => {
+            if v.kind != .Unit {
+                l.fail("destructuring patterns")
+            }
+        }
+    }
+    ownBindings(l, c, p, pattern)
+}
+
+// Whether `target` is written through a raw pointer: no old value is
+// dropped, as by `ptr.write`.
+fn throughRawPointer(c: Checker, target: &Expr) bool {
+    return match target.kind {
+        .Field(base, _, _) | .TupleField(base, _) => throughRawPointer(c, &*base)
+        .Unary(op, operand) => op == .Deref && c.types.kind(c.typeOf(operand.id.0)) == .Ptr
+        _ => false
+    }
+}
+
+// `place = value` drops the value the place held (spec 5.2): through the
+// drop flag for a local, at once for a field or `*r`. The new value is read
+// first.
+fn dropOldValue(l: mut Lowerer, c: mut Checker, p: Program, target: &Expr, place: &Place,
+                value: move Operand) Operand {
+    let whole = place.fields.len() == 0 && !place.deref
+    let ty = concreteType(l, c, c.typeOf(target.id.0))
+    if throughRawPointer(c, target) || !needsDrop(l, c, p, ty) {
+        return value
+    }
+    let vty = value.ty
+    let settled = opCopy(toLocal(l, value), vty)
+    var path: List<int> = []
+    let local = placePath(c, target, path)
+    if local >= 0 && assignPart(l, c, p, local, &path, place, ty) {
+        return settled   // a part with its own drop flag
+    }
+    if (flagsOf(c, target) & MOVES) != 0 {
+        return settled   // the old value may have been moved out
+    }
+    if whole {
+        dropBeforeAssign(l, c, p, place.local)
+    } else {
+        emitDrop(l, c, p, place, ty)
+    }
+    return settled
+}
+
+fn lowerAssign(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, op: Op, target: &Expr,
+               valueExpr: &Expr) {
+    let place = lowerPlace(l, c, p, target)
+    var value = lowerExpr(l, c, p, valueExpr)
+    let ty = c.typeOf(target.id.0)
+    if op == .Add && ty == STR {   // s += t appends in place
+        let vty = value.ty
+        let part = opAddr(toLocal(l, value), vty)
+        emitRuntime(l, .StrPushStr, [placeOperand(&place, .Addr, ty), part], -1)
+        return
+    }
+    if op != .Assign {   // x op= y is x = x op y
+        let current = placeOperand(&place, .Copy, ty)
+        value = lowerBinaryOp(l, c, op, ty, current, value, stmt.span)
+    }
+    if value.kind == .Unit {
+        return
+    }
+    let stored = dropOldValue(l, c, p, target, &place, value)
+    emitStore(l, &place, stored)
+    if place.fields.len() == 0 && !place.deref {
+        assignDone(l, place.local)
+    }
+}
+
+/**
+ * The body of a loop; `latch` is where `continue` goes.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param body the body
+ * @param latch where `continue` goes
+ * @param exit where `break` goes
+ */
+pub fn lowerLoopBody(l: mut Lowerer, c: mut Checker, p: Program, body: &Block, latch: int,
+                     exit: int) {
+    l.loops.push(LoopTarget{breakTo: exit, continueTo: latch, scopes: l.scopes.len(),
+                            tempScopes: l.tempScopes.len()})
+    let _ = lowerBlock(l, c, p, body, false)
+    let _ = l.loops.pop()
+    emitGoto(l, latch)
+}
+
+// `for { }` and `for cond { }`.
+fn lowerWhile(l: mut Lowerer, c: mut Checker, p: Program, cond: Option<&Expr>, body: &Block) {
+    let header = l.body.newBlock()
+    let bodyBlock = l.body.newBlock()
+    let exit = l.body.newBlock()
+    emitGoto(l, header)
+    switchTo(l, header)
+    match cond {
+        .Some(e) => {
+            tempScopeEnter(l)   // evaluated at each iteration
+            let value = lowerExpr(l, c, p, e)
+            let ty = value.ty
+            let test = opCopy(toLocal(l, value), ty)
+            tempScopeLeave(l, c, p)
+            terminate(l, branch(test, bodyBlock, exit))
+        }
+        .None => emitGoto(l, bodyBlock)
+    }
+    switchTo(l, bodyBlock)
+    lowerLoopBody(l, c, p, body, header, exit)
+    switchTo(l, exit)
+}
+
+// `for i in lo..hi`: a hidden counter, copied into `i` at each iteration so
+// that `for mut i` cannot change the iteration. The increment cannot
+// overflow: it happens only while the counter is below `hi`.
+fn lowerForRange(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, range: &Expr,
+                 body: &Block) {
+    let ty = c.typeOf(range.id.0)
+    match range.kind {
+        .Range(lo, hi, inclusive) => {
+            if lo.isNone() || hi.isNone() {
+                l.fail("open ranges")
+                return
+            }
+            var counter = 0
+            var end = 0
+            if let .Some(low) = lo {
+                counter = emitTemp(l, ty, rvUse(lowerExpr(l, c, p, &*low)))
+            }
+            if let .Some(high) = hi {
+                end = emitTemp(l, ty, rvUse(lowerExpr(l, c, p, &*high)))
+            }
+            let header = l.body.newBlock()
+            let bodyBlock = l.body.newBlock()
+            let latch = l.body.newBlock()
+            let exit = l.body.newBlock()
+            emitGoto(l, header)
+            switchTo(l, header)   // inclusive: enter if lo <= hi; exclusive: while i < hi
+            let go = compare(l, if inclusive { Op.Le } else { Op.Lt }, opCopy(counter, ty),
+                             opCopy(end, ty))
+            terminate(l, branch(go, bodyBlock, exit))
+            switchTo(l, bodyBlock)
+            emitAssign(l, c.localAt(stmt.id.0) + 1, rvUse(opCopy(counter, ty)))
+            lowerLoopBody(l, c, p, body, latch, exit)
+            switchTo(l, latch)
+            let step = l.body.newBlock()
+            if inclusive {   // stop at hi itself, before an increment that could overflow
+                let done = compare(l, .Eq, opCopy(counter, ty), opCopy(end, ty))
+                terminate(l, branch(done, exit, step))
+            } else {
+                emitGoto(l, step)
+            }
+            switchTo(l, step)
+            emitAssign(l, counter, rvalue(.Binary, .Add, opCopy(counter, ty), opInt(1, ty)))
+            emitGoto(l, if inclusive { bodyBlock } else { header })
+            switchTo(l, exit)
+        }
+        _ => {}
+    }
+}
+
+fn lowerJump(l: mut Lowerer, c: mut Checker, p: Program, isBreak: bool) {
+    let loop = l.loops[l.loops.len() - 1]
+    dropTemps(l, c, p, loop.tempScopes)
+    dropScopes(l, c, p, loop.scopes)
+    emitGoto(l, if isBreak { loop.breakTo } else { loop.continueTo })
+}
+
+fn lowerStmt(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt) {
+    match stmt.kind {
+        .Let(pattern, _, value, otherwise) => {
+            if otherwise.isSome() {
+                l.fail("`let ... else`")
+                return
+            }
+            lowerLet(l, c, p, &pattern, &value)
+        }
+        .Var(_, _, value) => {
+            let local = c.localAt(stmt.id.0) + 1
+            if let .Some(v) = value {
+                assignOperand(l, local, lowerExpr(l, c, p, &v))
+            }
+            ownLocal(l, c, p, local, value.isSome())
+        }
+        .Assign(op, target, value) => lowerAssign(l, c, p, stmt, op, &target, &value)
+        .For(kind, _, _, _, expr, body) => {
+            if kind == .In {
+                match expr {
+                    .Some(e) => {
+                        let isRange = match e.kind {
+                            .Range(_, _, _) => true
+                            _ => false
+                        }
+                        if isRange {
+                            lowerForRange(l, c, p, stmt, &e, &body)
+                        } else {
+                            l.fail("`for` over lists and iterators")
+                        }
+                    }
+                    .None => {}
+                }
+            } else if kind == .Cond {
+                match expr {
+                    .Some(e) => lowerWhile(l, c, p, .Some(&e), &body)
+                    .None => {}
+                }
+            } else {
+                lowerWhile(l, c, p, .None, &body)
+            }
+        }
+        .Return(value) => {
+            if let .Some(v) = value {
+                assignOperand(l, 0, lowerExpr(l, c, p, &v))
+            }
+            dropTemps(l, c, p, 0)
+            dropScopes(l, c, p, 0)
+            terminate(l, terminator(.Return))
+        }
+        .Break => lowerJump(l, c, p, true)
+        .Continue => lowerJump(l, c, p, false)
+        .ExprStmt(e) => {
+            let _ = lowerExpr(l, c, p, &e)
+        }
+    }
+}
+
+// The last expression of a block or a `match` arm, whose value is the
+// block's: it is not a temporary of the block, but its own temporaries
+// are dropped before the block ends. Its value is read before that.
+fn lowerTail(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    tempScopeEnter(l)
+    l.forward = true
+    var result = lowerExpr(l, c, p, e)
+    if result.kind == .Copy {
+        let ty = result.ty
+        result = opCopy(emitTemp(l, ty, rvUse(result)), ty)
+    }
+    tempScopeLeave(l, c, p)
+    return result
+}
+
+/**
+ * Lowers a block; as a value, a block is worth its last expression
+ * statement.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param block the block
+ * @param asValue whether its value is used
+ * @returns its value
+ */
+pub fn lowerBlock(l: mut Lowerer, c: mut Checker, p: Program, block: &Block,
+                  asValue: bool) Operand {
+    var result = unit()
+    dropScopeEnter(l)
+    let count = block.stmts.len()
+    for i in 0..count {
+        let s = &block.stmts[i]
+        var tail = false
+        if asValue && i + 1 == count {
+            if let StmtKind.ExprStmt(e) = s.kind {
+                result = lowerTail(l, c, p, &e)
+                tail = true
+            }
+        }
+        if tail {
+            break
+        }
+        tempScopeEnter(l)   // a statement's temporaries end with it
+        lowerStmt(l, c, p, s)
+        tempScopeLeave(l, c, p)
+    }
+    dropScopeLeave(l, c, p)
+    return result
+}

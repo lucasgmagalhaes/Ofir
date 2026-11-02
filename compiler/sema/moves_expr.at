@@ -32,6 +32,7 @@ import sema.moves.Part
 import sema.moves.State
 import sema.moves.Use
 import sema.moves.localName
+import sema.moves.markFlag
 import sema.moves.moveError
 import sema.moves.movesBlock
 import sema.moves_match.movesIf
@@ -170,7 +171,7 @@ pub fn movesNode(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut Stat
             return
         }
         if use == .Move {
-            m.flag(e.id.0, COERCION_CONSUMED)
+            markFlag(c, e.id.0, COERCION_CONSUMED)
         }
         movesView(m, c, p, e, derefCount(c, e), s, .Read)
         return
@@ -187,7 +188,7 @@ fn movesView(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: 
         placeExpr(m, c, p, e, depth, s, use)
     } else {
         if use == .Move {   // else a temporary, dropped (3.2)
-            m.flag(e.id.0, CONSUMED)
+            markFlag(c, e.id.0, CONSUMED)
         }
         walk(m, c, p, e, s, use)
     }
@@ -335,7 +336,7 @@ fn assignPlace(m: mut Moves, c: mut Checker, e: &Expr, place: &Place, s: mut Sta
         return
     }
     if s.movedPart(&place.part) {   // the old value may be moved out: it is not dropped
-        m.flag(e.id.0, MOVES)
+        markFlag(c, e.id.0, MOVES)
     }
     let local = place.part.local
     if place.part.fields.len() > 0 && s.moved[local] {
@@ -371,7 +372,7 @@ fn hasDrop(m: Moves, c: mut Checker, p: Program, e: &Expr, depth: int) bool {
 }
 
 // A field moved out of a temporary: the rest of it is not dropped.
-fn consumeRoot(m: mut Moves, c: Checker, e: &Expr, depth: int) {
+fn consumeRoot(m: mut Moves, c: mut Checker, e: &Expr, depth: int) {
     if depth > 0 {
         return
     }
@@ -381,7 +382,7 @@ fn consumeRoot(m: mut Moves, c: Checker, e: &Expr, depth: int) {
         }
         _ => {
             if !isPlaceExpr(c, e) {
-                m.flag(e.id.0, CONSUMED)
+                markFlag(c, e.id.0, CONSUMED)
             }
         }
     }
@@ -406,7 +407,7 @@ fn placeExpr(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: 
     }
     movePlace(m, c, &place, s, e.span)
     if place.local && place.via == .Nothing && depth == 0 {   // for the drop flags
-        m.flag(e.id.0, MOVES)
+        markFlag(c, e.id.0, MOVES)
     }
 }
 
@@ -421,7 +422,7 @@ fn shorthand(m: mut Moves, c: mut Checker, p: Program, init: &FieldInit, span: S
     if !isCopy(c, p, c.typeOf(init.id.0)) {
         movePlace(m, c, &place, s, span)
         if place.local {
-            m.flag(init.id.0, MOVES)
+            markFlag(c, init.id.0, MOVES)
         }
     }
 }

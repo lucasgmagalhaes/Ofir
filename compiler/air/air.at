@@ -1,0 +1,527 @@
+/**
+ * @module
+ * AIR, the Astra Intermediate Representation (docs/design/compiler-architecture.md,
+ * 7; stage 0: bootstrap/src/air/air.h): a control-flow graph of basic blocks
+ * per function. Every operand is a local or a constant; control flow and
+ * runtime checks are explicit.
+ *
+ * As in stage 0: the only projection is a field (a place is a local and a
+ * path of field positions); calls are statements, not terminators; a call
+ * to a function returning `!` is followed by `Unreachable`.
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import diag.noSpan
+import sema.types.UNIT
+import syntax.ast.Op
+
+/** What an operand is. */
+pub copy enum OperandKind {
+    /** The value of a local, with `path`. */
+    Copy
+    /** The address of a local (runtime calls taking a pointer), with `path`. */
+    Addr
+    /** An integer constant of `ty`. */
+    Int
+    /** A float constant of `ty`. */
+    Float
+    /** A bool constant. */
+    Bool
+    /** A string literal. */
+    Str
+    /** `()`. */
+    Unit
+}
+
+/**
+ * A step of a field path that views an enum's payload as variant `v`
+ * (`VARIANT_STEP + v`): the next step is a field of that variant. Step 0 of
+ * an enum is its tag.
+ */
+pub const VARIANT_STEP: int = 2147483648
+
+/**
+ * The field path of a place: positions of struct fields from the local.
+ * With `deref`, the local holds the address of the value (a `mut`
+ * parameter): the path starts from that address.
+ */
+pub struct FieldPath {
+    /** The field positions. */
+    pub fields: List<int>
+    /** The local holds the address of the value. */
+    pub deref: bool
+}
+
+/**
+ * The empty path: the local itself.
+ *
+ * @returns the path
+ */
+pub fn noPath() FieldPath {
+    return FieldPath{fields: [], deref: false}
+}
+
+/** An operand of a statement or a terminator. */
+pub struct Operand {
+    /** What it is. */
+    pub kind: OperandKind
+    /** Its type. */
+    pub ty: int
+    /** The local of `Copy` and `Addr`. */
+    pub local: int
+    /** The bits of an `Int`. */
+    pub bits: u64
+    /** The value of a `Float`. */
+    pub float: float
+    /** The value of a `Bool`. */
+    pub truth: bool
+    /** The text of a `Str`. */
+    pub text: str
+    /** The path of `Copy` and `Addr`; empty for a whole local. */
+    pub path: FieldPath
+}
+
+fn operand(kind: OperandKind, ty: int) Operand {
+    return Operand{kind: kind, ty: ty, local: 0, bits: 0, float: 0.0, truth: false, text: "",
+                   path: noPath()}
+}
+
+/**
+ * The value of a local.
+ *
+ * @param local the local
+ * @param ty its type
+ * @returns the operand
+ */
+pub fn opCopy(local: int, ty: int) Operand {
+    var o = operand(.Copy, ty)
+    o.local = local
+    return o
+}
+
+/**
+ * The address of a local.
+ *
+ * @param local the local
+ * @param ty its type
+ * @returns the operand
+ */
+pub fn opAddr(local: int, ty: int) Operand {
+    var o = operand(.Addr, ty)
+    o.local = local
+    return o
+}
+
+/**
+ * An integer constant.
+ *
+ * @param bits its bits
+ * @param ty its type
+ * @returns the operand
+ */
+pub fn opInt(bits: u64, ty: int) Operand {
+    var o = operand(.Int, ty)
+    o.bits = bits
+    return o
+}
+
+/**
+ * A float constant.
+ *
+ * @param value its value
+ * @param ty its type
+ * @returns the operand
+ */
+pub fn opFloat(value: float, ty: int) Operand {
+    var o = operand(.Float, ty)
+    o.float = value
+    return o
+}
+
+/**
+ * A bool constant.
+ *
+ * @param value its value
+ * @param ty the bool type
+ * @returns the operand
+ */
+pub fn opBool(value: bool, ty: int) Operand {
+    var o = operand(.Bool, ty)
+    o.truth = value
+    return o
+}
+
+/**
+ * A string literal.
+ *
+ * @param text its text
+ * @param ty its type
+ * @returns the operand
+ */
+pub fn opStr(text: str, ty: int) Operand {
+    var o = operand(.Str, ty)
+    o.text = text.toOwned()
+    return o
+}
+
+/**
+ * `()`.
+ *
+ * @param ty the unit type
+ * @returns the operand
+ */
+pub fn opUnit(ty: int) Operand {
+    return operand(.Unit, ty)
+}
+
+/** What an rvalue computes. */
+pub copy enum RvalueKind {
+    /** a */
+    Use
+    /** a op b, unchecked (comparisons, floats, bitwise, wrapping) */
+    Binary
+    /** a op b for + - *; `flag` receives the overflow bit */
+    Checked
+    /** -a (floats), !a */
+    Unary
+    /** a as T */
+    Cast
+    /** whether `a as T` is out of range (bool) */
+    CastFails
+    /** a converted to T, clamped to its range */
+    Saturate
+    /** the length of the str a */
+    StrLen
+    /** the byte b of the str a (bounds already checked) */
+    StrByte
+    /** fn(a) or fn(a, b): sqrt, fabs, floor, ceil, minnum, maxnum */
+    FloatFn
+    /** a struct value from its fields, in declaration order */
+    Aggregate
+    /** the pointer a moved by b elements */
+    PtrAdd
+    /** the size in bytes of a value of type `to` (an int) */
+    SizeOf
+}
+
+/** The float functions of `RvalueKind.FloatFn`. */
+pub copy enum FloatFn {
+    Sqrt
+    Fabs
+    Floor
+    Ceil
+    Minnum
+    Maxnum
+}
+
+/** The value an assignment stores. */
+pub struct Rvalue {
+    /** What it computes. */
+    pub kind: RvalueKind
+    /** The operator of `Binary`, `Checked`, `Unary`. */
+    pub op: Op
+    /** The first operand. */
+    pub a: Operand
+    /** The second operand. */
+    pub b: Operand
+    /** The target type of casts and `SizeOf`. */
+    pub to: int
+    /** The overflow local of `Checked`. */
+    pub flag: int
+    /** The function of `FloatFn`. */
+    pub floatFn: FloatFn
+    /** The fields of `Aggregate`. */
+    pub items: List<Operand>
+}
+
+/**
+ * An rvalue of a kind with its operands.
+ *
+ * @param kind what it computes
+ * @param op its operator, if any
+ * @param a the first operand
+ * @param b the second operand
+ * @returns the rvalue
+ */
+pub fn rvalue(kind: RvalueKind, op: Op, a: move Operand, b: move Operand) Rvalue {
+    return Rvalue{kind: kind, op: op, a: a, b: b, to: 0, flag: 0, floatFn: .Sqrt, items: []}
+}
+
+/**
+ * `a`.
+ *
+ * @param a the operand
+ * @returns the rvalue
+ */
+pub fn rvUse(a: move Operand) Rvalue {
+    return rvalue(.Use, .Add, a, opUnit(UNIT))
+}
+
+/** The functions of the runtime library (runtime/include/astra_rt.h). */
+pub copy enum RuntimeFn {
+    PrintStr
+    PrintInt
+    PrintUint
+    PrintFloat
+    PrintF32
+    PrintBool
+    PrintNewline
+    StrPushStr
+    StrPushInt
+    StrPushUint
+    StrPushFloat
+    StrPushF32
+    StrPushBool
+    StrConcat
+    StrEq
+    StrCmp
+    /** The test `astra test` asked for, or -1. */
+    TestIndex
+}
+
+/**
+ * The C name of a runtime function.
+ *
+ * @param f the function
+ * @returns its name
+ */
+pub fn runtimeName(f: RuntimeFn) str {
+    return match f {
+        .PrintStr => "astra_print_str"
+        .PrintInt => "astra_print_int"
+        .PrintUint => "astra_print_uint"
+        .PrintFloat => "astra_print_float"
+        .PrintF32 => "astra_print_f32"
+        .PrintBool => "astra_print_bool"
+        .PrintNewline => "astra_print_newline"
+        .StrPushStr => "astra_str_push_str"
+        .StrPushInt => "astra_str_push_int"
+        .StrPushUint => "astra_str_push_uint"
+        .StrPushFloat => "astra_str_push_float"
+        .StrPushF32 => "astra_str_push_f32"
+        .StrPushBool => "astra_str_push_bool"
+        .StrConcat => "astra_str_concat"
+        .StrEq => "astra_str_eq"
+        .StrCmp => "astra_str_cmp"
+        .TestIndex => "astra_test_index"
+    }
+}
+
+/** The `fn` of a call to the drop glue of the type in `targs`. */
+pub const GLUE_DROP: int = 0
+/** The `fn` of a call to the clone glue of the type in `targs`. */
+pub const GLUE_CLONE: int = -2
+
+/**
+ * Whether a function of a call or a body is glue.
+ *
+ * @param def its `DefId`, or a glue constant
+ * @returns true for glue
+ */
+pub fn isGlue(def: int) bool {
+    return def == GLUE_DROP || def == GLUE_CLONE
+}
+
+/** What a statement does. */
+pub copy enum StmtKind {
+    /** dest = rvalue */
+    Assign
+    /** dest = callee(args); dest may be absent */
+    Call
+}
+
+/** A statement of a block. */
+pub struct AirStmt {
+    /** What it does. */
+    pub kind: StmtKind
+    /** The local assigned. */
+    pub dest: int
+    /** The field of `dest` assigned. */
+    pub destPath: FieldPath
+    /** Whether something is assigned. */
+    pub hasDest: bool
+    /** The value of an assignment. */
+    pub value: Rvalue
+    /** A call of a runtime function, else of a user function. */
+    pub runtime: bool
+    /** The runtime function. */
+    pub rt: RuntimeFn
+    /** The user function's `DefId`, or a glue constant. */
+    pub callee: int
+    /** The type arguments of a generic function, a tuple; else (). */
+    pub targs: int
+    /** The arguments. */
+    pub args: List<Operand>
+}
+
+/** Why a check panics. */
+pub copy enum PanicKind {
+    Overflow
+    DivZero
+    Shift
+    Cast
+    /** With the index and the length. */
+    Bounds
+    Assert
+}
+
+/** How a block ends. */
+pub copy enum TermKind {
+    /** Not terminated yet (only while lowering). */
+    None
+    Goto
+    /** if cond goto target else goto other */
+    Branch
+    /** if cond panics with `panic`, else goto target */
+    Assert
+    /** Returns local 0. */
+    Return
+    /** panic(cond): `cond` is the address of the message (a str) */
+    Panic
+    Unreachable
+}
+
+/** The end of a block. */
+pub struct Terminator {
+    /** How it ends. */
+    pub kind: TermKind
+    /** The condition, or the message of `Panic`. */
+    pub cond: Operand
+    /** Goto and next: target; branch: target when true. */
+    pub target: int
+    /** Branch: the target when false. */
+    pub other: int
+    /** Why an assertion panics. */
+    pub panic: PanicKind
+    /** The index of a bounds check. */
+    pub index: Operand
+    /** The length of a bounds check. */
+    pub len: Operand
+    /** Where an assertion fails. */
+    pub span: Span
+}
+
+/**
+ * A terminator of a kind.
+ *
+ * @param kind how the block ends
+ * @returns the terminator, with no operands
+ */
+pub fn terminator(kind: TermKind) Terminator {
+    return Terminator{kind: kind, cond: opUnit(UNIT), target: 0, other: 0, panic: .Overflow,
+                      index: opUnit(UNIT), len: opUnit(UNIT), span: noSpan()}
+}
+
+/**
+ * `goto target`.
+ *
+ * @param target the block
+ * @returns the terminator
+ */
+pub fn jump(target: int) Terminator {
+    var t = terminator(.Goto)
+    t.target = target
+    return t
+}
+
+/**
+ * `branch cond, then, other`.
+ *
+ * @param cond the condition
+ * @param then the block when true
+ * @param other the block when false
+ * @returns the terminator
+ */
+pub fn branch(cond: move Operand, then: int, other: int) Terminator {
+    var t = terminator(.Branch)
+    t.cond = cond
+    t.target = then
+    t.other = other
+    return t
+}
+
+/** A basic block. */
+pub struct AirBlock {
+    /** Its statements. */
+    pub stmts: List<AirStmt>
+    /** How it ends. */
+    pub term: Terminator
+}
+
+/** A local of a body. */
+pub struct AirLocal {
+    /** Its type. */
+    pub ty: int
+    /** Its name, none for temporaries. */
+    pub name: Option<Symbol>
+    /** Where it is declared. */
+    pub span: Span
+    /** A `mut` parameter: holds the address of a `ty` value. */
+    pub byRef: bool
+}
+
+/**
+ * The body of a function: local 0 is the return value, locals
+ * 1..paramCount the parameters. The body of an instance of a generic
+ * function has its types substituted: no type parameter remains.
+ */
+pub struct AirBody {
+    /** The function's `DefId`, or `GLUE_DROP` for drop glue (`targs` is then the type). */
+    pub def: int
+    /** The type arguments of the instance, a tuple; () if not generic. */
+    pub targs: int
+    /** The function's name. */
+    pub name: Symbol
+    /** The program's entry point. */
+    pub isMain: bool
+    /** The number of parameters, `self` included. */
+    pub paramCount: int
+    /** The locals. */
+    pub locals: List<AirLocal>
+    /** The blocks; block 0 is the entry. */
+    pub blocks: List<AirBlock>
+
+    /**
+     * Adds a block.
+     *
+     * @returns its number
+     */
+    pub fn newBlock(mut self) int {
+        self.blocks.push(AirBlock{stmts: [], term: terminator(.None)})
+        return self.blocks.len() - 1
+    }
+
+    /**
+     * Adds a local.
+     *
+     * @param ty its type
+     * @param name its name
+     * @param span where it is declared
+     * @returns its number
+     */
+    pub fn newLocal(mut self, ty: int, name: Option<Symbol>, span: Span) int {
+        self.locals.push(AirLocal{ty: ty, name: name, span: span, byRef: false})
+        return self.locals.len() - 1
+    }
+
+    /**
+     * Appends a statement to a block.
+     *
+     * @param block the block
+     * @param s the statement
+     */
+    pub fn push(mut self, block: int, s: move AirStmt) {
+        self.blocks[block].stmts.push(s)
+    }
+
+    /**
+     * Ends a block.
+     *
+     * @param block the block
+     * @param t how it ends
+     */
+    pub fn terminate(mut self, block: int, t: move Terminator) {
+        self.blocks[block].term = t
+    }
+}

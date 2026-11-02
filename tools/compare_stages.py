@@ -7,6 +7,9 @@ standard error and the status only: the trees built while recovering need
 not agree). `--fuzz N` also
 compares N mutated sources (tools/fuzz_frontend.py's mutations).
 
+Stage 1 lowers a part of the language so far: `air` exits with status 3 on
+a program it cannot lower yet, and such a file is counted, not compared.
+
     python3 tools/compare_stages.py [--compiler build/stage0/astra] [--fuzz 200]
 """
 
@@ -25,7 +28,8 @@ from fuzz_frontend import mutate  # noqa: E402
 
 # stage 1 command -> the stage 0 option that it must match
 COMMANDS = {"tokens": "--emit=tokens", "ast": "--emit=ast", "names": "--emit=names",
-            "types": "--emit=types"}
+            "types": "--emit=types", "air": "--emit=air"}
+UNLOWERED = 3   # `main air`: the program uses a construct stage 1 does not lower yet
 SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 
 
@@ -38,18 +42,22 @@ def run(argv: list) -> tuple:
     return result.returncode, result.stdout, result.stderr
 
 
-def compare(stage0: str, stage1: str, path: Path) -> list:
+def compare(stage0: str, stage1: str, path: Path) -> tuple:
     problems = []
+    lowered = False
     for command, option in COMMANDS.items():
         expected = run([stage0, "build", str(path), option, "-o", "/dev/null"])
         actual = run([stage1, command, str(path)])
+        if command == "air" and actual[0] == UNLOWERED:
+            continue
+        lowered = lowered or (command == "air" and actual[0] == 0)
         if expected[0] != 0 and actual[0] == expected[0] and actual[2] == expected[2]:
             continue   # after errors, the trees of the recovery need not agree
         if expected != actual:
             names = ("status", "stdout", "stderr")
             what = [n for n, a, b in zip(names, expected, actual) if a != b]
             problems.append(f"{path}: `{command}` differs from stage 0 ({', '.join(what)})")
-    return problems
+    return problems, lowered
 
 
 def main() -> int:
@@ -73,11 +81,12 @@ def main() -> int:
             files.append(case)
         with concurrent.futures.ThreadPoolExecutor() as pool:
             results = list(pool.map(lambda p: compare(args.compiler, stage1, p), files))
-    problems = [p for r in results for p in r]
+    problems = [p for r, _ in results for p in r]
+    lowered = sum(1 for _, ok in results if ok)
     for problem in problems:
         print(f"error: {problem}")
     print(f"stages: {len(files)} files ({args.fuzz} mutated), commands {', '.join(COMMANDS)}: "
-          f"{len(problems)} differences")
+          f"{len(problems)} differences; stage 1 lowers {lowered}")
     return 1 if problems else 0
 
 
