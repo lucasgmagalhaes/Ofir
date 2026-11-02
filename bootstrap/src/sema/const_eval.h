@@ -4,8 +4,8 @@
 // division and shift rules as at run time, reported as errors instead of
 // panics.
 
-#ifndef ASTRA_CONST_EVAL_H
-#define ASTRA_CONST_EVAL_H
+#ifndef OFIR_CONST_EVAL_H
+#define OFIR_CONST_EVAL_H
 
 #include "base/str.h"
 #include "sema/ids.h"

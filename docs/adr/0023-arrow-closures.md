@@ -15,7 +15,7 @@ as arrow functions, `x => x * 2`, a form most programmers read at once.
 
 A closure is an arrow function (spec 10.1):
 
-```astra
+```ofir
 xs.map(x => x * 2)
 xs.sortBy((a, b) => a.totalCmp(b))
 test(arg => println(arg))

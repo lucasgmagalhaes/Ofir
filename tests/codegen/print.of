@@ -1,0 +1,12 @@
+// println of an interpolation writes each part without building a string.
+// CHECK: define void @ofir_main()
+// CHECK: call void @ofir_print_str(ptr
+// CHECK: call void @ofir_print_int(i64
+// CHECK: call void @ofir_print_bool(i1 zeroext
+// CHECK: call void @ofir_print_newline()
+// CHECK-NOT: ofir_str_push
+// CHECK: ret void
+fn main() {
+    let n = 3
+    println("n = {n}, ok = {n > 2}")
+}

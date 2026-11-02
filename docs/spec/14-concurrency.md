@@ -13,7 +13,7 @@ now so that earlier features do not block it.
 
 ## 14.2 Threads
 
-```astra
+```ofir
 import std.thread
 
 fn main() {
@@ -47,7 +47,7 @@ when all its fields are `Send`. `thread.spawn` requires its closure to be
 
 ## 14.4 Communication
 
-```astra
+```ofir
 let (tx, rx) = channel<int>()
 thread.spawn(move () => tx.send(42))
 println("{rx.recv().unwrap()}")

@@ -1,0 +1,197 @@
+/**
+ * @module
+ * `std.io`: input and output errors, standard input and the standard
+ * streams (docs/std/system.md).
+ */
+
+extern "C" {
+    fn ofir_error_kind(code: i32) i32
+    fn ofir_error_message(code: i32, len: *mut int) *u8
+    fn ofir_read_line(out: *mut Buffer) i32
+    fn ofir_read_stdin(out: *mut Buffer) i32
+    fn ofir_stdout_flush()
+}
+
+/**
+ * What kind of failure an `IoError` is, independent of the platform.
+ */
+pub copy enum IoErrorKind {
+    /** The file or directory does not exist. */
+    NotFound
+    /** The process may not access it. */
+    PermissionDenied
+    /** It exists already. */
+    AlreadyExists
+    /** An argument is not valid, such as a path that holds a NUL. */
+    InvalidInput
+    /** The input ended before the data expected. */
+    UnexpectedEof
+    /** A signal interrupted the operation. */
+    Interrupted
+    /** Any other failure; the message says which. */
+    Other
+}
+
+/**
+ * A failed input or output operation.
+ *
+ * @example
+ * ```ofir
+ * import std.fs
+ *
+ * match fs.readToString("missing.txt") {
+ *     .Ok(text) => println(text)
+ *     .Err(e) => eprintln("cannot read: {e.message}")
+ * }
+ * ```
+ */
+pub struct IoError {
+    /** The kind of failure. */
+    pub kind: IoErrorKind
+    /** A description from the system, such as "No such file or directory". */
+    pub message: str
+
+    /**
+     * The error for a C `errno` value, as the functions of std.fs and
+     * std.os return.
+     *
+     * @param code the errno value, not 0
+     * @returns the error, with the system's message
+     */
+    pub fn fromErrno(code: i32) IoError {
+        var len = 0
+        let text = unsafe { ofir_error_message(code, &mut len as *mut int) }
+        let kinds = [IoErrorKind.NotFound, .PermissionDenied, .AlreadyExists, .InvalidInput,
+                     .UnexpectedEof, .Interrupted, .Other]
+        let kind = kinds[unsafe { ofir_error_kind(code) } as int]
+        return IoError{kind, message: unsafe { str.fromRaw(text, len) }}
+    }
+
+    /**
+     * An error of a kind, with a message of the caller's.
+     *
+     * @param kind the kind of failure
+     * @param message what went wrong
+     * @returns the error
+     */
+    pub fn new(kind: IoErrorKind, message: move str) IoError {
+        return IoError{kind, message}
+    }
+}
+
+/**
+ * A buffer that a C function of the runtime allocated: `ofir_alloc`ed
+ * bytes, which a string or a list takes over. Its layout is the C
+ * runtime's `OfirBuf`.
+ */
+pub struct Buffer {
+    /** The first byte; null when nothing was allocated. */
+    pub ptr: *mut u8
+    /** The number of bytes. */
+    pub len: int
+
+    /**
+     * An empty buffer, for a C function to fill.
+     *
+     * @returns the buffer
+     */
+    pub fn new() Buffer {
+        return Buffer{ptr: unsafe { 0 as u64 as *mut u8 }, len: 0}
+    }
+
+    /**
+     * The bytes as a string, which takes the buffer over.
+     *
+     * @returns the string
+     * @safety the bytes must be valid UTF-8 and the buffer used only once
+     */
+    pub unsafe fn intoStr(self) str {
+        return str.fromParts(self.ptr, self.len, self.len)
+    }
+
+    /**
+     * The bytes as a list, which takes the buffer over.
+     *
+     * @returns the list
+     * @safety the buffer must be used only once
+     */
+    pub unsafe fn intoList(self) List<u8> {
+        return List.fromParts(self.ptr, self.len, if self.len > 0 { self.len } else { 1 })
+    }
+}
+
+/**
+ * The result of a C function of the runtime: `Ok` for 0, else the error
+ * for that errno value.
+ *
+ * @param code what the function returned
+ * @returns `Ok(())` or `Err` with the error
+ */
+pub fn check(code: i32) Result<(), IoError> {
+    if code == 0 {
+        return .Ok(())
+    }
+    return .Err(IoError.fromErrno(code))
+}
+
+/**
+ * Standard input, read line by line or whole.
+ */
+pub struct Stdin {
+    /**
+     * Reads the next line, with its `\n`, and appends it to `buf`.
+     *
+     * @param buf where the line goes
+     * @returns the number of bytes read: 0 at the end of the input
+     * @example
+     * ```ofir
+     * import std.io
+     *
+     * var line = ""
+     * var input = io.stdin()
+     * for input.readLine(line)? > 0 {
+     *     print(line)
+     *     line.clear()
+     * }
+     * ```
+     */
+    pub fn readLine(mut self, buf: mut str) Result<int, IoError> {
+        var out = Buffer.new()
+        check(unsafe { ofir_read_line(&mut out as *mut Buffer) })?
+        let n = out.len
+        buf.push(unsafe { out.intoStr() })
+        return .Ok(n)
+    }
+
+    /**
+     * Reads everything up to the end of the input.
+     *
+     * @returns the text
+     */
+    pub fn readToString(mut self) Result<str, IoError> {
+        var out = Buffer.new()
+        check(unsafe { ofir_read_stdin(&mut out as *mut Buffer) })?
+        return .Ok(unsafe { out.intoStr() })
+    }
+}
+
+/**
+ * The standard input of the process.
+ *
+ * @returns a handle to it
+ */
+pub fn stdin() Stdin {
+    return Stdin{}
+}
+
+/**
+ * Writes what the program printed and the runtime still buffers.
+ *
+ * @returns `Ok(())`
+ */
+pub fn flush() Result<(), IoError> {
+    unsafe {
+        ofir_stdout_flush()
+    }
+    return .Ok(())
+}

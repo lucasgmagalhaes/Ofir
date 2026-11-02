@@ -1,8 +1,8 @@
 // Identifier interning: each distinct name is stored once and identified by
 // a small integer, so names compare with `==`.
 
-#ifndef ASTRA_INTERN_H
-#define ASTRA_INTERN_H
+#ifndef OFIR_INTERN_H
+#define OFIR_INTERN_H
 
 #include "base/arena.h"
 #include "base/str.h"

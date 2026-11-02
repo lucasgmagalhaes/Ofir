@@ -8,7 +8,7 @@ in 10.2; the closures themselves are written as arrow functions (10.1).
 
 Closures are arrow functions, as in JavaScript (ADR 0023):
 
-```astra
+```ofir
 let names = users.map(u => u.name.clone())      // one parameter, types inferred
 users.sortBy((a, b) => a.age - b.age)           // several parameters
 test(arg => println(arg))
@@ -65,7 +65,7 @@ Because function-typed parameters are borrowed by default, a function that
 receives a callback can never store it by accident; one that needs to store
 it says so in its signature:
 
-```astra
+```ofir
 fn each(xs: List<int>, f: fn(int)) { ... }            // cannot keep `f`
 
 fn onClick(b: mut Button, handler: move fn()) {      // keeps `handler`
@@ -83,7 +83,7 @@ from how the body uses it:
 | only read | shared reference `&` |
 | modified | exclusive reference `&mut` |
 
-```astra
+```ofir
 var count = 0
 let increment = () => {   // captures `count` by &mut
     count += 1
@@ -101,7 +101,7 @@ are copied, other values are moved into the closure. Captured values are
 **immutable** inside a `move` closure; mutable state that must outlive a
 call belongs in a struct with methods.
 
-```astra
+```ofir
 fn makeGreeter(name: str) move fn() str {
     return move () str => "hello, {name}"
 }

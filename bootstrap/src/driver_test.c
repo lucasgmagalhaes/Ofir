@@ -1,4 +1,4 @@
-// `astra test` (spec 12.2): the program built with the `@test` functions
+// `ofir test` (spec 12.2): the program built with the `@test` functions
 // as roots runs once per test, with the test's index as its argument, so
 // that a panic fails only that test.
 

@@ -1,7 +1,7 @@
 // State shared by every phase of one compilation.
 
-#ifndef ASTRA_SESSION_H
-#define ASTRA_SESSION_H
+#ifndef OFIR_SESSION_H
+#define OFIR_SESSION_H
 
 #include "base/arena.h"
 #include "base/intern.h"

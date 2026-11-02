@@ -195,7 +195,7 @@ void lower_glue(Lowerer *l, TypeId targs, BodySink sink, void *context) {
     air_body_free(&body);
 }
 
-// `dropInPlace<T>(p)` and `forget<T>(value)` (std/core/list.at, box.at).
+// `dropInPlace<T>(p)` and `forget<T>(value)` (std/core/list.of, box.of).
 Operand lower_drop_intrinsic(Lowerer *l, Expr *call, bool forget) {
     Expr *arg = call->as.call.args.items[0].value;
     Operand value = lower_expr(l, arg);

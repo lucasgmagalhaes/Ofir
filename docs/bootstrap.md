@@ -1,7 +1,7 @@
 # Bootstrap plan
 
-The goal is a **self-hosted** Astra compiler: the compiler is written in
-Astra and compiles itself. A compiler cannot compile itself before it
+The goal is a **self-hosted** Ofir compiler: the compiler is written in
+Ofir and compiles itself. A compiler cannot compile itself before it
 exists, so we get there in stages.
 
 ## Stages
@@ -10,26 +10,26 @@ exists, so we get there in stages.
 stage0  bootstrap compiler, written in a host language
           │ compiles
           ▼
-stage1  Astra compiler written in Astra, built by stage0
+stage1  Ofir compiler written in Ofir, built by stage0
           │ compiles
           ▼
-stage2  Astra compiler built by stage1
+stage2  Ofir compiler built by stage1
           │ compiles
           ▼
-stage3  Astra compiler built by stage2   →  must be identical to stage2
+stage3  Ofir compiler built by stage2   →  must be identical to stage2
 ```
 
 ### Stage 0 — bootstrap compiler
 
 - Written in **C11** (see [ADR 0003](adr/0003-self-hosting-with-c-bootstrap.md)).
-- Implements only the subset of Astra needed to write the real compiler
+- Implements only the subset of Ofir needed to write the real compiler
   (see below). Error messages can be basic; optimizations come from LLVM.
 - Lives in `bootstrap/`. It is frozen once stage 1 works and is only
   changed when the self-hosted compiler needs a new feature to build itself.
 
 ### Stage 1 — self-hosted compiler
 
-- Written in Astra, in `compiler/`.
+- Written in Ofir, in `compiler/`.
 - Implements the full specification, with high-quality diagnostics.
 - Built first by stage 0, then by itself.
 
@@ -46,7 +46,7 @@ feature may be used in `compiler/` only **after it has shipped in a tagged
 release**, so release *N* is always compilable by release *N − 1*.
 
 Each release publishes a **seed**: the LLVM IR that the release compiler
-generates for itself (`astra-<version>-<target>.ll`), attached to the
+generates for itself (`ofir-<version>-<target>.ll`), attached to the
 release, with its SHA-256 checksum recorded in `seed/SEEDS.md`. There are
 two ways to build the current compiler:
 
@@ -65,7 +65,7 @@ Both compilers share the same architecture, described in
 [design/compiler-architecture.md](design/compiler-architecture.md):
 
 ```
-source (.at)
+source (.of)
   → lexer            tokens
   → parser           AST
   → resolver         names bound to declarations, modules loaded
@@ -88,7 +88,7 @@ generated code is optimized by exactly the same LLVM passes either way
 A small C library (`runtime/`) provides what LLVM IR cannot express
 portably: memory allocation, process entry, panics and system calls. It is
 linked into every program and will shrink over time as the standard library
-moves to Astra. See [design/runtime.md](design/runtime.md).
+moves to Ofir. See [design/runtime.md](design/runtime.md).
 
 ## Bootstrap subset
 
@@ -137,7 +137,7 @@ M4, the code in `compiler/` must be written in this subset.
 - compile-time code (`comptime`, `std.meta`)
 - good diagnostics: stage 0 reports the first error per function
 
-Programs accepted by stage 0 are still valid Astra: stage 1 enforces every
+Programs accepted by stage 0 are still valid Ofir: stage 1 enforces every
 rule when it compiles itself. To make this true, **the stage 1 borrow
 checker is part of milestone M4**: self-hosting is only declared once the
 compiler's own source passes the full ownership and borrowing rules.
@@ -152,7 +152,7 @@ correct for every program it accepts, only less optimized.
 | # | Milestone | Done when |
 |---|-----------|-----------|
 | M0 | Specification draft | `docs/spec` reviewed |
-| M1 | Hello world | stage 0 compiles and runs `examples/hello.at` |
+| M1 | Hello world | stage 0 compiles and runs `examples/hello.of` |
 | M2 | Bootstrap subset | stage 0 passes every test in `tests/` not marked `requires: stage1` |
 | M3 | Self-hosted front end | stage 1 lexes and parses its own source |
 | M4 | Self-hosted | stage 1, with its borrow checker enabled, compiles itself and stage2 == stage3 |

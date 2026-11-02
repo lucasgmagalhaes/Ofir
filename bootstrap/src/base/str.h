@@ -1,7 +1,7 @@
 // String views and string builders.
 
-#ifndef ASTRA_STR_H
-#define ASTRA_STR_H
+#ifndef OFIR_STR_H
+#define OFIR_STR_H
 
 #include "base/common.h"
 

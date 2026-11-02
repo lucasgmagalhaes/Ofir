@@ -3,8 +3,8 @@
 // The AST is a faithful representation of the source: no desugaring happens
 // in the parser.
 
-#ifndef ASTRA_AST_H
-#define ASTRA_AST_H
+#ifndef OFIR_AST_H
+#define OFIR_AST_H
 
 #include "base/intern.h"
 #include "base/source.h"

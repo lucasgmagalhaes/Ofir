@@ -1,6 +1,6 @@
 // The process (std.os): arguments, environment, exit and running programs.
 
-#include "astra_rt.h"
+#include "ofir_rt.h"
 
 #include <errno.h>
 #include <poll.h>
@@ -15,48 +15,48 @@ extern char **environ;
 static int arg_count;
 static char **arg_values;
 
-void astra_set_args(int argc, char **argv) {
+void ofir_set_args(int argc, char **argv) {
     arg_count = argc;
     arg_values = argv;
 }
 
-int64_t astra_arg_count(void) {
+int64_t ofir_arg_count(void) {
     return arg_count;
 }
 
-const uint8_t *astra_arg(int64_t i, int64_t *len) {
+const uint8_t *ofir_arg(int64_t i, int64_t *len) {
     *len = (int64_t)strlen(arg_values[i]);
     return (const uint8_t *)arg_values[i];
 }
 
 // A NUL-terminated copy of `len` bytes, or NULL if they contain a NUL.
-char *astra_c_string(const uint8_t *ptr, int64_t len) {
+char *ofir_c_string(const uint8_t *ptr, int64_t len) {
     if (memchr(ptr, 0, (size_t)len)) {
         return NULL;
     }
-    char *s = astra_alloc(len + 1);
+    char *s = ofir_alloc(len + 1);
     memcpy(s, ptr, (size_t)len);
     s[len] = 0;
     return s;
 }
 
-const uint8_t *astra_env(const uint8_t *name, int64_t len, int64_t *value_len) {
-    char *key = astra_c_string(name, len);
+const uint8_t *ofir_env(const uint8_t *name, int64_t len, int64_t *value_len) {
+    char *key = ofir_c_string(name, len);
     const char *value = key ? getenv(key) : NULL;
-    astra_free(key);
+    ofir_free(key);
     *value_len = value ? (int64_t)strlen(value) : 0;
     return (const uint8_t *)value;
 }
 
-_Noreturn void astra_exit(int64_t code) {
-    astra_stdout_flush();
+_Noreturn void ofir_exit(int64_t code) {
+    ofir_stdout_flush();
     exit((int)code);
 }
 
-static void buf_push(AstraBuf *buf, int64_t *cap, const uint8_t *data, int64_t n) {
+static void buf_push(OfirBuf *buf, int64_t *cap, const uint8_t *data, int64_t n) {
     if (buf->len + n > *cap) {
         *cap = (buf->len + n) * 2;
-        buf->ptr = astra_realloc(buf->ptr, *cap);
+        buf->ptr = ofir_realloc(buf->ptr, *cap);
     }
     memcpy(buf->ptr + buf->len, data, (size_t)n);
     buf->len += n;
@@ -64,9 +64,9 @@ static void buf_push(AstraBuf *buf, int64_t *cap, const uint8_t *data, int64_t n
 
 // Reads both pipes until they close, without blocking on one while the
 // child waits for the other to be drained.
-static void drain(int out_fd, int err_fd, AstraRun *run) {
+static void drain(int out_fd, int err_fd, OfirRun *run) {
     struct pollfd fds[2] = {{.fd = out_fd, .events = POLLIN}, {.fd = err_fd, .events = POLLIN}};
-    AstraBuf *bufs[2] = {&run->out, &run->err};
+    OfirBuf *bufs[2] = {&run->out, &run->err};
     int64_t caps[2] = {0, 0};
     int open = 2;
     uint8_t chunk[4096];
@@ -90,7 +90,7 @@ static void drain(int out_fd, int err_fd, AstraRun *run) {
     }
 }
 
-static int32_t spawn(char **argv, AstraRun *run) {
+static int32_t spawn(char **argv, OfirRun *run) {
     int out[2], err[2];
     if (pipe(out) != 0 || pipe(err) != 0) {
         return errno;
@@ -102,7 +102,7 @@ static int32_t spawn(char **argv, AstraRun *run) {
     posix_spawn_file_actions_addclose(&actions, out[0]);
     posix_spawn_file_actions_addclose(&actions, err[0]);
     pid_t pid;
-    astra_stdout_flush();
+    ofir_stdout_flush();
     int code = posix_spawnp(&pid, argv[0], &actions, NULL, argv, environ);
     posix_spawn_file_actions_destroy(&actions);
     close(out[1]);
@@ -121,12 +121,12 @@ static int32_t spawn(char **argv, AstraRun *run) {
 }
 
 // `args` holds `count` strings, each followed by a NUL: the program first.
-int32_t astra_run(const uint8_t *args, int64_t len, int64_t count, AstraRun *run) {
-    *run = (AstraRun){0};
-    char *copy = astra_alloc(len + 1);
+int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run) {
+    *run = (OfirRun){0};
+    char *copy = ofir_alloc(len + 1);
     memcpy(copy, args, (size_t)len);
     copy[len] = 0;
-    char **argv = astra_alloc((count + 1) * (int64_t)sizeof(char *));
+    char **argv = ofir_alloc((count + 1) * (int64_t)sizeof(char *));
     char *at = copy;
     for (int64_t i = 0; i < count; i++) {
         argv[i] = at;
@@ -134,12 +134,12 @@ int32_t astra_run(const uint8_t *args, int64_t len, int64_t count, AstraRun *run
     }
     argv[count] = NULL;
     int32_t code = spawn(argv, run);
-    astra_free(argv);
-    astra_free(copy);
+    ofir_free(argv);
+    ofir_free(copy);
     return code;
 }
 
-// `astra test` passes the index of the test to run as the only argument.
-int64_t astra_test_index(void) {
+// `ofir test` passes the index of the test to run as the only argument.
+int64_t ofir_test_index(void) {
     return arg_count > 1 ? strtoll(arg_values[1], NULL, 10) : -1;
 }

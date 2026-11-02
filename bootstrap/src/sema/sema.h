@@ -1,8 +1,8 @@
 // Semantic analysis: name resolution (resolve*.c) and type checking
 // (check*.c) of one module. Results are stored as annotations in the AST.
 
-#ifndef ASTRA_SEMA_H
-#define ASTRA_SEMA_H
+#ifndef OFIR_SEMA_H
+#define OFIR_SEMA_H
 
 #include "sema/scope.h"
 #include "sema/types.h"
@@ -82,7 +82,7 @@ typedef struct {
 // The modules of a program; the root module (with `main`) comes first.
 typedef struct {
     Module *module;
-    StrView name;        // "parser.lexer"; the root's is its file name without `.at`
+    StrView name;        // "parser.lexer"; the root's is its file name without `.of`
 } ProgramModule;
 
 typedef struct {
@@ -106,7 +106,7 @@ typedef struct {
     DefId slice;         // `@lang("slice") ref struct Slice<T>`: the type `&[T]`
     DefId map;           // `@lang("map") struct Map<K, V>`: `for key, value in map`
     FILE *trace;         // --emit=names: where the root module's resolutions go
-    bool testing;        // `astra test`: the `@test` functions are the roots, not `main`
+    bool testing;        // `ofir test`: the `@test` functions are the roots, not `main`
     Vec(FnDecl *) tests; // filled by the lowering when testing, in program order
 } Sema;
 
@@ -116,7 +116,7 @@ void sema_free(Sema *sema);
 // The attribute `@name(...)` of a declaration, or NULL.
 const Attribute *find_attribute(const Sema *sema, AttributeList attributes, const char *name);
 
-// A `@test` function that `astra test` does not run (all of them in other
+// A `@test` function that `ofir test` does not run (all of them in other
 // builds, and those of std modules other than the root): not resolved,
 // checked or compiled, so that tests cost nothing elsewhere (spec 12.2).
 bool skipped_test(const Sema *sema, const Item *item);

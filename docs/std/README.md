@@ -1,11 +1,11 @@
 # Standard library reference
 
-This reference lists the public API of the Astra standard library. It is
+This reference lists the public API of the Ofir standard library. It is
 normative: the compilers and `std/` implement exactly these signatures.
 
 Entries marked **S0** must be provided by stage 0 (see `docs/bootstrap.md`);
 in stage 0 several of them are built into the compiler instead of being
-written in Astra. Entries marked **[planned]** are designed but not
+written in Ofir. Entries marked **[planned]** are designed but not
 required before version 1.0.
 
 | Module | Reference |

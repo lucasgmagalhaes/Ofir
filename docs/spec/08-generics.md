@@ -1,13 +1,13 @@
 # 8. Generics
 
 Generics let functions and types work over many types without losing static
-typing or performance. Astra implements them by **monomorphization**: each
+typing or performance. Ofir implements them by **monomorphization**: each
 distinct instantiation is compiled to specialized code, so generic code is
 as fast as hand-written code.
 
 ## 8.1 Generic functions
 
-```astra
+```ofir
 fn max<T: Ord>(a: move T, b: move T) T {
     if a > b {
         return a
@@ -31,7 +31,7 @@ to other generic code.
 
 ## 8.2 Generic types
 
-```astra
+```ofir
 struct Stack<T> {
     items: List<T>
 }
@@ -46,7 +46,7 @@ enum Tree<K: Ord, V> {
 
 The type parameters of a generic type are in scope in all of its methods:
 
-```astra
+```ofir
 struct Stack<T> {
     items: List<T>
 
@@ -66,7 +66,7 @@ struct Stack<T> {
 
 Methods may add their own type parameters and bounds:
 
-```astra
+```ofir
 fn contains(self, item: T) bool where T: Eq { ... }
 fn map<U>(self, f: fn(T) U) Stack<U> { ... }
 ```
@@ -75,7 +75,7 @@ fn map<U>(self, f: fn(T) U) Stack<U> { ... }
 
 Bounds may be written after the signature when they are long:
 
-```astra
+```ofir
 fn merge<K, V>(a: move Map<K, V>, b: move Map<K, V>) Map<K, V>
 where
     K: Eq + Hash,
@@ -95,7 +95,7 @@ arguments are then checked against the substituted signature. A parameter
 that none of them determines is an error (E0330). They can be written
 explicitly:
 
-```astra
+```ofir
 let xs = List<int>.new()
 let n = parse<u16>("8080")?
 let size = sizeOf<Point>()
@@ -121,7 +121,7 @@ list really contains `a < b, c > (d)`, parenthesize the comparison.
 
 ## 8.7 Const generics **[planned]**
 
-```astra
+```ofir
 struct Matrix<const R: int, const C: int> {
     cells: [float; R * C]
 }

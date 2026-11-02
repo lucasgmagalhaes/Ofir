@@ -1,16 +1,16 @@
-// AIR, the Astra Intermediate Representation (docs/design/compiler-architecture.md,
+// AIR, the Ofir Intermediate Representation (docs/design/compiler-architecture.md,
 // 7): a control-flow graph of basic blocks per function. Every operand is a
 // local or a constant; control flow and runtime checks are explicit.
 //
 // Stage 0 differences from the design:
 // - the only projection is a field: a place is a local and a path of field
 //   positions (`p.pos.x` is local p with path [pos, x]);
-// - calls are statements, not terminators: Astra has no unwinding, so a
+// - calls are statements, not terminators: Ofir has no unwinding, so a
 //   call either returns or ends the process;
 // - a call to a function returning `!` is followed by `Unreachable`.
 
-#ifndef ASTRA_AIR_H
-#define ASTRA_AIR_H
+#ifndef OFIR_AIR_H
+#define OFIR_AIR_H
 
 #include "base/str.h"
 #include "base/vec.h"
@@ -86,14 +86,14 @@ typedef struct {
     uint32_t count;
 } Rvalue;
 
-// Functions of the runtime library (runtime/include/astra_rt.h).
+// Functions of the runtime library (runtime/include/ofir_rt.h).
 typedef enum {
     RT_PRINT_STR, RT_PRINT_INT, RT_PRINT_UINT, RT_PRINT_FLOAT, RT_PRINT_F32, RT_PRINT_BOOL,
     RT_PRINT_NEWLINE,
     RT_STR_PUSH_STR, RT_STR_PUSH_INT, RT_STR_PUSH_UINT, RT_STR_PUSH_FLOAT, RT_STR_PUSH_F32,
     RT_STR_PUSH_BOOL,
     RT_STR_CONCAT, RT_STR_EQ, RT_STR_CMP,
-    RT_TEST_INDEX,    // the test `astra test` asked for, or -1
+    RT_TEST_INDEX,    // the test `ofir test` asked for, or -1
     RT_COUNT,
 } RuntimeFn;
 

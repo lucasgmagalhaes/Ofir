@@ -8,7 +8,7 @@
 Closures that capture references must not outlive the referenced values.
 With a single function type, a callee cannot know whether a closure it
 receives captured references, so it could store it and break memory safety.
-Rust solves this with lifetimes, which Astra avoids (ADR 0002).
+Rust solves this with lifetimes, which Ofir avoids (ADR 0002).
 
 ## Decision
 

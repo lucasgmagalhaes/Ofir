@@ -1,0 +1,27 @@
+fn main() {
+    var s = str.new()
+    println("{s.len()} {s.isEmpty()}")
+    s.push("Hello")
+    s += ", "
+    s.push("Ofir")
+    println("{s} {s.len()} {s.isEmpty()}")
+    println("{s[0]} {s[s.len() - 1]}")
+    println("{s.startsWith("Hell")} {s.endsWith("ir")} {s.contains("o, O")} {s.contains("x")}")
+    println("{s.toUpper()} {s.toLower()} {"ab".repeat(3)} [{"x".repeat(0)}]")
+    var twin = s.toOwned()
+    twin.push("!")
+    println("{s} / {twin}")
+    twin.clear()
+    println("[{twin}] {twin.len()}")
+    var literal = "abc"
+    literal.clear()
+    literal.push("reused")
+    println(literal)
+    var count = 0
+    for i in 0..s.len() {
+        if s[i] == b'l' {
+            count += 1
+        }
+    }
+    println("l: {count}")
+}

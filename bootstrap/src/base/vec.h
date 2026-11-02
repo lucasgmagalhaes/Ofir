@@ -5,8 +5,8 @@
 //     for (size_t i = 0; i < numbers.len; i++) { ... numbers.data[i] ... }
 //     VEC_FREE(numbers);
 
-#ifndef ASTRA_VEC_H
-#define ASTRA_VEC_H
+#ifndef OFIR_VEC_H
+#define OFIR_VEC_H
 
 #include "base/common.h"
 

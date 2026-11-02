@@ -109,7 +109,7 @@ module
       lit 1
       lit 16
   const NAME
-    str "astra"
+    str "ofir"
   global counter
     type u64
     lit 0

@@ -4,7 +4,7 @@ A union type `A | B` holds a value of one of its member types (ADR 0022).
 It is an anonymous tagged enum: each value carries a tag that says which
 member it holds.
 
-```astra
+```ofir
 type LoadError = IoError | ParseError
 
 fn load(path: str) Result<Config, LoadError> {
@@ -64,7 +64,7 @@ A union is never inferred from the values: when the branches of an `if` or
 `match` have different types and no expected type is known, it is an error
 (E0353); writing the expected type fixes it.
 
-```astra
+```ofir
 let a = if ok { 1 } else { "one" }               // E0353
 let b: int | str = if ok { 1 } else { "one" }    // each branch widens
 ```
@@ -74,7 +74,7 @@ let b: int | str = if ok { 1 } else { "one" }    // each branch widens
 A union is inspected with **type test patterns**, `name: Type` (A.7), in
 `match` and `if let`:
 
-```astra
+```ofir
 match err {
     e: IoError => eprintln("cannot read: {e}"),
     e: ParseError => eprintln("line {e.line}: {e.message}"),

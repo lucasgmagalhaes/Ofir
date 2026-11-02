@@ -11,8 +11,8 @@
 // which uses consume a value (a `let`, a `move` parameter, a return) and
 // which only borrow it, and its control flow is structured.
 
-#ifndef ASTRA_MOVES_INTERNAL_H
-#define ASTRA_MOVES_INTERNAL_H
+#ifndef OFIR_MOVES_INTERNAL_H
+#define OFIR_MOVES_INTERNAL_H
 
 #include "base/arena.h"
 #include "sema/check_internal.h"

@@ -28,18 +28,18 @@ jobs:
         run: |
           wget -qO llvm.sh https://apt.llvm.org/llvm.sh
           sudo bash llvm.sh ${{ matrix.llvm }}
-          echo "ASTRA_CLANG=clang-${{ matrix.llvm }}" >> "$GITHUB_ENV"
+          echo "OFIR_CLANG=clang-${{ matrix.llvm }}" >> "$GITHUB_ENV"
 
       - name: Install LLVM (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install llvm@${{ matrix.llvm }}
-          echo "ASTRA_CLANG=$(brew --prefix llvm@${{ matrix.llvm }})/bin/clang" >> "$GITHUB_ENV"
+          echo "OFIR_CLANG=$(brew --prefix llvm@${{ matrix.llvm }})/bin/clang" >> "$GITHUB_ENV"
 
       - name: Show toolchain
         run: |
           cc --version
-          "$ASTRA_CLANG" --version
+          "$OFIR_CLANG" --version
           python3 --version
 
       - name: Build and test

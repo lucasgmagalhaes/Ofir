@@ -11,7 +11,7 @@ project uses [Semantic Versioning](https://semver.org/).
 - Stage 1 (roadmap phase 4): `compiler/base`, `compiler/diag`, the lexer
   and the parser, whose tokens and trees equal stage 0's on every source,
   `compiler/` included (milestone M3, `make compare-stages`); a project
-  root is the nearest directory with an `astra.toml`.
+  root is the nearest directory with an `ofir.toml`.
 - Stage 1 module loading and name resolution (roadmap 4.5), checked against
   stage 0's new `--emit=names` trace by `make compare-stages`.
 - `fs.canonicalize`.
@@ -43,9 +43,12 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- A directory's module file is `index.at` (was `mod.at`).
-- Tests live in a `name_test.at` file next to the module, part of the
-  module; only `astra test` loads it. The std tests moved there.
+- The language is renamed Ofir (ADR 0025): source files end in `.of`, the
+  compiler is `ofir`, the manifest `ofir.toml`, the environment variables
+  `OFIR_*` and the runtime symbols `ofir_*`.
+- A directory's module file is `index.of` (was `mod.of`).
+- Tests live in a `name_test.of` file next to the module, part of the
+  module; only `ofir test` loads it. The std tests moved there.
 - Style: no inline blocks (`[fmt] inline-blocks = false`). Function and
   statement bodies always go on their own lines; `make check-format`
   (`tools/check_format.py`, with `--fix`) enforces it in `make test`.
@@ -63,7 +66,7 @@ Milestone M2: stage 0 is complete.
 - `for x in iterator`; `str` splitting, searching and trimming;
   `std.strings`, `std.io`, `std.fs` and `std.os`; `eprint`/`eprintln`.
 - Stack overflow detection in the runtime.
-- `@test` functions and `astra test`; std tests run in CI.
+- `@test` functions and `ofir test`; std tests run in CI.
 - Generated-code benchmarks against C (`bench/run_programs.py`).
 - Memory checks: `make check-leaks` (valgrind), `make check-asan`, and a
   mutation fuzzer for the compiler.

@@ -1,8 +1,8 @@
 // Types: hash-consed, so each distinct type exists once and type equality is
 // a comparison of `TypeId`s (docs/design/compiler-architecture.md, 2).
 
-#ifndef ASTRA_TYPES_H
-#define ASTRA_TYPES_H
+#ifndef OFIR_TYPES_H
+#define OFIR_TYPES_H
 
 #include "base/arena.h"
 #include "base/intern.h"

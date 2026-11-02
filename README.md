@@ -1,6 +1,6 @@
-# Astra
+# Ofir
 
-Astra is a compiled, statically typed systems programming language with a
+Ofir is a compiled, statically typed systems programming language with a
 lightweight, Go-like syntax and Rust-like memory safety — without a garbage
 collector.
 
@@ -11,7 +11,7 @@ collector.
 
 ```sh
 make                                   # the stage 0 compiler and the runtime
-build/stage0/astra run examples/hello.at
+build/stage0/ofir run examples/hello.of
 ```
 
 Requirements: a C11 compiler, `make`, Python 3 and clang 17 or later.
@@ -23,10 +23,10 @@ Requirements: a C11 compiler, `make`, Python 3 and clang 17 or later.
 | [Specification](docs/spec/README.md) | the language, chapter by chapter, with the full grammar |
 | [Standard library](docs/std/README.md) | API reference of `std` |
 | [Error codes](docs/errors/README.md) | registry of compiler diagnostics |
-| [Style guide](docs/style-guide.md) | formatting and naming of Astra code |
+| [Style guide](docs/style-guide.md) | formatting and naming of Ofir code |
 | [Compiler architecture](docs/design/compiler-architecture.md) | phases, AIR, code generation |
 | [Project structure](docs/design/project-structure.md) | where every part of the code lives |
-| [Toolchain](docs/design/toolchain.md) | the `astra` command and build process |
+| [Toolchain](docs/design/toolchain.md) | the `ofir` command and build process |
 | [Runtime](docs/design/runtime.md) | the small C runtime |
 | [Testing](docs/design/testing.md) | test suites and formats |
 | [Performance](docs/design/performance.md) | benchmarks, profiling and the regression gate |
@@ -44,11 +44,11 @@ Requirements: a C11 compiler, `make`, Python 3 and clang 17 or later.
   `Result` and `?`, immutable bindings by default, checked arithmetic.
 - **Lightweight** — no GC, no hidden runtime, tiny binaries.
 - **Fast** — ownership-based memory management and an LLVM backend.
-- **Self-hosted** — the Astra compiler is written in Astra.
+- **Self-hosted** — the Ofir compiler is written in Ofir.
 
 ## Taste
 
-```astra
+```ofir
 struct Point {
     x: float
     y: float
@@ -66,4 +66,4 @@ fn main() {
 
 ## License
 
-Astra is distributed under the [MIT License](LICENSE).
+Ofir is distributed under the [MIT License](LICENSE).

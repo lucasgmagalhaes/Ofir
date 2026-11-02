@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates a large, deterministic Astra source file for compiler benchmarks.
+"""Generates a large, deterministic Ofir source file for compiler benchmarks.
 
 The mix of declarations, expressions, strings and comments imitates real
 code, so lexer and parser throughput measured on it is representative.
@@ -7,8 +7,8 @@ code, so lexer and parser throughput measured on it is representative.
 The `typed` profile generates only programs that the type checker accepts
 (the subset stage 0 supports so far), for the benchmarks of later phases.
 
-    python3 bench/gen_source.py --lines 100000 > big.at
-    python3 bench/gen_source.py --profile typed --lines 100000 > typed.at
+    python3 bench/gen_source.py --lines 100000 > big.of
+    python3 bench/gen_source.py --profile typed --lines 100000 > typed.of
 """
 
 import argparse

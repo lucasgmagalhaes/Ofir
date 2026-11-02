@@ -3,8 +3,8 @@
 Roadmap task 0.8. Before writing stage 0, the lexer of the self-hosted
 compiler was written in the bootstrap subset (~650 lines, not compiled) to
 check that the language and the subset are sufficient. It has since been
-split into [`compiler/syntax`](../../compiler/syntax) `token.at`, `cursor.at`,
-`literals.at` and `lexer.at` to follow the size rules of the style guide.
+split into [`compiler/syntax`](../../compiler/syntax) `token.of`, `cursor.of`,
+`literals.of` and `lexer.of` to follow the size rules of the style guide.
 
 ## Verdict
 

@@ -1,12 +1,12 @@
 # 11. Unsafe code and FFI
 
-Most Astra programs never need this chapter. `unsafe` exists so that the
+Most Ofir programs never need this chapter. `unsafe` exists so that the
 standard library (allocation, `List`, `Map`, system calls) can be written in
-Astra itself, and so programs can call C libraries.
+Ofir itself, and so programs can call C libraries.
 
 ## 11.1 `unsafe` blocks and functions
 
-```astra
+```ofir
 unsafe {
     let p = alloc(sizeOf<int>() * 4) as *mut int
     *p = 42
@@ -43,7 +43,7 @@ checker.
 
 ## 11.3 Calling C
 
-```astra
+```ofir
 extern "C" {
     fn strlen(s: *u8) uint
     fn getenv(name: *u8) *u8
@@ -63,8 +63,8 @@ fn cLen(s: str) uint {
 
 ## 11.4 Exporting functions to C
 
-```astra
-@export("astra_add")
+```ofir
+@export("ofir_add")
 extern "C" fn add(a: i32, b: i32) i32 {
     return a + b
 }
@@ -72,14 +72,14 @@ extern "C" fn add(a: i32, b: i32) i32 {
 
 ## 11.5 Mutable globals
 
-```astra
+```ofir
 var COUNTER: int = 0          // mutable global: access requires unsafe
 const LIMIT: int = 10         // constants are always safe
 ```
 
 ## 11.6 Undefined behavior
 
-Safe Astra code cannot cause undefined behavior. Unsafe code causes undefined
+Safe Ofir code cannot cause undefined behavior. Unsafe code causes undefined
 behavior if it:
 
 - dereferences a null, dangling or misaligned pointer;

@@ -3,8 +3,8 @@
 // Nearly all compiler data lives for the whole compilation, so stage 0
 // allocates it from arenas instead of tracking individual lifetimes.
 
-#ifndef ASTRA_ARENA_H
-#define ASTRA_ARENA_H
+#ifndef OFIR_ARENA_H
+#define OFIR_ARENA_H
 
 #include "base/common.h"
 

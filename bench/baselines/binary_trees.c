@@ -1,5 +1,5 @@
-// The binary-trees benchmark: the C baseline of programs/binary_trees.at
-// (one malloc per box, as the Astra version allocates one per Box.new).
+// The binary-trees benchmark: the C baseline of programs/binary_trees.of
+// (one malloc per box, as the Ofir version allocates one per Box.new).
 #include <stdio.h>
 #include <stdlib.h>
 

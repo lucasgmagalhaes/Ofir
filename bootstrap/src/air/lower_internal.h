@@ -4,8 +4,8 @@
 // `self` and the parameters (the first AST locals) are AIR locals
 // 1..param_count. Temporaries follow.
 
-#ifndef ASTRA_LOWER_INTERNAL_H
-#define ASTRA_LOWER_INTERNAL_H
+#ifndef OFIR_LOWER_INTERNAL_H
+#define OFIR_LOWER_INTERNAL_H
 
 #include "air/lower.h"
 
@@ -189,7 +189,7 @@ TypeId method_targs(Lowerer *l, TypeId type);
 bool is_iterator(Lowerer *l, TypeId type);
 void lower_for_iter(Lowerer *l, Stmt *s);
 
-// lower_test.c: `astra test`
+// lower_test.c: `ofir test`
 void find_tests(Lowerer *l, uint32_t module);
 void lower_test_main(Lowerer *l, BodySink sink, void *context);
 

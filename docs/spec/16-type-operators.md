@@ -2,7 +2,7 @@
 
 Type operators build types from other types during compilation, as
 TypeScript's `keyof`, indexed access, mapped and conditional types do
-(ADR 0021). Their results are ordinary Astra types; nothing of them exists
+(ADR 0021). Their results are ordinary Ofir types; nothing of them exists
 at run time.
 
 ## 16.1 Key types and `keyof`
@@ -10,7 +10,7 @@ at run time.
 A **key type** is a set of field names. `keyof T` is the key type of the
 fields of struct `T`, in declaration order; for a tuple type, its indices.
 
-```astra
+```ofir
 struct Point {
     x: float
     y: float
@@ -35,7 +35,7 @@ type Both = .x | .y              // the same keys as keyof Point
 A type parameter bounded by a key type accepts any key type included in
 it:
 
-```astra
+```ofir
 fn get<T, K: keyof T>(value: T, key: K) T[K] {
     return value[key]
 }
@@ -60,7 +60,7 @@ key type of several keys, all their fields must have the same type
 
 A mapped type is a struct with one field per key of a key type, in order:
 
-```astra
+```ofir
 type Partial<T> = { [K in keyof T]?: T[K] }
 type Pick<T, K: keyof T> = { [P in K]: T[P] }
 type Omit<T, K: keyof T> = { [P in keyof T - K]: T[P] }
@@ -86,7 +86,7 @@ let limits = Record<.min | .max, int>{min: 0, max: 10}
 
 ## 16.5 Conditional types
 
-```astra
+```ofir
 type Unwrap<T> = if T is Option<infer U> { U } else { T }
 type Required<T> = { [K in keyof T]: Unwrap<T[K]> }
 ```
@@ -105,7 +105,7 @@ type Required<T> = { [K in keyof T]: Unwrap<T[K]> }
 The values of a mapped type are built and read field by field with
 compile-time loops over keys (chapter 15):
 
-```astra
+```ofir
 fn merge<T>(base: T, patch: Partial<T>) T {
     var out = base
     comptime for key in keyof T {

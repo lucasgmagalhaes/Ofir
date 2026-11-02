@@ -1,0 +1,82 @@
+/**
+ * @module
+ * Items: every declaration form of the stage 0 subset.
+ */
+
+import std.io
+import std.collections.Map as Dict
+
+/** Dropped by the parser for now. */
+@inline
+pub fn add(a: int, b: int = 1) int {
+    return a + b
+}
+
+unsafe fn raw(p: *mut u8, data: &[u8]) {}
+
+fn identity<T>(value: move T) T {
+    return value
+}
+
+pub struct Point {
+    pub x: float = 0.0
+    y: float, z: float
+
+    pub fn new(x: float, y: float) Point {
+        return Point { x, y: y, z: 0.0 }
+    }
+
+    fn norm(self) float {
+        return self.x
+    }
+
+    fn scale(mut self, by: float) {
+        self.x *= by
+    }
+
+    fn into(move self) (float, float) {
+        return (self.x, self.y)
+    }
+}
+
+copy struct Meters(float)
+
+struct Pair<A, B>(pub A, B) {
+    fn first(self) &A {
+        return &self.0
+    }
+}
+
+ref struct Node {
+    next: Node?
+}
+
+@repr(C)
+copy enum Color {
+    Red = 1, Green = 2
+    Blue = 4
+}
+
+enum Tree<T> {
+    Leaf
+    Branch(left: Tree<T>, T, right: Tree<T>)
+
+    fn isLeaf(self) bool {
+        return false
+    }
+}
+
+const MAX_SIZE: int = 1 << 16
+const NAME = "ofir"
+var counter: u64 = 0
+type Grid<T> = List<List<T>>
+
+extern "C" {
+    fn malloc(size: usize) *mut u8
+    @cold
+    fn abort() !
+}
+
+extern "C" fn callback(code: i32) i32 {
+    return code
+}

@@ -1,7 +1,7 @@
 // Definitions shared by the files of the parser.
 
-#ifndef ASTRA_PARSER_INTERNAL_H
-#define ASTRA_PARSER_INTERNAL_H
+#ifndef OFIR_PARSER_INTERNAL_H
+#define OFIR_PARSER_INTERNAL_H
 
 #include "base/vec.h"
 #include "syntax/parser.h"

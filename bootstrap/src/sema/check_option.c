@@ -1,6 +1,6 @@
 // `Option<T>` and `Result<T, E>` in the compiler (spec 6): the `?` and `??`
 // operators and unused results. The types themselves are in
-// std/core/option.at and std/core/result.at.
+// std/core/option.of and std/core/result.at.
 
 #include "sema/check_internal.h"
 

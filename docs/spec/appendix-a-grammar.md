@@ -1,6 +1,6 @@
 # Appendix A. Grammar
 
-This is the complete syntactic grammar of Astra in EBNF. Lexical tokens
+This is the complete syntactic grammar of Ofir in EBNF. Lexical tokens
 (identifiers, literals, keywords, operators) are defined in chapter 1.
 
 `NL` is the newline token emitted by the lexer at the end of each line,

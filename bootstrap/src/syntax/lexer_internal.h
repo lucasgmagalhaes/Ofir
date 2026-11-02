@@ -1,7 +1,7 @@
 // Definitions shared by the files of the lexer (lexer.c, literals.c).
 
-#ifndef ASTRA_LEXER_INTERNAL_H
-#define ASTRA_LEXER_INTERNAL_H
+#ifndef OFIR_LEXER_INTERNAL_H
+#define OFIR_LEXER_INTERNAL_H
 
 #include "syntax/lexer.h"
 

@@ -1,5 +1,5 @@
 // Lowering of `List<T>` literals, indexing and `for` loops. A literal calls
-// the functions of `std/core/list.at`; an element is reached through the
+// the functions of `std/core/list.of`; an element is reached through the
 // list's `ptr` and `len` fields (positions 0 and 1, checked by
 // check_list_layout).
 
@@ -39,7 +39,7 @@ static void call_list(Lowerer *l, const char *name, TypeId elem, CallArgs args, 
             return;
         }
     }
-    fatal("lowering: std/core/list.at has no `%s`", name);
+    fatal("lowering: std/core/list.of has no `%s`", name);
 }
 
 // `[a, b, c]`: `withCapacity(3)`, then `push` of each element in order;
@@ -99,7 +99,7 @@ static bool is_map(Lowerer *l, TypeId type) {
     return ty->kind == TY_ADT && ty->data != 0 && ty->data == l->sema->map.id;
 }
 
-// The fields of a map entry (std/core/map.at): key, value, hash.
+// The fields of a map entry (std/core/map.of): key, value, hash.
 enum { ENTRY_KEY = 0, ENTRY_VALUE = 1 };
 
 // The current element of a loop: its address, type and position.

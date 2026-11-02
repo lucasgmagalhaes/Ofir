@@ -1,14 +1,14 @@
 # Compiler architecture
 
-This document describes how the Astra compiler is organized internally. It
-applies to both the stage 0 (C) and stage 1 (Astra) compilers; stage 0
+This document describes how the Ofir compiler is organized internally. It
+applies to both the stage 0 (C) and stage 1 (Ofir) compilers; stage 0
 implements a subset of each phase.
 
 ## 1. Pipeline
 
 ```
                 ┌──────────┐   ┌────────┐   ┌──────────┐   ┌────────────┐
-    .at files ─►│  lexer   │──►│ parser │──►│ resolver │──►│type checker│
+    .of files ─►│  lexer   │──►│ parser │──►│ resolver │──►│type checker│
                 └──────────┘   └────────┘   └──────────┘   └─────┬──────┘
                   tokens          AST        symbols, scopes      │ typed AST
                                                                   ▼
@@ -202,7 +202,7 @@ are not recognized). Arms with a guard never count as covering. The error
 shows one uncovered value; an arm that earlier arms already cover gets
 W0004.
 
-## 7. AIR — Astra Intermediate Representation
+## 7. AIR — Ofir Intermediate Representation
 
 AIR is a control-flow graph of basic blocks per function, similar in spirit
 to Rust's MIR. It is the input to borrow checking, drop elaboration,
@@ -235,7 +235,7 @@ Terminator = Goto(BlockId)
 
 Stage 0 implements a subset (`bootstrap/src/air/air.h`): places are whole
 locals until structs arrive, and calls are statements rather than
-terminators, because Astra has no unwinding: a call either returns or ends
+terminators, because Ofir has no unwinding: a call either returns or ends
 the process. The driver lowers, validates and generates one function at a
 time, so only one AIR body is in memory.
 
@@ -350,7 +350,7 @@ after the substitution they are concrete, and the callee instance is
 reached. Instances are keyed by `(DefId, TypeId of the argument tuple)`
 in a hash set. Names stay readable for profiling: the instance's
 arguments, qualified by module outside the root, follow the item name
-(`@"astra.boxes.wrapped<geo.Point>"`, `%"Pair<int, str>.5"`).
+(`@"ofir.boxes.wrapped<geo.Point>"`, `%"Pair<int, str>.5"`).
 
 ## 11. Code generation
 
@@ -381,8 +381,8 @@ identical inputs produce byte-identical
 The driver writes `out.ll` to a build directory and invokes:
 
 ```
-clang -O2 out.ll <runtime>/libastra_rt.a -o program      # release
-clang -O0 -g out.ll <runtime>/libastra_rt.a -o program   # debug
+clang -O2 out.ll <runtime>/libofir_rt.a -o program      # release
+clang -O0 -g out.ll <runtime>/libofir_rt.a -o program   # debug
 ```
 
 Large programs are split into several `.ll` files (one per group of
@@ -392,7 +392,7 @@ modules) compiled by parallel clang processes **[planned]**.
 
 ```
 error[E0600]: use of moved value `inv`
-  --> examples/ownership.at:27:5
+  --> examples/ownership.of:27:5
    |
 25 |     discard(inv)
    |             --- value moved here
@@ -404,7 +404,7 @@ error[E0600]: use of moved value `inv`
 ```
 
 - Every error has a stable code (`E0001`...) documented in
-  [`docs/errors/`](../errors/README.md), with a longer explanation (`astra explain E0600`).
+  [`docs/errors/`](../errors/README.md), with a longer explanation (`ofir explain E0600`).
 - Errors are sorted by position and deduplicated.
 - A machine-readable JSON output (`--message-format=json`) feeds editors
   and the language server.
@@ -425,6 +425,6 @@ Measured and enforced as described in [performance.md](performance.md).
 - Incremental compilation: cache typed and lowered modules keyed by content
   hash.
 - Parallel front end per module.
-- Astra-level optimizations on AIR before LLVM (inlining of trivial
+- Ofir-level optimizations on AIR before LLVM (inlining of trivial
   functions, removal of redundant checks) to reduce LLVM work.
 - A direct machine-code backend for fast debug builds.

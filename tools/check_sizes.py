@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Checks the line width of docs/style-guide.md ("Size and structure"),
-the one size rule that fails: no line of C, Astra or Python longer than
+the one size rule that fails: no line of C, Ofir or Python longer than
 100 characters.
 
 File length, function length, nesting depth and parameter count are
@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ["bootstrap/src", "compiler", "std", "runtime/src", "tests/runner", "tools"]
-SUFFIXES = {".c", ".h", ".at", ".py"}
+SUFFIXES = {".c", ".h", ".of", ".py"}
 
 LINE_WIDTH = 100    # the rule: every longer line is an error
 
@@ -83,7 +83,7 @@ def scan_body(lines: list[str], i: int) -> tuple[str, int, int]:
 
 
 def braced_functions(lines: list[str], is_start) -> list[Function]:
-    """Functions delimited by braces (C and Astra)."""
+    """Functions delimited by braces (C and Ofir)."""
     functions = []
     i = 0
     while i < len(lines):
@@ -112,7 +112,7 @@ def c_start(line: str):
     return m.group(2) if m and "=" not in line.split("(")[0] else None
 
 
-def astra_start(line: str):
+def ofir_start(line: str):
     m = re.match(r"^\s*(?:pub\s+)?(?:unsafe\s+)?fn\s+(\w+)", line)
     if m and ("{" in strip_literals(line) or line.rstrip().endswith(")")):
         return m.group(1)
@@ -158,8 +158,8 @@ def check(path: Path, report, advise) -> None:
         advise(f"{rel}: {len(lines)} lines (suggested {FILE_LINES})")
     if path.suffix == ".py":
         functions = python_functions(lines)
-    elif path.suffix == ".at":
-        functions = braced_functions(lines, astra_start)
+    elif path.suffix == ".of":
+        functions = braced_functions(lines, ofir_start)
     elif path.suffix == ".h":
         # Headers declare functions; only inline definitions are measured.
         functions = braced_functions(lines, lambda l: c_start(l) if "inline" in l else None)

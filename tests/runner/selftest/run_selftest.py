@@ -7,7 +7,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 RUNNER = HERE.parent / "run_tests.py"
-FAKE = HERE / "fake_astra.py"
+FAKE = HERE / "fake_ofir.py"
 
 
 def runner(tests_dir, stage):
@@ -26,8 +26,8 @@ def expect(name, proc, exit_code, summary):
 
 
 def main():
-    fail_count = len(list((HERE / "fail").rglob("*.at")))
-    pass_count = len(list((HERE / "pass").rglob("*.at")))
+    fail_count = len(list((HERE / "fail").rglob("*.of")))
+    pass_count = len(list((HERE / "pass").rglob("*.of")))
     results = [
         expect("passing fixtures (stage 1)", runner("pass", 1), 0,
                f"{pass_count} tests: {pass_count} passed, 0 failed"),

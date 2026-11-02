@@ -1,0 +1,276 @@
+/**
+ * @module
+ * `Map<K, V>`: a hash map that iterates in insertion order (spec 2.6,
+ * ADR 0011, docs/std/collections.md).
+ *
+ * The entries are kept in a list, in the order their keys were first
+ * inserted; an open-addressing table of entry positions finds them by hash.
+ * Removing a key removes its entry from the list and renumbers the table.
+ */
+
+import std.mem
+
+extern "intrinsic" {
+    // The hash of a key and the equality of keys, for the instance's key
+    // type: int, bool, str or tuples of them until bounds (roadmap 5.2).
+    fn hashOf<K>(key: K) u64
+    fn equals<K>(a: K, b: K) bool
+}
+
+// A slot of the table: the position of an entry, or one of these.
+const EMPTY: int = -1   // never used: a lookup stops here
+const GONE: int = -2    // its entry was removed: a lookup goes on
+
+// One key and its value.
+struct Entry<K, V> {
+    key: K
+    value: V
+    hash: u64
+}
+
+/**
+ * A map from keys of type `K` to values of type `V`, which iterates in the
+ * order the keys were first inserted.
+ *
+ * Lookups and insertions take constant time on average, removals linear
+ * time (they keep the order of the other entries). The hash
+ * function is deterministic, so a program's output never depends on hash
+ * values. `for key, value in map` visits the entries in insertion order.
+ * Stage 0 accepts keys of type int (and the other integers), bool, str and
+ * tuples of them (E0313 otherwise), until bounds (roadmap 5.2).
+ *
+ * @typeParam K the type of the keys
+ * @typeParam V the type of the values
+ * @example
+ * ```ofir
+ * var ages = Map<str, int>.new()
+ * ages.insert("ana", 31)
+ * ages.insert("bob", 27)
+ * if let Some(age) = ages.get("ana") {
+ *     println("ana is {age}")
+ * }
+ * for name, age in ages {
+ *     println("{name}: {age}")
+ * }
+ * ```
+ */
+@lang("map")
+pub struct Map<K, V> {
+    entries: List<Entry<K, V>>
+    slots: List<int>
+    gone: int   // GONE slots, which count as used until the table is rebuilt
+
+    /**
+     * An empty map; nothing is allocated until the first insertion.
+     *
+     * @returns a map with no entries
+     */
+    pub fn new() Map<K, V> {
+        return Map{entries: [], slots: [], gone: 0}
+    }
+
+    /**
+     * The number of keys.
+     *
+     * @returns the number of entries
+     */
+    pub fn len(self) int {
+        return self.entries.len()
+    }
+
+    /**
+     * Whether the map has no keys.
+     *
+     * @returns true when the map is empty
+     */
+    pub fn isEmpty(self) bool {
+        return self.entries.isEmpty()
+    }
+
+    /**
+     * Whether a key is in the map.
+     *
+     * @param key the key to look for
+     * @returns true if the map has an entry for `key`
+     */
+    pub fn contains(self, key: K) bool {
+        return self.slotOf(key) >= 0
+    }
+
+    /**
+     * Sets the value of a key. A new key goes after the others in the
+     * iteration order; an existing key keeps its position.
+     *
+     * @param key the key; the map takes ownership of it
+     * @param value the value; the map takes ownership of it
+     * @returns the previous value of `key`, or `None` for a new key
+     * @panics when the system is out of memory
+     * @example
+     * ```ofir
+     * var m = Map<str, int>.new()
+     * assert(m.insert("a", 1).isNone())
+     * assert(m.insert("a", 2) ?? 0 == 1)
+     * ```
+     */
+    pub fn insert(mut self, key: move K, value: move V) Option<V> {
+        let slot = self.slotOf(key)
+        if slot >= 0 {
+            let at = self.slots[slot]
+            return Some(mem.replace(self.entries[at].value, value))
+        }
+        self.add(key, value)
+        return None
+    }
+
+    /**
+     * A borrow of the value of a key.
+     *
+     * @param key the key to look for
+     * @returns `Some` with a reference to the value, or `None` if the key
+     * is not in the map
+     */
+    pub fn get(self, key: K) Option<&V> {
+        let slot = self.slotOf(key)
+        if slot < 0 {
+            return None
+        }
+        return Some(&self.entries[self.slots[slot]].value)
+    }
+
+    /**
+     * A mutable borrow of the value of a key.
+     *
+     * @param key the key to look for
+     * @returns `Some` with a mutable reference to the value, or `None` if
+     * the key is not in the map
+     * @example
+     * ```ofir
+     * if let Some(count) = counts.getMut("word") {
+     *     *count += 1
+     * }
+     * ```
+     */
+    pub fn getMut(mut self, key: K) Option<&mut V> {
+        let slot = self.slotOf(key)
+        if slot < 0 {
+            return None
+        }
+        return Some(&mut self.entries[self.slots[slot]].value)
+    }
+
+    /**
+     * The value of a key, inserting `fallback` first if the key is new:
+     * the way to count or group.
+     *
+     * @param key the key; the map takes ownership of it if it is new
+     * @param fallback the value of a new key
+     * @returns a mutable reference to the value of `key`
+     * @panics when the system is out of memory
+     * @example
+     * ```ofir
+     * var counts = Map<str, int>.new()
+     * for word in words {
+     *     *counts.getOrInsert(word, 0) += 1
+     * }
+     * ```
+     */
+    pub fn getOrInsert(mut self, key: move K, fallback: move V) &mut V {
+        let slot = self.slotOf(key)
+        if slot >= 0 {
+            return &mut self.entries[self.slots[slot]].value
+        }
+        self.add(key, fallback)
+        return &mut self.entries[self.entries.len() - 1].value
+    }
+
+    /**
+     * Removes a key. The other keys keep their order, so this takes time
+     * proportional to the size of the map.
+     *
+     * @param key the key to remove
+     * @returns the value the key had, or `None` if it was not in the map
+     */
+    pub fn remove(mut self, key: K) Option<V> {
+        let slot = self.slotOf(key)
+        if slot < 0 {
+            return None
+        }
+        let at = self.slots[slot]
+        self.slots[slot] = GONE
+        self.gone += 1
+        for i in 0..self.slots.len() {   // the later entries move down by one
+            if self.slots[i] > at {
+                self.slots[i] -= 1
+            }
+        }
+        let entry = self.entries.remove(at)
+        return Some(entry.value)
+    }
+
+    /**
+     * Removes every key; the memory is kept for reuse.
+     */
+    pub fn clear(mut self) {
+        self.entries.clear()
+        for i in 0..self.slots.len() {
+            self.slots[i] = EMPTY
+        }
+        self.gone = 0
+    }
+
+    // The slot holding the entry of `key`, or -1.
+    fn slotOf(self, key: K) int {
+        if self.entries.isEmpty() {
+            return -1
+        }
+        let hash = hashOf(key)
+        let mask = self.slots.len() - 1
+        var slot = (hash & (mask as u64)) as int
+        for {
+            let at = self.slots[slot]
+            if at == EMPTY {
+                return -1
+            }
+            if at >= 0 && self.entries[at].hash == hash && equals(self.entries[at].key, key) {
+                return slot
+            }
+            slot = (slot + 1) & mask
+        }
+    }
+
+    // Appends an entry for a new key and records it in the table.
+    fn add(mut self, key: move K, value: move V) {
+        self.reserveOne()
+        let hash = hashOf(key)
+        self.entries.push(Entry{key, value, hash})
+        self.place(hash, self.entries.len() - 1)
+    }
+
+    // Puts entry `at` in the first empty slot of its probe sequence.
+    fn place(mut self, hash: u64, at: int) {
+        let mask = self.slots.len() - 1
+        var slot = (hash & (mask as u64)) as int
+        for self.slots[slot] != EMPTY {
+            slot = (slot + 1) & mask
+        }
+        self.slots[slot] = at
+    }
+
+    // Keeps the table at most half full, counting GONE slots: when one more
+    // entry would exceed that, rebuilds a table four times larger than the
+    // entries, without GONE slots.
+    fn reserveOne(mut self) {
+        if (self.entries.len() + self.gone + 1) * 2 <= self.slots.len() {
+            return
+        }
+        var size = 8
+        for size < (self.entries.len() + 1) * 4 {
+            size *= 2
+        }
+        self.gone = 0
+        self.slots = [EMPTY; size]
+        for i in 0..self.entries.len() {
+            self.place(self.entries[i].hash, i)
+        }
+    }
+}

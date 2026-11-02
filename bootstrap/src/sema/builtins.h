@@ -2,8 +2,8 @@
 // declare yet: `x.wrappingCast<u8>()`, `p.add(n)`, `i32.MAX`, ... The other
 // methods are `@lang` declarations in std/core (ADR 0019).
 
-#ifndef ASTRA_BUILTINS_H
-#define ASTRA_BUILTINS_H
+#ifndef OFIR_BUILTINS_H
+#define OFIR_BUILTINS_H
 
 #include "base/intern.h"
 #include "sema/types.h"

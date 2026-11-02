@@ -1,13 +1,13 @@
 # 15. Compile-time code **[planned]**
 
-Astra has **no macros**. Code that must adapt to the shape of a type
+Ofir has **no macros**. Code that must adapt to the shape of a type
 (serialization, debug printing, comparisons, builders) is written as
 ordinary generic code that inspects types **at compile time**. The design is
 fixed now; the implementation is planned for stage 1 (roadmap Phase 5).
 
 Goals:
 
-- the code that runs is ordinary, type-checked Astra, readable and
+- the code that runs is ordinary, type-checked Ofir, readable and
   debuggable — no token-level transformations;
 - no runtime reflection: everything is resolved during compilation and
   costs nothing at run time;
@@ -19,7 +19,7 @@ Goals:
 use only constants, type information and pure functions (no I/O, no
 allocation that escapes):
 
-```astra
+```ofir
 const TABLE: [u32; 256] = comptime crc32Table()
 
 comptime fn crc32Table() [u32; 256] { ... }    // usable only at compile time
@@ -50,7 +50,7 @@ element, with that element's concrete types. `comptime if` keeps only the
 branch whose condition is true, so the other branch may contain code that
 would not type-check for this instantiation.
 
-```astra
+```ofir
 import std.meta
 
 pub fn toJson<T>(value: T, out: mut str) {

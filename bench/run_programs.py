@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Generated-code benchmarks (roadmap 3.11a): each program of `programs/`
-against its C version in `baselines/`, both optimized (`astra build
+against its C version in `baselines/`, both optimized (`ofir build
 --release`, `clang -O2`). Prints the median wall time of each and the
-ratio Astra / C; the outputs must agree.
+ratio Ofir / C; the outputs must agree.
 
-    python3 bench/run_programs.py --compiler build/release/astra [--runs 5]
+    python3 bench/run_programs.py --compiler build/release/ofir [--runs 5]
 """
 
 import argparse
@@ -19,12 +19,12 @@ ROOT = Path(__file__).resolve().parent
 
 
 def build(compiler: str, program: Path, work: Path) -> tuple[Path, Path]:
-    astra = work / (program.stem + "-astra")
+    ofir = work / (program.stem + "-ofir")
     c = work / (program.stem + "-c")
-    subprocess.run([compiler, "build", str(program), "--release", "-o", str(astra)], check=True)
+    subprocess.run([compiler, "build", str(program), "--release", "-o", str(ofir)], check=True)
     subprocess.run(["clang", "-O2", str(ROOT / "baselines" / (program.stem + ".c")), "-lm",
                     "-o", str(c)], check=True)
-    return astra, c
+    return ofir, c
 
 
 def measure(exe: Path, runs: int) -> tuple[float, str]:
@@ -58,17 +58,17 @@ def main() -> int:
     parser.add_argument("--runs", type=int, default=5)
     args = parser.parse_args()
     ok = True
-    print(f"{'program':<14} {'astra ms':>9} {'c ms':>9} {'ratio':>6}")
+    print(f"{'program':<14} {'ofir ms':>9} {'c ms':>9} {'ratio':>6}")
     with tempfile.TemporaryDirectory() as tmp:
-        for program in sorted((ROOT / "programs").glob("*.at")):
-            astra, c = build(args.compiler, program, Path(tmp))
-            astra_time, astra_out = measure(astra, args.runs)
+        for program in sorted((ROOT / "programs").glob("*.of")):
+            ofir, c = build(args.compiler, program, Path(tmp))
+            ofir_time, ofir_out = measure(ofir, args.runs)
             c_time, c_out = measure(c, args.runs)
-            agree = same_output(astra_out, c_out)
+            agree = same_output(ofir_out, c_out)
             ok = ok and agree
             note = "" if agree else "  OUTPUTS DIFFER"
-            print(f"{program.stem:<14} {astra_time * 1000:9.1f} {c_time * 1000:9.1f} "
-                  f"{astra_time / c_time:6.2f}{note}")
+            print(f"{program.stem:<14} {ofir_time * 1000:9.1f} {c_time * 1000:9.1f} "
+                  f"{ofir_time / c_time:6.2f}{note}")
     return 0 if ok else 1
 
 

@@ -4,7 +4,7 @@ Everything on this page is available without imports.
 
 ## `Option<T>`
 
-```astra
+```ofir
 enum Option<T> { Some(value: T)  None }
 ```
 
@@ -23,7 +23,7 @@ enum Option<T> { Some(value: T)  None }
 
 ## `Result<T, E>`
 
-```astra
+```ofir
 enum Result<T, E> { Ok(value: T)  Err(error: E) }
 ```
 
@@ -51,7 +51,7 @@ evaluated default.
 
 ## `Ordering`
 
-```astra
+```ofir
 copy enum Ordering { Less  Equal  Greater }
 ```
 
@@ -64,7 +64,7 @@ Defined in spec chapter 9.9: `Eq`, `Ord`, `Hash`, `Clone`, `Display`,
 `Debug`, `Drop`, `Iterator<T>`, `Default`, `From<T>`, and the markers `Send`
 and `Sync`.
 
-```astra
+```ofir
 interface Hash {
     fn hash(self, h: mut Hasher)
 }

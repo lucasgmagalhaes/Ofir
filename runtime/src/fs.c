@@ -1,7 +1,7 @@
 // Files, directories and standard input (std.fs, std.io). Every function
 // returns 0 or an errno value, which std turns into an IoError.
 
-#include "astra_rt.h"
+#include "ofir_rt.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -17,13 +17,13 @@
 #include <mach-o/dyld.h>
 #endif
 
-static int32_t read_fd(int fd, AstraBuf *out) {
+static int32_t read_fd(int fd, OfirBuf *out) {
     int64_t cap = 4096;
-    *out = (AstraBuf){astra_alloc(cap), 0};
+    *out = (OfirBuf){ofir_alloc(cap), 0};
     for (;;) {
         if (out->len == cap) {
             cap *= 2;
-            out->ptr = astra_realloc(out->ptr, cap);
+            out->ptr = ofir_realloc(out->ptr, cap);
         }
         ssize_t n = read(fd, out->ptr + out->len, (size_t)(cap - out->len));
         if (n == 0) {
@@ -31,21 +31,21 @@ static int32_t read_fd(int fd, AstraBuf *out) {
         }
         if (n < 0 && errno != EINTR) {
             int32_t code = errno;
-            astra_free(out->ptr);
-            *out = (AstraBuf){0};
+            ofir_free(out->ptr);
+            *out = (OfirBuf){0};
             return code;
         }
         out->len += n > 0 ? n : 0;
     }
 }
 
-int32_t astra_read_file(const uint8_t *path, int64_t len, AstraBuf *out) {
-    char *name = astra_c_string(path, len);
+int32_t ofir_read_file(const uint8_t *path, int64_t len, OfirBuf *out) {
+    char *name = ofir_c_string(path, len);
     int fd = name ? open(name, O_RDONLY) : -1;
     int32_t code = name ? errno : EINVAL;
-    astra_free(name);
+    ofir_free(name);
     if (fd < 0) {
-        *out = (AstraBuf){0};
+        *out = (OfirBuf){0};
         return code;
     }
     code = read_fd(fd, out);
@@ -53,11 +53,11 @@ int32_t astra_read_file(const uint8_t *path, int64_t len, AstraBuf *out) {
     return code;
 }
 
-int32_t astra_write_file(const uint8_t *path, int64_t len, const uint8_t *data, int64_t n) {
-    char *name = astra_c_string(path, len);
+int32_t ofir_write_file(const uint8_t *path, int64_t len, const uint8_t *data, int64_t n) {
+    char *name = ofir_c_string(path, len);
     int fd = name ? open(name, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
     int32_t code = name ? errno : EINVAL;
-    astra_free(name);
+    ofir_free(name);
     if (fd < 0) {
         return code;
     }
@@ -74,36 +74,36 @@ int32_t astra_write_file(const uint8_t *path, int64_t len, const uint8_t *data, 
     return close(fd) == 0 ? 0 : errno;
 }
 
-bool astra_path_exists(const uint8_t *path, int64_t len) {
-    char *name = astra_c_string(path, len);
+bool ofir_path_exists(const uint8_t *path, int64_t len) {
+    char *name = ofir_c_string(path, len);
     struct stat info;
     bool found = name && stat(name, &info) == 0;
-    astra_free(name);
+    ofir_free(name);
     return found;
 }
 
-int32_t astra_canonicalize(const uint8_t *path, int64_t len, AstraBuf *out) {
-    char *name = astra_c_string(path, len);
+int32_t ofir_canonicalize(const uint8_t *path, int64_t len, OfirBuf *out) {
+    char *name = ofir_c_string(path, len);
     char full[PATH_MAX];
-    *out = (AstraBuf){0};
+    *out = (OfirBuf){0};
     if (!name) {
         return EINVAL;
     }
     bool found = realpath(name, full) != NULL;
-    astra_free(name);
+    ofir_free(name);
     if (!found) {
         return errno;
     }
     out->len = (int64_t)strlen(full);
-    out->ptr = astra_alloc(out->len);
+    out->ptr = ofir_alloc(out->len);
     memcpy(out->ptr, full, (size_t)out->len);
     return 0;
 }
 
-int32_t astra_remove_file(const uint8_t *path, int64_t len) {
-    char *name = astra_c_string(path, len);
+int32_t ofir_remove_file(const uint8_t *path, int64_t len) {
+    char *name = ofir_c_string(path, len);
     int32_t code = !name ? EINVAL : unlink(name) == 0 ? 0 : errno;
-    astra_free(name);
+    ofir_free(name);
     return code;
 }
 
@@ -125,10 +125,10 @@ static int32_t make_dirs(char *name) {
     }
 }
 
-int32_t astra_create_dir_all(const uint8_t *path, int64_t len) {
-    char *name = astra_c_string(path, len);
+int32_t ofir_create_dir_all(const uint8_t *path, int64_t len) {
+    char *name = ofir_c_string(path, len);
     int32_t code = name && len > 0 ? make_dirs(name) : EINVAL;
-    astra_free(name);
+    ofir_free(name);
     return code;
 }
 
@@ -136,7 +136,7 @@ static int compare_names(const void *a, const void *b) {
     return strcmp(*(char *const *)a, *(char *const *)b);
 }
 
-static void list_names(DIR *dir, AstraBuf *out) {
+static void list_names(DIR *dir, OfirBuf *out) {
     char **names = NULL;
     size_t count = 0, cap = 0;
     for (struct dirent *entry; (entry = readdir(dir));) {
@@ -145,7 +145,7 @@ static void list_names(DIR *dir, AstraBuf *out) {
         }
         if (count == cap) {
             cap = cap ? cap * 2 : 16;
-            names = astra_realloc(names, (int64_t)(cap * sizeof(char *)));
+            names = ofir_realloc(names, (int64_t)(cap * sizeof(char *)));
         }
         names[count++] = strdup(entry->d_name);
     }
@@ -154,23 +154,23 @@ static void list_names(DIR *dir, AstraBuf *out) {
     for (size_t i = 0; i < count; i++) {
         size += (int64_t)strlen(names[i]) + 1;
     }
-    *out = (AstraBuf){astra_alloc(size), 0};
+    *out = (OfirBuf){ofir_alloc(size), 0};
     for (size_t i = 0; i < count; i++) {
         size_t n = strlen(names[i]) + 1;
         memcpy(out->ptr + out->len, names[i], n);
         out->len += (int64_t)n;
         free(names[i]);
     }
-    astra_free(names);
+    ofir_free(names);
 }
 
 // The names in the directory, sorted, each followed by a NUL.
-int32_t astra_read_dir(const uint8_t *path, int64_t len, AstraBuf *out) {
-    char *name = astra_c_string(path, len);
+int32_t ofir_read_dir(const uint8_t *path, int64_t len, OfirBuf *out) {
+    char *name = ofir_c_string(path, len);
     DIR *dir = name ? opendir(name) : NULL;
     int32_t code = name ? errno : EINVAL;
-    astra_free(name);
-    *out = (AstraBuf){0};
+    ofir_free(name);
+    *out = (OfirBuf){0};
     if (!dir) {
         return code;
     }
@@ -180,43 +180,43 @@ int32_t astra_read_dir(const uint8_t *path, int64_t len, AstraBuf *out) {
 }
 
 // One line of standard input with its `\n`; an empty buffer at the end.
-int32_t astra_read_line(AstraBuf *out) {
-    astra_stdout_flush();   // a prompt appears before the program waits
+int32_t ofir_read_line(OfirBuf *out) {
+    ofir_stdout_flush();   // a prompt appears before the program waits
     char *line = NULL;
     size_t cap = 0;
     ssize_t n = getline(&line, &cap, stdin);
-    *out = (AstraBuf){0};
+    *out = (OfirBuf){0};
     if (n < 0) {
         free(line);
         return ferror(stdin) ? errno : 0;
     }
-    out->ptr = astra_alloc(n);
+    out->ptr = ofir_alloc(n);
     memcpy(out->ptr, line, (size_t)n);
     out->len = n;
     free(line);
     return 0;
 }
 
-int32_t astra_read_stdin(AstraBuf *out) {
-    astra_stdout_flush();
+int32_t ofir_read_stdin(OfirBuf *out) {
+    ofir_stdout_flush();
     return read_fd(0, out);
 }
 
-int32_t astra_current_dir(AstraBuf *out) {
+int32_t ofir_current_dir(OfirBuf *out) {
     char path[4096];
-    *out = (AstraBuf){0};
+    *out = (OfirBuf){0};
     if (!getcwd(path, sizeof path)) {
         return errno;
     }
     out->len = (int64_t)strlen(path);
-    out->ptr = astra_alloc(out->len);
+    out->ptr = ofir_alloc(out->len);
     memcpy(out->ptr, path, (size_t)out->len);
     return 0;
 }
 
-int32_t astra_executable_path(AstraBuf *out) {
+int32_t ofir_executable_path(OfirBuf *out) {
     char path[4096];
-    *out = (AstraBuf){0};
+    *out = (OfirBuf){0};
 #ifdef __APPLE__
     uint32_t size = sizeof path;
     ssize_t n = _NSGetExecutablePath(path, &size) == 0 ? (ssize_t)strlen(path) : -1;
@@ -226,7 +226,7 @@ int32_t astra_executable_path(AstraBuf *out) {
     if (n < 0) {
         return errno;
     }
-    out->ptr = astra_alloc(n);
+    out->ptr = ofir_alloc(n);
     memcpy(out->ptr, path, (size_t)n);
     out->len = n;
     return 0;
@@ -234,7 +234,7 @@ int32_t astra_executable_path(AstraBuf *out) {
 
 // The IoErrorKind of an errno value: NotFound, PermissionDenied,
 // AlreadyExists, InvalidInput, UnexpectedEof, Interrupted, Other.
-int32_t astra_error_kind(int32_t code) {
+int32_t ofir_error_kind(int32_t code) {
     switch (code) {
     case ENOENT: case ENOTDIR: return 0;
     case EACCES: case EPERM: return 1;
@@ -245,7 +245,7 @@ int32_t astra_error_kind(int32_t code) {
     }
 }
 
-const uint8_t *astra_error_message(int32_t code, int64_t *len) {
+const uint8_t *ofir_error_message(int32_t code, int64_t *len) {
     const char *text = strerror(code);
     *len = (int64_t)strlen(text);
     return (const uint8_t *)text;

@@ -1,6 +1,6 @@
 # 2. Types
 
-Astra is statically typed. Every expression has a type known at compile
+Ofir is statically typed. Every expression has a type known at compile
 time. Local variable types are inferred; function signatures and struct
 fields are always annotated.
 
@@ -23,7 +23,7 @@ This avoids conversions between signed and unsigned values in everyday code.
 There are no implicit numeric conversions. Conversions are explicit with
 `as`:
 
-```astra
+```ofir
 let a: i32 = 10
 let b = a as i64
 let c = 3.9 as int      // 3 (truncates toward zero)
@@ -82,7 +82,7 @@ a return type return `()`.
 type `str` but are stored statically and never allocate unless modified.
 Passing a literal to a borrowed `str` parameter borrows the static data:
 
-```astra
+```ofir
 fn greet(name: str) {
     println("hello, {name}")
 }
@@ -90,7 +90,7 @@ fn greet(name: str) {
 greet("Ana")            // no allocation
 ```
 
-```astra
+```ofir
 var s = "hello"
 s.push(", world")
 println("{s.len()}")    // 12 (bytes)
@@ -99,7 +99,7 @@ let b: u8 = s[0]        // indexing yields bytes
 
 ## 2.4 Structs
 
-```astra
+```ofir
 struct User {
     name: str
     age: int
@@ -113,7 +113,7 @@ another value), never boxed implicitly. See chapter 3 for declarations.
 
 Enums are tagged unions (sum types). Each variant may carry data.
 
-```astra
+```ofir
 enum Shape {
     Circle(radius: float)
     Rect(width: float, height: float)
@@ -138,7 +138,7 @@ through the prelude. User-defined generics are described in chapter 8.
 | `Result<T, E>` | `Ok(T)` or `Err(E)` |
 | `Box<T>` | owned heap allocation (needed for recursive types) |
 
-```astra
+```ofir
 let xs: List<int> = [1, 2, 3]
 var ages = Map<str, int>.new()
 let first: Option<&int> = xs.first()   // borrows xs (chapter 5.6)
@@ -157,7 +157,7 @@ A seeded, DoS-resistant hasher for maps filled from untrusted input is
 
 `[T; N]` is an array of exactly `N` elements stored inline.
 
-```astra
+```ofir
 let grid: [u8; 4] = [0, 0, 0, 0]
 ```
 
@@ -182,7 +182,7 @@ A type is **Copy** if a bitwise copy is a complete, independent copy:
 - `Option<T>` and `Result<T, E>` when their type arguments are Copy, and
   tuples whose elements are all Copy
 
-```astra
+```ofir
 copy struct Vec2 {
     x: float
     y: float
@@ -196,14 +196,14 @@ A Copy type cannot define a `drop` method.
 ## 2.10 Type equivalence
 
 Two types are equal if they have the same name and the same type arguments.
-Astra uses nominal typing: two structs with identical fields are different
+Ofir uses nominal typing: two structs with identical fields are different
 types.
 
 ## 2.11 Tuples
 
 A tuple groups a fixed number of values of possibly different types.
 
-```astra
+```ofir
 fn divMod(a: int, b: int) (int, int) {
     return (a / b, a % b)
 }
@@ -226,7 +226,7 @@ A slice is a borrowed view of a contiguous sequence: a pointer and a length.
 | `&mut [T]` | mutable view of `T` elements |
 | `&str` | read-only view of UTF-8 bytes |
 
-```astra
+```ofir
 let xs = [10, 20, 30, 40]
 let middle: &[int] = xs[1..3]     // [20, 30]
 let s = "hello, world"
@@ -238,7 +238,7 @@ let hello: &str = s[0..5]
 - Slicing is bounds checked. Slicing a `str` panics if a bound is not on a
   UTF-8 character boundary.
 - Slices are references, so they follow the rules of chapter 5.
-- `&[T]` is the std type `Slice<T>` (`std/core/slice.at`); `xs[a..b]` is
+- `&[T]` is the std type `Slice<T>` (`std/core/slice.of`); `xs[a..b]` is
   `xs.slice(a, b)` and `xs[a..]` is `xs.sliceFrom(a)`. Stage 0 treats
   `&str` as a `str` whose capacity is 0, like a literal, and has no
   `&mut [T]` yet.
@@ -252,7 +252,7 @@ let hello: &str = s[0..5]
 a closure. `move fn(A, B) R` is an owned function value that can be stored
 and returned. See chapter 10.
 
-```astra
+```ofir
 fn apply(f: fn(int) int, x: int) int {
     return f(x)
 }
@@ -266,7 +266,7 @@ let y = apply(double, 21)
 
 ## 2.14 Type aliases
 
-```astra
+```ofir
 type NodeId = u32
 type Table = Map<str, List<int>>
 ```
@@ -280,7 +280,7 @@ distinct type, wrap it in a struct: `struct NodeId { value: u32 }`.
 `return`, `break`, `continue` and infinite loops. It converts to any type,
 which makes code like this valid:
 
-```astra
+```ofir
 let n = match input {
     .Some(v) => v
     .None => panic("missing input")

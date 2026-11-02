@@ -31,7 +31,7 @@ void *xrealloc(void *ptr, size_t size) {
 void fatal(const char *format, ...) {
     va_list args;
     va_start(args, format);
-    fputs("astra: internal error: ", stderr);
+    fputs("ofir: internal error: ", stderr);
     vfprintf(stderr, format, args);
     fputc('\n', stderr);
     va_end(args);

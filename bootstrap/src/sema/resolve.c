@@ -269,8 +269,8 @@ static void resolve_item(Resolver *r, Item *item) {
     }
 }
 
-// `@test fn name() { ... }` (spec 12.2): `astra test` calls it with nothing.
-// Checked in every build, although only `astra test` compiles the body.
+// `@test fn name() { ... }` (spec 12.2): `ofir test` calls it with nothing.
+// Checked in every build, although only `ofir test` compiles the body.
 static void check_test_signature(Resolver *r, const Item *item) {
     const FnDecl *fn = item->as.fn;
     if (fn->params.len > 0 || fn->ret || fn->type_params.len > 0) {

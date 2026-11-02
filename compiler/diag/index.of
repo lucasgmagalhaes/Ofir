@@ -1,0 +1,227 @@
+/**
+ * @module
+ * Diagnostics: errors and warnings collected during compilation and
+ * rendered at the end, sorted by position, in the format of stage 0
+ * (bootstrap/src/diag/diag.c). Codes come from docs/errors/README.md.
+ */
+
+import base.span.FileId
+import base.span.SourceMap
+import base.span.Span
+
+/**
+ * How serious a diagnostic is.
+ */
+pub copy enum Severity {
+    /** The compilation fails. */
+    Error
+    /** The compilation goes on; `--deny-warnings` makes it an error. */
+    Warning
+}
+
+/**
+ * How diagnostics are written.
+ */
+pub copy enum Format {
+    /** A source excerpt with a caret under the span. */
+    Human
+    /** One line each: `file:line:col: error[E0001]: message`. */
+    Short
+}
+
+/**
+ * One error or warning.
+ */
+pub struct Diagnostic {
+    /** How serious it is. */
+    pub severity: Severity
+    /** Its code, as `E0001` or `W0002`. */
+    pub code: str
+    /** What it points to. */
+    pub span: Span
+    /** What went wrong. */
+    pub message: str
+}
+
+/**
+ * The diagnostics of a compilation.
+ *
+ * @example
+ * ```ofir
+ * var diags = Diagnostics.new()
+ * diags.error("E0001", span, "unexpected character")
+ * assert(diags.hasErrors())
+ * ```
+ */
+pub struct Diagnostics {
+    items: List<Diagnostic>
+    errors: int
+    /** `--deny-warnings`: warnings are reported as errors. */
+    pub denyWarnings: bool
+
+    /**
+     * No diagnostics yet.
+     *
+     * @returns the collection
+     */
+    pub fn new() Diagnostics {
+        return Diagnostics{items: [], errors: 0, denyWarnings: false}
+    }
+
+    /**
+     * Records an error.
+     *
+     * @param code its code, as `E0300`
+     * @param span what it points to
+     * @param message what went wrong
+     */
+    pub fn error(mut self, code: str, span: Span, message: move str) {
+        self.add(.Error, code, span, message)
+    }
+
+    /**
+     * Records a warning, or an error under `denyWarnings`.
+     *
+     * @param code its code, as `W0001`
+     * @param span what it points to
+     * @param message what is suspicious
+     */
+    pub fn warning(mut self, code: str, span: Span, message: move str) {
+        self.add(if self.denyWarnings { .Error } else { .Warning }, code, span, message)
+    }
+
+    /**
+     * Whether an error was recorded.
+     *
+     * @returns true after the first error
+     */
+    pub fn hasErrors(self) bool {
+        return self.errors > 0
+    }
+
+    /**
+     * The number of errors.
+     *
+     * @returns the count
+     */
+    pub fn errorCount(self) int {
+        return self.errors
+    }
+
+    /**
+     * The number of diagnostics, errors and warnings.
+     *
+     * @returns the count
+     */
+    pub fn len(self) int {
+        return self.items.len()
+    }
+
+    /**
+     * The text of every diagnostic, sorted by file, offset and code, with
+     * exact duplicates left out.
+     *
+     * @param map the files the spans point into
+     * @param format how to write them
+     * @returns the text, as stage 0 writes it to standard error
+     */
+    pub fn render(self, map: SourceMap, format: Format) str {
+        var out = ""
+        let order = self.sortedOrder()
+        for k in 0..order.len() {
+            let d = &self.items[order[k]]
+            if k > 0 && same(d, &self.items[order[k - 1]]) {
+                continue
+            }
+            if format == .Short {
+                out.push(shortLine(d, map))
+            } else {
+                out.push(excerpt(d, map))
+            }
+        }
+        return out
+    }
+
+    fn add(mut self, severity: Severity, code: str, span: Span, message: move str) {
+        if severity == .Error {
+            self.errors += 1
+        }
+        self.items.push(Diagnostic{severity, code: code.toOwned(), span, message})
+    }
+
+    // The indices of the diagnostics by (file, start, code), stable: an
+    // insertion sort, as a compilation reports few diagnostics.
+    fn sortedOrder(self) List<int> {
+        var order: List<int> = []
+        for i in 0..self.items.len() {
+            order.push(i)
+            var k = order.len() - 1
+            for k > 0 && before(&self.items[order[k]], &self.items[order[k - 1]]) {
+                let previous = order[k - 1]
+                order[k - 1] = order[k]
+                order[k] = previous
+                k -= 1
+            }
+        }
+        return order
+    }
+}
+
+// Whether `a` sorts before `b`: by file, then offset, then code.
+fn before(a: &Diagnostic, b: &Diagnostic) bool {
+    if a.span.file.0 != b.span.file.0 {
+        return a.span.file.0 < b.span.file.0
+    }
+    if a.span.start != b.span.start {
+        return a.span.start < b.span.start
+    }
+    return a.code < b.code
+}
+
+fn same(a: &Diagnostic, b: &Diagnostic) bool {
+    return a.span.file.0 == b.span.file.0 && a.span.start == b.span.start &&
+        a.code == b.code && a.message == b.message
+}
+
+fn severityName(s: Severity) str {
+    return if s == .Error { "error" } else { "warning" }
+}
+
+fn shortLine(d: &Diagnostic, map: SourceMap) str {
+    let file = map.file(d.span.file)
+    let at = file.lineCol(d.span.start)
+    return "{file.path}:{at.line}:{at.column}: {severityName(d.severity)}[{d.code}]: {d.message}\n"
+}
+
+// The message, the location, the line and a caret line under the span.
+fn excerpt(d: &Diagnostic, map: SourceMap) str {
+    let file = map.file(d.span.file)
+    let at = file.lineCol(d.span.start)
+    let line = file.lineText(at.line)
+    let number = "{at.line}"
+    let pad = " ".repeat(number.len())
+    var out = "{severityName(d.severity)}[{d.code}]: {d.message}\n"
+    out.push("{pad}--> {file.path}:{at.line}:{at.column}\n")
+    out.push("{pad} |\n")
+    out.push("{number} | {line}\n")
+    out.push("{pad} | ")
+    for i in 0..at.column - 1 {   // tabs are kept so the caret stays under the text
+        out.push(if line[i] == b'\t' { "\t" } else { " " })
+    }
+    var len = if d.span.end > d.span.start { d.span.end - d.span.start } else { 1 }
+    if at.column - 1 + len > line.len() + 1 {   // a span running past the line is clipped
+        len = line.len() + 1 - (at.column - 1)
+    }
+    out.push("^".repeat(len))
+    out.push("\n\n")
+    return out
+}
+
+/**
+ * A span for tests and diagnostics that have no source: offset 0 of file 0.
+ *
+ * @returns the span
+ */
+pub fn noSpan() Span {
+    return Span{file: FileId(0), start: 0, end: 0}
+}

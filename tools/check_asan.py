@@ -9,7 +9,7 @@ the sanitizer runtimes where clang may not. A run program must print its
 trigger a sanitizer report. The stack overflow tests are left out: the
 sanitizer handles SIGSEGV itself.
 
-    python3 tools/check_asan.py [--compiler build/stage0/astra]
+    python3 tools/check_asan.py [--compiler build/stage0/ofir]
 """
 
 import argparse
@@ -36,7 +36,7 @@ def build_runtime(out: Path) -> Path:
                         "-I", str(ROOT / "runtime" / "include"), *SANITIZE, "-c", str(source),
                         "-o", str(obj)], check=True)
         objects.append(str(obj))
-    library = out / "libastra_rt_asan.a"
+    library = out / "libofir_rt_asan.a"
     subprocess.run(["ar", "rcs", str(library), *objects], check=True)
     return library
 
@@ -47,7 +47,7 @@ def build(compiler: str, path: Path, runtime: Path, out: Path):
                       capture_output=True).returncode != 0:
         return None   # not a program stage 0 compiles (examples of later features)
     obj = base.with_suffix(".o")
-    clang = os.environ.get("ASTRA_CLANG") or "clang"
+    clang = os.environ.get("OFIR_CLANG") or "clang"
     subprocess.run([clang, "-c", "-O1", "-fsanitize=address", "-Wno-override-module",
                     str(base) + ".ll", "-o", str(obj)], check=True)
     subprocess.run(["gcc", *SANITIZE, str(obj), str(runtime), "-lm", "-o", str(base)],
@@ -77,14 +77,14 @@ def check(compiler: str, path: Path, runtime: Path, out: Path):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "astra"))
+    parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "ofir"))
     args = parser.parse_args()
     if not shutil.which("gcc"):
         print("asan: gcc is not installed, skipped")
         return 0
     # AddressSanitizer takes over SIGSEGV and its alternate stack, so the
     # runtime's stack overflow report cannot work under it.
-    panics = [p for p in sorted((ROOT / "tests" / "panic").glob("*.at"))
+    panics = [p for p in sorted((ROOT / "tests" / "panic").glob("*.of"))
               if not p.stem.startswith("stack_overflow")]
     paths = programs() + panics
     with tempfile.TemporaryDirectory() as tmp:

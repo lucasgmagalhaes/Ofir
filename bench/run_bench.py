@@ -42,7 +42,7 @@ BENCHMARKS = {
 
 
 def input_file(lines: int, profile: str) -> Path:
-    path = INPUTS / f"input-{profile}-{lines}.at"
+    path = INPUTS / f"input-{profile}-{lines}.of"
     if not path.exists():
         INPUTS.mkdir(parents=True, exist_ok=True)
         source = subprocess.run([sys.executable, str(ROOT / "bench" / "gen_source.py"),
@@ -123,7 +123,7 @@ def regressions(results: dict, base: dict, limit: float) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--compiler", default=str(ROOT / "build" / "release" / "astra"))
+    parser.add_argument("--compiler", default=str(ROOT / "build" / "release" / "ofir"))
     parser.add_argument("--compare", help="a second compiler to compare against (the base)")
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--no-instructions", action="store_true", help="skip valgrind")

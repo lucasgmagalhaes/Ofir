@@ -1,7 +1,7 @@
 // State shared by the resolver files.
 
-#ifndef ASTRA_RESOLVE_INTERNAL_H
-#define ASTRA_RESOLVE_INTERNAL_H
+#ifndef OFIR_RESOLVE_INTERNAL_H
+#define OFIR_RESOLVE_INTERNAL_H
 
 #include "sema/sema.h"
 

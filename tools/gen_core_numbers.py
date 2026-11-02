@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates std/core/num/<type>.at: the methods of each numeric type, as a
+"""Generates std/core/num/<type>.of: the methods of each numeric type, as a
 `@lang` declaration (ADR 0019), documented as ADR 0020 requires.
 
 Stage 0 has no generic bounds, so each type gets its own copy of the
@@ -34,7 +34,7 @@ pub copy struct {t} {{
      * @param other the value to add
      * @returns `self + other`, wrapped into the range of `{t}`
      * @example
-     * ```astra
+     * ```ofir
      * assert({t}.MAX.wrappingAdd(1) == {t}.MIN)
      * ```
      */
@@ -49,7 +49,7 @@ pub copy struct {t} {{
      * @param other the value to subtract
      * @returns `self - other`, wrapped into the range of `{t}`
      * @example
-     * ```astra
+     * ```ofir
      * assert({t}.MIN.wrappingSub(1) == {t}.MAX)
      * ```
      */
@@ -76,7 +76,7 @@ pub copy struct {t} {{
      * @param other the value to compare with
      * @returns `self` if it is not greater than `other`, else `other`
      * @example
-     * ```astra
+     * ```ofir
      * assert((3 as {t}).min(5) == 3)
      * ```
      */
@@ -90,7 +90,7 @@ pub copy struct {t} {{
      * @param other the value to compare with
      * @returns `self` if it is not less than `other`, else `other`
      * @example
-     * ```astra
+     * ```ofir
      * assert((3 as {t}).max(5) == 5)
      * ```
      */
@@ -105,7 +105,7 @@ pub copy struct {t} {{
      * @param hi the largest result; expected to be at least `lo`
      * @returns `lo` if `self < lo`, `hi` if `self > hi`, else `self`
      * @example
-     * ```astra
+     * ```ofir
      * assert((12 as {t}).clamp(0, 10) == 10)
      * ```
      */
@@ -120,7 +120,7 @@ pub copy struct {t} {{
      * @returns `self` multiplied by itself `exp` times
      * @panics when the result does not fit in `{t}`
      * @example
-     * ```astra
+     * ```ofir
      * assert((2 as {t}).pow(5) == 32)
      * ```
      */
@@ -220,7 +220,7 @@ INT_PARSE = """
      * @returns the value, or `ParseError` when the text is not a number or
      * the value does not fit in `{t}`
      * @example
-     * ```astra
+     * ```ofir
      * assert({t}.parse("42").unwrapOr(0) == 42)
      * ```
      */
@@ -261,7 +261,7 @@ SIGNED_ABS = """
      * @returns `-self` for a negative value, else `self`
      * @panics on `{t}.MIN`, whose opposite does not fit in `{t}`
      * @example
-     * ```astra
+     * ```ofir
      * assert((-7 as {t}).abs() == 7)
      * ```
      */
@@ -294,7 +294,7 @@ pub copy struct {t} {{
      *
      * @returns the non-negative square root; NaN for a negative value
      * @example
-     * ```astra
+     * ```ofir
      * assert((9.0 as {t}).sqrt() == 3.0)
      * ```
      */
@@ -316,7 +316,7 @@ pub copy struct {t} {{
      *
      * @returns the largest integral value not greater than `self`
      * @example
-     * ```astra
+     * ```ofir
      * assert((-1.5 as {t}).floor() == -2.0)
      * ```
      */
@@ -329,7 +329,7 @@ pub copy struct {t} {{
      *
      * @returns the smallest integral value not less than `self`
      * @example
-     * ```astra
+     * ```ofir
      * assert((1.2 as {t}).ceil() == 2.0)
      * ```
      */
@@ -373,7 +373,7 @@ pub copy struct {t} {{
      * @param text the number, without spaces or `_`
      * @returns the value, or `ParseError` when the text is not a number
      * @example
-     * ```astra
+     * ```ofir
      * assert({t}.parse("1.5").unwrapOr(0.0) == 1.5)
      * ```
      */
@@ -439,6 +439,6 @@ def float_file(t: str) -> str:
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     for t in SIGNED + UNSIGNED:
-        (OUT / f"{t}.at").write_text(int_file(t))
+        (OUT / f"{t}.of").write_text(int_file(t))
     for t in FLOATS:
-        (OUT / f"{t}.at").write_text(float_file(t))
+        (OUT / f"{t}.of").write_text(float_file(t))

@@ -4,7 +4,7 @@
 A program must free everything it allocates and make no invalid memory
 access: drops must run exactly once. Requires valgrind.
 
-    python3 tools/check_leaks.py [--compiler build/stage0/astra]
+    python3 tools/check_leaks.py [--compiler build/stage0/ofir]
 """
 
 import argparse
@@ -20,12 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def programs() -> list:
     found = []
-    for path in sorted((ROOT / "tests" / "run").rglob("*.at")):
-        project = next((p for p in path.parents if (p / "main.at").exists()
+    for path in sorted((ROOT / "tests" / "run").rglob("*.of")):
+        project = next((p for p in path.parents if (p / "main.of").exists()
                         and p != ROOT / "tests" / "run"), None)
-        if project is None or path == project / "main.at":
+        if project is None or path == project / "main.of":
             found.append(path)
-    found += sorted((ROOT / "examples").glob("*.at"))
+    found += sorted((ROOT / "examples").glob("*.of"))
     return found
 
 
@@ -47,7 +47,7 @@ def check(compiler: str, path: Path, out_dir: Path):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "astra"))
+    parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "ofir"))
     args = parser.parse_args()
     if not shutil.which("valgrind"):
         print("leaks: valgrind is not installed, skipped")

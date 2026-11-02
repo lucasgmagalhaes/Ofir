@@ -5,8 +5,8 @@
 // source locations and intrinsic declarations are collected while the
 // functions are generated and written after them.
 
-#ifndef ASTRA_LLVM_INTERNAL_H
-#define ASTRA_LLVM_INTERNAL_H
+#ifndef OFIR_LLVM_INTERNAL_H
+#define OFIR_LLVM_INTERNAL_H
 
 #include "codegen/llvm.h"
 #include "codegen/out.h"

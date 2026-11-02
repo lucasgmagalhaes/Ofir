@@ -7,12 +7,12 @@ on one line when each of its blocks holds a single expression:
 `let n = if a < b { a } else { b }`. `{ ... }` marks a body left out of
 an example.
 
-Applies to the Astra sources of the repository and to the `astra` code
+Applies to the Ofir sources of the repository and to the `ofir` code
 blocks of the documentation (Markdown files and doc comments).
 
     python3 tools/check_format.py [--fix]
 
-`--fix` breaks the offending lines (the doc comments of Astra files are
+`--fix` breaks the offending lines (the doc comments of Ofir files are
 left to be fixed by hand).
 """
 
@@ -172,12 +172,12 @@ def fix_lines(lines: list) -> list:
 def fix_file(path: Path):
     text = path.read_text()
     lines = text.splitlines()
-    if path.suffix == ".at":
+    if path.suffix == ".of":
         lines = fix_lines(lines)
-    else:   # only inside the `astra` code blocks of Markdown
+    else:   # only inside the `ofir` code blocks of Markdown
         out, block = [], None
         for line in lines:
-            if block is None and line.strip().startswith("```astra"):
+            if block is None and line.strip().startswith("```ofir"):
                 block = []
                 out.append(line)
             elif block is not None and line.strip().startswith("```"):
@@ -203,20 +203,20 @@ def check_lines(lines, name: str, first: int = 1) -> list:
 
 
 def code_blocks(path: Path):
-    """The `astra` code blocks of a Markdown file or of the doc comments of
-    an Astra file, as (first line number, lines)."""
+    """The `ofir` code blocks of a Markdown file or of the doc comments of
+    an Ofir file, as (first line number, lines)."""
     lines = path.read_text().splitlines()
     block, start = None, 0
     for n, line in enumerate(lines, 1):
         text = line.strip()
-        if path.suffix == ".at":
+        if path.suffix == ".of":
             if not text.startswith("*"):
                 continue
             text = text[1:].strip() if not text.startswith("*/") else ""
             raw = line.split("*", 1)[1][1:] if "*" in line else ""
         else:
             raw = line
-        if block is None and text.startswith("```astra"):
+        if block is None and text.startswith("```ofir"):
             block, start = [], n + 1
         elif block is not None and text.startswith("```"):
             yield start, block
@@ -228,7 +228,7 @@ def code_blocks(path: Path):
 def main() -> int:
     fix = "--fix" in sys.argv[1:]
     problems = []
-    files = sorted(p for d in SOURCES if (ROOT / d).exists() for p in (ROOT / d).rglob("*.at"))
+    files = sorted(p for d in SOURCES if (ROOT / d).exists() for p in (ROOT / d).rglob("*.of"))
     for path in files:
         if fix:
             fix_file(path)

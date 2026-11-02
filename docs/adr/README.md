@@ -24,12 +24,13 @@ changed by writing a new record that supersedes the old one.
 | [0016](0016-call-and-binding-ergonomics.md) | Defaults, named arguments, `let ... else` and `??`; no overloading | Accepted |
 | [0017](0017-compile-time-reflection.md) | Compile-time reflection instead of macros | Accepted |
 | [0018](0018-performance-driven-development.md) | Performance-driven development | Accepted |
-| [0019](0019-standard-library-in-astra.md) | The standard library is written in Astra, from stage 0 on | Accepted |
+| [0019](0019-standard-library-in-ofir.md) | The standard library is written in Ofir, from stage 0 on | Accepted |
 | [0020](0020-documentation-comments.md) | Documentation comments in the style of JSDoc | Accepted |
 | [0021](0021-type-operators.md) | Type operators: `keyof`, indexed access, mapped and conditional types | Accepted |
 | [0022](0022-union-types.md) | Union types as anonymous tagged enums | Accepted |
 | [0023](0023-arrow-closures.md) | Closures are written as arrow functions | Accepted |
 | [0024](0024-any.md) | `Any`: values of any type through `dyn Any` | Accepted |
+| [0025](0025-name-ofir.md) | The language is named Ofir | Accepted |
 
 ## Template
 

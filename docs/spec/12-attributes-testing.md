@@ -6,7 +6,7 @@ Attributes attach metadata to a declaration. They are written with `@`
 before the declaration, `@name` or `@name(arguments)`; there is no
 bracket form such as `#[test]` or `[test]`:
 
-```astra
+```ofir
 @inline
 fn square(x: int) int {
     return x * x
@@ -41,19 +41,19 @@ Unknown attributes are compile errors.
 ## 12.2 Tests
 
 Tests live next to the code they test, in a test file: the tests of
-`calc.at` are in `calc_test.at`, and those of a directory's `index.at` in
-`index_test.at`. A test file belongs to the module it tests, so tests may
-use its private declarations; only `astra test` loads it. A test is a
+`calc.of` are in `calc_test.of`, and those of a directory's `index.of` in
+`index_test.of`. A test file belongs to the module it tests, so tests may
+use its private declarations; only `ofir test` loads it. A test is a
 function marked `@test` with no parameters, returning `()` or
 `Result<(), E>`:
 
-```astra
-// calc.at
+```ofir
+// calc.of
 fn add(a: int, b: int) int {
     return a + b
 }
 
-// calc_test.at
+// calc_test.of
 @test
 fn addWorks() {
     assert(add(2, 2) == 4)
@@ -61,23 +61,23 @@ fn addWorks() {
 }
 ```
 
-- `astra test` compiles the project with all `@test` functions and runs
+- `ofir test` compiles the project with all `@test` functions and runs
   each one in a separate process, so a panic fails only that test.
 - Tests are excluded from normal builds: test files are not loaded, and a
   `@test` function written in an ordinary file (allowed, but not the
   convention) is not even checked, except for its signature (E0205).
 
-Stage 0: `astra test <file.at>` (or `<file>_test.at`) runs the tests of
+Stage 0: `ofir test <file.of>` (or `<file>_test.of`) runs the tests of
 every module of the program except the std modules, plus those of the root
-file, which may be a std module (`astra test std/core/split.at` runs
-`std/core/split_test.at`); `make test-std` runs the
+file, which may be a std module (`ofir test std/core/split.of` runs
+`std/core/split_test.of`); `make test-std` runs the
 tests of std. A test returns `()`; `Result` tests and `assertEq` await
 interfaces (roadmap 5.1). Doc tests are planned.
 - `assertEq(a, b)` prints both values (using `Debug`) when they differ.
 
 ## 12.3 Benchmarks
 
-```astra
+```ofir
 @bench
 fn benchSort(b: mut Bencher) {
     var data = randomList(10_000)
@@ -85,12 +85,12 @@ fn benchSort(b: mut Bencher) {
 }
 ```
 
-`astra bench` runs benchmarks with optimizations enabled and reports time
+`ofir bench` runs benchmarks with optimizations enabled and reports time
 per iteration.
 
 ## 12.4 Conditional compilation
 
-```astra
+```ofir
 @cfg(os == "linux")
 fn pageSize() int {
     return 4096
@@ -111,9 +111,9 @@ Available conditions: `os` (`"linux"`, `"macos"`, `"windows"`), `arch`
 A `/** ... */` comment documents the next declaration; one whose text
 starts with `@module` documents the file (ADR 0020). The text is Markdown:
 a summary sentence, details, then tags in the style of JSDoc. Code blocks
-inside them are compiled and run by `astra test` as doc tests.
+inside them are compiled and run by `ofir test` as doc tests.
 
-```astra
+```ofir
 /**
  * The larger of two values.
  *
@@ -122,7 +122,7 @@ inside them are compiled and run by `astra test` as doc tests.
  * @param b the second value
  * @returns `a` if it is greater than `b`, else `b`
  * @example
- * ```astra
+ * ```ofir
  * assert(max(1, 2) == 2)
  * ```
  */
@@ -137,7 +137,7 @@ pub fn max<T: Ord>(a: move T, b: move T) T { ... }
 | `@returns ...` | the result of a function that returns a value |
 | `@panics ...` | when the function panics |
 | `@safety ...` | what the caller of an `unsafe fn` must guarantee |
-| `@example` | an example in a fenced `astra` block |
+| `@example` | an example in a fenced `ofir` block |
 | `@see target` | a related declaration or document |
 | `@deprecated reason` | the declaration should no longer be used |
 
@@ -146,7 +146,7 @@ signature (`tools/check_docs.py`).
 
 ## 12.6 Warnings
 
-Errors stop compilation; warnings do not. Astra keeps warnings few and
+Errors stop compilation; warnings do not. Ofir keeps warnings few and
 meaningful:
 
 | Warning | Example |

@@ -1,12 +1,12 @@
 # Error code registry
 
-Every diagnostic produced by an Astra compiler has a stable code. Codes are
+Every diagnostic produced by an Ofir compiler has a stable code. Codes are
 never reused or renumbered; a retired code is marked as such. Both compiler
 stages use the same codes, so the `tests/compile_fail` suite works with
 either.
 
 Each code gets its own file, `EXXXX.md`, with a short explanation, an
-example that triggers it and how to fix it. `astra explain EXXXX` prints
+example that triggers it and how to fix it. `ofir explain EXXXX` prints
 that file.
 
 ## Ranges

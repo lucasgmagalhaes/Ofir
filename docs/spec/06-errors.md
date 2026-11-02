@@ -1,6 +1,6 @@
 # 6. Error handling
 
-Astra separates two kinds of failure:
+Ofir separates two kinds of failure:
 
 - **Recoverable errors** (file not found, invalid input) are values of type
   `Result<T, E>` and must be handled.
@@ -13,7 +13,7 @@ There are no exceptions.
 
 Both are built-in generic enums, behaving as if declared as:
 
-```astra
+```ofir
 enum Result<T, E> {
     Ok(value: T)
     Err(error: E)
@@ -27,10 +27,10 @@ enum Option<T> {
 
 `Ok`, `Err`, `Some` and `None` are in scope everywhere without a prefix,
 in expressions and in patterns (`Some(x)`, `None`). They are declared in
-`std/core/option.at` and `result.at`, marked `@lang("option")` and
+`std/core/option.of` and `result.of`, marked `@lang("option")` and
 `@lang("result")`.
 
-```astra
+```ofir
 fn parsePort(s: str) Result<u16, str> {
     let n = parseInt(s)?
     if n < 1 || n > 65535 {
@@ -62,7 +62,7 @@ types to be equal.
 
 Ignoring a value of type `Result` is a compile error:
 
-```astra
+```ofir
 writeFile(path, data)        // error: unused Result
 let _ = writeFile(path, data) // explicitly ignored
 ```
@@ -84,7 +84,7 @@ process with exit status 101. Destructors are **not** run on panic.
 
 ```
 panic: index out of bounds: the length is 3 but the index is 5
-  at src/main.at:12:17
+  at src/main.of:12:17
 ```
 
 Panics are raised by:

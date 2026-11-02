@@ -1,5 +1,5 @@
 // Lexer main loop, comments, words and punctuation. Literals are in
-// literals.c. Port of the stage 1 prototype (compiler/syntax/lexer.at).
+// literals.c. Port of the stage 1 prototype (compiler/syntax/lexer.of).
 
 #include "syntax/lexer_internal.h"
 

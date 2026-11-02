@@ -108,7 +108,7 @@ Operand lower_clone_call(Lowerer *l, Expr *call) {
     return clone_value(l, self, concrete_type(l, call->type));
 }
 
-// `cloneOf<T>(value)` (std/core/clone.at): T is known in the instance.
+// `cloneOf<T>(value)` (std/core/clone.of): T is known in the instance.
 Operand lower_clone_of(Lowerer *l, Expr *call) {
     Operand value = lower_expr(l, call->as.call.args.items[0].value);
     TypeId type = concrete_type(l, type_get(l->types, call->as.call.type_args)->args[0]);

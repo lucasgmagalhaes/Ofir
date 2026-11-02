@@ -2,17 +2,17 @@
 
 ## 7.1 Files and modules
 
-- Every `.at` file is a module. The module name is the file name.
-- A directory groups modules into a package: `src/parser/lexer.at` is the
-  module `parser.lexer`. A file named `index.at` inside a directory is the
-  module named after the directory itself (`src/parser/index.at` is `parser`).
-- A file `name_test.at` next to `name.at` holds that module's tests
+- Every `.of` file is a module. The module name is the file name.
+- A directory groups modules into a package: `src/parser/lexer.of` is the
+  module `parser.lexer`. A file named `index.of` inside a directory is the
+  module named after the directory itself (`src/parser/index.of` is `parser`).
+- A file `name_test.of` next to `name.of` holds that module's tests
   (chapter 12.2): it is part of the module, not a module of its own.
 - A program is built from a root file containing `fn main()`.
 
 ## 7.2 Imports
 
-```astra
+```ofir
 import std.io
 import std.collections.Map
 import parser.lexer
@@ -24,9 +24,9 @@ import parser.ast as ast
 - Importing a type (`import std.collections.Map`) brings that name into scope.
 - Imports are resolved relative to the project root and to the standard
   library. The project root is the nearest directory above the root file
-  that holds an `astra.toml`, or else the root file's own directory; a root
+  that holds an `ofir.toml`, or else the root file's own directory; a root
   file inside a project is named after its path from there
-  (`compiler/base/intern.at` is `base.intern`).
+  (`compiler/base/intern.of` is `base.intern`).
 - Circular imports are allowed; declarations in a module can reference each
   other in any order.
 - Importing the same declaration or module twice into a module is allowed
@@ -38,7 +38,7 @@ import parser.ast as ast
 Declarations are private to their module by default. `pub` makes them
 visible to importers:
 
-```astra
+```ofir
 pub struct Token {
     pub kind: TokenKind
     pub text: str
@@ -61,7 +61,7 @@ They are the public declarations of `std.core` and of its submodules
 
 ## 7.5 Built-in functions
 
-```astra
+```ofir
 fn print(text: str)              // standard output
 fn println(text: str)            // standard output, followed by "\n"
 fn eprint(text: str)             // standard error
@@ -74,7 +74,7 @@ fn alignOf<T>() int
 ```
 
 Values are printed through string interpolation: `println("{count}")`.
-There are no variadic functions in Astra.
+There are no variadic functions in Ofir.
 
 ## 7.6 Standard library (bootstrap subset)
 

@@ -1,6 +1,6 @@
 # Performance-driven development
 
-Astra's goal is to be fast, both the compiler and the programs it produces.
+Ofir's goal is to be fast, both the compiler and the programs it produces.
 Performance is therefore **measured continuously** and every change is
 judged by data, not by intuition.
 
@@ -11,7 +11,7 @@ judged by data, not by intuition.
 | Instructions executed | `valgrind --tool=cachegrind` | **regression gate**: deterministic, reliable on shared CI machines |
 | Wall time (median of 5 runs) | `bench/run_bench.py` | human-readable speed, lines per second |
 | Peak memory (max RSS) | `os.wait4` | memory budget |
-| Time per phase | `astra build --time-passes` | where a single compilation spends its time |
+| Time per phase | `ofir build --time-passes` | where a single compilation spends its time |
 | Hot functions | `valgrind --tool=callgrind` + `callgrind_annotate` | what to optimize next |
 
 Later milestones add: the size of generated binaries (M1), the speed of
@@ -36,8 +36,8 @@ Each new compiler phase adds its benchmark when it is written
 ```
 make bench                       # measure the working tree
 make bench-compare BASE=main     # compare with another revision
-astra build file.at --time-passes
-valgrind --tool=callgrind build/release/astra build big.at --stop-after=lex
+ofir build file.of --time-passes
+valgrind --tool=callgrind build/release/ofir build big.of --stop-after=lex
 callgrind_annotate callgrind.out.* | head -30
 ```
 
