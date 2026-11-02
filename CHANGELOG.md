@@ -22,7 +22,8 @@ project uses [Semantic Versioning](https://semver.org/).
 - Stage 1 AIR and the start of its lowering (roadmap 4.7): `main air`
   equals stage 0's `--emit=air` on the programs it lowers so far (scalars,
   strings, operators, `if`, loops, calls, methods, structs, tuples, enums,
-  patterns, `match`, drop glue); `make compare-stages` counts them.
+  patterns, `match`, drop glue, lists, maps, `?`, `??`, intrinsics,
+  monomorphization); `make compare-stages` counts them.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 

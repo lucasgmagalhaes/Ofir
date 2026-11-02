@@ -20,6 +20,7 @@ import sema.check_box.boxInner
 import sema.check_methods.hasMethod
 import sema.check_methods.primitiveName
 import sema.check_methods.typeNameOf
+import sema.def.Res
 import sema.enums.enumVariants
 import sema.enums.variantIndex
 import sema.enums.variantsOf
@@ -65,6 +66,14 @@ pub struct Place {
 
 fn noPlace(via: Via) Place {
     return Place{local: false, part: Part{local: 0, fields: []}, via: via}
+}
+
+// `m.x`, a declaration of an imported module: the resolver knows it.
+fn moduleMember(c: Checker, e: &Expr) bool {
+    let Res.Def(id) = c.res(e.id.0) else {
+        return false
+    }
+    return c.def(id).kind != .Module
 }
 
 fn derefCount(c: Checker, e: &Expr) int {
@@ -458,6 +467,27 @@ fn isVariant(c: mut Checker, p: Program, owner: int, field: &Expr) bool {
     }
 }
 
+// A call of a name: a function, a constructor or a variant.
+fn nameCall(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List<Arg>,
+            s: mut State) {
+    let none: List<Use> = []
+    match c.res(callee.id.0) {
+        .Def(id) => {
+            let kind = c.def(id).kind
+            if kind == .Fn {
+                eachArg(m, c, p, args, &paramUses(c, p, id), .Read, s)
+            } else {
+                let build = kind == .Struct || kind == .Variant
+                eachArg(m, c, p, args, &none, if build { Use.Move } else { Use.Read }, s)
+            }
+        }
+        _ => {
+            movesNode(m, c, p, callee, s, .Read)
+            eachArg(m, c, p, args, &none, .Read, s)
+        }
+    }
+}
+
 // A call consumes the arguments of `move` parameters (and of constructors
 // and variants) and only reads the others.
 fn call(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List<Arg>,
@@ -466,6 +496,10 @@ fn call(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List<Arg
     match callee.kind {
         .Field(baseBox, _, _) => {
             let base = &*baseBox
+            if moduleMember(c, callee) {   // `m.f(x)`: a function of an imported module
+                nameCall(m, c, p, callee, args, s)
+                return
+            }
             if isVariant(c, p, typeNameOf(c, base), callee) {
                 eachArg(m, c, p, args, &none, .Move, s)
                 return
@@ -483,23 +517,7 @@ fn call(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List<Arg
             movesNode(m, c, p, base, s, .Read)   // the built-in methods read
             eachArg(m, c, p, args, &none, .Read, s)
         }
-        .Ident(_) | .Generic(_, _) => {
-            match c.res(callee.id.0) {
-                .Def(id) => {
-                    let kind = c.def(id).kind
-                    if kind == .Fn {
-                        eachArg(m, c, p, args, &paramUses(c, p, id), .Read, s)
-                    } else {
-                        let build = kind == .Struct || kind == .Variant
-                        eachArg(m, c, p, args, &none, if build { Use.Move } else { Use.Read }, s)
-                    }
-                }
-                _ => {
-                    movesNode(m, c, p, callee, s, .Read)
-                    eachArg(m, c, p, args, &none, .Read, s)
-                }
-            }
-        }
+        .Ident(_) | .Generic(_, _) => nameCall(m, c, p, callee, args, s)
         _ => {
             movesNode(m, c, p, callee, s, .Read)
             eachArg(m, c, p, args, &none, .Read, s)

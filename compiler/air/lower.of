@@ -35,6 +35,8 @@ import air.air.opUnit
 import air.air.rvUse
 import air.air.terminator
 import air.lower_expr.lowerBlock
+import air.lower_pattern.isVariant
+import air.air.VARIANT_STEP
 import base.intern.Symbol
 import base.span.Span
 import diag.noSpan
@@ -479,7 +481,9 @@ pub fn needsDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
     }
     if l.dropCache[ty] == 0 {
         l.dropCache[ty] = 3   // in progress: no drop through itself
-        l.dropCache[ty] = if computeNeedsDrop(l, c, p, ty) { 2 } else { 1 }
+        // Computed first: the computation grows the cache, which moves its elements.
+        let result = if computeNeedsDrop(l, c, p, ty) { 2 } else { 1 }
+        l.dropCache[ty] = result
     }
     return l.dropCache[ty] == 2
 }
@@ -908,11 +912,44 @@ fn reachGlue(l: mut Lowerer, glue: int, targs: int) {
     l.pending.push(Instance{def: 0, targs: targs, glue: glue})
 }
 
-// Reaches the functions a lowered body calls.
+fn substOperand(c: mut Checker, o: mut Operand, args: &List<int>) {
+    o.ty = c.types.subst(o.ty, args.clone())
+}
+
+// The body of an instance of a generic function, with its type arguments.
+fn substBody(l: mut Lowerer, c: mut Checker) {
+    let args = c.types.get(l.body.targs).args.clone()
+    for i in 0..l.body.locals.len() {
+        l.body.locals[i].ty = c.types.subst(l.body.locals[i].ty, args.clone())
+    }
+    for b in 0..l.body.blocks.len() {
+        for i in 0..l.body.blocks[b].stmts.len() {
+            let s = &mut l.body.blocks[b].stmts[i]
+            if s.kind == .Assign {
+                substOperand(c, s.value.a, &args)
+                substOperand(c, s.value.b, &args)
+                s.value.to = c.types.subst(s.value.to, args.clone())
+                for k in 0..s.value.items.len() {
+                    substOperand(c, s.value.items[k], &args)
+                }
+            } else {
+                for k in 0..s.args.len() {
+                    substOperand(c, s.args[k], &args)
+                }
+                s.targs = c.types.subst(s.targs, args.clone())
+            }
+        }
+        substOperand(c, l.body.blocks[b].term.cond, &args)
+        substOperand(c, l.body.blocks[b].term.index, &args)
+        substOperand(c, l.body.blocks[b].term.len, &args)
+    }
+}
+
+// Substitutes an instance's type arguments into its lowered body, then
+// reaches the functions it calls.
 fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
     if l.body.targs != UNIT && !isGlue(l.body.def) {
-        l.fail("generic functions")
-        return
+        substBody(l, c)
     }
     for b in 0..l.body.blocks.len() {
         for i in 0..l.body.blocks[b].stmts.len() {
@@ -1057,6 +1094,34 @@ fn fieldPlace(base: &Place, step: int, field: int) Place {
     return Place{local: base.local, fields: fields, deref: base.deref}
 }
 
+// Drops the fields of the active variant of an enum.
+fn dropVariants(l: mut Lowerer, c: mut Checker, p: Program, value: &Place, ty: int) {
+    let id = c.types.get(ty).data
+    enumVariants(c, p, id)
+    let count = variantsOf(c, id).variants.len()
+    for v in 0..count {
+        let fields = variantsOf(c, id).variants[v].types.len()
+        var any = false
+        for i in 0..fields {
+            any = any || needsDrop(l, c, p, variantFieldType(c, p, ty, v, i))
+        }
+        if !any {
+            continue
+        }
+        let drop = l.body.newBlock()
+        let next = l.body.newBlock()
+        let is = isVariant(l, c, p, value, ty, v)
+        terminate(l, branch(is, drop, next))
+        switchTo(l, drop)
+        for i in 0..fields {
+            emitDrop(l, c, p, &fieldPlace(value, VARIANT_STEP + v, i),
+                     variantFieldType(c, p, ty, v, i))
+        }
+        emitGoto(l, next)
+        switchTo(l, next)
+    }
+}
+
 // The body of `drop<T>(p)`: T's `drop` method, then its fields.
 fn glueBody(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
     let value = Place{local: 1, fields: [], deref: true}
@@ -1077,7 +1142,7 @@ fn glueBody(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
             emitDrop(l, c, p, &fieldPlace(&value, 0, i), field)
         }
     } else if t.kind == .Adt {
-        l.fail("the drop glue of enums")
+        dropVariants(l, c, p, &value, ty)
     }
 }
 
