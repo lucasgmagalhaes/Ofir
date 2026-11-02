@@ -245,6 +245,23 @@ fn isEnum(c: Checker, ty: int) bool {
     return t.kind == .Adt && c.def(t.data).kind == .Enum
 }
 
+/**
+ * Whether the enum value at `place` is variant `index`: a bool.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param place the value
+ * @param ty its enum type
+ * @param index the variant
+ * @returns the bool
+ */
+pub fn isVariant(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: int,
+                 index: int) Operand {
+    let tag = tagOf(place)
+    return compare(l, c, p, .Eq, I32, tag, discriminant(c, p, ty, index))
+}
+
 fn variantTest(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, place: &Place,
                ty: int, args: &List<Pattern>, fail: int) {
     let index = c.members[c.module()][pattern.id.0]
