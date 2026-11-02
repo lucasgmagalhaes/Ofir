@@ -46,6 +46,12 @@ import diag.noSpan
 import sema.check.Checker
 import sema.check.checkLate
 import sema.check.fnOf
+import sema.types.I64
+import air.air.opInt
+import air.air.rvalue
+import syntax.ast.ItemKind
+import sema.resolve.findAttribute
+import sema.check.skippedTest
 import sema.check.itemOf
 import sema.check_methods.methodAt
 import sema.check_methods.methodCount
@@ -153,8 +159,10 @@ pub struct Lowerer {
     pub unsupported: bool
     /** What it was. */
     pub missing: str
-    /** The bodies lowered, as text. */
+    /** The bodies lowered. */
     pub out: List<AirBody>
+    /** `ofir test`: the `@test` functions, by `DefId`. */
+    pub tests: List<int>
 
     /**
      * Notes a construct stage 1 does not lower yet.
@@ -1237,6 +1245,52 @@ fn lowerCloneGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     l.out.push(mem.replace(l.body, emptyBody()))
 }
 
+// ---------------------------------------------------------------------------
+// `ofir test` (stage 0: lower_test.c)
+
+// The `@test` functions of a module that this build compiles.
+fn findTests(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
+    let items = &p.modules[m].module.items
+    for i in 0..items.len() {
+        if let ItemKind.Fn(decl) = items[i].kind {
+            let test = findAttribute(c.r, items[i].attributes, "test").isSome()
+            if decl.body.isSome() && test && !skippedTest(c, p, &items[i]) {
+                l.tests.push(c.r.tables[m].fnDefs[decl.id.0])
+            }
+        }
+    }
+}
+
+// The entry point of `ofir test`: it calls the test the runtime was asked
+// for (`ofir_test_index`).
+fn lowerTestMain(l: mut Lowerer, c: mut Checker, p: Program) {
+    l.body = AirBody{def: GLUE_DROP, targs: UNIT, name: Symbol(0), isMain: true, paramCount: 0,
+                     locals: [], blocks: []}
+    l.body.newLocal(UNIT, .None, noSpan())
+    l.fnDef = 0
+    l.flags = []
+    l.block = l.body.newBlock()
+    let index = newTemp(l, I64)
+    emitRuntime(l, .TestIndex, [], index)
+    let done = l.body.newBlock()
+    for k in 0..l.tests.len() {
+        let test = rvalue(.Binary, .Eq, opCopy(index, I64), opInt(k as u64, I64))
+        let chosen = emitTemp(l, BOOL, test)
+        let run = l.body.newBlock()
+        let next = l.body.newBlock()
+        terminate(l, branch(opCopy(chosen, BOOL), run, next))
+        switchTo(l, run)
+        emitCall(l, l.tests[k], UNIT, [], -1)
+        emitGoto(l, done)
+        switchTo(l, next)
+    }
+    emitGoto(l, done)
+    switchTo(l, done)
+    l.body.terminate(l.block, terminator(.Return))
+    monoBody(l, c, p)
+    l.out.push(mem.replace(l.body, emptyBody()))
+}
+
 // The root module must declare `fn main()`.
 fn checkMain(c: mut Checker, p: Program) {
     var id = 0
@@ -1294,15 +1348,20 @@ pub fn lowerProgram(c: mut Checker, p: Program) Lowerer {
                     instances: Map.new(), owned: [], scopes: [], flags: [], borrowed: [],
                     movedParts: [], partFlags: [], dropCache: [], temps: [], tempScopes: [],
                     forward: false, tooDeep: false, fnDef: 0, unsupported: false, missing: "",
-                    out: []}
-    if c.r.testing {
-        l.fail("`ofir test`")
-        return l
+                    out: [], tests: []}
+    if !c.r.testing {
+        checkMain(c, p)
     }
-    checkMain(c, p)
     for m in 0..p.modules.len() {
         c.enter(m)
         findRoots(l, c, p, m)
+        if c.r.testing {
+            findTests(l, c, p, m)
+        }
+    }
+    if c.r.testing {
+        c.enter(0)
+        lowerTestMain(l, c, p)
     }
     var next = 0
     for next < l.pending.len() && !l.unsupported {

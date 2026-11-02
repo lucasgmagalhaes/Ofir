@@ -7,9 +7,6 @@ standard error and the status only: the trees built while recovering need
 not agree). `--fuzz N` also
 compares N mutated sources (tools/fuzz_frontend.py's mutations).
 
-Stage 1 lowers a part of the language so far: `air` exits with status 3 on
-a program it cannot lower yet, and such a file is counted, not compared.
-
     python3 tools/compare_stages.py [--compiler build/stage0/ofir] [--fuzz 200]
 """
 
@@ -26,10 +23,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from fuzz_frontend import mutate  # noqa: E402
 
-# stage 1 command -> the stage 0 option that it must match
+# what is compared -> the option of `ofir build` both stages are given
 COMMANDS = {"tokens": "--emit=tokens", "ast": "--emit=ast", "names": "--emit=names",
             "types": "--emit=types", "air": "--emit=air", "llvm": "--emit=llvm"}
-UNLOWERED = 3   # `main air`: the program uses a construct stage 1 does not lower yet
 SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 
 
@@ -42,11 +38,14 @@ def run(argv: list) -> tuple:
     return result.returncode, result.stdout, result.stderr
 
 
-def stage0_llvm(stage0: str, path: Path) -> tuple:
-    """Stage 0 writes `--emit=llvm` to `<output>.ll`: read it as the output."""
+def emit(compiler: str, path: Path, option: str, command: str = "build") -> tuple:
+    """`ofir <command> <path> <option>`; `--emit=llvm` writes `<output>.ll`,
+    read as the output."""
+    if option != "--emit=llvm":
+        return run([compiler, command, str(path), option, "-o", "/dev/null"])
     with tempfile.TemporaryDirectory() as tmp:
         exe = Path(tmp) / "out"
-        status, _, stderr = run([stage0, "build", str(path), "--emit=llvm", "-o", str(exe)])
+        status, _, stderr = run([compiler, command, str(path), option, "-o", str(exe)])
         ll = exe.with_name("out.ll")
         return status, ll.read_bytes() if ll.exists() else b"", stderr
 
@@ -55,13 +54,8 @@ def compare(stage0: str, stage1: str, path: Path) -> tuple:
     problems = []
     lowered = False
     for command, option in COMMANDS.items():
-        if command == "llvm":
-            expected = stage0_llvm(stage0, path)
-        else:
-            expected = run([stage0, "build", str(path), option, "-o", "/dev/null"])
-        actual = run([stage1, command, str(path)])
-        if command in ("air", "llvm") and actual[0] == UNLOWERED:
-            continue
+        expected = emit(stage0, path, option)
+        actual = emit(stage1, path, option)
         lowered = lowered or (command == "air" and actual[0] == 0)
         if expected[0] != 0 and actual[0] == expected[0] and actual[2] == expected[2]:
             continue   # after errors, the trees of the recovery need not agree
@@ -69,6 +63,10 @@ def compare(stage0: str, stage1: str, path: Path) -> tuple:
             names = ("status", "stdout", "stderr")
             what = [n for n, a, b in zip(names, expected, actual) if a != b]
             problems.append(f"{path}: `{command}` differs from stage 0 ({', '.join(what)})")
+    if path.name.endswith("_test.of"):   # `ofir test`: the tests and their entry point
+        for option in ("--emit=air", "--emit=llvm"):
+            if emit(stage0, path, option, "test") != emit(stage1, path, option, "test"):
+                problems.append(f"{path}: `test {option}` differs from stage 0")
     return problems, lowered
 
 
@@ -98,7 +96,7 @@ def main() -> int:
     for problem in problems:
         print(f"error: {problem}")
     print(f"stages: {len(files)} files ({args.fuzz} mutated), commands {', '.join(COMMANDS)}: "
-          f"{len(problems)} differences; stage 1 lowers {lowered}")
+          f"{len(problems)} differences; {lowered} programs lowered")
     return 1 if problems else 0
 
 

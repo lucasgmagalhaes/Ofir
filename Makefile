@@ -54,10 +54,12 @@ stage1: stage0 runtime
 	mkdir -p $(BUILD)/stage1
 	OFIR_STD=$(abspath std) $(BUILD)/stage0/ofir build compiler/main.of -o $(BUILD)/stage1/ofir
 
-# The run and panic tests compiled by stage 1 (roadmap 4.8).
+# Every test with stage 1 as the compiler (roadmap 4.8, 4.9).
 test-stage1: stage1
 	OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a \
-	    $(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage1/ofir --stage 1 run panic
+	    $(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage1/ofir --stage 1
+	OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a \
+	    $(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage1/ofir
 
 test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std compare-stages test-stage1
 	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/ofir

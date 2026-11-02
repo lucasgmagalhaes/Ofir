@@ -370,6 +370,23 @@ fn describe(kind: TokenKind) str {
  */
 pub fn parse(file: FileId, src: str, tokens: move List<Token>, names: move Interner,
              diags: move Diagnostics) ParseResult {
+    return parseFrom(file, src, tokens, names, diags, 0)
+}
+
+/**
+ * Parses a file whose nodes are numbered from `firstId`: the test file of
+ * a module joins the module's items, so its nodes follow the module's.
+ *
+ * @param file the file
+ * @param src its text
+ * @param tokens its tokens
+ * @param names the interner
+ * @param diags the diagnostics
+ * @param firstId the number of the first node
+ * @returns the tree, the interner and the diagnostics
+ */
+pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move Interner,
+                 diags: move Diagnostics, firstId: int) ParseResult {
     var docs: List<str> = []
     var kept: List<Token> = []
     for i in 0..tokens.len() {
@@ -383,7 +400,7 @@ pub fn parse(file: FileId, src: str, tokens: move List<Token>, names: move Inter
     let words = Words{move: names.find("move"), type: names.find("type"), ref: names.find("ref"),
                       where: names.find("where"), wildcard: names.find("_")}
     var p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
-                   recovering: false, names, diags, words, nextId: 0}
+                   recovering: false, names, diags, words, nextId: firstId}
     let items = moduleItems(p)
     let module = Module{file, nodeCount: p.nextId, docs, items}
     return ParseResult{module, names: p.names, diags: p.diags}

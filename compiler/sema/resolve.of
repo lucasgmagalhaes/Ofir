@@ -221,11 +221,13 @@ const PRIMITIVE_TYPES: int = 15
  * @param diags where errors go
  * @param map their files
  * @param trace whether to trace the root module's names (`--emit=names`)
+ * @param testing `ofir test`: the `@test` functions are checked and compiled
  * @returns the resolver, with the results and the tables it took over
  */
 pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagnostics,
-                      map: move SourceMap, trace: bool) Resolver {
+                      map: move SourceMap, trace: bool, testing: bool) Resolver {
     var r = newResolver(program, names, diags, map, trace)
+    r.testing = testing
     for m in 0..program.modules.len() {
         r.trace.line("module {m} {program.modules[m].name}")
     }

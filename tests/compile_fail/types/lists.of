@@ -9,9 +9,9 @@ fn main() {
     let a = [1, "two"]           // error[E0300]: mismatched types: expected int, found str
     let b = []                   // error[E0330]: cannot infer the element type of `[]`: write the type, as in `let names: List<str> = []`
     let c = ["s"; 3]             // error[E0321]: `[value; count]` needs a value of a Copy type, not `str`
-    for w in ["x", "y"] {        // error[E0321]: `for x in list` needs a value of a Copy type, not `str`
+    for w in ["x", "y"] {        // the elements are borrowed: no error
     }
-    for n in 5 {                 // error[E0300]: mismatched types: `for` needs a range or a list, found int
+    for n in 5 {                 // error[E0300]: mismatched types: `for` needs a range, a list, a slice, a map or an iterator, found int
     }
     let d: str = xs[0]           // error[E0300]: mismatched types: expected str, found int
     var bools = [true]
