@@ -8,6 +8,7 @@
 
 import air.air.Operand
 import air.air.FloatFn
+import air.air.GLUE_CLONE
 import air.air.Rvalue
 import air.air.RvalueKind
 import air.air.isGlue
@@ -70,6 +71,9 @@ import air.lower.toLocal
 import base.intern.Symbol
 import sema.check_box.boxInner
 import sema.check_methods.BUILTIN_BASE
+import sema.check_methods.DERIVED_CLONE
+import air.lower.methodTargs
+import air.lower.typeMethod
 import sema.check_methods.primitiveName
 import sema.enums.enumVariants
 import sema.enums.variantIndex
@@ -601,9 +605,19 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         emitDrop(l, c, p, &place, elem)
         return unit()
     }
-    if name == "cloneOf" || name == "hashOf" || name == "equals" {
-        l.fail("`cloneOf`, `hashOf` and `equals`")
-        return unit()
+    if name == "cloneOf" {
+        let value = lowerExpr(l, c, p, &args[0].value)
+        return cloneValue(l, c, p, value, concreteType(l, c, callTypeArg(c, e)))
+    }
+    if name == "hashOf" {
+        let value = lowerExpr(l, c, p, &args[0].value)
+        return hashValue(l, c, p, value, concreteType(l, c, callTypeArg(c, e)))
+    }
+    if name == "equals" {
+        let first = lowerExpr(l, c, p, &args[0].value)
+        let a = settle(l, first, &args[1].value)
+        let b = lowerExpr(l, c, p, &args[1].value)
+        return equalValues(l, c, a, b, concreteType(l, c, callTypeArg(c, e)))
     }
     let Some(op) = intrinsicOp(name) else {
         c.error("E0805", fnOf(p, c.loc(id)).span, "unknown intrinsic".toOwned())
@@ -614,6 +628,145 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
     var rv = rvalue(op.0, op.1, a, b)
     rv.floatFn = op.2
     return tempValue(l, ty, rv)
+}
+
+// ---------------------------------------------------------------------------
+// Clones (stage 0: lower_clone.c) and hashes (lower_hash.c)
+
+/**
+ * A clone of a value of a concrete type: its bits when it owns nothing,
+ * else a call of its clone glue.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param value the value
+ * @param ty its type
+ * @returns the clone
+ */
+pub fn cloneValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand,
+                  ty: int) Operand {
+    var v = value
+    v.ty = ty
+    if !needsDrop(l, c, p, ty) {
+        return v   // nothing owned: the bits are the clone
+    }
+    let dest = newTemp(l, ty)
+    emitCall(l, GLUE_CLONE, c.types.tuple([ty]), [v], dest)
+    return opCopy(dest, ty)
+}
+
+fn stdFn(c: mut Checker, p: Program, module: str, name: str) int {
+    for m in 0..p.modules.len() {
+        if p.modules[m].name == module {
+            let symbol = c.r.names.intern(name)
+            let id = c.r.scope.moduleIn(m, symbol)
+            if id != 0 {
+                return id
+            }
+        }
+    }
+    panic("lowering: the standard library has no `{module}.{name}`")
+}
+
+fn callHash(l: mut Lowerer, c: mut Checker, p: Program, name: str,
+            args: move List<Operand>) Operand {
+    let dest = newTemp(l, U64)
+    emitCall(l, stdFn(c, p, "std.core.hash", name), UNIT, args, dest)
+    return opCopy(dest, U64)
+}
+
+fn tupleElement(l: mut Lowerer, c: Checker, value: move Operand, ty: int, i: int) Operand {
+    let place = Place{local: toLocal(l, value), fields: [i], deref: false}
+    return placeOperand(&place, .Copy, c.types.get(ty).args[i])
+}
+
+fn hashValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand,
+             ty: int) Operand {
+    var v = value
+    v.ty = ty
+    let kind = c.types.kind(ty)
+    if kind == .Str {
+        return callHash(l, c, p, "hashStr", [v])
+    }
+    if kind == .Tuple {
+        var h = opInt(0, U64)
+        let elems = c.types.get(ty).args.clone()
+        for i in 0..elems.len() {
+            let element = tupleElement(l, c, v.clone(), ty, i)
+            let part = hashValue(l, c, p, element, elems[i])
+            h = callHash(l, c, p, "hashCombine", [h, part])
+        }
+        return h
+    }
+    var cast = rvalue(.Cast, .Add, v, unit())   // ints and bool: their bits, unchecked
+    cast.to = U64
+    let bits = tempValue(l, U64, cast)
+    return callHash(l, c, p, "hashU64", [bits])
+}
+
+fn equalValues(l: mut Lowerer, c: Checker, a: move Operand, b: move Operand,
+               ty: int) Operand {
+    var x = a
+    var y = b
+    x.ty = ty
+    y.ty = ty
+    if c.types.kind(ty) != .Tuple {
+        return lowerBinaryOp(l, c, .Eq, ty, x, y, noSpan())
+    }
+    var all = opBool(true, BOOL)
+    let elems = c.types.get(ty).args.clone()
+    for i in 0..elems.len() {
+        let ea = tupleElement(l, c, x.clone(), ty, i)
+        let eb = tupleElement(l, c, y.clone(), ty, i)
+        let same = equalValues(l, c, ea, eb, elems[i])
+        all = tempValue(l, BOOL, rvalue(.Binary, .And, all, same))
+    }
+    return all
+}
+
+// ---------------------------------------------------------------------------
+// `for x in it` over a type with `fn next(mut self) Option<T>` (stage 0:
+// lower_iter.c)
+
+fn isIterator(l: Lowerer, c: mut Checker, p: Program, ty: int) bool {
+    let concrete = concreteType(l, c, ty)
+    return c.types.kind(concrete) == .Adt && typeMethod(c, p, concrete, "next") != 0
+}
+
+fn lowerForIter(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &Expr,
+                body: &Block) {
+    let ty = concreteType(l, c, viewType(c, expr, -1))
+    let iter = lowerPlace(l, c, p, expr)
+    let item = c.localAt(stmt.id.0) + 1
+    let option = concreteType(l, c, c.types.adt(c.r.langItems[2], [l.body.locals[item].ty]))
+    let header = l.body.newBlock()
+    let bodyBlock = l.body.newBlock()
+    let latch = l.body.newBlock()
+    let exit = l.body.newBlock()
+    emitGoto(l, header)
+    switchTo(l, header)
+    let next = newTemp(l, option)
+    let selfRef = c.types.ref(ty, true)
+    emitCall(l, typeMethod(c, p, ty, "next"), methodTargs(c, ty),
+             [placeOperand(&iter, .Addr, selfRef)], next)
+    let nextPlace = localPlace(next)
+    let some = isVariant(l, c, p, &nextPlace, option, 0)
+    terminate(l, branch(some, bodyBlock, exit))
+    switchTo(l, bodyBlock)
+    let elem = c.types.get(option).args[0]
+    emitAssign(l, item, rvUse(payload(&nextPlace, 0, 0, elem)))
+    dropScopeEnter(l)   // the item, dropped at the end of each iteration
+    ownLocal(l, c, p, item, true)
+    l.loops.push(LoopTarget{breakTo: exit, continueTo: latch, scopes: l.scopes.len() - 1,
+                            tempScopes: l.tempScopes.len()})
+    let _ = lowerBlock(l, c, p, body, false)
+    let _ = l.loops.pop()
+    dropScopeLeave(l, c, p)
+    emitGoto(l, latch)
+    switchTo(l, latch)
+    emitGoto(l, header)
+    switchTo(l, exit)
 }
 
 // An argument: the address of the place for a `mut` parameter, else the
@@ -741,8 +894,12 @@ fn fieldCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr
             Option.None
         })
     }
+    if member == DERIVED_CLONE {   // `x.clone()` of a type without a `clone` method
+        let value = lowerExpr(l, c, p, base)
+        return cloneValue(l, c, p, value, concreteType(l, c, c.typeOf(e.id.0)))
+    }
     if member > BUILTIN_BASE {
-        l.fail("derived clones")
+        l.fail("this method")
         return unit()
     }
     let ty = c.typeOf(e.id.0)
@@ -1898,8 +2055,8 @@ fn lowerStmt(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt) {
                         }
                         if isRange {
                             lowerForRange(l, c, p, stmt, &e, &body)
-                        } else if iteratorItem(c, p, viewType(c, &e, -1)).isSome() {
-                            l.fail("`for` over iterators")
+                        } else if isIterator(l, c, p, viewType(c, &e, -1)) {
+                            lowerForIter(l, c, p, stmt, &e, &body)
                         } else {
                             lowerForList(l, c, p, stmt, &e, &body)
                         }

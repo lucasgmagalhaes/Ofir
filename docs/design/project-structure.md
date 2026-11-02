@@ -227,11 +227,9 @@ compiler/
 ├── air/
 │   ├── air.of                AIR: operands, statements, blocks, bodies
 │   ├── air_print.of          the `main air` format (stage 0's `--emit=air`)
-│   ├── lower.of              lowering: roots, reached functions, drop scopes and flags
-│   ├── lower_expr.of         expressions, operators, methods, structs, statements, blocks
+│   ├── lower.of              roots, monomorphization, drop scopes and flags, glue
+│   ├── lower_expr.of         expressions, methods, lists, clones, hashes, statements
 │   ├── lower_pattern.of      enum values, patterns, `match`, `if let`
-│   ├── drops.of              drop elaboration [planned]
-│   ├── mono.of               monomorphization [planned]
 │   └── validate.of           AIR invariants checker [planned]
 ├── opt/                      Ofir-level passes before LLVM [planned]
 │   └── inline_small.of

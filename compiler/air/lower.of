@@ -34,7 +34,10 @@ import air.air.opCopy
 import air.air.opUnit
 import air.air.rvUse
 import air.air.terminator
+import air.air.GLUE_CLONE
+import air.lower_expr.cloneValue
 import air.lower_expr.lowerBlock
+import air.lower_pattern.variantValue
 import air.lower_pattern.isVariant
 import air.air.VARIANT_STEP
 import base.intern.Symbol
@@ -1161,6 +1164,79 @@ fn lowerGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     l.out.push(mem.replace(l.body, emptyBody()))
 }
 
+// ---------------------------------------------------------------------------
+// Clone glue: `clone<T>(value: T) T` for the types without a `clone` method
+
+fn clonePart(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: int) Operand {
+    return cloneValue(l, c, p, placeOperand(place, .Copy, ty), ty)
+}
+
+fn cloneFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
+    let isTuple = c.types.kind(ty) == .Tuple
+    let count = if isTuple { c.types.get(ty).args.len() } else {
+        fieldsOf(c, c.types.get(ty).data).types.len()
+    }
+    var items: List<Operand> = []
+    for i in 0..count {
+        let field = if isTuple { c.types.get(ty).args[i] } else { structFieldType(c, p, ty, i) }
+        items.push(clonePart(l, c, p, &Place{local: 1, fields: [i], deref: false}, field))
+    }
+    var rv = rvUse(opUnit(UNIT))
+    rv.kind = .Aggregate
+    rv.items = items
+    emitAssign(l, 0, rv)
+}
+
+fn cloneVariants(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
+    let id = c.types.get(ty).data
+    enumVariants(c, p, id)
+    let value = localPlace(1)
+    let join = l.body.newBlock()
+    let count = variantsOf(c, id).variants.len()
+    for v in 0..count {
+        let build = l.body.newBlock()
+        let next = l.body.newBlock()
+        let is = isVariant(l, c, p, &value, ty, v)
+        terminate(l, branch(is, build, next))
+        switchTo(l, build)
+        let fieldCount = variantsOf(c, id).variants[v].types.len()
+        var fields: List<Operand> = []
+        for i in 0..fieldCount {
+            let at = fieldPlace(&value, VARIANT_STEP + v, i)
+            fields.push(clonePart(l, c, p, &at, variantFieldType(c, p, ty, v, i)))
+        }
+        emitAssign(l, 0, rvUse(variantValue(l, c, p, ty, v, fields)))
+        emitGoto(l, join)
+        switchTo(l, next)
+    }
+    terminate(l, terminator(.Unreachable))
+    switchTo(l, join)
+}
+
+fn lowerCloneGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
+    let ty = c.types.get(targs).args[0]
+    l.body = AirBody{def: GLUE_CLONE, targs: targs, name: Symbol(0), isMain: false,
+                     paramCount: 1, locals: [], blocks: []}
+    l.body.newLocal(ty, .None, noSpan())
+    l.body.newLocal(ty, .None, noSpan())
+    l.fnDef = 0
+    l.flags = []
+    l.block = l.body.newBlock()
+    let method = typeMethod(c, p, ty, "clone")
+    let t = c.types.get(ty)
+    let isStruct = t.kind == .Adt && c.def(t.data).kind == .Struct
+    if method != 0 {
+        emitCall(l, method, methodTargs(c, ty), [opCopy(1, ty)], 0)
+    } else if t.kind == .Tuple || isStruct {
+        cloneFields(l, c, p, ty)
+    } else {
+        cloneVariants(l, c, p, ty)
+    }
+    l.body.terminate(l.block, terminator(.Return))
+    monoBody(l, c, p)
+    l.out.push(mem.replace(l.body, emptyBody()))
+}
+
 // The root module must declare `fn main()`.
 fn checkMain(c: mut Checker, p: Program) {
     var id = 0
@@ -1233,11 +1309,11 @@ pub fn lowerProgram(c: mut Checker, p: Program) Lowerer {
         let inst = l.pending[next]
         next += 1
         if inst.def == 0 {
+            c.enter(0)
             if inst.glue == GLUE_DROP {
-                c.enter(0)
                 lowerGlue(l, c, p, inst.targs)
             } else {
-                l.fail("clone glue")
+                lowerCloneGlue(l, c, p, inst.targs)
             }
             continue
         }
