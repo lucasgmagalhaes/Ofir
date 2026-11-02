@@ -88,7 +88,9 @@ import sema.check.itemOf
 import sema.check.itemTypeParams
 import sema.check_methods.typeNameOf
 import sema.def.Res
+import sema.moves.COERCION_CONSUMED
 import sema.moves.CONSUMED
+import sema.structs.fieldDeclAt
 import sema.moves.MOVES
 import sema.program.Program
 import sema.types.BOOL
@@ -244,7 +246,7 @@ fn lowerPlaceAt(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int
         }
         _ => {}
     }
-    let local = toLocal(l, lowerExpr(l, c, p, e))
+    let local = toLocal(l, lowerView(l, c, p, e, 0))   // `e` itself, at this depth
     return Place{local: local, fields: [], deref: false}
 }
 
@@ -266,9 +268,8 @@ fn isList(c: Checker, ty: int) bool {
  * @returns its place
  */
 pub fn lowerPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Place {
-    if coerced(c, e) {
-        l.fail("conversions to slices")
-        return noPlace()
+    if coerced(c, e) {   // a call: its value is a temporary
+        return localPlace(toLocal(l, lowerExpr(l, c, p, e)))
     }
     return lowerPlaceAt(l, c, p, e, derefCount(c, e))
 }
@@ -334,6 +335,10 @@ fn makesValue(c: Checker, e: &Expr) bool {
         .Tuple(_) | .Variant(_, _, _) | .Try(_) | .If(_, _, _, _) | .Match(_, _) |
         .Block(_) | .Unsafe(_) => true
         .Binary(op, _, _) => op == .Add || op == .Coalesce
+        .Index(_, index) => match index.kind {   // `xs[a..b]` is `xs.slice(a, b)`
+            .Range(_, _, _) => true
+            _ => false
+        }
         .Field(base, _, _) => typeNameOf(c, &*base) != 0
         _ => false
     }
@@ -373,8 +378,7 @@ fn ownTemp(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr,
  */
 pub fn lowerExpr(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     if coerced(c, e) {
-        l.fail("conversions to slices")
-        return unit()
+        return coercion(l, c, p, e)
     }
     return lowerView(l, c, p, e, derefCount(c, e))
 }
@@ -755,8 +759,7 @@ fn fieldCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr
         return tempValue(l, ty, rv)
     }
     if which == 2 {
-        l.fail("`checkedCast`")
-        return unit()
+        return checkedCast(l, c, p, ty, value)
     }
     let offset = lowerExpr(l, c, p, &args[0].value)   // `p.add(n)`
     let vty = value.ty
@@ -869,14 +872,140 @@ fn structLiteral(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, fields: &
         if given[f] {
             continue
         }
-        if !hasBase {
-            l.fail("field defaults")
-            return unit()
+        if !hasBase {   // the field's default, evaluated at each use
+            items[f] = fieldDefault(l, c, p, id, f)
+            continue
         }
         let place = Place{local: baseLocal, fields: [f], deref: false}
         items[f] = placeOperand(&place, .Copy, structFieldType(c, p, ty, f))
     }
     return aggregate(l, ty, items)
+}
+
+// The default value of field `f` of struct `id`: an expression of the
+// struct's module.
+fn fieldDefault(l: mut Lowerer, c: mut Checker, p: Program, id: int, f: int) Operand {
+    let decl = fieldDeclAt(p, c.loc(id), f)
+    let previous = c.enter(c.def(id).module)
+    let result = match decl.defaultValue {
+        .Some(value) => lowerExpr(l, c, p, &value)
+        .None => unit()
+    }
+    c.enter(previous)
+    return result
+}
+
+// A `List<T>` where a `&[T]` is expected: `list.asSlice()` (stage 0
+// rewrites the expression into that call).
+fn coercion(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    let elem = *c.sliceCoercions[c.module()].get(e.id.0).unwrap()
+    let id = langMethod(c, p, c.r.langItems[1], "asSlice")
+    let forwarded = l.forward
+    l.forward = false
+    // The checker gave `e` the slice type; the expression itself is the list.
+    let ty = c.typeOf(e.id.0)
+    let list = c.types.adt(c.r.langItems[1], [elem])
+    c.setType(e.id.0, list)
+    let receiver = if byAddress(c, p, id, -1) {
+        placeOperand(&lowerPlaceAt(l, c, p, e, derefCount(c, e)), .Addr, viewType(c, e, -1))
+    } else {
+        lowerView(l, c, p, e, derefCount(c, e))
+    }
+    c.setType(e.id.0, ty)
+    let dest = newTemp(l, ty)
+    emitCall(l, id, c.types.tuple([elem]), [receiver], dest)
+    l.forward = false
+    let consumed = (flagsOf(c, e) & COERCION_CONSUMED) != 0
+    if forwarded || consumed || l.tempScopes.len() == 0 || !needsDrop(l, c, p, ty) {
+        return opCopy(dest, ty)
+    }
+    l.temps.push(Temp{local: dest, ty: ty})
+    return opCopy(dest, ty)
+}
+
+// `xs[a..b]`, `xs[a..]`, `xs[..b]`: `xs.slice(a, b)` or `xs.sliceFrom(a)`,
+// methods of List, Slice and str; `a..=b` is `a..b + 1`.
+fn rangeIndex(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
+              range: &Expr) Operand {
+    return match range.kind {
+        .Range(lo, hi, inclusive) => sliceCall(l, c, p, e, base, lo, hi, inclusive)
+        _ => unit()
+    }
+}
+
+fn sliceCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
+             lo: Option<Box<Expr>>, hi: Option<Box<Expr>>, inclusive: bool) Operand {
+    let id = c.members[c.module()][e.id.0]
+    let ty = c.typeOf(e.id.0)
+    let recv = viewType(c, base, -1)
+    let targs = if c.types.kind(recv) == .Adt {
+        let args = c.types.get(recv).args.clone()
+        c.types.tuple(args)
+    } else {
+        UNIT
+    }
+    var args: List<Operand> = []
+    if byAddress(c, p, id, -1) {
+        args.push(placeOperand(&lowerPlace(l, c, p, base), .Addr, recv))
+    } else {
+        args.push(lowerExpr(l, c, p, base))
+    }
+    match lo {
+        .Some(low) => args.push(lowerExpr(l, c, p, &*low))
+        .None => args.push(opInt(0, I64))
+    }
+    if let .Some(high) = hi {
+        var end = lowerExpr(l, c, p, &*high)
+        if inclusive {
+            end = lowerBinaryOp(l, c, .Add, c.typeOf(high.id.0), end, opInt(1, I64), high.span)
+        }
+        args.push(end)
+    }
+    var dest = -1
+    var result = unit()
+    if typeIsValue(ty) {
+        dest = newTemp(l, ty)
+        result = opCopy(dest, ty)
+    }
+    emitCall(l, id, targs, args, dest)
+    return result
+}
+
+// `&s` of a str: a copy with `cap == 0`, a view that is never freed and
+// that a modification copies first.
+fn strView(l: mut Lowerer, c: mut Checker, p: Program, operand: &Expr) Operand {
+    var value = lowerExpr(l, c, p, operand)
+    value.ty = STR
+    let view = emitTemp(l, STR, rvUse(value))
+    emitStore(l, &Place{local: view, fields: [2], deref: false}, opInt(0, I64))
+    return opCopy(view, STR)
+}
+
+// `x.checkedCast<T>()`: `Some(x as T)`, or `None` when x is out of T's range.
+fn checkedCast(l: mut Lowerer, c: mut Checker, p: Program, option: int,
+               value: move Operand) Operand {
+    let to = c.types.get(option).args[0]
+    let vty = value.ty
+    let v = opCopy(toLocal(l, value), vty)
+    var test = rvalue(.CastFails, .Add, v.clone(), unit())
+    test.to = to
+    let fails = tempValue(l, BOOL, test)
+    let dest = newTemp(l, option)
+    let some = l.body.newBlock()
+    let none = l.body.newBlock()
+    let join = l.body.newBlock()
+    terminate(l, branch(fails, none, some))
+    switchTo(l, some)
+    var cast = rvalue(.Cast, .Add, v, unit())
+    cast.to = to
+    let converted = tempValue(l, to, cast)
+    emitAssign(l, dest, rvUse(variantValue(l, c, p, option, 0, [converted])))   // Some
+    emitGoto(l, join)
+    switchTo(l, none)
+    emitAssign(l, dest, rvUse(variantValue(l, c, p, option, 1, [])))   // None
+    emitGoto(l, join)
+    switchTo(l, join)
+    return opCopy(dest, option)
 }
 
 // Panics unless 0 <= index < len. The index is compared as unsigned, so a
@@ -909,8 +1038,7 @@ fn lowerIndex(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
         _ => false
     }
     if isRange {
-        l.fail("slices")
-        return unit()
+        return rangeIndex(l, c, p, e, base, index)
     }
     if isList(c, viewType(c, base, -1)) {
         let place = listIndexPlace(l, c, p, e, base, index)
@@ -1375,8 +1503,7 @@ fn unary(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, op: Op, operand: 
     }
     if op == .Ref || op == .RefMut {
         if concreteType(l, c, ty) == STR {
-            l.fail("`&str` views")
-            return unit()
+            return strView(l, c, p, operand)
         }
         return placeOperand(&lowerPlace(l, c, p, operand), .Addr, ty)
     }

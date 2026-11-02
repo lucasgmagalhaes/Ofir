@@ -48,8 +48,15 @@ fn declaredFlags(p: Program, at: Loc) (bool, bool, bool, int) {
     }
 }
 
-// Field `i` as written.
-fn fieldDeclAt(p: Program, at: Loc, i: int) &FieldDecl {
+/**
+ * The declaration of field `i` of a struct (or of a `@lang` declaration).
+ *
+ * @param p the program
+ * @param at the struct
+ * @param i the field
+ * @returns its declaration
+ */
+pub fn fieldDeclAt(p: Program, at: Loc, i: int) &FieldDecl {
     return match itemOf(p, at).kind {
         .Struct(_, _, _, _, fields, _) => &fields[i]
         _ => {
