@@ -24,6 +24,11 @@ import air.air.rvUse
 import air.air.rvalue
 import air.air.terminator
 import air.lower.LoopTarget
+import air.lower.localPlace
+import air.lower_pattern.buildVariant
+import air.lower_pattern.enumEquality
+import air.lower_pattern.lowerMatch
+import air.lower_pattern.lowerPattern
 import air.lower.Lowerer
 import air.lower.Place
 import air.lower.Temp
@@ -136,6 +141,14 @@ fn fieldOf(c: Checker, e: &Expr) int {
         }
         _ => -1
     }
+}
+
+// `m.x`, a declaration of an imported module: the resolver knows it.
+fn moduleMember(c: Checker, e: &Expr) bool {
+    let Res.Def(id) = c.res(e.id.0) else {
+        return false
+    }
+    return c.def(id).kind != .Module
 }
 
 fn derefCount(c: Checker, e: &Expr) int {
@@ -406,19 +419,23 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
         .Call(callee, args) => call(l, c, p, e, &*callee, &args)
         .If(_, _, _, _) => lowerIf(l, c, p, e)
         .Block(block) | .Unsafe(block) => lowerBlock(l, c, p, &block, typeIsValue(ty))
-        .Field(base, name, _) => {
-            if fieldOf(c, e) >= 0 {
+        .Field(base, member, _) => {
+            if moduleMember(c, e) {   // `u.LIMIT`
+                name(l, c, p, e, ty)
+            } else if fieldOf(c, e) >= 0 {
                 placeOperand(&lowerPlaceAt(l, c, p, e, 0), .Copy, ty)
             } else if primitiveName(c, &*base) >= 0 {
-                builtinConst(c, ty, name)
-            } else {
-                l.fail("variants")
-                unit()
+                builtinConst(c, ty, member)
+            } else {   // `Shape.Empty`
+                let none: List<Arg> = []
+                buildVariant(l, c, p, ty, c.members[c.module()][e.id.0], &none)
             }
         }
         .TupleField(_, _) => placeOperand(&lowerPlaceAt(l, c, p, e, 0), .Copy, ty)
         .Struct(_, fields, base) => structLiteral(l, c, p, e, &fields, base, ty)
         .Tuple(elems) => aggregateOf(l, c, p, &elems, ty)
+        .Variant(_, args, _) => buildVariant(l, c, p, ty, c.members[c.module()][e.id.0], &args)
+        .Match(_, _) => lowerMatch(l, c, p, e)
         .Index(base, index) => lowerIndex(l, c, p, e, &*base, &*index)
         _ => {
             l.fail("this expression")
@@ -447,9 +464,9 @@ fn name(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, ty: int) Operand {
     if kind == .Const {   // evaluated by the checker
         return constOperand(c, id, ty)
     }
-    if kind == .Variant {
-        l.fail("variants")
-        return unit()
+    if kind == .Variant {   // `None`
+        let none: List<Arg> = []
+        return buildVariant(l, c, p, ty, c.def(id).member, &none)
     }
     c.error("E0901", e.span, "global variables are not supported yet".toOwned())
     return unit()
@@ -467,6 +484,12 @@ fn call(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
     if !isName {
         return methodCall(l, c, p, e, callee, args)
     }
+    return nameCall(l, c, p, e, callee, args)
+}
+
+// A call of a name: a function, a constructor, a variant or a built-in.
+fn nameCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
+            args: &List<Arg>) Operand {
     let Res.Def(id) = c.res(callee.id.0) else {
         l.fail("calls of function values")
         return unit()
@@ -479,9 +502,8 @@ fn call(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
         }
         return aggregateOf(l, c, p, &values, c.typeOf(e.id.0))
     }
-    if kind == .Variant {
-        l.fail("variants")
-        return unit()
+    if kind == .Variant {   // `Some(x)`
+        return buildVariant(l, c, p, c.typeOf(e.id.0), c.def(id).member, args)
     }
     if kind == .Builtin {
         let which = c.def(id).primitive
@@ -604,11 +626,14 @@ fn methodCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Exp
 
 fn fieldCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr, base: &Expr,
              name: Symbol, args: &List<Arg>) Operand {
+    if moduleMember(c, callee) {   // `shapes.area(c)`
+        return nameCall(l, c, p, e, callee, args)
+    }
     let owner = typeNameOf(c, base)
     if owner != 0 && c.def(owner).kind == .Enum {
         if enumVariants(c, p, owner) && variantIndex(variantsOf(c, owner), name) >= 0 {
-            l.fail("variants")
-            return unit()
+            let index = c.members[c.module()][callee.id.0]   // `Shape.Circle(1.0)`
+            return buildVariant(l, c, p, c.typeOf(e.id.0), index, args)
         }
     }
     let member = c.members[c.module()][callee.id.0]
@@ -837,17 +862,25 @@ fn lowerIf(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     let dest = if hasValue { newTemp(l, ty) } else { 0 }
     match e.kind {
         .If(letPattern, condBox, then, otherwise) => {
-            if letPattern.isSome() {
-                l.fail("`if let`")
-                return unit()
+            let cond = if letPattern.isSome() { lowerExpr(l, c, p, &*condBox) } else {
+                lowerCondition(l, c, p, &*condBox)
             }
-            let cond = lowerCondition(l, c, p, &*condBox)
             let thenBlock = l.body.newBlock()
             let other = l.body.newBlock()
             let join = l.body.newBlock()
-            terminate(l, branch(cond, thenBlock, other))
+            match letPattern {
+                .Some(pattern) => {   // the pattern's tests jump to `else` on a mismatch
+                    let place = localPlace(toLocal(l, cond))
+                    lowerPattern(l, c, p, &pattern, &place, other)
+                    emitGoto(l, thenBlock)
+                }
+                .None => terminate(l, branch(cond, thenBlock, other))
+            }
             switchTo(l, thenBlock)
             dropScopeEnter(l)   // the bindings of `if let` live in the `then` block
+            if let .Some(pattern) = letPattern {
+                ownBindings(l, c, p, &pattern)
+            }
             let thenValue = lowerBlock(l, c, p, &then, hasValue)
             store(l, dest, hasValue, thenValue)
             dropScopeLeave(l, c, p)
@@ -1005,8 +1038,7 @@ pub fn lowerBinaryOp(l: mut Lowerer, c: Checker, op: Op, ty: int, a: move Operan
         return strOp(l, op, a, b)
     }
     if kind == .Adt {   // == and != on enums without payloads
-        l.fail("enum equality")
-        return unit()
+        return enumEquality(l, op, a, b)
     }
     let comparison = op == .Eq || op == .Ne || op == .Lt || op == .Le || op == .Gt ||
                      op == .Ge
@@ -1172,7 +1204,15 @@ fn assignOperand(l: mut Lowerer, dest: int, value: move Operand) {
     }
 }
 
-fn ownBindings(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern) {
+/**
+ * The innermost scope owns the bindings of a pattern.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param pattern the pattern
+ */
+pub fn ownBindings(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern) {
     match pattern.kind {
         .Binding(_, _) => {
             let local = c.localAt(pattern.id.0)
@@ -1203,14 +1243,27 @@ fn ownBindings(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern) {
     }
 }
 
-fn lowerLet(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, value: &Expr) {
+fn lowerLet(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, value: &Expr,
+            otherwise: Option<&Block>) {
     let v = lowerExpr(l, c, p, value)
     match pattern.kind {
         .Binding(_, _) => assignOperand(l, c.localAt(pattern.id.0) + 1, v)
         .Wildcard => {}
         _ => {
             if v.kind != .Unit {
-                l.fail("destructuring patterns")
+                // On a mismatch: the `else` block, which cannot fall through; without
+                // `else` the pattern always matches (checked).
+                let fail = l.body.newBlock()
+                let place = localPlace(toLocal(l, v))
+                lowerPattern(l, c, p, pattern, &place, fail)
+                let next = l.body.newBlock()
+                emitGoto(l, next)
+                switchTo(l, fail)
+                if let .Some(block) = otherwise {
+                    let _ = lowerBlock(l, c, p, block, false)
+                }
+                terminate(l, terminator(.Unreachable))
+                switchTo(l, next)
             }
         }
     }
@@ -1386,11 +1439,10 @@ fn lowerJump(l: mut Lowerer, c: mut Checker, p: Program, isBreak: bool) {
 fn lowerStmt(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt) {
     match stmt.kind {
         .Let(pattern, _, value, otherwise) => {
-            if otherwise.isSome() {
-                l.fail("`let ... else`")
-                return
+            match otherwise {
+                .Some(block) => lowerLet(l, c, p, &pattern, &value, .Some(&block))
+                .None => lowerLet(l, c, p, &pattern, &value, .None)
             }
-            lowerLet(l, c, p, &pattern, &value)
         }
         .Var(_, _, value) => {
             let local = c.localAt(stmt.id.0) + 1
@@ -1444,7 +1496,16 @@ fn lowerStmt(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt) {
 // The last expression of a block or a `match` arm, whose value is the
 // block's: it is not a temporary of the block, but its own temporaries
 // are dropped before the block ends. Its value is read before that.
-fn lowerTail(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+/**
+ * The last expression of a block or of a `match` arm.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param e the expression
+ * @returns its value, read before its temporaries are dropped
+ */
+pub fn lowerTail(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     tempScopeEnter(l)
     l.forward = true
     var result = lowerExpr(l, c, p, e)
