@@ -8,7 +8,7 @@ last expression.
 
 ## 4.2 Assignment
 
-```astra
+```ofir
 x = 10
 x += 1
 user.age = 31
@@ -22,7 +22,7 @@ Assignment is a statement, not an expression.
 
 ## 4.3 `if`
 
-```astra
+```ofir
 if x > 0 {
     println("positive")
 } else if x < 0 {
@@ -41,7 +41,7 @@ The condition must be `bool` (no truthiness). When `if` is used as a value,
 
 `for` is the only loop.
 
-```astra
+```ofir
 for {                      // infinite loop
     if done() {
         break
@@ -78,7 +78,7 @@ recognizes the method by its name and signature, until interfaces
 
 ## 4.5 `match`
 
-```astra
+```ofir
 let area = match shape {
     .Circle(r) => 3.14159 * r * r
     .Rect(w, h) => w * h
@@ -110,7 +110,7 @@ match code {
 
 `if let` is a shorthand for a `match` with one interesting arm:
 
-```astra
+```ofir
 if let .Some(user) = findUser(id) {
     println("{user.name}")
 } else {
@@ -122,7 +122,7 @@ if let .Some(user) = findUser(id) {
 runs the `else` block, which must leave the block (`return`, `break`,
 `continue` or `panic`):
 
-```astra
+```ofir
 fn greet(id: UserId) Result<str, str> {
     let .Some(user) = findUser(id) else {
         return Err("user {id.0} not found")
@@ -140,7 +140,7 @@ block that can fall through is an error (`E0307`).
 
 ## 4.7 `return`, `break`, `continue`
 
-```astra
+```ofir
 return            // in functions returning ()
 return value
 ```
@@ -169,7 +169,7 @@ Comparison operators do not chain: `a < b < c` is a compile error.
 type of the content, or be another `Option` of it (then the result is an
 `Option`). It is right-associative, so defaults chain:
 
-```astra
+```ofir
 let name = user.nickname ?? user.firstName ?? "anonymous"
 let port = env("PORT") ?? "8080"
 ```

@@ -20,7 +20,7 @@ static void test_render(void) {
     Diagnostics diags;
     diags_init(&diags, &arena);
 
-    FileId id = source_map_add(&map, SV("main.at"), SV("fn main() {\n    let x = $\n}\n"));
+    FileId id = source_map_add(&map, SV("main.of"), SV("fn main() {\n    let x = $\n}\n"));
     diag_warning(&diags, "W0001", (Span){id, 20, 21}, "unused variable `%s`", "x");
     diag_error(&diags, "E0001", (Span){id, 24, 25}, "unexpected character");
     diag_error(&diags, "E0001", (Span){id, 24, 25}, "unexpected character");   // duplicate
@@ -29,13 +29,13 @@ static void test_render(void) {
 
     char *short_form = render(&diags, &map, DIAG_FORMAT_SHORT);
     CHECK(strcmp(short_form,
-                 "main.at:2:9: warning[W0001]: unused variable `x`\n"
-                 "main.at:2:13: error[E0001]: unexpected character\n") == 0);
+                 "main.of:2:9: warning[W0001]: unused variable `x`\n"
+                 "main.of:2:13: error[E0001]: unexpected character\n") == 0);
 
     char *human = render(&diags, &map, DIAG_FORMAT_HUMAN);
     CHECK(strstr(human,
                  "error[E0001]: unexpected character\n"
-                 " --> main.at:2:13\n"
+                 " --> main.of:2:13\n"
                  "  |\n"
                  "2 |     let x = $\n"
                  "  |             ^\n") != NULL);

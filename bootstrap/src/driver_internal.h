@@ -1,7 +1,7 @@
 // State shared by the driver files.
 
-#ifndef ASTRA_DRIVER_INTERNAL_H
-#define ASTRA_DRIVER_INTERNAL_H
+#ifndef OFIR_DRIVER_INTERNAL_H
+#define OFIR_DRIVER_INTERNAL_H
 
 #include "driver.h"
 #include "sema/sema.h"
@@ -31,7 +31,7 @@ typedef struct {
     Timer *timer;
     FileId file;
     char exe[PATH_SIZE];   // the executable, once built
-    char **tests;          // `astra test`: the name of each test, by index
+    char **tests;          // `ofir test`: the name of each test, by index
     size_t test_count;
 } Pipeline;
 

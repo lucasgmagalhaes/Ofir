@@ -81,7 +81,7 @@ only in functions that move a value that is not trivially Copy, std
 functions only when the lowering reaches them, loops are walked once when
 nothing changes, and the analysis reuses a scratch arena.
 
-`List<T>` in the prelude (`std/core/list.at`, 2.20) adds 0.7M instructions
+`List<T>` in the prelude (`std/core/list.of`, 2.20) adds 0.7M instructions
 to every compilation: +1.7% on check-10k, +0.2% on check-100k.
 
 Until `2da11c2`, `make bench-compare` ran the base compiler without the
@@ -97,15 +97,15 @@ line: next candidates are fewer loads and stores (keeping temporaries in
 SSA values instead of allocas) and deduplicated string constants, which
 would also make clang faster (16 s at -O0 for this input).
 
-Binary size of `examples/hello.at`: 17,440 bytes, 14,584 stripped.
+Binary size of `examples/hello.of`: 17,440 bytes, 14,584 stripped.
 
 ## Generated code against C (roadmap 3.11a)
 
 `bench/run_programs.py`: each program of `bench/programs` built with
-`astra build --release` against its C version in `bench/baselines` built
+`ofir build --release` against its C version in `bench/baselines` built
 with `clang -O2`, median of 3 runs, machine A, clang 18. The outputs agree.
 
-| Commit | Program | Astra (ms) | C (ms) | Astra / C |
+| Commit | Program | Ofir (ms) | C (ms) | Ofir / C |
 |--------|---------|-----------:|-------:|----------:|
 | `0e0f46c` | `binary_trees` (depth 18) | 2,736.7 | 2,707.7 | 1.01 |
 | `0e0f46c` | `fib` (35) | 59.7 | 33.1 | 1.80 |

@@ -5,8 +5,8 @@
 // a binding stack: declaring a local saves the previous binding of its name,
 // and leaving a block restores it.
 
-#ifndef ASTRA_SCOPE_H
-#define ASTRA_SCOPE_H
+#ifndef OFIR_SCOPE_H
+#define OFIR_SCOPE_H
 
 #include "base/intern.h"
 #include "base/vec.h"

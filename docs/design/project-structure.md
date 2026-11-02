@@ -1,13 +1,13 @@
 # Project structure
 
-This document describes the layout of the Astra repository and the
+This document describes the layout of the Ofir repository and the
 responsibility of each directory. It is the reference for where new code
 belongs.
 
 ## Overview
 
 ```
-astra/
+ofir/
 ├── README.md
 ├── LICENSE
 ├── CONTRIBUTING.md
@@ -30,9 +30,9 @@ astra/
 │   └── risks.md              risk register
 │
 ├── bootstrap/                stage 0 compiler, written in C
-├── compiler/                 stage 1 compiler, written in Astra
-├── runtime/                  C runtime linked into every Astra program
-├── std/                      standard library, written in Astra
+├── compiler/                 stage 1 compiler, written in Ofir
+├── runtime/                  C runtime linked into every Ofir program
+├── std/                      standard library, written in Ofir
 ├── tests/                    language and compiler test suites
 ├── examples/                 example programs
 ├── bench/                    performance benchmarks
@@ -109,7 +109,7 @@ bootstrap/
 │   │   ├── builtins.c/.h     the methods still built in until bounds (ADR 0019)
 │   │   └── bounds.c          generic bounds and `where` clauses (planned)
 │   ├── air/
-│   │   ├── air.c/.h          Astra Intermediate Representation
+│   │   ├── air.c/.h          Ofir Intermediate Representation
 │   │   ├── air_print.c/.h    AIR dump (`--emit=air`)
 │   │   ├── air_validate.c    structural checks after lowering
 │   │   ├── lower.c/.h        typed AST → AIR: functions reachable from `main`
@@ -126,7 +126,7 @@ bootstrap/
 │   │   ├── lower_clone.c     clone glue, the derived `.clone()` and `cloneOf<T>`
 │   │   ├── lower_drop.c      drop glue, `dropInPlace<T>` and `forget<T>`
 │   │   ├── lower_iter.c      `for x in it`: `next()` until `None`
-│   │   ├── lower_test.c      `astra test`: the tests as roots, the generated entry point
+│   │   ├── lower_test.c      `ofir test`: the tests as roots, the generated entry point
 │   │   ├── lower_scope.c     drop scopes, drop flags (also per moved part), temporaries
 │   │   ├── lower_option.c    `?` and `??`
 │   │   ├── mono.c            monomorphization: instances, type substitution
@@ -146,7 +146,7 @@ bootstrap/
 │   ├── driver_modules.c      loading the root file, its imports and the prelude
 │   ├── driver_paths.c        finding the installed runtime and std
 │   ├── driver_backend.c      lowering, code generation, clang, `run`
-│   ├── driver_test.c         `astra test`: one process per test, the report
+│   ├── driver_test.c         `ofir test`: one process per test, the report
 │   └── driver_internal.h     state shared by the driver files
 └── tests/                    unit tests for the C code (base/, lexer)
 ```
@@ -154,95 +154,95 @@ bootstrap/
 Stage 0 implements only the bootstrap subset (see `docs/bootstrap.md`). It
 mirrors the structure of stage 1 so that porting is mechanical.
 
-## `compiler/` — stage 1 compiler (Astra)
+## `compiler/` — stage 1 compiler (Ofir)
 
 ```
 compiler/
-├── main.at                   command line entry point
+├── main.of                   command line entry point
 ├── driver/
-│   ├── modules.at            loading the root file, its imports and the prelude
-│   ├── cli.at                argument parsing, subcommands
-│   ├── session.at            compilation options, target, paths
-│   ├── pipeline.at           runs the phases in order
-│   └── toolchain.at          locating and invoking clang / linker
+│   ├── modules.of            loading the root file, its imports and the prelude
+│   ├── cli.of                argument parsing, subcommands
+│   ├── session.of            compilation options, target, paths
+│   ├── pipeline.of           runs the phases in order
+│   └── toolchain.of          locating and invoking clang / linker
 ├── base/
-│   ├── intern.at             interned names (`Symbol`, `Interner`)
-│   ├── span.at               source positions, file table (`Span`, `SourceMap`)
-│   └── index_vec.at          typed indices (`Id<T>`, `IndexVec<T>`)
+│   ├── intern.of             interned names (`Symbol`, `Interner`)
+│   ├── span.of               source positions, file table (`Span`, `SourceMap`)
+│   └── index_vec.of          typed indices (`Id<T>`, `IndexVec<T>`)
 ├── diag/
-│   └── index.at              `diag`: diagnostics and their rendering (stage 0's format)
+│   └── index.of              `diag`: diagnostics and their rendering (stage 0's format)
 ├── syntax/
-│   ├── token.at              token kinds and values
-│   ├── cursor.at             position in a source file
-│   ├── literals.at           numbers, strings and byte literals
-│   ├── lexer.at              main loop, comments, words, punctuation
-│   ├── token_print.at        the `--emit=tokens` format
-│   ├── ast.at                the syntax tree
-│   ├── parser.at             the token stream, errors, recovery; `parse`
-│   ├── parse_*.at            types, patterns, expressions, statements, items
-│   ├── ast_text.at           types, patterns and literals as text
-│   └── ast_print.at          the `--emit=ast` format
+│   ├── token.of              token kinds and values
+│   ├── cursor.of             position in a source file
+│   ├── literals.of           numbers, strings and byte literals
+│   ├── lexer.of              main loop, comments, words, punctuation
+│   ├── token_print.of        the `--emit=tokens` format
+│   ├── ast.of                the syntax tree
+│   ├── parser.of             the token stream, errors, recovery; `parse`
+│   ├── parse_*.of            types, patterns, expressions, statements, items
+│   ├── ast_text.of           types, patterns and literals as text
+│   └── ast_print.of          the `--emit=ast` format
 ├── sema/
-│   ├── program.at            the modules of a program
-│   ├── def.at                declarations (`Def`), resolutions (`Res`), locals
-│   ├── scope.at              module tables and the binding stack of locals
-│   ├── resolve.at            declarations and the passes; `resolveProgram`
-│   ├── resolve_import.at     imports, `m.name`, the prelude
-│   ├── resolve_body.at       function bodies, patterns, locals
-│   ├── trace.at              the `--emit=names` format
-│   ├── types.at              the type table (hash-consed `Ty`)
-│   ├── check.at              the checker's state, items and function bodies
-│   ├── check_types.at        type expressions, signatures, aliases
-│   ├── structs.at, enums.at  fields and variants of declarations
-│   ├── struct_exprs.at       struct literals, fields, tuple struct constructors
-│   ├── variant_exprs.at      building variants
-│   ├── expr_check.at         expressions, `coerce`, constants
-│   ├── check_stmt.at         statements, blocks, `if`, `match`
-│   ├── check_pattern.at      patterns
-│   ├── exhaustive.at         exhaustiveness and unreachable arms
-│   ├── check_methods.at      method calls, fields, indexing, clones
-│   ├── check_generic.at      inference of type arguments
-│   ├── check_list.at         lists, maps, iterators, slices
-│   ├── check_option.at       `?`, `??`, unused results
-│   ├── check_ref.at          references and their escape rules
-│   ├── check_box.at          implicit dereferences of boxes and references
-│   ├── check_place.at        places and mutability
-│   ├── check_unsafe.at       `unsafe`, raw pointers, the C boundary
-│   ├── const_eval.at         compile-time evaluation of constants
-│   ├── moves.at              move analysis: states, statements, loops (E0600-E0602)
-│   ├── moves_expr.at         move analysis of expressions and places
-│   ├── moves_match.at        move analysis of patterns, `if let`, `match`
-│   ├── type_trace.at         the `--emit=types` format
-│   ├── check_items.at        declarations, signatures
-│   ├── check_exprs.at        expressions and statements
-│   ├── infer.at              type inference (unification)
-│   ├── interfaces.at         interface satisfaction, vtables
-│   ├── generics.at           bounds checking, instantiation
-│   ├── patterns.at           pattern typing and exhaustiveness
-│   └── consts.at             compile-time evaluation
+│   ├── program.of            the modules of a program
+│   ├── def.of                declarations (`Def`), resolutions (`Res`), locals
+│   ├── scope.of              module tables and the binding stack of locals
+│   ├── resolve.of            declarations and the passes; `resolveProgram`
+│   ├── resolve_import.of     imports, `m.name`, the prelude
+│   ├── resolve_body.of       function bodies, patterns, locals
+│   ├── trace.of              the `--emit=names` format
+│   ├── types.of              the type table (hash-consed `Ty`)
+│   ├── check.of              the checker's state, items and function bodies
+│   ├── check_types.of        type expressions, signatures, aliases
+│   ├── structs.of, enums.of  fields and variants of declarations
+│   ├── struct_exprs.of       struct literals, fields, tuple struct constructors
+│   ├── variant_exprs.of      building variants
+│   ├── expr_check.of         expressions, `coerce`, constants
+│   ├── check_stmt.of         statements, blocks, `if`, `match`
+│   ├── check_pattern.of      patterns
+│   ├── exhaustive.of         exhaustiveness and unreachable arms
+│   ├── check_methods.of      method calls, fields, indexing, clones
+│   ├── check_generic.of      inference of type arguments
+│   ├── check_list.of         lists, maps, iterators, slices
+│   ├── check_option.of       `?`, `??`, unused results
+│   ├── check_ref.of          references and their escape rules
+│   ├── check_box.of          implicit dereferences of boxes and references
+│   ├── check_place.of        places and mutability
+│   ├── check_unsafe.of       `unsafe`, raw pointers, the C boundary
+│   ├── const_eval.of         compile-time evaluation of constants
+│   ├── moves.of              move analysis: states, statements, loops (E0600-E0602)
+│   ├── moves_expr.of         move analysis of expressions and places
+│   ├── moves_match.of        move analysis of patterns, `if let`, `match`
+│   ├── type_trace.of         the `--emit=types` format
+│   ├── check_items.of        declarations, signatures
+│   ├── check_exprs.of        expressions and statements
+│   ├── infer.of              type inference (unification)
+│   ├── interfaces.of         interface satisfaction, vtables
+│   ├── generics.of           bounds checking, instantiation
+│   ├── patterns.of           pattern typing and exhaustiveness
+│   └── consts.of             compile-time evaluation
 ├── borrow/
-│   ├── moves.at              move and initialization analysis
-│   ├── borrows.at            borrow checking (non-lexical)
-│   └── escape.at             second-class reference rules
+│   ├── moves.of              move and initialization analysis
+│   ├── borrows.of            borrow checking (non-lexical)
+│   └── escape.of             second-class reference rules
 ├── air/
-│   ├── air.at                AIR: operands, statements, blocks, bodies
-│   ├── air_print.at          the `main air` format (stage 0's `--emit=air`)
-│   ├── lower.at              lowering: roots, reached functions, drop scopes and flags
-│   ├── lower_expr.at         expressions, operators, methods, structs, statements, blocks
-│   ├── lower_pattern.at      enum values, patterns, `match`, `if let`
-│   ├── drops.at              drop elaboration [planned]
-│   ├── mono.at               monomorphization [planned]
-│   └── validate.at           AIR invariants checker [planned]
-├── opt/                      Astra-level passes before LLVM [planned]
-│   └── inline_small.at
+│   ├── air.of                AIR: operands, statements, blocks, bodies
+│   ├── air_print.of          the `main air` format (stage 0's `--emit=air`)
+│   ├── lower.of              lowering: roots, reached functions, drop scopes and flags
+│   ├── lower_expr.of         expressions, operators, methods, structs, statements, blocks
+│   ├── lower_pattern.of      enum values, patterns, `match`, `if let`
+│   ├── drops.of              drop elaboration [planned]
+│   ├── mono.of               monomorphization [planned]
+│   └── validate.of           AIR invariants checker [planned]
+├── opt/                      Ofir-level passes before LLVM [planned]
+│   └── inline_small.of
 └── codegen/
     ├── llvm/
-    │   ├── emit.at           AIR → LLVM IR text
-    │   ├── types.at          Astra types → LLVM types
-    │   ├── abi.at            calling convention, C ABI
-    │   ├── intrinsics.at  overflow checks, memcpy, ...
-    │   └── debuginfo.at   DWARF metadata [planned]
-    └── layout.at             size, alignment, field offsets, niches
+    │   ├── emit.of           AIR → LLVM IR text
+    │   ├── types.of          Ofir types → LLVM types
+    │   ├── abi.of            calling convention, C ABI
+    │   ├── intrinsics.of  overflow checks, memcpy, ...
+    │   └── debuginfo.of   DWARF metadata [planned]
+    └── layout.of             size, alignment, field offsets, niches
 ```
 
 ## `runtime/` — C runtime
@@ -250,7 +250,7 @@ compiler/
 ```
 runtime/
 ├── include/
-│   └── astra_rt.h            interface used by generated code
+│   └── ofir_rt.h            interface used by generated code
 ├── src/
 │   ├── entry.c               process entry, argument capture
 │   ├── panic.c               panic reporting and exit
@@ -264,33 +264,33 @@ runtime/
 ```
 
 The runtime is deliberately small. Everything that can be written in
-Astra lives in `std/`.
+Ofir lives in `std/`.
 
-## `std/` — standard library (Astra)
+## `std/` — standard library (Ofir)
 
-Module paths follow directories (spec 7.1): `std/collections/map.at` is the
-module `std.collections.map`, and a directory's `index.at` file is the
-module named after the directory (`std/fs/index.at` is `std.fs`). The tests
-of `x.at` are in `x_test.at` next to it (`std/core/list_test.at`).
+Module paths follow directories (spec 7.1): `std/collections/map.of` is the
+module `std.collections.map`, and a directory's `index.of` file is the
+module named after the directory (`std/fs/index.of` is `std.fs`). The tests
+of `x.of` are in `x_test.of` next to it (`std/core/list_test.of`).
 
 ```
 std/
 ├── core/                     std.core, the prelude: imported into every module (spec 7.4)
-│   ├── index.at              the prelude's own declarations (Ordering) and imports
-│   ├── str.at                `@lang("str")`: the methods of str
-│   ├── split.at              StrSplit and StrBytes, the iterators of str
-│   ├── print.at              eprint and eprintln
-│   ├── num/                  i8.at ... u64.at, f32.at, f64.at: the numeric methods, one file per
+│   ├── index.of              the prelude's own declarations (Ordering) and imports
+│   ├── str.of                `@lang("str")`: the methods of str
+│   ├── split.of              StrSplit and StrBytes, the iterators of str
+│   ├── print.of              eprint and eprintln
+│   ├── num/                  i8.of ... u64.of, f32.of, f64.of: the numeric methods, one file per
 │   │                         type, generated by tools/gen_core_numbers.py
-│   ├── box.at                `@lang("box")`: Box<T>, and the sizeOf<T>() intrinsic
-│   ├── list.at               `@lang("list")`: List<T>
-│   ├── slice.at              `@lang("slice")`: Slice<T>, the type `&[T]`
-│   ├── map.at                `@lang("map")`: Map<K, V>, ordered by insertion
-│   ├── hash.at               the deterministic hash functions of Map keys
-│   ├── option.at             `@lang("option")`: Option<T>, with Some and None in scope
-│   ├── result.at             `@lang("result")`: Result<T, E>, with Ok and Err in scope
-│   ├── interfaces.at         Eq, Ord, Hash, Clone, Display, Debug, Iterator, ...
-│   └── panic.at
+│   ├── box.of                `@lang("box")`: Box<T>, and the sizeOf<T>() intrinsic
+│   ├── list.of               `@lang("list")`: List<T>
+│   ├── slice.of              `@lang("slice")`: Slice<T>, the type `&[T]`
+│   ├── map.of                `@lang("map")`: Map<K, V>, ordered by insertion
+│   ├── hash.of               the deterministic hash functions of Map keys
+│   ├── option.of             `@lang("option")`: Option<T>, with Some and None in scope
+│   ├── result.of             `@lang("result")`: Result<T, E>, with Ok and Err in scope
+│   ├── interfaces.of         Eq, Ord, Hash, Clone, Display, Debug, Iterator, ...
+│   └── panic.of
 ├── mem/                      std.mem: replace and swap; take, UnsafeCell, Cell [planned]
 ├── collections/              std.collections [planned]: sets, deques; List, Map and Box are in std/core
 ├── strings/                  std.strings: join, fromUtf8, Builder
@@ -311,13 +311,13 @@ tests/
 ├── README.md                 how to write and run tests
 ├── runner/
 │   └── run_tests.py          test driver (developer dependency only)
-├── lex/                      *.at + *.tokens   expected token streams
-├── parse/                    *.at + *.ast      expected AST dumps
-├── run/                      *.at + *.out      compile, run, compare stdout
-├── compile_fail/             *.at with `// error[E0300]: message` annotations
-├── panic/                    *.at with `// panic: message` annotations
+├── lex/                      *.of + *.tokens   expected token streams
+├── parse/                    *.of + *.ast      expected AST dumps
+├── run/                      *.of + *.out      compile, run, compare stdout
+├── compile_fail/             *.of with `// error[E0300]: message` annotations
+├── panic/                    *.of with `// panic: message` annotations
 ├── borrow/                   ownership and borrow checker cases
-├── codegen/                  *.at + *.ll       FileCheck-style IR checks
+├── codegen/                  *.of + *.ll       FileCheck-style IR checks
 └── selfhost/                 stage2 == stage3 verification
 ```
 
@@ -341,7 +341,7 @@ tools/
 ├── check_docs.py             documentation comments of std, ADR 0020 (make test)
 ├── check_leaks.py            every run test under valgrind (make check-leaks)
 ├── gen_core_numbers.py       generates std/core/num/
-├── fmt/                      `astra fmt` [planned]
+├── fmt/                      `ofir fmt` [planned]
 └── lsp/                      language server [planned]
 ```
 
@@ -360,6 +360,6 @@ examples, tests, bench ──► compiler / bootstrap ──► runtime, std
 - `borrow` analyses AIR (a control-flow graph), not the AST.
 - `codegen` reads only AIR, never the AST.
 - `runtime` must not depend on `std`; `std/core` allocates only through
-  the runtime allocator (`astra_alloc`, for `str`), never through collections.
+  the runtime allocator (`ofir_alloc`, for `str`), never through collections.
 - Types and methods are documented in the [standard library
   reference](../std/README.md).

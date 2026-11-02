@@ -1,0 +1,576 @@
+/**
+ * @module
+ * The methods of `str` (docs/std/strings.md).
+ */
+
+extern "C" {
+    fn memcpy(dst: *mut u8, src: *u8, n: u64) *mut u8
+    fn memcmp(a: *u8, b: *u8, n: u64) i32
+    fn ofir_alloc(size: int) *mut u8
+    fn ofir_realloc(p: *mut u8, size: int) *mut u8
+    fn ofir_free(p: *mut u8)
+}
+
+/**
+ * An owned, growable UTF-8 string (spec 2.3).
+ *
+ * A literal points to read-only memory and has `cap == 0`; it is copied
+ * to the heap on its first modification, so literals cost nothing until
+ * then. `s[i]` is the byte at offset `i`, bounds checked, and `+` and
+ * interpolation (`"{x}"`) build new strings. The compiler and the runtime
+ * share the layout of the fields: `ptr`, `len`, `cap`.
+ *
+ * @example
+ * ```ofir
+ * var greeting = "hello"
+ * greeting.push(", world")
+ * println("{greeting.len()} {greeting.toUpper()}")   // 12 HELLO, WORLD
+ * ```
+ */
+@lang("str")
+pub struct str {
+    ptr: *u8
+    len: int
+    cap: int
+
+    /**
+     * An empty string; nothing is allocated.
+     *
+     * @returns `""`
+     */
+    pub fn new() str {
+        return ""
+    }
+
+    /**
+     * An empty string with room for `n` bytes, to avoid reallocations
+     * when the final length is known.
+     *
+     * @param n the number of bytes to make room for
+     * @returns `""`, with a capacity of at least `n`
+     * @panics when the system is out of memory
+     */
+    pub fn withCapacity(n: int) str {
+        var s = ""
+        if n > 0 {
+            s.reserve(n)
+        }
+        return s
+    }
+
+    /**
+     * A string that takes over a buffer of `len` bytes of UTF-8 text: it
+     * is freed when the string is dropped.
+     *
+     * @param ptr the first byte
+     * @param len the number of bytes
+     * @param cap the size of the buffer; with 0 the buffer is freed now
+     * @returns the string
+     * @safety `ptr` must come from `ofir_alloc` with room for `cap`
+     * bytes (or be null), hold valid UTF-8, and nothing else may free it
+     */
+    pub unsafe fn fromParts(ptr: *mut u8, len: int, cap: int) str {
+        if cap == 0 {
+            ofir_free(ptr)
+            return ""
+        }
+        var s = ""
+        s.ptr = ptr as *u8
+        s.len = len
+        s.cap = cap
+        return s
+    }
+
+    /**
+     * A copy of `len` bytes of UTF-8 text, as from C.
+     *
+     * @param ptr the first byte
+     * @param len the number of bytes
+     * @returns the new string
+     * @safety `ptr` must point to `len` readable bytes of valid UTF-8
+     */
+    pub unsafe fn fromRaw(ptr: *u8, len: int) str {
+        var s = str.withCapacity(len)
+        if len > 0 {
+            memcpy(s.ptr as *mut u8, ptr, len as u64)
+        }
+        s.len = len
+        return s
+    }
+
+    /**
+     * The address of the first byte, for C functions that read the text.
+     * It is not followed by a NUL.
+     *
+     * @returns the pointer; reading through it requires `unsafe`
+     */
+    pub fn asPtr(self) *u8 {
+        return self.ptr
+    }
+
+    /**
+     * The length in bytes, not in characters: `"é".len()` is 2.
+     *
+     * @returns the number of bytes
+     */
+    pub fn len(self) int {
+        return self.len
+    }
+
+    /**
+     * Whether the string has no bytes.
+     *
+     * @returns true for `""`
+     */
+    pub fn isEmpty(self) bool {
+        return self.len == 0
+    }
+
+    /**
+     * Appends a string at the end. The capacity doubles when it runs out,
+     * so pushing in a loop takes amortized constant time per byte.
+     *
+     * @param t the string to append
+     * @panics when the system is out of memory
+     * @example
+     * ```ofir
+     * var s = "a"
+     * s.push("bc")   // "abc"
+     * ```
+     */
+    pub fn push(mut self, t: str) {
+        if t.len == 0 {
+            return
+        }
+        self.reserve(t.len)
+        unsafe {
+            memcpy(self.ptr.add(self.len) as *mut u8, t.ptr, t.len as u64)
+        }
+        self.len += t.len
+    }
+
+    /**
+     * Appends a Unicode scalar value, encoded as UTF-8 (1 to 4 bytes).
+     *
+     * @param c the scalar value
+     * @panics when `c` is above `0x10FFFF` or a surrogate (`0xD800` to
+     * `0xDFFF`)
+     * @example
+     * ```ofir
+     * var s = "caf"
+     * s.pushChar(0xE9)   // "café", 5 bytes
+     * ```
+     */
+    pub fn pushChar(mut self, c: u32) {
+        if c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF) {
+            panic("pushChar: {c} is not a Unicode scalar value")
+        }
+        if c < 0x80 {
+            self.pushByte(c as u8)
+        } else if c < 0x800 {
+            self.pushByte((0xC0 | (c >> 6)) as u8)
+            self.pushByte((0x80 | (c & 0x3F)) as u8)
+        } else if c < 0x10000 {
+            self.pushByte((0xE0 | (c >> 12)) as u8)
+            self.pushByte((0x80 | ((c >> 6) & 0x3F)) as u8)
+            self.pushByte((0x80 | (c & 0x3F)) as u8)
+        } else {
+            self.pushByte((0xF0 | (c >> 18)) as u8)
+            self.pushByte((0x80 | ((c >> 12) & 0x3F)) as u8)
+            self.pushByte((0x80 | ((c >> 6) & 0x3F)) as u8)
+            self.pushByte((0x80 | (c & 0x3F)) as u8)
+        }
+    }
+
+    /**
+     * Empties the string. A heap buffer keeps its capacity, for reuse.
+     */
+    pub fn clear(mut self) {
+        if self.cap == 0 {
+            self.ptr = "".ptr
+        }
+        self.len = 0
+    }
+
+    /**
+     * Whether the string begins with `prefix`.
+     *
+     * @param prefix the bytes to look for at the start
+     * @returns true if the first bytes equal `prefix`; always for `""`
+     * @example
+     * ```ofir
+     * assert("main.of".startsWith("main"))
+     * ```
+     */
+    pub fn startsWith(self, prefix: str) bool {
+        return prefix.len <= self.len && sameBytes(self.ptr, prefix.ptr, prefix.len)
+    }
+
+    /**
+     * Whether the string ends with `suffix`.
+     *
+     * @param suffix the bytes to look for at the end
+     * @returns true if the last bytes equal `suffix`; always for `""`
+     * @example
+     * ```ofir
+     * assert("main.of".endsWith(".of"))
+     * ```
+     */
+    pub fn endsWith(self, suffix: str) bool {
+        if suffix.len > self.len {
+            return false
+        }
+        let start = unsafe { self.ptr.add(self.len - suffix.len) }
+        return sameBytes(start, suffix.ptr, suffix.len)
+    }
+
+    /**
+     * Whether `part` occurs in the string, by a direct search: O(n * m).
+     *
+     * @param part the bytes to look for
+     * @returns true if some substring equals `part`; always for `""`
+     * @example
+     * ```ofir
+     * assert("hello".contains("ell"))
+     * ```
+     */
+    pub fn contains(self, part: str) bool {
+        for i in 0..=self.len - part.len {
+            if sameBytes(unsafe { self.ptr.add(i) }, part.ptr, part.len) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * The string repeated, in one allocation.
+     *
+     * @param n how many copies
+     * @returns `n` copies one after the other; `""` when `n <= 0`
+     * @example
+     * ```ofir
+     * assert("ab".repeat(3) == "ababab")
+     * ```
+     */
+    pub fn repeat(self, n: int) str {
+        var out = ""
+        if n > 0 && self.len > 0 {
+            out.reserve(self.len * n)
+        }
+        for _ in 0..n {
+            out.push(self)
+        }
+        return out
+    }
+
+    /**
+     * A view of part of the string: `s[lo..hi]`. Nothing is copied: the
+     * view has no capacity of its own, so modifying it copies it first.
+     *
+     * @param lo the offset of the first byte
+     * @param hi the offset after the last byte
+     * @returns the bytes `lo` to `hi - 1`
+     * @panics unless `0 <= lo <= hi <= len()`, or when `lo` or `hi` is not
+     * on a character boundary of the UTF-8 text
+     * @example
+     * ```ofir
+     * let s = "hello, world"
+     * assert(s[0..5] == "hello")
+     * ```
+     */
+    pub fn slice(self, lo: int, hi: int) str {
+        checkRange(lo, hi, self.len)
+        if !self.isBoundary(lo) || !self.isBoundary(hi) {
+            panic("byte range {lo}..{hi} is not on character boundaries")
+        }
+        var view = ""
+        view.ptr = unsafe { self.ptr.add(lo) }
+        view.len = hi - lo
+        return view
+    }
+
+    /**
+     * A view of the end of the string: `s[lo..]`.
+     *
+     * @param lo the offset of the first byte
+     * @returns the bytes from `lo` to the end
+     * @panics unless `0 <= lo <= len()` and `lo` is on a character boundary
+     */
+    pub fn sliceFrom(self, lo: int) str {
+        return self.slice(lo, self.len)
+    }
+
+    /**
+     * The offset of the first occurrence of `part`.
+     *
+     * @param part the bytes to look for
+     * @returns `Some(offset)` of the first match, `None` when there is none;
+     * `Some(0)` for `""`
+     * @example
+     * ```ofir
+     * let at = "key=value".find("=") ?? -1   // 3
+     * ```
+     */
+    pub fn find(self, part: str) Option<int> {
+        return findFrom(self, part, 0)
+    }
+
+    /**
+     * A view without the ASCII whitespace at both ends (space, `\t`, `\n`,
+     * `\r`, form feed and vertical tab).
+     *
+     * @returns the trimmed bytes, borrowed from this string
+     * @example
+     * ```ofir
+     * assert("  hi \n".trim() == "hi")
+     * ```
+     */
+    pub fn trim(self) str {
+        return self.trimStart().trimEnd()
+    }
+
+    /**
+     * A view without the ASCII whitespace at the start.
+     *
+     * @returns the trimmed bytes, borrowed from this string
+     */
+    pub fn trimStart(self) str {
+        var lo = 0
+        for lo < self.len && isSpace(self[lo]) {
+            lo += 1
+        }
+        return self.sliceFrom(lo)
+    }
+
+    /**
+     * A view without the ASCII whitespace at the end.
+     *
+     * @returns the trimmed bytes, borrowed from this string
+     */
+    pub fn trimEnd(self) str {
+        var hi = self.len
+        for hi > 0 && isSpace(self[hi - 1]) {
+            hi -= 1
+        }
+        return self.slice(0, hi)
+    }
+
+    /**
+     * A copy with every occurrence of `from` replaced by `to`, scanning
+     * left to right without overlaps.
+     *
+     * @param from the bytes to replace; `""` replaces nothing
+     * @param to the replacement
+     * @returns the new string
+     * @example
+     * ```ofir
+     * assert("a-b-c".replace("-", ", ") == "a, b, c")
+     * ```
+     */
+    pub fn replace(self, from: str, to: str) str {
+        var out = ""
+        var at = 0
+        for from.len > 0 {
+            let .Some(i) = findFrom(self, from, at) else {
+                break
+            }
+            out.push(self.slice(at, i))
+            out.push(to)
+            at = i + from.len
+        }
+        out.push(self.sliceFrom(at))
+        return out
+    }
+
+    /**
+     * The parts between the occurrences of `sep`, as views of this string.
+     * Separators next to each other give empty parts.
+     *
+     * @param sep the separator
+     * @returns an iterator over the parts: one part `""` for `""`
+     * @panics when `sep` is `""`
+     * @example
+     * ```ofir
+     * for field in "a,b,,c".split(",") {
+     *     println("[{field}]")   // [a] [b] [] [c]
+     * }
+     * ```
+     */
+    pub fn split(self, sep: str) StrSplit {
+        return StrSplit.on(self, sep)
+    }
+
+    /**
+     * The words: the parts between runs of ASCII whitespace, never empty.
+     *
+     * @returns an iterator over the words, as views of this string
+     * @example
+     * ```ofir
+     * for word in "  to be  or\tnot ".splitWhitespace() {
+     *     println(word)   // to, be, or, not
+     * }
+     * ```
+     */
+    pub fn splitWhitespace(self) StrSplit {
+        return StrSplit.words(self)
+    }
+
+    /**
+     * The lines: the parts between `\n`, without a `\r` at their end. A
+     * final `\n` does not start another line.
+     *
+     * @returns an iterator over the lines, as views of this string
+     * @example
+     * ```ofir
+     * for line in "one\r\ntwo\n".lines() {
+     *     println(line)   // one, two
+     * }
+     * ```
+     */
+    pub fn lines(self) StrSplit {
+        return StrSplit.lines(self)
+    }
+
+    /**
+     * The bytes, in order.
+     *
+     * @returns an iterator over the bytes
+     * @example
+     * ```ofir
+     * var sum = 0
+     * for b in "abc".bytes() {
+     *     sum += b as int   // 97 + 98 + 99
+     * }
+     * ```
+     */
+    pub fn bytes(self) StrBytes {
+        return StrBytes.of(self)
+    }
+
+    /**
+     * A copy with the ASCII letters in lower case; other bytes, including
+     * non-ASCII letters, are unchanged.
+     *
+     * @returns the new string
+     * @example
+     * ```ofir
+     * assert("Ofir 1.0".toLower() == "ofir 1.0")
+     * ```
+     */
+    pub fn toLower(self) str {
+        return self.mapAscii(b'A', b'Z')
+    }
+
+    /**
+     * A copy with the ASCII letters in upper case; other bytes are
+     * unchanged.
+     *
+     * @returns the new string
+     */
+    pub fn toUpper(self) str {
+        return self.mapAscii(b'a', b'z')
+    }
+
+    /**
+     * A copy on the heap, owned by the caller, also for a literal.
+     *
+     * @returns the new string
+     */
+    pub fn toOwned(self) str {
+        var out = ""
+        out.push(self)
+        return out
+    }
+
+    /**
+     * A copy on the heap, owned by the caller: the same as `toOwned`.
+     *
+     * @returns the new string
+     */
+    pub fn clone(self) str {
+        return self.toOwned()
+    }
+
+    // Frees the heap buffer when the string is dropped (spec 5.2); a
+    // literal or a view (`cap == 0`) has none.
+    fn drop(mut self) {
+        if self.cap > 0 {
+            unsafe {
+                ofir_free(self.ptr as *mut u8)
+            }
+        }
+    }
+
+    // Whether a character starts at byte `i` (or `i` is the end): UTF-8
+    // continuation bytes are 0b10xxxxxx.
+    fn isBoundary(self, i: int) bool {
+        return i == self.len || unsafe { *self.ptr.add(i) } & 0xC0 != 0x80
+    }
+
+    fn pushByte(mut self, b: u8) {
+        self.reserve(1)
+        unsafe {
+            *(self.ptr.add(self.len) as *mut u8) = b
+        }
+        self.len += 1
+    }
+
+    // Makes room for `extra` more bytes; a literal moves to the heap.
+    fn reserve(mut self, extra: int) {
+        let needed = self.len + extra
+        if needed <= self.cap {
+            return
+        }
+        var cap = if self.cap > 0 { self.cap * 2 } else { 16 }
+        for cap < needed {
+            cap *= 2
+        }
+        unsafe {
+            if self.cap == 0 {
+                let heap = ofir_alloc(cap)
+                if self.len > 0 {
+                    memcpy(heap, self.ptr, self.len as u64)
+                }
+                self.ptr = heap
+            } else {
+                self.ptr = ofir_realloc(self.ptr as *mut u8, cap)
+            }
+        }
+        self.cap = cap
+    }
+
+    // A copy where the bytes in `from..=to` have their ASCII case flipped.
+    fn mapAscii(self, from: u8, to: u8) str {
+        var out = self.toOwned()
+        for i in 0..out.len {
+            unsafe {
+                let at = out.ptr.add(i) as *mut u8
+                if *at >= from && *at <= to {
+                    *at = *at ^ 0x20
+                }
+            }
+        }
+        return out
+    }
+}
+
+// Whether the `n` bytes at `a` and `b` are equal.
+fn sameBytes(a: *u8, b: *u8, n: int) bool {
+    return n == 0 || unsafe { memcmp(a, b, n as u64) } == 0
+}
+
+// The offset of the first `part` at or after `from`, or None.
+fn findFrom(text: str, part: str, from: int) Option<int> {
+    for i in from..=text.len - part.len {
+        if sameBytes(unsafe { text.ptr.add(i) }, part.ptr, part.len) {
+            return .Some(i)
+        }
+    }
+    return .None
+}
+
+// ASCII whitespace: space, \t, \n, vertical tab, form feed, \r.
+fn isSpace(b: u8) bool {
+    return b == b' ' || (b >= 9 && b <= 13)
+}

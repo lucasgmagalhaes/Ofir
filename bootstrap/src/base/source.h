@@ -3,8 +3,8 @@
 // Positions are byte offsets in a file (`Span`); line and column numbers
 // are computed only when a diagnostic is rendered.
 
-#ifndef ASTRA_SOURCE_H
-#define ASTRA_SOURCE_H
+#ifndef OFIR_SOURCE_H
+#define OFIR_SOURCE_H
 
 #include "base/arena.h"
 #include "base/str.h"

@@ -1,5 +1,5 @@
 // `List<T>` (docs/std/collections.md): the parts the compiler provides on
-// top of `std/core/list.at` — literals, indexing and `for` loops.
+// top of `std/core/list.of` — literals, indexing and `for` loops.
 
 #include "sema/check_internal.h"
 

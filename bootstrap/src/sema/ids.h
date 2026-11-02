@@ -2,8 +2,8 @@
 // 2). The AST stores them as annotations filled in by the resolver and the
 // type checker.
 
-#ifndef ASTRA_IDS_H
-#define ASTRA_IDS_H
+#ifndef OFIR_IDS_H
+#define OFIR_IDS_H
 
 #include <stdint.h>
 

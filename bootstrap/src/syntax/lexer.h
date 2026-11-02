@@ -1,7 +1,7 @@
 // Lexer: source text → tokens (spec chapter 1).
 
-#ifndef ASTRA_LEXER_H
-#define ASTRA_LEXER_H
+#ifndef OFIR_LEXER_H
+#define OFIR_LEXER_H
 
 #include "session.h"
 #include "syntax/token.h"

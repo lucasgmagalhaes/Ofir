@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checks the documentation comments of the standard library (ADR 0020).
 
-Every file of std/ (but the `_test.at` files, which hold tests of a module
+Every file of std/ (but the `_test.of` files, which hold tests of a module
 and declare nothing public) starts with a `/** @module ... */` comment, and every
 public declaration has a `/** ... */` comment before it: functions,
 methods, structs, enums, constants, public fields and the variants of
@@ -203,7 +203,7 @@ def check_file(path: Path, problems: list) -> None:
 def main() -> int:
     problems = []
     for source in SOURCES:
-        for path in sorted((ROOT / source).rglob("*.at")):
+        for path in sorted((ROOT / source).rglob("*.of")):
             if not path.stem.endswith("_test"):
                 check_file(path, problems)
     for p in problems:

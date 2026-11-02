@@ -1,7 +1,7 @@
 // Tokens (spec chapter 1).
 
-#ifndef ASTRA_TOKEN_H
-#define ASTRA_TOKEN_H
+#ifndef OFIR_TOKEN_H
+#define OFIR_TOKEN_H
 
 #include "base/intern.h"
 #include "base/source.h"

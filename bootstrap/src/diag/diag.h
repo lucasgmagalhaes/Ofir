@@ -2,8 +2,8 @@
 //
 // Codes come from the registry in docs/errors/README.md.
 
-#ifndef ASTRA_DIAG_H
-#define ASTRA_DIAG_H
+#ifndef OFIR_DIAG_H
+#define OFIR_DIAG_H
 
 #include "base/source.h"
 #include "base/vec.h"

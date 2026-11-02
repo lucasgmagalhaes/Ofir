@@ -1,0 +1,4 @@
+// fake-stdout: Hello, Ofir!
+fn main() {
+    println("Hello, Ofir!")
+}

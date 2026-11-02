@@ -1,7 +1,7 @@
 // Common definitions shared by every part of the stage 0 compiler.
 
-#ifndef ASTRA_COMMON_H
-#define ASTRA_COMMON_H
+#ifndef OFIR_COMMON_H
+#define OFIR_COMMON_H
 
 #include <stdbool.h>
 #include <stddef.h>

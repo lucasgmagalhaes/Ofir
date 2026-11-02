@@ -3,13 +3,13 @@
 of the stage 1 compiler in `compiler/` (roadmap phase 4).
 
 Every std module is also checked whole, as the root: other programs check
-only the std bodies they use. Every module with tests (in its `_test.at`
-file) is compiled with `astra test`, which
+only the std bodies they use. Every module with tests (in its `_test.of`
+file) is compiled with `ofir test`, which
 runs each test in a process of its own. Fails if any test fails. Then
-checks `astra test` itself: the standard output of each
-`tests/astra_test/*.at` must match its `.out` file.
+checks `ofir test` itself: the standard output of each
+`tests/ofir_test/*.of` must match its `.out` file.
 
-    python3 tools/run_std_tests.py --compiler build/stage0/astra
+    python3 tools/run_std_tests.py --compiler build/stage0/ofir
 """
 
 import argparse
@@ -27,12 +27,12 @@ DIRS = ["std", "compiler/base", "compiler/diag", "compiler/syntax", "compiler/se
 
 
 def modules_with_tests() -> list[Path]:
-    """The modules with tests: the module of each `x_test.at` file
+    """The modules with tests: the module of each `x_test.of` file
     (spec 12.2), and any module with `@test` functions of its own."""
     found = set()
-    for path in sorted(p for d in DIRS for p in (ROOT / d).rglob("*.at")):
+    for path in sorted(p for d in DIRS for p in (ROOT / d).rglob("*.of")):
         if path.stem.endswith("_test"):
-            found.add(path.with_name(path.stem[:-len("_test")] + ".at"))
+            found.add(path.with_name(path.stem[:-len("_test")] + ".of"))
         elif any(line.startswith("@test") for line in path.read_text().splitlines()):
             found.add(path)
     return sorted(found)
@@ -63,7 +63,7 @@ def check_std_whole(compiler: str) -> bool:
     """Checks each std module as the root, where every body is checked: a
     program checks only the std bodies it uses (sema_check_late)."""
     ok = True
-    paths = [p for p in sorted((ROOT / "std").rglob("*.at")) if not p.stem.endswith("_test")]
+    paths = [p for p in sorted((ROOT / "std").rglob("*.of")) if not p.stem.endswith("_test")]
     for path in paths:
         result = subprocess.run([compiler, "build", str(path), "--stop-after=check",
                                  "--deny-warnings"], capture_output=True, text=True)
@@ -77,14 +77,14 @@ def check_std_whole(compiler: str) -> bool:
 
 def check_fixtures(compiler: str) -> bool:
     ok = True
-    for path in sorted((ROOT / "tests" / "astra_test").glob("*.at")):
+    for path in sorted((ROOT / "tests" / "ofir_test").glob("*.of")):
         if path.stem.endswith("_test"):
             continue   # loaded with its module
         result = subprocess.run([compiler, "test", str(path)], capture_output=True, text=True)
         expected = path.with_suffix(".out").read_text()
         if result.stdout != expected:
             ok = False
-            print(f"FAIL {path.relative_to(ROOT)}: the output of `astra test` differs")
+            print(f"FAIL {path.relative_to(ROOT)}: the output of `ofir test` differs")
             sys.stdout.write(result.stdout)
     return ok
 

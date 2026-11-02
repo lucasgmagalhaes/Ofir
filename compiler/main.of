@@ -1,0 +1,145 @@
+/**
+ * @module
+ * The stage 1 compiler's entry point (roadmap phase 4). Until the driver
+ * (task 4.9) it has the commands that compare each port with stage 0:
+ *
+ *     main tokens <file.of>   the tokens, as `ofir build --emit=tokens`
+ *     main ast <file.of>      the syntax tree, as `ofir build --emit=ast`
+ *     main names <file.of>    what the names resolve to, as `--emit=names`
+ *     main types <file.of>    the types of declarations and locals, as `--emit=types`
+ */
+
+import air.air_print.AirPrinter
+import air.lower.lowerProgram
+import base.intern.Interner
+import base.span.SourceMap
+import diag.Diagnostics
+import driver.modules.Front
+import driver.modules.loadProgram
+import sema.check.Checker
+import sema.check.checkProgram
+import sema.program.Program
+import sema.resolve.resolveProgram
+import sema.type_trace.traceTypes
+import std.fs
+import std.os
+import syntax.ast_print.printModule
+import syntax.lexer.tokenize
+import syntax.parser.parse
+import syntax.token_print.printTokens
+
+fn main() {
+    let args = os.args()
+    let command = if args.len() == 3 { args[1].clone() } else { "" }
+    let known = command == "tokens" || command == "ast" || command == "names" ||
+                command == "types" || command == "air"
+    if !known {
+        eprintln("usage: main tokens|ast|names|types|air <file.of>")
+        os.exit(2)
+    }
+    let path = args[2].clone()
+    let text = match fs.readToString(path) {
+        .Ok(text) => text
+        .Err(_) => {
+            eprintln("error[E0900]: cannot read `{path}`")
+            os.exit(1)
+        }
+    }
+    if command == "names" || command == "types" || command == "air" {
+        names(path, text, command)
+        return
+    }
+    var map = SourceMap.new()
+    let file = map.add(path, text)
+    var names = Interner.new()
+    var diags = Diagnostics.new()
+    let tokens = tokenize(map.file(file).text, file, names, diags)
+    if args[1] == "tokens" {
+        print(printTokens(tokens, *map.file(file), names))
+        eprint(diags.render(map, .Human))
+        if diags.hasErrors() {
+            os.exit(1)
+        }
+        return
+    }
+    if diags.hasErrors() {   // as stage 0: no tree after lexical errors
+        eprint(diags.render(map, .Human))
+        os.exit(1)
+    }
+    let parsed = parse(file, map.file(file).text, tokens, names, diags)
+    print(printModule(parsed.module, parsed.names))
+    eprint(parsed.diags.render(map, .Human))
+    if parsed.diags.hasErrors() {
+        os.exit(1)
+    }
+}
+
+// `main names <file.of>`: loads and resolves the program (roadmap 4.5).
+fn names(path: str, text: move str, command: str) {
+    let types = command != "names"
+    var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
+    let file = front.map.add(path.clone(), text)
+    let parsed = front.parseFile(file)
+    if front.diags.hasErrors() {   // as stage 0: the root's errors stop before loading
+        fail(front.diags, front.map)
+    }
+    let Some(root) = parsed else {
+        fail(front.diags, front.map)
+    }
+    let program = loadProgram(path, root, front)
+    if front.diags.hasErrors() {
+        fail(front.diags, front.map)
+    }
+    let r = resolveProgram(program, front.names, front.diags, front.map, !types)
+    if !types {
+        print(r.trace.out)
+        eprint(r.diags.render(r.map, .Human))
+        if r.diags.hasErrors() {
+            os.exit(1)
+        }
+        return
+    }
+    if r.diags.hasErrors() {   // as stage 0: no checking after name errors
+        eprint(r.diags.render(r.map, .Human))
+        os.exit(1)
+    }
+    var c = checkProgram(program, r)
+    if command == "air" {
+        air(c, program)
+        return
+    }
+    print(traceTypes(c, program))
+    eprint(c.r.diags.render(c.r.map, .Human))
+    if c.r.diags.hasErrors() {
+        os.exit(1)
+    }
+}
+
+// `main air <file.of>`: lowers the program (roadmap 4.7). Exits with 3, and
+// prints nothing, when the program uses a construct stage 1 does not lower
+// yet.
+fn air(c: mut Checker, program: Program) {
+    if c.r.diags.hasErrors() {   // as stage 0: no lowering after errors
+        eprint(c.r.diags.render(c.r.map, .Human))
+        os.exit(1)
+    }
+    let l = lowerProgram(c, program)
+    if l.unsupported {
+        eprintln("stage 1 does not lower {l.missing} yet")
+        os.exit(3)
+    }
+    var printer = AirPrinter{out: ""}
+    for i in 0..l.out.len() {
+        printer.body(c, &l.out[i])
+    }
+    print(printer.out)
+    eprint(c.r.diags.render(c.r.map, .Human))
+    if c.r.diags.hasErrors() {
+        os.exit(1)
+    }
+}
+
+fn fail(diags: Diagnostics, map: SourceMap) ! {
+    eprint(diags.render(map, .Human))
+    os.exit(1)
+}

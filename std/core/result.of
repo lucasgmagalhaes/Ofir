@@ -1,0 +1,130 @@
+/**
+ * @module
+ * `Result<T, E>`: a value or an error (spec 6, docs/std/core.md).
+ *
+ * `Ok` and `Err` are in scope everywhere, in expressions and patterns.
+ */
+
+/**
+ * The outcome of an operation that can fail: a value, or an error that
+ * says why.
+ *
+ * Ofir has no exceptions: recoverable errors are values, and ignoring a
+ * Result is a compile error (E0305). Handle it with `match`, propagate it
+ * with `?`, or ignore it explicitly with `let _ = ...`. Bugs panic
+ * instead. `Result<T, E>` is Copy when `T` and `E` are.
+ *
+ * @typeParam T the type of the value
+ * @typeParam E the type of the error
+ * @example
+ * ```ofir
+ * fn parsePort(s: str) Result<u16, str> {
+ *     let n = parseInt(s)?          // returns the error to the caller
+ *     if n < 1 || n > 65535 {
+ *         return Err("port out of range: {n}")
+ *     }
+ *     return Ok(n as u16)
+ * }
+ * ```
+ */
+@lang("result")
+pub enum Result<T, E> {
+    /** The operation succeeded with `value`. */
+    Ok(value: T)
+    /** The operation failed with `error`. */
+    Err(error: E)
+
+    /**
+     * Whether the operation succeeded.
+     *
+     * @returns true for `Ok`
+     */
+    pub fn isOk(self) bool {
+        return match self {
+            Ok(_) => true
+            Err(_) => false
+        }
+    }
+
+    /**
+     * Whether the operation failed.
+     *
+     * @returns true for `Err`
+     */
+    pub fn isErr(self) bool {
+        return !self.isOk()
+    }
+
+    /**
+     * Takes the value out. Prefer `?` or `match` where an error is
+     * possible: `unwrap` is for when an error would be a bug.
+     *
+     * @returns the value of `Ok`
+     * @panics on `Err`; stage 0 does not show the error (it needs `Debug`)
+     */
+    pub fn unwrap(move self) T {
+        return match self {
+            Ok(value) => value
+            Err(_) => panic("called `unwrap` on an `Err` value")
+        }
+    }
+
+    /**
+     * Takes the value out, with a message explaining why it cannot fail.
+     *
+     * @param message the panic message for `Err`
+     * @returns the value of `Ok`
+     * @panics on `Err`, with `message`
+     * @example
+     * ```ofir
+     * let text = readFile("config.toml").expect("the config file exists")
+     * ```
+     */
+    pub fn expect(move self, message: str) T {
+        return match self {
+            Ok(value) => value
+            Err(_) => panic(message)
+        }
+    }
+
+    /**
+     * Takes the value out, or a default, dropping the error.
+     *
+     * @param fallback the value for `Err`
+     * @returns the value of `Ok`, else `fallback`
+     * @example
+     * ```ofir
+     * let n = parseInt("x").unwrapOr(0)   // 0
+     * ```
+     */
+    pub fn unwrapOr(move self, fallback: move T) T {
+        return match self {
+            Ok(value) => value
+            Err(_) => fallback
+        }
+    }
+
+    /**
+     * The value as an Option, dropping the error.
+     *
+     * @returns `Some` with the value of `Ok`, else `None`
+     */
+    pub fn ok(move self) Option<T> {
+        return match self {
+            Ok(value) => Some(value)
+            Err(_) => None
+        }
+    }
+
+    /**
+     * The error as an Option, dropping the value.
+     *
+     * @returns `Some` with the error of `Err`, else `None`
+     */
+    pub fn err(move self) Option<E> {
+        return match self {
+            Ok(_) => None
+            Err(error) => Some(error)
+        }
+    }
+}

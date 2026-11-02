@@ -1,0 +1,28 @@
+// std.os (roadmap 3.9): arguments, environment and running a program,
+// here the C compiler the toolchain uses.
+
+import std.io
+import std.os
+
+fn main() {
+    let args = os.args()
+    println("args {args.len()}")
+    println("unset {os.env("OFIR_SURELY_UNSET_VARIABLE") ?? "none"}")
+    match os.run("clang", ["--version"]) {
+        .Ok(out) => println("clang {out.status} {out.stdout.contains("clang version")}")
+        .Err(e) => println("clang: {e.message}")
+    }
+    match os.run("sh", ["-c", "printf out; printf err >&2; exit 3"]) {
+        .Ok(out) => println("sh {out.status} [{out.stdout}] [{out.stderr}]")
+        .Err(e) => println("sh: {e.message}")
+    }
+    match os.run("ofir-no-such-program", []) {
+        .Ok(out) => println("missing ran {out.status}")
+        .Err(e) => println("missing {e.kind == io.IoErrorKind.NotFound}")
+    }
+    match os.currentDir() {
+        .Ok(dir) => println("cwd absolute {dir.startsWith("/")}")
+        .Err(e) => println("cwd: {e.message}")
+    }
+    eprintln("this goes to standard error")
+}

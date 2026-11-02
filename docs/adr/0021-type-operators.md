@@ -13,13 +13,13 @@ lets the copies drift apart.
 
 TypeScript answers with type operators: `keyof T`, indexed access `T[K]`,
 mapped types `{ [K in keyof T]: ... }` and conditional types, all erased
-before the program runs. Astra's types are nominal, its unions are tagged
+before the program runs. Ofir's types are nominal, its unions are tagged
 (ADR 0022) and it has no runtime reflection (ADR 0017), so the operators
 must be adapted, not copied.
 
 ## Decision
 
-Astra adopts type operators that are resolved entirely during compilation
+Ofir adopts type operators that are resolved entirely during compilation
 (spec chapter 16):
 
 - `keyof T` is a **key type**: the names of the fields of struct `T` (or

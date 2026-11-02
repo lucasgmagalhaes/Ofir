@@ -1,8 +1,8 @@
-# Astra Language Specification
+# Ofir Language Specification
 
 Version: **0.1 (draft)**
 
-This specification describes the Astra language. Sections marked
+This specification describes the Ofir language. Sections marked
 **[planned]** are part of the design but are not required for the first
 (bootstrap) implementation.
 

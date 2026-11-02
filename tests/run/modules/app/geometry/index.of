@@ -1,0 +1,5 @@
+// The module `geometry` itself: a directory's `index.of` (spec 7.1).
+
+pub fn unitArea() float {
+    return 1.0
+}

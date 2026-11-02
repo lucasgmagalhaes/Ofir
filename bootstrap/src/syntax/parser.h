@@ -1,7 +1,7 @@
 // Parser: tokens → AST (spec appendix A).
 
-#ifndef ASTRA_PARSER_H
-#define ASTRA_PARSER_H
+#ifndef OFIR_PARSER_H
+#define OFIR_PARSER_H
 
 #include "session.h"
 #include "syntax/ast.h"

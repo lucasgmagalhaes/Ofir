@@ -12,14 +12,14 @@ evaluation with type introspection (Zig's `comptime`).
 
 ## Decision
 
-Astra has **no macros and no runtime reflection**. It will provide
+Ofir has **no macros and no runtime reflection**. It will provide
 `comptime` evaluation, `std.meta` type information and `comptime for` /
 `comptime if` (spec chapter 15), with `@tag` attributes as metadata.
 
 ## Consequences
 
 - Generic libraries (JSON, debug printing, ORMs) are ordinary, type-checked
-  Astra code with zero runtime cost.
+  Ofir code with zero runtime cost.
 - No new syntax can be invented by users, which keeps code readable and
   tooling (formatter, language server) simple.
 - Compile-time execution needs an interpreter inside the compiler, which is

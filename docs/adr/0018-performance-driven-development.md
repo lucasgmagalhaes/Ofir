@@ -5,7 +5,7 @@
 
 ## Context
 
-"Fast" is a primary goal of Astra, for the compiler and for generated code.
+"Fast" is a primary goal of Ofir, for the compiler and for generated code.
 Without measurements, performance work is guesswork and regressions go
 unnoticed until they are expensive to fix.
 

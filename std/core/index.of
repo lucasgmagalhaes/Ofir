@@ -1,0 +1,110 @@
+/**
+ * @module
+ * The prelude: every module sees the public declarations of `std.core`
+ * without an import (spec 7.4, docs/std/core.md).
+ *
+ * The methods of the primitive types live in the submodules, as `@lang`
+ * declarations (ADR 0019). The public declarations of the submodules
+ * (`std.core.box`, `std.core.option`, ...) belong to the prelude too.
+ */
+
+import std.core.str
+import std.core.split
+import std.core.num.i8
+import std.core.num.i16
+import std.core.num.i32
+import std.core.num.i64
+import std.core.num.u8
+import std.core.num.u16
+import std.core.num.u32
+import std.core.num.u64
+import std.core.num.f32
+import std.core.num.f64
+import std.core.box
+import std.core.list
+import std.core.slice
+import std.core.hash
+import std.core.map
+import std.core.option
+import std.core.result
+import std.core.print
+
+/**
+ * The result of comparing two values: what `compare` methods and sorting
+ * use (docs/std/core.md).
+ *
+ * @example
+ * ```ofir
+ * let order = if a < b { Ordering.Less } else if a > b { Ordering.Greater } else { Ordering.Equal }
+ * ```
+ */
+pub copy enum Ordering {
+    /** The first value comes before the second. */
+    Less
+    /** The values are equal. */
+    Equal
+    /** The first value comes after the second. */
+    Greater
+
+    /**
+     * Whether the first value is less than the second.
+     *
+     * @returns true for `Less`
+     */
+    pub fn isLt(self) bool {
+        return self == .Less
+    }
+
+    /**
+     * Whether the values are equal.
+     *
+     * @returns true for `Equal`
+     */
+    pub fn isEq(self) bool {
+        return self == .Equal
+    }
+
+    /**
+     * Whether the first value is greater than the second.
+     *
+     * @returns true for `Greater`
+     */
+    pub fn isGt(self) bool {
+        return self == .Greater
+    }
+
+    /**
+     * The ordering of the values swapped, for a descending order.
+     *
+     * @returns `Greater` for `Less`, `Less` for `Greater`, `Equal` unchanged
+     */
+    pub fn reverse(self) Ordering {
+        return match self {
+            .Less => .Greater
+            .Equal => .Equal
+            .Greater => .Less
+        }
+    }
+
+    /**
+     * Chains comparisons, for a lexicographic order: the second key
+     * decides only when the first one is equal.
+     *
+     * @param other the ordering of the next key
+     * @returns `self`, or `other` when `self` is `Equal`
+     * @example
+     * ```ofir
+     * let order = compareInt(a.age, b.age).then(compareStr(a.name, b.name))
+     * ```
+     */
+    pub fn then(self, other: Ordering) Ordering {
+        return if self == .Equal { other } else { self }
+    }
+}
+
+/**
+ * Why a text is not a number: the error of `int.parse`, `float.parse` and
+ * the `parse` of the other numeric types.
+ */
+pub copy struct ParseError {
+}

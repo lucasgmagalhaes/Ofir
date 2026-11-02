@@ -1,7 +1,7 @@
 // Monotonic clock for `--time-passes`.
 
-#ifndef ASTRA_CLOCK_H
-#define ASTRA_CLOCK_H
+#ifndef OFIR_CLOCK_H
+#define OFIR_CLOCK_H
 
 #include <time.h>
 

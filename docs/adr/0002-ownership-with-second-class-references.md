@@ -5,14 +5,14 @@
 
 ## Context
 
-Astra has no garbage collector. Memory safety without a GC requires either
+Ofir has no garbage collector. Memory safety without a GC requires either
 reference counting (runtime cost), manual management (unsafe), or ownership
 with borrow checking (Rust). Rust's model is powerful but its lifetime
 annotations are the main source of its learning curve.
 
 ## Decision
 
-Astra uses ownership and borrowing with **second-class references**:
+Ofir uses ownership and borrowing with **second-class references**:
 references may be parameters, locals and temporaries, but cannot be stored
 in data structures or returned, except when a function with exactly one
 reference parameter returns a borrow of it, and through `ref struct` types

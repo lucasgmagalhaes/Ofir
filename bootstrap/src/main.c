@@ -5,15 +5,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ASTRA_VERSION "0.1.0"
+#define OFIR_VERSION "0.1.0"
 
 static void print_usage(FILE *out) {
-    fputs("usage: astra <command> [arguments]\n"
+    fputs("usage: ofir <command> [arguments]\n"
           "\n"
           "commands:\n"
-          "  build <file.at>   compile a program\n"
-          "  run <file.at>     compile and run a program\n"
-          "  test <file.at>    compile and run the `@test` functions\n"
+          "  build <file.of>   compile a program\n"
+          "  run <file.of>     compile and run a program\n"
+          "  test <file.of>    compile and run the `@test` functions\n"
           "  version           print the compiler version\n"
           "\n"
           "options:\n"
@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     }
     const char *command = argv[1];
     if (strcmp(command, "version") == 0) {
-        printf("astra %s (stage 0)\n", ASTRA_VERSION);
+        printf("ofir %s (stage 0)\n", OFIR_VERSION);
         return 0;
     }
     if (strcmp(command, "help") == 0) {

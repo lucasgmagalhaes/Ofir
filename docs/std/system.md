@@ -2,7 +2,7 @@
 
 ## Errors (`std.io`)
 
-```astra
+```ofir
 pub struct IoError {
     pub kind: IoErrorKind
     pub message: str
@@ -58,9 +58,9 @@ pub copy enum IoErrorKind {
 | `fn run(program: str, args: [str]) Result<Output, IoError>` | runs a process and waits | ✓ |
 | `fn spawn(program: str, args: [str]) Result<Child, IoError>` | | |
 | `fn currentDir() Result<str, IoError>` | | ✓ |
-| `fn executablePath() Result<str, IoError>` | locates `ASTRA_HOME` | ✓ |
+| `fn executablePath() Result<str, IoError>` | locates `OFIR_HOME` | ✓ |
 
-```astra
+```ofir
 pub struct Output {
     pub status: int        // exit status, or -1 if killed by a signal
     pub stdout: str
@@ -68,8 +68,8 @@ pub struct Output {
 }
 ```
 
-Stage 0: `std.io`, `std.fs` and `std.os` are written in Astra over the C
+Stage 0: `std.io`, `std.fs` and `std.os` are written in Ofir over the C
 runtime's `os.c` and `fs.c` (docs/design/runtime.md); `std.io.Buffer` is
 the runtime's result buffer and `io.check(code)` turns a returned `errno`
 value into a `Result`. `eprint` and `eprintln` are prelude functions
-(std/core/print.at) that flush standard output first.
+(std/core/print.of) that flush standard output first.

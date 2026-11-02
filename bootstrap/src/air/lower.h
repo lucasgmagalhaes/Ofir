@@ -1,7 +1,7 @@
 // Lowering: the typed AST of a module → AIR (one body per function).
 
-#ifndef ASTRA_LOWER_H
-#define ASTRA_LOWER_H
+#ifndef OFIR_LOWER_H
+#define OFIR_LOWER_H
 
 #include "air/air.h"
 #include "sema/sema.h"

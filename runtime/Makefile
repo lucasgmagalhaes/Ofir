@@ -1,4 +1,4 @@
-# C runtime linked into every Astra program → $(BUILD)/libastra_rt.a
+# C runtime linked into every Ofir program → $(BUILD)/libofir_rt.a
 
 CC    ?= cc
 AR    ?= ar
@@ -15,10 +15,10 @@ ifeq ($(SRCS),)
 all:
 	@echo "runtime: no sources yet (roadmap task 1.17)"
 else
-all: $(BUILD)/libastra_rt.a
+all: $(BUILD)/libofir_rt.a
 endif
 
-$(BUILD)/libastra_rt.a: $(OBJS)
+$(BUILD)/libofir_rt.a: $(OBJS)
 	$(AR) rcs $@ $^
 
 $(BUILD)/runtime/%.o: src/%.c
@@ -26,4 +26,4 @@ $(BUILD)/runtime/%.o: src/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf $(BUILD)/runtime $(BUILD)/libastra_rt.a
+	rm -rf $(BUILD)/runtime $(BUILD)/libofir_rt.a

@@ -1,23 +1,23 @@
 # Toolchain and build process
 
-## 1. The `astra` command
+## 1. The `ofir` command
 
 A single executable provides every tool:
 
 | Command | Description |
 |---------|-------------|
-| `astra new <name>` | create a project with `astra.toml` and `src/main.at` |
-| `astra build [--release]` | compile the project to an executable |
-| `astra run [--release] [-- args]` | build and run |
-| `astra check` | run every phase up to the borrow checker, no code generation |
-| `astra test [filter]` | build and run `@test` functions and doc tests |
-| `astra bench [filter]` | build with optimizations and run `@bench` functions |
-| `astra fmt [--check]` | format source files **[planned]** |
-| `astra doc` | generate HTML documentation **[planned]** |
-| `astra explain <code>` | describe an error code |
-| `astra version` | print version and LLVM/clang versions in use |
+| `ofir new <name>` | create a project with `ofir.toml` and `src/main.of` |
+| `ofir build [--release]` | compile the project to an executable |
+| `ofir run [--release] [-- args]` | build and run |
+| `ofir check` | run every phase up to the borrow checker, no code generation |
+| `ofir test [filter]` | build and run `@test` functions and doc tests |
+| `ofir bench [filter]` | build with optimizations and run `@bench` functions |
+| `ofir fmt [--check]` | format source files **[planned]** |
+| `ofir doc` | generate HTML documentation **[planned]** |
+| `ofir explain <code>` | describe an error code |
+| `ofir version` | print version and LLVM/clang versions in use |
 
-A single file can be compiled without a project: `astra run hello.at`.
+A single file can be compiled without a project: `ofir run hello.of`.
 
 ### Debug flags (for compiler developers)
 
@@ -38,17 +38,17 @@ A single file can be compiled without a project: `astra run hello.at`.
 
 ```
 my_app/
-├── astra.toml
+├── ofir.toml
 ├── src/
-│   ├── main.at             root module of an executable
+│   ├── main.of             root module of an executable
 │   └── net/
-│       └── http.at         module net.http
+│       └── http.of         module net.http
 └── build/                  generated, ignored by git
     ├── debug/
     └── release/
 ```
 
-### `astra.toml`
+### `ofir.toml`
 
 ```toml
 [package]
@@ -58,11 +58,11 @@ edition = "2027"
 
 [build]
 kind = "exe"            # "exe" or "lib"
-root = "src/main.at"
+root = "src/main.of"
 
 [dependencies]          # [planned] package manager
 
-[fmt]                   # what `astra fmt` produces (docs/style-guide.md)
+[fmt]                   # what `ofir fmt` produces (docs/style-guide.md)
 inline-blocks = false   # a function or statement body never shares a line with its braces
 ```
 
@@ -72,7 +72,7 @@ inline-blocks = false   # a function or statement body never shares a line with 
 |----------|---------|---------|
 | `inline-blocks` | `false` | when `false`, the body of every function and of every statement (`if`, `else`, `for`, `unsafe`, `match` arm, `let ... else`) is broken onto its own lines; an `if` or `unsafe` used as a value may stay on one line if each block holds one expression. `true` lets a body of a single statement stay on one line. |
 
-Until `astra fmt` exists, `tools/check_format.py` checks the repository
+Until `ofir fmt` exists, `tools/check_format.py` checks the repository
 against the default, and `--fix` applies it.
 
 ## 3. Build profiles
@@ -89,35 +89,35 @@ checks it can prove unnecessary.
 ## 4. Build steps
 
 ```
-1. read astra.toml, locate the root module
+1. read ofir.toml, locate the root module
 2. parse the root module and, transitively, every imported module
 3. check (resolve, type check, borrow check) all modules
 4. lower, monomorphize and generate build/<profile>/<name>.ll
-5. clang <flags> <name>.ll libastra_rt.a -o build/<profile>/<name>
+5. clang <flags> <name>.ll libofir_rt.a -o build/<profile>/<name>
 ```
 
 The compiler finds:
 
-- the **standard library** in `$ASTRA_HOME/std` (default: next to the
-  executable, `../lib/astra/std`);
-- the **runtime** in `$ASTRA_HOME/lib/libastra_rt.a`;
-- **clang** through `$ASTRA_CLANG`, otherwise `clang` on the `PATH`.
+- the **standard library** in `$OFIR_HOME/std` (default: next to the
+  executable, `../lib/ofir/std`);
+- the **runtime** in `$OFIR_HOME/lib/libofir_rt.a`;
+- **clang** through `$OFIR_CLANG`, otherwise `clang` on the `PATH`.
 - In stage 0, which has no projects yet: the runtime through
-  `$ASTRA_RUNTIME`, otherwise `libastra_rt.a` in the parent directory of the
-  compiler (`build/libastra_rt.a` for `build/stage0/astra`). `astra build
-  file.at` writes `./file` (or `-o`); `astra run file.at` builds into a
+  `$OFIR_RUNTIME`, otherwise `libofir_rt.a` in the parent directory of the
+  compiler (`build/libofir_rt.a` for `build/stage0/ofir`). `ofir build
+  file.of` writes `./file` (or `-o`); `ofir run file.of` builds into a
   temporary directory and runs the program.
   Supported: LLVM 17 to the latest release, each tested in CI (ADR 0001).
-  `astra version` reports the clang in use.
+  `ofir version` reports the clang in use.
 
 ## 5. Installation layout
 
 ```
 <prefix>/
-├── bin/astra
-└── lib/astra/
+├── bin/ofir
+└── lib/ofir/
     ├── std/                 standard library sources
-    └── libastra_rt.a        runtime
+    └── libofir_rt.a        runtime
 ```
 
 ## 6. Targets
@@ -129,10 +129,10 @@ x86_64). Windows support is **[planned]**. Cross-compilation uses
 ## 7. Repository build (for contributors)
 
 ```
-make stage0        # build bootstrap/ with the system C compiler → build/stage0/astra
-make runtime       # build runtime/ → build/libastra_rt.a
-make stage1        # compile compiler/ with stage0 → build/stage1/astra
-make stage2        # compile compiler/ with stage1 → build/stage2/astra
+make stage0        # build bootstrap/ with the system C compiler → build/stage0/ofir
+make runtime       # build runtime/ → build/libofir_rt.a
+make stage1        # compile compiler/ with stage0 → build/stage1/ofir
+make stage2        # compile compiler/ with stage1 → build/stage2/ofir
 make verify        # stage2 compiles compiler/ again; outputs must be identical
 make test          # run all suites in tests/ against the newest stage
 ```

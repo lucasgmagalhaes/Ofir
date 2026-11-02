@@ -1,6 +1,6 @@
-# Astra style guide
+# Ofir style guide
 
-The style `astra fmt` produces and that all code in this repository follows.
+The style `ofir fmt` produces and that all code in this repository follows.
 When the formatter exists it is the authority; until then, this document is.
 
 ## Layout
@@ -17,7 +17,7 @@ When the formatter exists it is the authority; until then, this document is.
   the line after `{`, and `}` closes on a line of its own, even for a
   single statement:
 
-  ```astra
+  ```ofir
   fn name(self) str {
       return "circle"
   }
@@ -30,8 +30,8 @@ When the formatter exists it is the authority; until then, this document is.
   An `if` or `unsafe` used as a value may stay on one line when each of its
   blocks holds a single expression: `let n = if a < b { a } else { b }`,
   `let byte = unsafe { *p }`. `tools/check_format.py` (`make check-format`,
-  part of `make test`) enforces the rule on every Astra source and every
-  `astra` code block of the documentation; `--fix` breaks the lines.
+  part of `make test`) enforces the rule on every Ofir source and every
+  `ofir` code block of the documentation; `--fix` breaks the lines.
 - **Blank lines:** one between top-level items and between methods; none at
   the start or end of a block.
 - **Trailing commas** in every multi-line list (arguments, literals,
@@ -39,7 +39,7 @@ When the formatter exists it is the authority; until then, this document is.
 - **Spaces:** around binary operators and `=`; after `,` and `:`; none inside
   brackets, before `(` in calls, or around `.` and `..`.
 
-```astra
+```ofir
 let total = items.len() + extra
 let point = Point{x: 1.0, y: 2.0}
 for i in 0..n {
@@ -56,8 +56,8 @@ Order of a file's contents:
    project imports by a blank line;
 3. public types, then their related private types;
 4. public functions, then private functions;
-Tests go in the module's test file, `name_test.at` next to `name.at`
-(`index_test.at` for a directory's `index.at`), not in the module itself.
+Tests go in the module's test file, `name_test.of` next to `name.of`
+(`index_test.of` for a directory's `index.of`), not in the module itself.
 
 ## Types
 
@@ -92,7 +92,7 @@ Spec 1.4 defines the conventions (`camelCase`, `PascalCase`,
 - `match` arms are one line when they fit; otherwise use a block.
 - Use `??` for defaults instead of `match` on `Option`.
 
-```astra
+```ofir
 fn load(path: str) Result<Config, IoError> {
     let text = fs.readToString(path)?
     let .Some(first) = text.lines().first() else {
@@ -116,7 +116,7 @@ fn load(path: str) Result<Config, IoError> {
 
 Small files and small functions are usually easier to read, review and
 test, but size is a judgment, not a rule: a file is as long as its subject
-needs. `std/core/list.at` holds `List` and all its methods (ADR 0015), and
+needs. `std/core/list.of` holds `List` and all its methods (ADR 0015), and
 that is fine at 500 lines.
 
 The one fixed rule is the **line width: 100 characters**, which

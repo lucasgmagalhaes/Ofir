@@ -2,11 +2,11 @@
 
 ## 1.1 Source files
 
-Source files are UTF-8 encoded text with the extension `.at`.
+Source files are UTF-8 encoded text with the extension `.of`.
 
 ## 1.2 Comments
 
-```astra
+```ofir
 // line comment
 /* block comment */
 ```
@@ -15,7 +15,7 @@ Block comments do not nest.
 
 ## 1.3 Statement termination
 
-Astra has no semicolons. The rule is:
+Ofir has no semicolons. The rule is:
 
 > A newline ends a statement **wherever the statement could end**.
 > Anywhere else, the newline is ignored and the statement continues on the
@@ -27,7 +27,7 @@ end, and skips it otherwise. (Unlike Go's token-based rule, this works with
 `<...>` generics: `var buffer: List<u8>` at the end of a line is complete,
 while `a >` at the end of a line clearly continues.)
 
-```astra
+```ofir
 var buffer: List<u8>          // complete: the newline ends the statement
 let ok = width > 0 &&
     height > 0                // `&&` needs an operand: the newline is ignored
@@ -41,7 +41,7 @@ opening bracket.
 Newlines directly inside `(...)` and `[...]` are always ignored, so long
 argument lists and array literals can span several lines:
 
-```astra
+```ofir
 let total = add(
     first,
     second,
@@ -53,7 +53,7 @@ let total = add(
 inside parentheses, so a closure passed as an argument has normal
 statements:
 
-```astra
+```ofir
 thread.spawn(move () => {
     let x = compute()       // the newline ends this statement
     send(x)
@@ -78,7 +78,7 @@ digit      = "0"…"9" .
 | functions, methods, variables, parameters, fields | `camelCase` | `readToString`, `lineCount` |
 | types, interfaces, enum variants, type parameters | `PascalCase` | `TokenKind`, `IoError`, `.NotFound`, `T` |
 | constants | `SCREAMING_CASE` | `MAX_USERS` |
-| modules and file names | lowercase `snake_case` | `std.collections`, `word_count.at` |
+| modules and file names | lowercase `snake_case` | `std.collections`, `word_count.of` |
 
 Acronyms are written as words: `parseUrl`, `HttpClient`, `IoError` (not
 `parseURL`, `HTTPClient`). Module and file names stay lowercase so that they
@@ -110,7 +110,7 @@ names:
 | `where` | it follows a function signature |
 | `comptime` | it starts a declaration, block, `for`, `if` or expression (chapter 15) |
 
-```astra
+```ofir
 let type = token.type      // fine: `type` is an ordinary identifier here
 ```
 
@@ -135,7 +135,7 @@ between them. This lets `List<List<int>>` close two type argument lists.
 
 ### Integers
 
-```astra
+```ofir
 42
 1_000_000
 0xff
@@ -149,7 +149,7 @@ compile error.
 
 ### Floats
 
-```astra
+```ofir
 3.14
 1e9
 2.5e-3
@@ -160,7 +160,7 @@ where a float is expected (`let x: float = 1`).
 
 ### Strings
 
-```astra
+```ofir
 "hello\n"
 "name = {user.name}, age = {user.age + 1}"
 ```
@@ -192,7 +192,7 @@ Raw strings start with `r"` (single line) or `"""` (multi-line). They have no
 escapes and no interpolation. In multi-line strings, the indentation of the
 closing `"""` is removed from every line.
 
-```astra
+```ofir
 let pattern = r"C:\path\{name}"
 let text = """
     first line

@@ -1,0 +1,23 @@
+const GREETING = "hello"
+
+fn shout(text: str) str {
+    return text + "!"
+}
+
+fn main() {
+    let name = "Ofir"
+    let message = "{GREETING}, {name}"
+    println(message)
+    println(shout(message))
+    println("{name == "Ofir"} {name != "ofir"} {"abc" < "abd"} {"b" > "abc"} {"" < "a"}")
+    let flag = true
+    let ratio: f32 = 0.5
+    let byte: u8 = 65
+    println("{flag} {ratio} {byte} {-7} {1e21} {0.00001} {100.0}")
+    var built = ""
+    for i in 0..3 {
+        built = built + "{i},"
+    }
+    println(built)
+    println("tab\there \"quoted\" \\ done")
+}

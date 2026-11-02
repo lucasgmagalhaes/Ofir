@@ -14,7 +14,7 @@ properties stated as **guaranteed** can be relied on.
 | `i64`, `u64`, `f64`, `int`, `uint` | 8 | 8 |
 | `()` | 0 | 1 |
 
-`uint` and pointers have the target's pointer size; Astra supports only
+`uint` and pointers have the target's pointer size; Ofir supports only
 64-bit targets in version 1.
 
 ## 13.2 Structs and tuples
@@ -51,7 +51,7 @@ capacity 0; it is copied to the heap on first modification.
 
 ## 13.5 Calling convention
 
-- Astra functions use an unspecified internal calling convention, chosen by
+- Ofir functions use an unspecified internal calling convention, chosen by
   the compiler (currently LLVM's `fastcc` for non-exported functions).
 - `extern "C"` functions use the C ABI of the target. **Guaranteed.**
 - Large values passed by value may be passed by hidden pointer; this is

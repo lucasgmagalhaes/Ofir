@@ -4,7 +4,7 @@
 
 #define _XOPEN_SOURCE 700
 
-#include "astra_rt.h"
+#include "ofir_rt.h"
 
 #include <signal.h>
 #include <string.h>
@@ -23,15 +23,15 @@ static void on_fault(int sig, siginfo_t *info, void *context) {
     uintptr_t addr = (uintptr_t)info->si_addr;
     if (addr >= stack_bottom && addr < stack_top) {
         static const char msg[] = "panic: stack overflow\n";
-        astra_stdout_flush();
+        ofir_stdout_flush();
         ssize_t ignored = write(2, msg, sizeof msg - 1);
         (void)ignored;
-        _exit(ASTRA_PANIC_STATUS);
+        _exit(OFIR_PANIC_STATUS);
     }
     signal(sig, SIG_DFL);   // another fault: returning re-raises it unchanged
 }
 
-void astra_stack_guard_init(void *top) {
+void ofir_stack_guard_init(void *top) {
     struct rlimit limit;
     long size = DEFAULT_LIMIT;
     if (getrlimit(RLIMIT_STACK, &limit) == 0 && limit.rlim_cur != RLIM_INFINITY &&

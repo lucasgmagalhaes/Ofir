@@ -20,7 +20,7 @@
 
 extern char **environ;
 
-// The executable path: `-o`, else the input's name without `.at` (for
+// The executable path: `-o`, else the input's name without `.of` (for
 // `run`, in a temporary directory).
 static bool output_path(const Options *opts, char out[PATH_SIZE]) {
     if (opts->output) {
@@ -29,7 +29,7 @@ static bool output_path(const Options *opts, char out[PATH_SIZE]) {
     const char *base = strrchr(opts->input, '/');
     base = base ? base + 1 : opts->input;
     size_t len = strlen(base);
-    if (len > 3 && strcmp(base + len - 3, ".at") == 0) {
+    if (len > 3 && strcmp(base + len - 3, ".of") == 0) {
         len -= 3;
     }
     if (strcmp(opts->command, "run") != 0 && strcmp(opts->command, "test") != 0) {
@@ -37,7 +37,7 @@ static bool output_path(const Options *opts, char out[PATH_SIZE]) {
     }
     const char *tmp = getenv("TMPDIR");
     char dir[PATH_SIZE];
-    snprintf(dir, sizeof dir, "%s/astra-run-XXXXXX", tmp && tmp[0] ? tmp : "/tmp");
+    snprintf(dir, sizeof dir, "%s/ofir-run-XXXXXX", tmp && tmp[0] ? tmp : "/tmp");
     if (!mkdtemp(dir)) {
         return false;
     }
@@ -68,13 +68,13 @@ int run_program(const char *exe, const char *arg) {
 
 static Next link_program(const Options *opts, const char *ll, const char *exe) {
     char runtime[PATH_SIZE];
-    static const char *const PLACES[] = {"../libastra_rt.a", "../lib/astra/libastra_rt.a"};
-    if (!find_installed(opts->argv0, "ASTRA_RUNTIME", PLACES, ARRAY_LEN(PLACES), runtime)) {
-        fprintf(stderr, "error[E0902]: cannot find the runtime library libastra_rt.a "
-                        "(set ASTRA_RUNTIME)\n");
+    static const char *const PLACES[] = {"../libofir_rt.a", "../lib/ofir/libofir_rt.a"};
+    if (!find_installed(opts->argv0, "OFIR_RUNTIME", PLACES, ARRAY_LEN(PLACES), runtime)) {
+        fprintf(stderr, "error[E0902]: cannot find the runtime library libofir_rt.a "
+                        "(set OFIR_RUNTIME)\n");
         return STOP_FAIL;
     }
-    const char *clang = getenv("ASTRA_CLANG");
+    const char *clang = getenv("OFIR_CLANG");
     // The module has no target triple: clang uses its default target.
     char *argv[] = {(char *)(clang && clang[0] ? clang : "clang"), opts->release ? "-O2" : "-O0",
                     "-Wno-override-module", (char *)ll, runtime, "-lm", "-o", (char *)exe, NULL};

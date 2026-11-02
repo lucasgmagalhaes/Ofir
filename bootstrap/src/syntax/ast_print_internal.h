@@ -1,7 +1,7 @@
 // Helpers shared by the files of the AST printer.
 
-#ifndef ASTRA_AST_PRINT_INTERNAL_H
-#define ASTRA_AST_PRINT_INTERNAL_H
+#ifndef OFIR_AST_PRINT_INTERNAL_H
+#define OFIR_AST_PRINT_INTERNAL_H
 
 #include "base/str.h"
 #include "syntax/ast.h"

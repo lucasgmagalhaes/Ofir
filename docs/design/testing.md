@@ -15,7 +15,7 @@ compiler must pass the same suites.
 | Panic | `tests/panic/` | program panics with the expected message and exit 101 |
 | Borrow | `tests/borrow/` | accepted and rejected ownership programs |
 | Codegen | `tests/codegen/` | patterns in the generated LLVM IR |
-| Unit (Astra) | `@test` functions in `compiler/` and `std/` | internal functions |
+| Unit (Ofir) | `@test` functions in `compiler/` and `std/` | internal functions |
 | Self-host | `tests/selfhost/` | stage 2 output == stage 3 output |
 | Benchmarks | `bench/` | performance against C, Rust and Go baselines |
 
@@ -24,25 +24,25 @@ compiler must pass the same suites.
 ### Run tests
 
 ```
-tests/run/structs/methods.at
+tests/run/structs/methods.of
 tests/run/structs/methods.out          expected stdout
 ```
 
 A program made of several modules is a directory whose root module is
-`main.at`; the other files are its modules, not separate tests:
+`main.of`; the other files are its modules, not separate tests:
 
 ```
-tests/run/modules/app/main.at          the test (root module)
+tests/run/modules/app/main.of          the test (root module)
 tests/run/modules/app/main.out
-tests/run/modules/app/util.at          module `util`
-tests/run/modules/app/geometry/shapes.at   module `geometry.shapes`
+tests/run/modules/app/util.of          module `util`
+tests/run/modules/app/geometry/shapes.of   module `geometry.shapes`
 ```
 
 ### Compile-fail tests
 
 Expected diagnostics are annotations on the line where they are reported:
 
-```astra
+```ofir
 fn main() {
     let x = 1
     x = 2   // error[E0304]: cannot assign twice to immutable variable `x`
@@ -68,7 +68,7 @@ Error codes come from the registry in [`docs/errors`](../errors/README.md).
 
 ### Panic tests
 
-```astra
+```ofir
 // panic: index out of bounds: the length is 3 but the index is 5
 fn main() {
     let xs = [1, 2, 3]
@@ -79,7 +79,7 @@ fn main() {
 
 ### Codegen tests
 
-```astra
+```ofir
 // CHECK: define internal fastcc i64 @_A4test3add
 // CHECK-NOT: call
 fn add(a: int, b: int) int {
@@ -91,11 +91,11 @@ fn add(a: int, b: int) int {
 
 | Command | Used by |
 |---------|---------|
-| `astra build FILE --emit=tokens` (tokens on stdout) | `lex` |
-| `astra build FILE --emit=ast` (AST on stdout) | `parse` |
-| `astra run FILE` | `run`, `panic` |
-| `astra build FILE --message-format=short -o OUT` | `compile_fail`, `borrow` |
-| `astra build FILE --emit=llvm -o OUT` (writes `OUT.ll`) | `codegen` |
+| `ofir build FILE --emit=tokens` (tokens on stdout) | `lex` |
+| `ofir build FILE --emit=ast` (AST on stdout) | `parse` |
+| `ofir run FILE` | `run`, `panic` |
+| `ofir build FILE --message-format=short -o OUT` | `compile_fail`, `borrow` |
+| `ofir build FILE --emit=llvm -o OUT` (writes `OUT.ll`) | `codegen` |
 
 With `--message-format=short`, each diagnostic is one line:
 `file:line:col: error[E0300]: message` (or `warning[W0001]`).

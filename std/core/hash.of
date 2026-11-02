@@ -1,0 +1,29 @@
+/**
+ * @module
+ * The hash functions of `Map` keys (ADR 0011). They use no random seed, so
+ * a program behaves the same on every run. The compiler calls them for the
+ * `hashOf<K>` intrinsic of std/core/map.of; they are not public.
+ */
+
+// splitmix64's finalizer: every bit of `x` affects every bit of the result.
+fn hashU64(x: u64) u64 {
+    var z = x
+    z = (z ^ (z >> 30)).wrappingMul(0xbf58476d1ce4e5b9)
+    z = (z ^ (z >> 27)).wrappingMul(0x94d049bb133111eb)
+    return z ^ (z >> 31)
+}
+
+// FNV-1a over the bytes, then mixed: short keys spread over the table.
+fn hashStr(s: str) u64 {
+    var h: u64 = 0xcbf29ce484222325
+    for i in 0..s.len() {
+        h = (h ^ (s[i] as u64)).wrappingMul(0x100000001b3)
+    }
+    return hashU64(h)
+}
+
+// The hash of a tuple: each element's hash folded into the previous ones,
+// in order, so that `(1, 2)` and `(2, 1)` differ.
+fn hashCombine(h: u64, x: u64) u64 {
+    return hashU64(h.wrappingMul(0x9e3779b97f4a7c15) ^ x)
+}

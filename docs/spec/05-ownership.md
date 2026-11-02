@@ -1,6 +1,6 @@
 # 5. Ownership and borrowing
 
-Astra manages memory without a garbage collector. Every value has exactly one
+Ofir manages memory without a garbage collector. Every value has exactly one
 **owner**; when the owner goes out of scope, the value is destroyed and its
 memory is released.
 
@@ -10,7 +10,7 @@ without the caller writing `&`. Two keywords in the signature cover the other
 cases: `mut` (the function modifies the argument) and `move` (the function
 takes ownership). Call sites look the same in all three cases.
 
-```astra
+```ofir
 fn total(xs: List<int>) int { ... }            // reads xs
 fn reset(xs: mut List<int>) {   // modifies the caller's list
     xs.clear()
@@ -25,7 +25,7 @@ keep(nums)                                      // nums is moved here
 
 ## 5.1 Ownership
 
-```astra
+```ofir
 fn main() {
     let a = "hello"           // a owns the string
     let b = a                 // ownership moves to b
@@ -49,7 +49,7 @@ referenced place, or a `mut` parameter left without a value).
 
 ### Partial and conditional moves
 
-```astra
+```ofir
 var v = makeList()
 if flag {
     consume(v)          // fn consume(xs: move List<int>)
@@ -103,7 +103,7 @@ the `cloneOf<T>` intrinsic.
 
 The `self` parameter of a method (chapter 3.6) uses the same modes:
 
-```astra
+```ofir
 struct Point {
     x: float
     y: float
@@ -150,7 +150,7 @@ struct Point {
 As borrowed or `mut` parameter types, `[T]` and `str` accept any contiguous
 sequence or text:
 
-```astra
+```ofir
 fn sum(xs: [int]) int { ... }       // accepts List<int>, [int; N] and slices
 fn shout(s: str) str { ... }        // accepts str values, literals and slices
 
@@ -173,7 +173,7 @@ For each value, at any point:
 but never both. While a value is borrowed, it cannot be moved, and while it
 is exclusively borrowed it cannot be read or written through its owner.
 
-```astra
+```ofir
 fn append(dst: mut List<int>, src: List<int>) { ... }
 
 append(a, b)       // ok
@@ -184,7 +184,7 @@ append(a, a)       // error: `a` is borrowed mutably and shared at the same time
 struct (and distinct elements of a tuple) can be borrowed independently.
 Indexing (`list[i]`) borrows the whole collection.
 
-```astra
+```ofir
 lx.interpolations.push(lx.brackets.len())   // ok: two different fields of lx
 ```
 
@@ -208,7 +208,7 @@ value instead of owning it:
 | `match` / `if let` on a place that is not owned (a borrowed parameter, a field of one, an element) | bindings borrow the matched parts (Copy parts are copied) |
 | `match` on an owned value | bindings take ownership of the parts |
 
-```astra
+```ofir
 for mut item in cart.items {
     item.price = item.price * 90 / 100
 }
@@ -223,7 +223,7 @@ in a `ref struct`, but never stored in an ordinary struct, enum or
 container. Because a reference can never outlive the call or block that
 created it, no lifetime annotations are ever needed.
 
-```astra
+```ofir
 var list = [1, 2, 3]
 let r = &list
 println("{r.len()}")   // last use of r: the borrow ends here
@@ -251,7 +251,7 @@ containing one) that borrows from **one** parameter:
 With no such parameter, or with several candidates, returning a borrow is an
 error.
 
-```astra
+```ofir
 // in List<T>:  fn first(self) Option<&T> { ... }
 // in User:     fn nameMut(mut self) &mut str { ... }
 
@@ -268,7 +268,7 @@ A struct declared with `ref` may contain references. It is itself
 second-class: it can be bound locally, passed as an argument and returned
 under the rule above, but not stored in ordinary structs or containers.
 
-```astra
+```ofir
 ref struct ListIter<T> {
     list: &List<T>
     index: int

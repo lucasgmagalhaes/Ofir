@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Compares the stage 1 compiler (compiler/, built by stage 0) with stage 0
-(roadmap phase 4): for every Astra file of the repository, each command
+(roadmap phase 4): for every Ofir file of the repository, each command
 that stage 1 implements so far must give the same standard output, standard
 error and exit status as stage 0's matching option (after an error, the
 standard error and the status only: the trees built while recovering need
@@ -10,7 +10,7 @@ compares N mutated sources (tools/fuzz_frontend.py's mutations).
 Stage 1 lowers a part of the language so far: `air` exits with status 3 on
 a program it cannot lower yet, and such a file is counted, not compared.
 
-    python3 tools/compare_stages.py [--compiler build/stage0/astra] [--fuzz 200]
+    python3 tools/compare_stages.py [--compiler build/stage0/ofir] [--fuzz 200]
 """
 
 import argparse
@@ -34,7 +34,7 @@ SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 
 
 # Both stages read the same standard library, so that paths in messages agree.
-ENV = dict(os.environ, ASTRA_STD=str(ROOT / "std"))
+ENV = dict(os.environ, OFIR_STD=str(ROOT / "std"))
 
 
 def run(argv: list) -> tuple:
@@ -62,21 +62,21 @@ def compare(stage0: str, stage1: str, path: Path) -> tuple:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "astra"))
+    parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "ofir"))
     parser.add_argument("--fuzz", type=int, default=0)
     parser.add_argument("--seed", type=int, default=1)
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmp:
-        stage1 = str(Path(tmp) / "astra1")
-        built = run([args.compiler, "build", str(ROOT / "compiler" / "main.at"), "-o", stage1])
+        stage1 = str(Path(tmp) / "ofir1")
+        built = run([args.compiler, "build", str(ROOT / "compiler" / "main.of"), "-o", stage1])
         if built[0] != 0:
             sys.stderr.write(built[2].decode())
             print("stages: stage 1 does not build")
             return 1
-        files = sorted(p for d in SOURCES for p in (ROOT / d).rglob("*.at"))
+        files = sorted(p for d in SOURCES for p in (ROOT / d).rglob("*.of"))
         rng = random.Random(args.seed)
         for i in range(args.fuzz):
-            case = Path(tmp) / f"fuzz{i}.at"
+            case = Path(tmp) / f"fuzz{i}.of"
             case.write_text(mutate(rng, rng.choice(files).read_text()))
             files.append(case)
         with concurrent.futures.ThreadPoolExecutor() as pool:

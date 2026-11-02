@@ -1,7 +1,7 @@
 // Loading the modules of a program (spec 7.1 and 7.2): the root file, then
 // every module it imports, transitively. `import a.b` is the file
-// `<root dir>/a/b.at` or `<root dir>/a/b/index.at`, where the root dir is
-// the project's (the nearest directory with an `astra.toml`) or the root
+// `<root dir>/a/b.of` or `<root dir>/a/b/index.of`, where the root dir is
+// the project's (the nearest directory with an `ofir.toml`) or the root
 // file's; `import std.x` is in the standard library, and `std.core` (the
 // prelude) is always loaded. When
 // `a.b` names a declaration rather than a module (`import
@@ -61,7 +61,7 @@ static bool module_file(Loader *ld, StrView name, char out[PATH_SIZE]) {
         relative[i] = rest.ptr[i] == '.' ? '/' : rest.ptr[i];
     }
     relative[len] = '\0';
-    static const char *const FORMS[] = {"%s/%s.at", "%s/%s/index.at"};
+    static const char *const FORMS[] = {"%s/%s.of", "%s/%s/index.of"};
     for (size_t i = 0; i < ARRAY_LEN(FORMS); i++) {
         int n = snprintf(out, PATH_SIZE, FORMS[i], dir, relative);
         if (n > 0 && n < PATH_SIZE && access(out, R_OK) == 0) {
@@ -71,7 +71,7 @@ static bool module_file(Loader *ld, StrView name, char out[PATH_SIZE]) {
     return false;
 }
 
-// `astra test` (spec 12.2): the tests of `a/b.at` are in `a/b_test.at`, part
+// `ofir test` (spec 12.2): the tests of `a/b.of` are in `a/b_test.of`, part
 // of the same module, so that they may use its private declarations. The
 // test file of a module outside std, or of the root, joins its items.
 static void add_test_file(Loader *ld, Module *module, StrView name, const char *path) {
@@ -79,7 +79,7 @@ static void add_test_file(Loader *ld, Module *module, StrView name, const char *
     size_t len = strlen(path);
     char test[PATH_SIZE];
     if (strcmp(ld->p->opts->command, "test") != 0 || (in_std && ld->modules.len > 0) ||
-        len < 3 || snprintf(test, sizeof test, "%.*s_test.at", (int)(len - 3), path) >=
+        len < 3 || snprintf(test, sizeof test, "%.*s_test.of", (int)(len - 3), path) >=
                        (int)sizeof test || access(test, R_OK) != 0) {
         return;
     }
@@ -127,19 +127,19 @@ static void load_import(Loader *ld, const Item *item) {
 }
 
 // The module name of the root file: its name without the directory and
-// `.at`; the directory's name for an `index.at` (spec 7.1).
+// `.of`; the directory's name for an `index.of` (spec 7.1).
 static StrView root_name(Loader *ld, const char *input) {
     const char *slash = strrchr(input, '/');
     const char *base = slash ? slash + 1 : input;
     size_t len = strlen(base);
-    if (strcmp(base, "index.at") == 0 && slash) {
+    if (strcmp(base, "index.of") == 0 && slash) {
         const char *dir = slash;
         while (dir > input && dir[-1] != '/') {
             dir--;
         }
         base = dir;
         len = (size_t)(slash - dir);
-    } else if (len > 3 && strcmp(base + len - 3, ".at") == 0) {
+    } else if (len > 3 && strcmp(base + len - 3, ".of") == 0) {
         len -= 3;
     }
     return (StrView){arena_strndup(&ld->p->session->arena, base, len), len};
@@ -159,11 +159,11 @@ static bool name_under(Loader *ld, const char *input, const char *dir, const cha
     }
     char dotted[PATH_SIZE];
     int len = snprintf(dotted, sizeof dotted, "%s%s", prefix, file + n + 1);
-    int min = (int)strlen(prefix) + 4;   // at least `x.at`
+    int min = (int)strlen(prefix) + 4;   // at least `x.of`
     if (len < min || len >= (int)sizeof dotted) {
         return false;
     }
-    len -= len > min + 5 && strcmp(dotted + len - 9, "/index.at") == 0 ? 9 : 3;   // or `.at`
+    len -= len > min + 5 && strcmp(dotted + len - 9, "/index.of") == 0 ? 9 : 3;   // or `.of`
     for (int i = 0; i < len; i++) {
         dotted[i] = dotted[i] == '/' ? '.' : dotted[i];
     }
@@ -172,7 +172,7 @@ static bool name_under(Loader *ld, const char *input, const char *dir, const cha
 }
 
 // The project root (spec 7.2): the nearest directory above the root file
-// that holds an `astra.toml`; imports are resolved from there.
+// that holds an `ofir.toml`; imports are resolved from there.
 static bool project_dir(const char *input, char out[PATH_SIZE]) {
     char path[PATH_MAX];
     if (!realpath(input, path)) {
@@ -181,7 +181,7 @@ static bool project_dir(const char *input, char out[PATH_SIZE]) {
     for (char *slash = strrchr(path, '/'); slash && slash > path; slash = strrchr(path, '/')) {
         *slash = '\0';
         char toml[PATH_SIZE];
-        if (snprintf(toml, sizeof toml, "%s/astra.toml", path) < (int)sizeof toml &&
+        if (snprintf(toml, sizeof toml, "%s/ofir.toml", path) < (int)sizeof toml &&
             access(toml, R_OK) == 0) {
             return snprintf(out, PATH_SIZE, "%s", path) < PATH_SIZE;
         }
@@ -190,7 +190,7 @@ static bool project_dir(const char *input, char out[PATH_SIZE]) {
 }
 
 // The name of the root module. A file inside the standard library is that
-// std module (`astra test std/core/str.at` tests `std.core.str`) and a file
+// std module (`ofir test std/core/str.of` tests `std.core.str`) and a file
 // of a project is named from the project root (`base.intern`), so that an
 // import of it does not load it a second time.
 static StrView root_module_name(Loader *ld, const char *input, bool in_project) {
@@ -212,8 +212,8 @@ Program load_program(Pipeline *p, Module *root) {
     if (!in_project) {   // a single file: its own directory
         snprintf(ld.root_dir, sizeof ld.root_dir, "%.*s", dir_len, slash ? p->opts->input : ".");
     }
-    static const char *const STD[] = {"../../std", "../lib/astra/std"};
-    ld.has_std = find_installed(p->opts->argv0, "ASTRA_STD", STD, ARRAY_LEN(STD), ld.std_dir);
+    static const char *const STD[] = {"../../std", "../lib/ofir/std"};
+    ld.has_std = find_installed(p->opts->argv0, "OFIR_STD", STD, ARRAY_LEN(STD), ld.std_dir);
     StrView name = root_module_name(&ld, p->opts->input, in_project);
     add_test_file(&ld, root, name, p->opts->input);
     VEC_PUSH(ld.modules, ((ProgramModule){.module = root, .name = name}));

@@ -22,7 +22,7 @@ const char *llvm_type(Gen *g, TypeId type) {
         default: return "i64";
         }
     case TY_FLOAT: return ty->data == 32 ? "float" : "double";
-    case TY_STR: return "%astra.str";
+    case TY_STR: return "%ofir.str";
     default: return "void";   // (), ! and the types the checker rejects
     }
 }
@@ -43,11 +43,11 @@ bool is_c_function(const Def *def) {
 
 void function_name(Gen *g, Out *out, DefId def, TypeId targs, bool is_main) {
     if (is_main) {
-        out_str(out, "@astra_main");
+        out_str(out, "@ofir_main");
         return;
     }
-    if (is_glue(def)) {   // `astra.drop<T>`, `astra.clone<T>`
-        out_str(out, def.id == GLUE_DROP ? "@\"astra.drop" : "@\"astra.clone");
+    if (is_glue(def)) {   // `ofir.drop<T>`, `ofir.clone<T>`
+        out_str(out, def.id == GLUE_DROP ? "@\"ofir.drop" : "@\"ofir.clone");
         type_args_text(g, out, targs);
         out_char(out, '"');
         return;
@@ -59,21 +59,21 @@ void function_name(Gen *g, Out *out, DefId def, TypeId targs, bool is_main) {
         out_write(out, name.ptr, name.len);
         return;
     }
-    out_str(out, "@\"astra.");
+    out_str(out, "@\"ofir.");
     if (d->module != 0) {   // qualified by its module, except in the root module
         StrView module = g->sema->program.items[d->module].name;
         out_write(out, module.ptr, module.len);
         out_char(out, '.');
     }
     bool method = d->item && d->item->kind != ITEM_FN && d->item->kind != ITEM_EXTERN;
-    if (method) {   // a method: qualified by its type, `astra.Point.norm`
+    if (method) {   // a method: qualified by its type, `ofir.Point.norm`
         StrView owner = symbol_name(&g->sema->session->names, d->item->name);
         out_write(out, owner.ptr, owner.len);
         out_char(out, '.');
     }
     StrView name = def_name(g, def);
     out_write(out, name.ptr, name.len);
-    if (targs.id != TID_UNIT) {   // an instance: `astra.identity<int>`
+    if (targs.id != TID_UNIT) {   // an instance: `ofir.identity<int>`
         type_args_text(g, out, targs);
     }
     out_char(out, '"');
@@ -135,36 +135,36 @@ uint32_t location_global(Gen *g, Span span) {
     LineCol pos = source_line_col(&g->sema->session->sources, span.file, span.start);
     file_global(g, span.file);
     uint32_t n = g->loc_count++;
-    out_fmt(&g->globals, "@.loc.%u = private unnamed_addr constant %%astra.loc "
+    out_fmt(&g->globals, "@.loc.%u = private unnamed_addr constant %%ofir.loc "
             "{ ptr @.file.%u, i32 %u, i32 %u }\n", n, span.file.id, pos.line, pos.column);
     return n;
 }
 
 static const char RUNTIME_DECLS[] =
-    "declare void @astra_print_str(ptr) nounwind\n"
-    "declare void @astra_print_int(i64) nounwind\n"
-    "declare void @astra_print_uint(i64) nounwind\n"
-    "declare void @astra_print_float(double) nounwind\n"
-    "declare void @astra_print_f32(float) nounwind\n"
-    "declare void @astra_print_bool(i1 zeroext) nounwind\n"
-    "declare void @astra_print_newline() nounwind\n"
-    "declare i64 @astra_test_index() nounwind\n"
-    "declare void @astra_str_push_str(ptr, ptr) nounwind\n"
-    "declare void @astra_str_push_int(ptr, i64) nounwind\n"
-    "declare void @astra_str_push_uint(ptr, i64) nounwind\n"
-    "declare void @astra_str_push_float(ptr, double) nounwind\n"
-    "declare void @astra_str_push_f32(ptr, float) nounwind\n"
-    "declare void @astra_str_push_bool(ptr, i1 zeroext) nounwind\n"
-    "declare void @astra_str_concat(ptr, ptr, ptr) nounwind\n"
-    "declare zeroext i1 @astra_str_eq(ptr, ptr) nounwind\n"
-    "declare i32 @astra_str_cmp(ptr, ptr) nounwind\n"
-    "declare void @astra_panic_overflow(ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_div_zero(ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_shift(ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_cast(ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_bounds(i64, i64, ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_assert(ptr) noreturn cold nounwind\n"
-    "declare void @astra_panic_str(ptr, ptr) noreturn cold nounwind\n";
+    "declare void @ofir_print_str(ptr) nounwind\n"
+    "declare void @ofir_print_int(i64) nounwind\n"
+    "declare void @ofir_print_uint(i64) nounwind\n"
+    "declare void @ofir_print_float(double) nounwind\n"
+    "declare void @ofir_print_f32(float) nounwind\n"
+    "declare void @ofir_print_bool(i1 zeroext) nounwind\n"
+    "declare void @ofir_print_newline() nounwind\n"
+    "declare i64 @ofir_test_index() nounwind\n"
+    "declare void @ofir_str_push_str(ptr, ptr) nounwind\n"
+    "declare void @ofir_str_push_int(ptr, i64) nounwind\n"
+    "declare void @ofir_str_push_uint(ptr, i64) nounwind\n"
+    "declare void @ofir_str_push_float(ptr, double) nounwind\n"
+    "declare void @ofir_str_push_f32(ptr, float) nounwind\n"
+    "declare void @ofir_str_push_bool(ptr, i1 zeroext) nounwind\n"
+    "declare void @ofir_str_concat(ptr, ptr, ptr) nounwind\n"
+    "declare zeroext i1 @ofir_str_eq(ptr, ptr) nounwind\n"
+    "declare i32 @ofir_str_cmp(ptr, ptr) nounwind\n"
+    "declare void @ofir_panic_overflow(ptr) noreturn cold nounwind\n"
+    "declare void @ofir_panic_div_zero(ptr) noreturn cold nounwind\n"
+    "declare void @ofir_panic_shift(ptr) noreturn cold nounwind\n"
+    "declare void @ofir_panic_cast(ptr) noreturn cold nounwind\n"
+    "declare void @ofir_panic_bounds(i64, i64, ptr) noreturn cold nounwind\n"
+    "declare void @ofir_panic_assert(ptr) noreturn cold nounwind\n"
+    "declare void @ofir_panic_str(ptr, ptr) noreturn cold nounwind\n";
 
 static void overflow_decls(Gen *g) {
     static const char *const OPS[] = {"add", "sub", "mul"};
@@ -191,10 +191,10 @@ Gen *llvm_begin(Sema *sema, FILE *file) {
     out_to_memory(&g->path);
     escaped_bytes(&g->path, source->path);
     out_char(&g->path, '\0');
-    out_fmt(&g->out, "; Generated by the Astra stage 0 compiler.\nsource_filename = \"%s\"\n\n",
+    out_fmt(&g->out, "; Generated by the Ofir stage 0 compiler.\nsource_filename = \"%s\"\n\n",
             g->path.buf);
-    out_str(&g->out, "%astra.str = type { ptr, i64, i64 }\n");
-    out_str(&g->out, "%astra.loc = type { ptr, i32, i32 }\n");
+    out_str(&g->out, "%ofir.str = type { ptr, i64, i64 }\n");
+    out_str(&g->out, "%ofir.loc = type { ptr, i32, i32 }\n");
     // Every struct is known after type checking. The definitions come first:
     // LLVM needs a type's size when a function allocates it.
     // Instances of generic types are defined as functions use them.

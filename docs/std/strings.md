@@ -40,7 +40,7 @@ Iterating a `str` directly (`for b in s`) yields bytes (`u8`); use
 | `struct Builder` with `push`, `pushChar`, `finish() str` | efficient incremental construction | ✓ |
 
 The iterators `StrSplit` (of `split`, `splitWhitespace` and `lines`) and
-`StrBytes` are in `std/core/split.at`; their items are views of the string
+`StrBytes` are in `std/core/split.of`; their items are views of the string
 (`cap == 0`), which nothing frees. Stage 0 does not check that a view does
 not outlive its string (no borrow checker yet, roadmap 6.x).
 

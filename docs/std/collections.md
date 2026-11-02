@@ -36,7 +36,7 @@ from context).
 
 Indexing `l[i]` and slicing `l[a..b]` are bounds checked (spec 4.9).
 
-Stage 0: `List` is written in `std/core/list.at`, marked `@lang("list")`;
+Stage 0: `List` is written in `std/core/list.of`, marked `@lang("list")`;
 the compiler builds literals with its `withCapacity`, `push`, `new` and
 `filled`, and reaches elements through its `ptr` and `len` fields.
 `for x in list` copies each element, so the element type must be Copy
@@ -50,9 +50,9 @@ copies a slice into a new list (S0 for Copy element types).
 
 A hash map iterating in insertion order (spec 2.6). Requires `K: Eq + Hash`.
 
-Stage 0: `Map` is written in `std/core/map.at` (a list of entries in
+Stage 0: `Map` is written in `std/core/map.of` (a list of entries in
 insertion order and an open-addressing table), and keys are integers,
-bool, str or tuples of them (E0313), hashed by `std/core/hash.at` until
+bool, str or tuples of them (E0313), hashed by `std/core/hash.of` until
 bounds. `keys()` and `values()` wait for iterators; `for key, value in
 map` visits the entries.
 
@@ -85,6 +85,6 @@ An owned heap allocation.
 `*b` reads the value. A method of `Box` itself (`unbox`) takes precedence
 over a method of the same name of the value; `(*b).m()` calls the latter.
 
-Stage 0: `Box` is declared in `std/core/box.at`, marked `@lang("box")` so
+Stage 0: `Box` is declared in `std/core/box.of`, marked `@lang("box")` so
 that the compiler knows which type to dereference. Dropping a box drops
 its value and frees the memory.

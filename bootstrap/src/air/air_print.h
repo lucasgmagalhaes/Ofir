@@ -1,7 +1,7 @@
 // AIR printing and validation.
 
-#ifndef ASTRA_AIR_PRINT_H
-#define ASTRA_AIR_PRINT_H
+#ifndef OFIR_AIR_PRINT_H
+#define OFIR_AIR_PRINT_H
 
 #include "air/air.h"
 #include "sema/sema.h"

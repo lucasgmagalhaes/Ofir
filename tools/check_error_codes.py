@@ -20,7 +20,7 @@ USE_RE = re.compile(r"(?:error|warning)\[([EW]\d{4})\]")
 
 def unknown_codes(known: set) -> list[str]:
     problems = []
-    for path in sorted((ROOT / "tests").rglob("*.at")):
+    for path in sorted((ROOT / "tests").rglob("*.of")):
         if "runner" in path.relative_to(ROOT / "tests").parts:
             continue
         for number, line in enumerate(path.read_text().splitlines(), start=1):

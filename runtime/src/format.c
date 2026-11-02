@@ -1,13 +1,13 @@
 // Number formatting for printing and interpolation.
 
-#include "astra_rt.h"
+#include "ofir_rt.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-int astra_format_uint(char *buf, uint64_t value) {
+int ofir_format_uint(char *buf, uint64_t value) {
     char digits[24];
     int n = 0;
     do {
@@ -20,12 +20,12 @@ int astra_format_uint(char *buf, uint64_t value) {
     return n;
 }
 
-int astra_format_int(char *buf, int64_t value) {
+int ofir_format_int(char *buf, int64_t value) {
     if (value >= 0) {
-        return astra_format_uint(buf, (uint64_t)value);
+        return ofir_format_uint(buf, (uint64_t)value);
     }
     buf[0] = '-';
-    return 1 + astra_format_uint(buf + 1, 0 - (uint64_t)value);   // also for INT64_MIN
+    return 1 + ofir_format_uint(buf + 1, 0 - (uint64_t)value);   // also for INT64_MIN
 }
 
 // Removes the `+` and the leading zeros of an exponent: `1e+07` -> `1e7`.
@@ -66,7 +66,7 @@ static int format_float(char *buf, double value, bool is_f32) {
     int n = 0;
     for (int precision = fixed ? 0 : 1; precision <= (fixed ? 22 : 17); precision++) {
         int digits = fixed ? precision : precision - 1;
-        n = snprintf(buf, ASTRA_FORMAT_SIZE, fixed ? "%.*f" : "%.*e", digits, value);
+        n = snprintf(buf, OFIR_FORMAT_SIZE, fixed ? "%.*f" : "%.*e", digits, value);
         bool exact = is_f32 ? strtof(buf, NULL) == (float)value : strtod(buf, NULL) == value;
         if (exact) {
             break;
@@ -80,10 +80,10 @@ static int format_float(char *buf, double value, bool is_f32) {
     return n;
 }
 
-int astra_format_float(char *buf, double value) {
+int ofir_format_float(char *buf, double value) {
     return format_float(buf, value, false);
 }
 
-int astra_format_f32(char *buf, float value) {
+int ofir_format_f32(char *buf, float value) {
     return format_float(buf, value, true);
 }

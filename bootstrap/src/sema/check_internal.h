@@ -5,8 +5,8 @@
 // type and stores it in the node; `coerce` then reports a mismatch.
 // Divergence is a type: `return`, `break` and infinite loops have type `!`.
 
-#ifndef ASTRA_CHECK_INTERNAL_H
-#define ASTRA_CHECK_INTERNAL_H
+#ifndef OFIR_CHECK_INTERNAL_H
+#define OFIR_CHECK_INTERNAL_H
 
 #include "sema/sema.h"
 

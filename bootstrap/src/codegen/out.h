@@ -3,8 +3,8 @@
 // upper-case hex (%02X, %016lX, %016llX) and %%. It avoids the cost of the C
 // library's printf, which dominated code generation.
 
-#ifndef ASTRA_OUT_H
-#define ASTRA_OUT_H
+#ifndef OFIR_OUT_H
+#define OFIR_OUT_H
 
 #include "base/str.h"
 

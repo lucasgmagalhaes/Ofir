@@ -13,14 +13,14 @@ with the code that fails is busywork.
 
 TypeScript answers with union types: `A | B` holds an `A` or a `B`. Its
 unions rely on every value carrying its type at run time and on structural
-subtyping. Astra has neither: there is no GC and no runtime type
+subtyping. Ofir has neither: there is no GC and no runtime type
 information, and an owned value must know which `drop` to run. A union
 value must therefore carry a tag, which makes it an enum whose variants
 are named by their types.
 
 ## Decision
 
-Astra adds **union types** (spec chapter 17): `A | B` is an anonymous
+Ofir adds **union types** (spec chapter 17): `A | B` is an anonymous
 tagged enum with one variant per member type.
 
 - A union is normalized: nested unions are flattened, repeated members

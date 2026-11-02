@@ -3,7 +3,7 @@
 // for the instance's concrete key type, which the checker restricts to
 // integers, bool, str and tuples of them: integers and bools are hashed by
 // `hashU64`, strings by `hashStr`, tuples by combining their elements'
-// hashes with `hashCombine`, all in std/core/hash.at (deterministic, ADR
+// hashes with `hashCombine`, all in std/core/hash.of (deterministic, ADR
 // 0011).
 
 #include "air/lower_internal.h"

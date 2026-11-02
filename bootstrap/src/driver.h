@@ -1,7 +1,7 @@
 // The compilation pipeline: runs each phase in order.
 
-#ifndef ASTRA_DRIVER_H
-#define ASTRA_DRIVER_H
+#ifndef OFIR_DRIVER_H
+#define OFIR_DRIVER_H
 
 #include "diag/diag.h"
 

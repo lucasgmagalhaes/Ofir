@@ -1,7 +1,7 @@
 // Minimal unit test helpers for the stage 0 C code.
 
-#ifndef ASTRA_TEST_H
-#define ASTRA_TEST_H
+#ifndef OFIR_TEST_H
+#define OFIR_TEST_H
 
 #include <stdio.h>
 

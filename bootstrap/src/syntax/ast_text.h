@@ -1,7 +1,7 @@
 // One-line text of types, patterns and literals (used by the AST printer).
 
-#ifndef ASTRA_AST_TEXT_H
-#define ASTRA_AST_TEXT_H
+#ifndef OFIR_AST_TEXT_H
+#define OFIR_AST_TEXT_H
 
 #include "base/str.h"
 #include "syntax/ast.h"

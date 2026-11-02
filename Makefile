@@ -1,4 +1,4 @@
-# Top-level build for the Astra repository.
+# Top-level build for the Ofir repository.
 # See docs/design/toolchain.md, section 7.
 
 BUILD  ?= build
@@ -35,27 +35,27 @@ check-format:
 
 # Every run test and example under valgrind: no leaks, no invalid accesses.
 check-leaks: stage0 runtime
-	$(PYTHON) tools/check_leaks.py --compiler $(BUILD)/stage0/astra
+	$(PYTHON) tools/check_leaks.py --compiler $(BUILD)/stage0/ofir
 
 # The `@test` functions of std and of the stage 1 compiler (spec 12.2).
 test-std: stage0 runtime
-	$(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage0/astra
+	$(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage0/ofir
 
 # Every run and panic test and example under ASan and UBSan (needs gcc).
 check-asan: stage0 runtime
-	$(PYTHON) tools/check_asan.py --compiler $(BUILD)/stage0/astra
+	$(PYTHON) tools/check_asan.py --compiler $(BUILD)/stage0/ofir
 
 # Stage 1 (compiler/, built by stage 0) gives the same output as stage 0.
 compare-stages: stage0 runtime
-	$(PYTHON) tools/compare_stages.py --compiler $(BUILD)/stage0/astra --fuzz 200
+	$(PYTHON) tools/compare_stages.py --compiler $(BUILD)/stage0/ofir --fuzz 200
 
 test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std compare-stages
-	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/astra
+	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/ofir
 
 # Performance (docs/design/performance.md)
 bench:
 	$(MAKE) -C bootstrap release BUILD=$(abspath $(BUILD))/release
-	$(PYTHON) bench/run_bench.py --compiler $(BUILD)/release/astra
+	$(PYTHON) bench/run_bench.py --compiler $(BUILD)/release/ofir
 
 BASE ?= origin/main
 bench-compare:

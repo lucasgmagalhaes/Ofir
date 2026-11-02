@@ -1,7 +1,7 @@
-// `astra test` (spec 12.2, roadmap 3.11). The roots are the `@test`
+// `ofir test` (spec 12.2, roadmap 3.11). The roots are the `@test`
 // functions of the root module and of the modules outside std, and the
 // program's entry point is generated: it runs the test whose index
-// `astra_test_index()` returns (the driver passes it as the argument), so
+// `ofir_test_index()` returns (the driver passes it as the argument), so
 // that each test runs in a process of its own.
 
 #include "air/lower_internal.h"
@@ -17,7 +17,7 @@ void find_tests(Lowerer *l, uint32_t module) {
     }
 }
 
-// `astra_main`: `if index == 0 { test0() } else if index == 1 { ... }`.
+// `ofir_main`: `if index == 0 { test0() } else if index == 1 { ... }`.
 void lower_test_main(Lowerer *l, BodySink sink, void *context) {
     AirBody body = {.def = {0}, .targs = type_id(TID_UNIT), .is_main = true};
     l->body = &body;

@@ -19,5 +19,9 @@ trap 'git -C "$ROOT" worktree remove --force "$WORK/src"' EXIT
 # so that it finds that tree's standard library at `../../std`.
 make -C "$WORK/src/bootstrap" release BUILD="$WORK/src/build/release" >/dev/null
 make -C "$ROOT/bootstrap" release BUILD="$ROOT/build/release" >/dev/null
-python3 "$ROOT/bench/run_bench.py" --compiler "$ROOT/build/release/astra" \
-    --compare "$WORK/src/build/release/astra" --json "$ROOT/build/bench-results.json"
+BASE_COMPILER="$WORK/src/build/release/ofir"
+if [ ! -x "$BASE_COMPILER" ]; then   # a base from before the rename to Ofir
+    BASE_COMPILER="$WORK/src/build/release/astra"
+fi
+python3 "$ROOT/bench/run_bench.py" --compiler "$ROOT/build/release/ofir" \
+    --compare "$BASE_COMPILER" --json "$ROOT/build/bench-results.json"

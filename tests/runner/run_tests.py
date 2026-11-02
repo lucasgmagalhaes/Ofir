@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Astra test runner.
+"""Ofir test runner.
 
 Discovers test files under tests/<suite>/, runs them against a compiler and
 reports the results. Test formats are described in docs/design/testing.md.
 
 Compiler interface used by the runner:
 
-    astra build FILE --emit=tokens          print tokens to stdout
-    astra build FILE --emit=ast             print the AST to stdout
-    astra build FILE --emit=llvm -o OUT     write OUT.ll
-    astra build FILE --message-format=short diagnostics as
+    ofir build FILE --emit=tokens          print tokens to stdout
+    ofir build FILE --emit=ast             print the AST to stdout
+    ofir build FILE --emit=llvm -o OUT     write OUT.ll
+    ofir build FILE --message-format=short diagnostics as
                                             `file:line:col: error[E0300]: message`
-    astra run FILE                          compile and run
+    ofir run FILE                          compile and run
 
 Standard library only; Python 3.9 or newer.
 """
@@ -62,7 +62,7 @@ class Config:
     bless: bool
     tests_dir: Path
     verbose: bool
-    tmp: Path = field(default_factory=lambda: Path(tempfile.mkdtemp(prefix="astra-tests-")))
+    tmp: Path = field(default_factory=lambda: Path(tempfile.mkdtemp(prefix="ofir-tests-")))
 
 
 def run_process(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
@@ -260,12 +260,12 @@ def run_test(cfg: Config, suite: str, path: Path) -> Result:
 
 
 def is_module_of_project(path: Path, suite_dir: Path) -> bool:
-    """A directory with a main.at is one multi-file test: its other files are
+    """A directory with a main.of is one multi-file test: its other files are
     modules of that program, not tests."""
     for parent in path.parents:
         if parent == suite_dir or suite_dir not in parent.parents:
             break
-        if (parent / "main.at").exists() and path != parent / "main.at":
+        if (parent / "main.of").exists() and path != parent / "main.of":
             return True
     return False
 
@@ -274,7 +274,7 @@ def discover(tests_dir: Path, filters: list[str]) -> list[tuple[str, Path]]:
     found = []
     for suite in SUITES:
         suite_dir = tests_dir / suite
-        for path in sorted(suite_dir.rglob("*.at")):
+        for path in sorted(suite_dir.rglob("*.of")):
             if is_module_of_project(path, suite_dir):
                 continue
             rel = path.relative_to(tests_dir).as_posix()
@@ -288,7 +288,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("filters", nargs="*",
                         help="run only tests whose path contains one of these")
-    parser.add_argument("--compiler", default=str(root / "build" / "stage0" / "astra"))
+    parser.add_argument("--compiler", default=str(root / "build" / "stage0" / "ofir"))
     parser.add_argument("--stage", type=int, choices=[0, 1],
                         help="compiler stage (default: 0 if the path contains 'stage0')")
     parser.add_argument("--tests-dir", type=Path, default=root / "tests")

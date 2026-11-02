@@ -31,12 +31,12 @@ TESTS     := $(patsubst tests/%.c,$(BUILD)/tests/%,$(wildcard tests/*.c))
 
 .PHONY: all release test clean
 
-all: $(BUILD)/astra
+all: $(BUILD)/ofir
 
 release:
 	$(MAKE) MODE=release
 
-$(BUILD)/astra: $(OBJS)
+$(BUILD)/ofir: $(OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) -o $@ $^ -lm
 

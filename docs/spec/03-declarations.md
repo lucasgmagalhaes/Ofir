@@ -2,8 +2,8 @@
 
 ## 3.1 Variables
 
-```astra
-let name = "Astra"        // immutable binding
+```ofir
+let name = "Ofir"        // immutable binding
 var count = 0             // mutable binding
 var total: float = 0      // explicit type
 var buffer: List<u8>      // must be assigned before its first use
@@ -20,7 +20,7 @@ var buffer: List<u8>      // must be assigned before its first use
 
 ## 3.2 Constants
 
-```astra
+```ofir
 const MAX_USERS = 1024
 const GREETING: str = "hello"
 ```
@@ -30,7 +30,7 @@ literals, other constants and arithmetic operators.
 
 ## 3.3 Functions
 
-```astra
+```ofir
 fn add(a: int, b: int) int {
     return a + b
 }
@@ -51,7 +51,7 @@ Param  = identifier ":" Type .
 - Parameters are borrowed by default; `mut` and `move` change how they are
   passed (chapter 5.3). The caller never marks the mode:
 
-  ```astra
+  ```ofir
   fn rename(user: mut User, name: move str) {
       user.name = name
   }
@@ -71,7 +71,7 @@ Param  = identifier ":" Type .
 Trailing parameters may have a default value. Any argument may be passed by
 name, after the positional ones:
 
-```astra
+```ofir
 fn connect(host: str, port: int = 443, timeout: int = 30, verbose: bool = false) Conn { ... }
 
 connect("example.com")
@@ -100,7 +100,7 @@ arguments are available through `std.os.args()`.
 
 ## 3.4 Structs
 
-```astra
+```ofir
 struct User {
     name: str
     email: str
@@ -122,7 +122,7 @@ let v = User{age: 31, ..u}     // copy/move the remaining fields from u
 
 A field may declare a default value, used when a literal omits the field:
 
-```astra
+```ofir
 struct Config {
     host: str = "localhost"
     port: int = 8080
@@ -144,7 +144,7 @@ fields.
 A tuple struct has positional fields. With a single field it creates a new,
 distinct type at zero cost (a "newtype"):
 
-```astra
+```ofir
 copy struct UserId(int)
 copy struct Rgb(u8, u8, u8)
 
@@ -161,7 +161,7 @@ accessed with `.0`, `.1`, ..., and they can be destructured in patterns:
 
 ## 3.5 Enums
 
-```astra
+```ofir
 enum Token {
     Number(value: int)
     Ident(name: str)
@@ -182,7 +182,7 @@ Methods are declared **inside** the body of the struct or enum they belong
 to, after its fields or variants. A method takes `self` as its first
 parameter; the mode of `self` (chapter 5.3) says how the value is used:
 
-```astra
+```ofir
 pub struct Point {
     pub x: float
     pub y: float
@@ -206,7 +206,7 @@ pub struct Point {
 }
 ```
 
-```astra
+```ofir
 var p = Point.origin()
 p.scale(2.0)
 let l = p.length()
@@ -228,7 +228,7 @@ let l = p.length()
 
 Enums declare methods after their variants:
 
-```astra
+```ofir
 enum Shape {
     Circle(radius: float)
     Rect(width: float, height: float)
@@ -247,7 +247,7 @@ enum Shape {
 A type may define a `drop` method, called automatically when a value of that
 type goes out of scope (chapter 5):
 
-```astra
+```ofir
 struct File {
     fd: i32
 
@@ -259,10 +259,10 @@ struct File {
 
 ## 3.8 External functions
 
-Functions implemented in C (libc or the Astra runtime) are declared in an
+Functions implemented in C (libc or the Ofir runtime) are declared in an
 `extern "C"` block and can only be called from `unsafe` code:
 
-```astra
+```ofir
 extern "C" {
     fn write(fd: i32, buf: *u8, len: uint) int
 }

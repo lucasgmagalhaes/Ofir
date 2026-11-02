@@ -28,9 +28,9 @@ and many programmers already know them.
   | `@typeParam T description` | a type parameter (TSDoc's name) |
   | `@param name description` | a parameter, in the order of the signature; not `self` |
   | `@returns description` | the result, for a function that returns a value |
-  | `@panics description` | when the function panics (Astra has no exceptions, so no `@throws`) |
+  | `@panics description` | when the function panics (Ofir has no exceptions, so no `@throws`) |
   | `@safety description` | what the caller of an `unsafe fn` must guarantee |
-  | `@example` | an example, as a fenced ```` ```astra ```` block (a doc test, spec 12.5) |
+  | `@example` | an example, as a fenced ```` ```ofir ```` block (a doc test, spec 12.5) |
   | `@see target` | a related declaration or document |
   | `@deprecated reason` | the declaration should no longer be used |
 
@@ -38,12 +38,12 @@ and many programmers already know them.
   match the signature: `@param` for each parameter, `@typeParam` for each
   type parameter, `@returns` exactly when there is a result, `@safety`
   exactly for `unsafe fn`, `@panics` when the body calls `panic`.
-  `tools/check_docs.py` enforces this in `make test` until `astra doc`
+  `tools/check_docs.py` enforces this in `make test` until `ofir doc`
   (stage 1) checks and renders comments itself.
 
 ## Consequences
 
-- Documentation has a predictable shape that editors, `astra doc` and the
+- Documentation has a predictable shape that editors, `ofir doc` and the
   checker understand; a missing or stale `@param` is a test failure.
 - The stage 0 lexer produces one token per documentation comment, with
   the text normalized; the parser still drops it, as there is no

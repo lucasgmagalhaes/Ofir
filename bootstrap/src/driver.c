@@ -110,13 +110,13 @@ static bool run_phases(Pipeline *p) {
     return next != STOP_FAIL && !diags_has_errors(&p->session->diags);
 }
 
-// `astra test a/b_test.at` tests the module `a/b.at`, which loads its test file.
+// `ofir test a/b_test.of` tests the module `a/b.of`, which loads its test file.
 static const char *test_root(const Options *opts, char buf[PATH_SIZE]) {
     size_t len = strlen(opts->input);
-    const char *suffix = "_test.at";
+    const char *suffix = "_test.of";
     if (strcmp(opts->command, "test") != 0 || len <= strlen(suffix) ||
         strcmp(opts->input + len - strlen(suffix), suffix) != 0 ||
-        snprintf(buf, PATH_SIZE, "%.*s.at", (int)(len - strlen(suffix)), opts->input) >=
+        snprintf(buf, PATH_SIZE, "%.*s.of", (int)(len - strlen(suffix)), opts->input) >=
             PATH_SIZE ||
         access(buf, R_OK) != 0) {
         return opts->input;

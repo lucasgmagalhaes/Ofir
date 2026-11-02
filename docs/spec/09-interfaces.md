@@ -8,7 +8,7 @@ one indirect call).
 
 ## 9.1 Declaring interfaces
 
-```astra
+```ofir
 interface Shape {
     fn area(self) float
     fn name(self) str
@@ -22,7 +22,7 @@ interface Shape {
 
 ## 9.2 Satisfying interfaces
 
-```astra
+```ofir
 struct Circle {
     radius: float
 
@@ -46,7 +46,7 @@ the parameter types and the return type match exactly.
 To document intent and get an error at the type's declaration if a method is
 missing, a type can assert that it satisfies an interface:
 
-```astra
+```ofir
 struct Circle: Shape + Display {
     radius: float
 
@@ -61,7 +61,7 @@ The assertion does not change behavior; it only adds a compile-time check.
 An interface method can have a body. Types get it for free unless they define
 their own:
 
-```astra
+```ofir
 interface Shape {
     fn area(self) float
     fn name(self) str
@@ -76,7 +76,7 @@ interface Shape {
 
 An interface can include other interfaces:
 
-```astra
+```ofir
 interface Reader {
     fn read(mut self, buf: mut [u8]) Result<int, IoError>
 }
@@ -93,7 +93,7 @@ interface ReadWriter {
 
 ## 9.5 Generic interfaces
 
-```astra
+```ofir
 interface Iterator<T> {
     fn next(mut self) Option<T>
 }
@@ -108,7 +108,7 @@ interface From<T> {
 An interface used as a bound is resolved at compile time. Calls are direct
 and can be inlined:
 
-```astra
+```ofir
 fn totalArea<S: Shape>(shapes: [S]) float {
     var sum = 0.0
     for s in shapes {
@@ -130,7 +130,7 @@ It is unsized, so it is used as a parameter type or behind a pointer:
 | `Box<dyn Shape>` | owned, e.g. in a list of different shapes |
 | `&dyn Shape` | explicit reference (chapter 5.6) |
 
-```astra
+```ofir
 fn draw(s: dyn Shape) {
     println(s.describe())
 }
@@ -138,7 +138,7 @@ fn draw(s: dyn Shape) {
 draw(Circle{radius: 1.0})
 ```
 
-```astra
+```ofir
 let shapes: List<Box<dyn Shape>> = [
     Box.new(Circle{radius: 1.0}),
     Box.new(Square{side: 2.0}),
@@ -170,7 +170,7 @@ body; they are simply not callable through `dyn`.
 
 The concrete type behind a `dyn` value can be tested with `match`:
 
-```astra
+```ofir
 match shape {
     c: Circle => println("circle of radius {c.radius}")
     _ => println("another shape")
@@ -190,7 +190,7 @@ move and the box is freed.
 `Any` (ADR 0024), in `std.core` and the prelude, holds a value of any
 type:
 
-```astra
+```ofir
 pub interface Any {
     fn typeName(self) str
 }
@@ -203,7 +203,7 @@ declare its own; it returns the type's name as written in messages:
 `"int"`, `"List<str>"`, `"app.Config"`. The value is recovered with a type
 switch:
 
-```astra
+```ofir
 fn describe(v: dyn Any) str {
     return match v {
         n: int => "the int {n}"

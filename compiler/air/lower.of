@@ -1,0 +1,1184 @@
+/**
+ * @module
+ * Lowering, typed AST to AIR (stage 0: bootstrap/src/air/lower.c,
+ * lower_scope.c, mono.c): the functions reachable from the roots, in the
+ * order they are reached; the blocks and statements; the drop scopes and
+ * drop flags (spec 5.2).
+ *
+ * AIR local 0 is the return value and AST local `i` is AIR local `i + 1`, so
+ * `self` and the parameters (the first AST locals) are AIR locals
+ * 1..paramCount. Temporaries follow.
+ *
+ * Stage 1 lowers a part of the language so far: a construct it does not
+ * lower yet marks the lowering `unsupported`, and `main air` then prints
+ * nothing (`make compare-stages` skips the file).
+ */
+
+import air.air.AirBody
+import air.air.AirStmt
+import air.air.GLUE_DROP
+import air.air.Operand
+import air.air.OperandKind
+import air.air.PanicKind
+import air.air.Rvalue
+import air.air.RuntimeFn
+import air.air.StmtKind
+import air.air.Terminator
+import air.air.TermKind
+import air.air.branch
+import air.air.isGlue
+import air.air.jump
+import air.air.noPath
+import air.air.opBool
+import air.air.opCopy
+import air.air.opUnit
+import air.air.rvUse
+import air.air.terminator
+import air.lower_expr.lowerBlock
+import base.intern.Symbol
+import base.span.Span
+import diag.noSpan
+import sema.check.Checker
+import sema.check.checkLate
+import sema.check.fnOf
+import sema.check.itemOf
+import sema.check_methods.methodAt
+import sema.check_methods.methodCount
+import sema.def.Local
+import sema.enums.enumVariants
+import sema.enums.variantsOf
+import sema.moves.Part
+import sema.program.Program
+import sema.resolve.moduleInStd
+import sema.structs.fieldsOf
+import sema.structs.structFieldType
+import sema.structs.structFields
+import sema.structs.variantFieldType
+import sema.types.BOOL
+import sema.types.UNIT
+import std.mem
+
+/** Where `break` and `continue` go in a loop. */
+pub copy struct LoopTarget {
+    /** The block after the loop. */
+    pub breakTo: int
+    /** The block `continue` goes to. */
+    pub continueTo: int
+    /** The drop scopes open outside the loop. */
+    pub scopes: int
+    /** The temporary scopes open outside the loop. */
+    pub tempScopes: int
+}
+
+/** The drop flag of a part of a local that is moved out somewhere. */
+pub struct PartFlag {
+    /** The part; its `local` is the AIR local. */
+    pub part: Part
+    /** The flag. */
+    pub flag: int
+}
+
+/** A temporary to drop at the end of its full expression. */
+pub copy struct Temp {
+    /** The local holding it. */
+    pub local: int
+    /** Its type. */
+    pub ty: int
+}
+
+/** A place: a local and a field path. */
+pub struct Place {
+    /** The local. */
+    pub local: int
+    /** The fields from it. */
+    pub fields: List<int>
+    /** The local holds the address of the value. */
+    pub deref: bool
+}
+
+/** A function to compile: not generic (targs `()`), an instance, or glue. */
+pub copy struct Instance {
+    /** The function's `DefId`, or 0 for glue. */
+    pub def: int
+    /** Its type arguments, a tuple; `()` if not generic. */
+    pub targs: int
+    /** `GLUE_DROP` or `GLUE_CLONE` when `def` is 0. */
+    pub glue: int
+}
+
+/** The state of the lowering. */
+pub struct Lowerer {
+    /** The body being built. */
+    pub body: AirBody
+    /** Where the next statement goes. */
+    pub block: int
+    /** The open loops. */
+    pub loops: List<LoopTarget>
+    /** The functions reached by a call, in order. */
+    pub pending: List<Instance>
+    /** By `DefId`: a function that is not generic was reached. */
+    pub reached: List<bool>
+    /** The generic instances reached: `def * 2^32 + targs`. */
+    pub instances: Map<int, bool>
+    /** The locals to drop at the end of their scope, in order. */
+    pub owned: List<int>
+    /** Per open block: its first entry in `owned`. */
+    pub scopes: List<int>
+    /** Per local of the function: its drop flag, or 0. */
+    pub flags: List<int>
+    /** Per AST local: it borrows a place (the move analysis). */
+    pub borrowed: List<bool>
+    /** The parts the move analysis saw moved out (AST locals). */
+    pub movedParts: List<Part>
+    /** The flags of the parts of this function's partially moved locals. */
+    pub partFlags: List<PartFlag>
+    /** By type: 0 unknown, 1 no drop, 2 drop, 3 computing. */
+    pub dropCache: List<int>
+    /** New values no one consumed, to drop. */
+    pub temps: List<Temp>
+    /** Per open full expression: its first temporary. */
+    pub tempScopes: List<int>
+    /** The next expression's value is the value of an `if`, `match` or block. */
+    pub forward: bool
+    /** E0331 was reported. */
+    pub tooDeep: bool
+    /** The function being lowered, or 0 for glue. */
+    pub fnDef: int
+    /** A construct stage 1 does not lower yet was met. */
+    pub unsupported: bool
+    /** What it was. */
+    pub missing: str
+    /** The bodies lowered, as text. */
+    pub out: List<AirBody>
+
+    /**
+     * Notes a construct stage 1 does not lower yet.
+     *
+     * @param what the construct
+     */
+    pub fn fail(mut self, what: str) {
+        if !self.unsupported {
+            self.unsupported = true
+            self.missing = what.toOwned()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Building blocks and statements
+
+/**
+ * A new temporary.
+ *
+ * @param l the lowering
+ * @param ty its type
+ * @returns its local
+ */
+pub fn newTemp(l: mut Lowerer, ty: int) int {
+    return l.body.newLocal(ty, .None, noSpan())
+}
+
+fn stmt(kind: StmtKind) AirStmt {
+    return AirStmt{kind: kind, dest: 0, destPath: noPath(), hasDest: false,
+                   value: rvUse(opUnit(UNIT)), runtime: false, rt: .PrintStr, callee: 0,
+                   targs: UNIT, args: []}
+}
+
+/**
+ * `dest = value`.
+ *
+ * @param l the lowering
+ * @param dest the local
+ * @param value the value
+ */
+pub fn emitAssign(l: mut Lowerer, dest: int, value: move Rvalue) {
+    var s = stmt(.Assign)
+    s.dest = dest
+    s.hasDest = true
+    s.value = value
+    l.body.push(l.block, s)
+}
+
+/**
+ * A new temporary holding a value.
+ *
+ * @param l the lowering
+ * @param ty its type
+ * @param value the value
+ * @returns its local
+ */
+pub fn emitTemp(l: mut Lowerer, ty: int, value: move Rvalue) int {
+    let temp = newTemp(l, ty)
+    emitAssign(l, temp, value)
+    return temp
+}
+
+/**
+ * A call of a runtime function.
+ *
+ * @param l the lowering
+ * @param f the function
+ * @param args its arguments
+ * @param dest the local receiving the result, or -1
+ */
+pub fn emitRuntime(l: mut Lowerer, f: RuntimeFn, args: move List<Operand>, dest: int) {
+    var s = stmt(.Call)
+    s.hasDest = dest >= 0
+    s.dest = if dest >= 0 { dest } else { 0 }
+    s.runtime = true
+    s.rt = f
+    s.args = args
+    l.body.push(l.block, s)
+}
+
+/**
+ * A call of a user function or of glue.
+ *
+ * @param l the lowering
+ * @param callee its `DefId`, or a glue constant
+ * @param targs its type arguments, a tuple, or ()
+ * @param args its arguments
+ * @param dest the local receiving the result, or -1
+ */
+pub fn emitCall(l: mut Lowerer, callee: int, targs: int, args: move List<Operand>, dest: int) {
+    var s = stmt(.Call)
+    s.hasDest = dest >= 0
+    s.dest = if dest >= 0 { dest } else { 0 }
+    s.callee = callee
+    s.targs = targs
+    s.args = args
+    l.body.push(l.block, s)
+}
+
+/**
+ * Continues in `block`. The block left behind was opened by `terminate`
+ * and nothing jumps to it: it ends as unreachable.
+ *
+ * @param l the lowering
+ * @param block the block
+ */
+pub fn switchTo(l: mut Lowerer, block: int) {
+    if l.body.blocks[l.block].term.kind == .None {
+        l.body.blocks[l.block].term.kind = .Unreachable
+    }
+    l.block = block
+}
+
+/**
+ * Ends the block and continues in a new one, unreachable until something
+ * jumps there.
+ *
+ * @param l the lowering
+ * @param t how the block ends
+ */
+pub fn terminate(l: mut Lowerer, t: move Terminator) {
+    l.body.terminate(l.block, t)
+    l.block = l.body.newBlock()
+}
+
+/**
+ * `goto target`.
+ *
+ * @param l the lowering
+ * @param target the block
+ */
+pub fn emitGoto(l: mut Lowerer, target: int) {
+    terminate(l, jump(target))
+}
+
+/**
+ * Panics with `panic` if `fails`, else continues in a new block.
+ *
+ * @param l the lowering
+ * @param fails the condition
+ * @param panic why
+ * @param span where
+ */
+pub fn emitAssert(l: mut Lowerer, fails: move Operand, panic: PanicKind, span: Span) {
+    let next = l.body.newBlock()
+    var t = terminator(.Assert)
+    t.cond = fails
+    t.target = next
+    t.panic = panic
+    t.span = span
+    l.body.terminate(l.block, t)
+    l.block = next
+}
+
+/**
+ * A local holding the operand: itself if it is a whole local.
+ *
+ * @param l the lowering
+ * @param operand the operand
+ * @returns the local
+ */
+pub fn toLocal(l: mut Lowerer, operand: move Operand) int {
+    if operand.kind == .Copy && operand.path.fields.len() == 0 && !operand.path.deref {
+        return operand.local
+    }
+    let ty = operand.ty
+    return emitTemp(l, ty, rvUse(operand))
+}
+
+/**
+ * The operand of a place.
+ *
+ * @param place the place
+ * @param kind `Copy` or `Addr`
+ * @param ty the type of the value
+ * @returns the operand
+ */
+pub fn placeOperand(place: &Place, kind: OperandKind, ty: int) Operand {
+    var o = opCopy(place.local, ty)
+    o.kind = kind
+    o.path.fields = place.fields.clone()
+    o.path.deref = place.deref
+    return o
+}
+
+/**
+ * The place of a whole local.
+ *
+ * @param local the local
+ * @returns the place
+ */
+pub fn localPlace(local: int) Place {
+    return Place{local: local, fields: [], deref: false}
+}
+
+/**
+ * `place = value`.
+ *
+ * @param l the lowering
+ * @param place the place
+ * @param value the value
+ */
+pub fn emitStore(l: mut Lowerer, place: &Place, value: move Operand) {
+    var s = stmt(.Assign)
+    s.dest = place.local
+    s.destPath.fields = place.fields.clone()
+    s.destPath.deref = place.deref
+    s.hasDest = true
+    s.value = rvUse(value)
+    l.body.push(l.block, s)
+}
+
+// ---------------------------------------------------------------------------
+// Drops (spec 5.2)
+
+/**
+ * A type with the instance's type arguments.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param ty a type of the body
+ * @returns the concrete type
+ */
+pub fn concreteType(l: Lowerer, c: mut Checker, ty: int) int {
+    if isGlue(l.body.def) || l.body.targs == UNIT {
+        return ty
+    }
+    let args = c.types.get(l.body.targs).args.clone()
+    return c.types.subst(ty, args)
+}
+
+/**
+ * The method `name` (with `self`) declared by a type, or 0.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @param name the method
+ * @returns its `DefId`, or 0
+ */
+pub fn typeMethod(c: Checker, p: Program, ty: int, name: str) int {
+    let t = c.types.get(ty)
+    var owner = 0
+    if t.kind == .Adt {
+        owner = t.data
+    } else if ty < c.r.lang.len() {
+        owner = c.r.lang[ty]
+    }
+    if owner == 0 || c.def(owner).item < 0 {
+        return 0
+    }
+    let loc = c.loc(owner)
+    for i in 0..methodCount(p, loc) {
+        let decl = methodAt(p, loc, i)
+        if decl.hasSelf && c.text(decl.name) == name {
+            return c.r.tables[c.def(owner).module].fnDefs[decl.id.0]
+        }
+    }
+    return 0
+}
+
+fn fieldsNeedDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
+    let t = c.types.get(ty)
+    if t.kind == .Tuple {
+        let args = t.args.clone()
+        for i in 0..args.len() {
+            if needsDrop(l, c, p, args[i]) {
+                return true
+            }
+        }
+        return false
+    }
+    if t.kind != .Adt {
+        return false
+    }
+    let id = t.data
+    if c.def(id).kind == .Struct {
+        if !structFields(c, p, id) {
+            return false
+        }
+        let count = fieldsOf(c, id).types.len()
+        for i in 0..count {
+            if needsDrop(l, c, p, structFieldType(c, p, ty, i)) {
+                return true
+            }
+        }
+        return false
+    }
+    if !enumVariants(c, p, id) {
+        return false
+    }
+    let variants = variantsOf(c, id).variants.len()
+    for v in 0..variants {
+        let count = variantsOf(c, id).variants[v].types.len()
+        for i in 0..count {
+            if needsDrop(l, c, p, variantFieldType(c, p, ty, v, i)) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+fn computeNeedsDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
+    let kind = c.types.kind(ty)
+    if kind == .Ref || kind == .Ptr || kind == .Param || kind == .Int || kind == .Float ||
+       kind == .Bool {
+        return false
+    }
+    return typeMethod(c, p, ty, "drop") != 0 || fieldsNeedDrop(l, c, p, ty)
+}
+
+/**
+ * Whether dropping a value of a concrete type does something: it has a
+ * `drop` method, or a field that needs drop.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @returns true if it does
+ */
+pub fn needsDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
+    for l.dropCache.len() <= ty {
+        l.dropCache.push(0)
+    }
+    if l.dropCache[ty] == 0 {
+        l.dropCache[ty] = 3   // in progress: no drop through itself
+        l.dropCache[ty] = if computeNeedsDrop(l, c, p, ty) { 2 } else { 1 }
+    }
+    return l.dropCache[ty] == 2
+}
+
+/**
+ * Drops the value at `place`, of the concrete type `ty`.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param place the place
+ * @param ty its type
+ */
+pub fn emitDrop(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: int) {
+    if !needsDrop(l, c, p, ty) {
+        return
+    }
+    let arg = placeOperand(place, .Addr, c.types.ref(ty, true))
+    emitCall(l, GLUE_DROP, c.types.tuple([ty]), [arg], -1)
+}
+
+// ---------------------------------------------------------------------------
+// Drop scopes and drop flags
+
+/**
+ * Opens a drop scope (a block).
+ *
+ * @param l the lowering
+ */
+pub fn dropScopeEnter(l: mut Lowerer) {
+    l.scopes.push(l.owned.len())
+}
+
+fn localType(l: Lowerer, c: mut Checker, local: int) int {
+    return concreteType(l, c, l.body.locals[local].ty)
+}
+
+fn samePath(a: &List<int>, b: &List<int>) bool {
+    if a.len() != b.len() {
+        return false
+    }
+    for i in 0..a.len() {
+        if a[i] != b[i] {
+            return false
+        }
+    }
+    return true
+}
+
+// The flag of a part moved out somewhere, or 0.
+fn partFlag(l: Lowerer, local: int, path: &List<int>) int {
+    for i in 0..l.partFlags.len() {
+        let part = &l.partFlags[i].part
+        if part.local == local && samePath(&part.fields, path) {
+            return l.partFlags[i].flag
+        }
+    }
+    return 0
+}
+
+// Whether some moved part lies strictly inside `path`.
+fn partInside(l: Lowerer, local: int, path: &List<int>) bool {
+    for i in 0..l.partFlags.len() {
+        let part = &l.partFlags[i].part
+        if part.local == local && part.fields.len() > path.len() {
+            var prefix = true
+            for j in 0..path.len() {
+                if part.fields[j] != path[j] {
+                    prefix = false
+                }
+            }
+            if prefix {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+// Branches on `flag`: the code emitted until `ifDone` runs only if set.
+fn ifSet(l: mut Lowerer, flag: int) int {
+    let then = l.body.newBlock()
+    let next = l.body.newBlock()
+    terminate(l, branch(opCopy(flag, BOOL), then, next))
+    switchTo(l, then)
+    return next
+}
+
+fn ifDone(l: mut Lowerer, next: int) {
+    emitGoto(l, next)
+    switchTo(l, next)
+}
+
+fn subPlace(place: &Place, field: int) Place {
+    var fields = place.fields.clone()
+    fields.push(field)
+    return Place{local: place.local, fields: fields, deref: place.deref}
+}
+
+// Drops what is left of a partially moved value: each field, except the
+// moved parts, whose flags decide.
+fn dropRest(l: mut Lowerer, c: mut Checker, p: Program, local: int, path: &List<int>,
+            place: &Place, ty: int) {
+    let t = c.types.get(ty)
+    let isTuple = t.kind == .Tuple
+    let count = if isTuple { t.args.len() } else { fieldsOf(c, t.data).types.len() }
+    for i in 0..count {
+        if path.len() >= 7 {
+            break
+        }
+        var here = path.clone()
+        here.push(i)
+        let field = if isTuple { c.types.get(ty).args[i] } else { structFieldType(c, p, ty, i) }
+        let at = subPlace(place, i)
+        let flag = partFlag(l, local, &here)
+        if flag != 0 {
+            let next = ifSet(l, flag)
+            emitDrop(l, c, p, &at, field)
+            ifDone(l, next)
+        } else if partInside(l, local, &here) {
+            dropRest(l, c, p, local, &here, &at, field)
+        } else {
+            emitDrop(l, c, p, &at, field)
+        }
+    }
+}
+
+// `if flag { drop(local) }`, part by part if parts may have been moved out.
+fn dropIfSet(l: mut Lowerer, c: mut Checker, p: Program, local: int) {
+    let next = ifSet(l, l.flags[local])
+    let place = Place{local: local, fields: [], deref: l.body.locals[local].byRef}
+    let empty: List<int> = []
+    let ty = localType(l, c, local)
+    if partInside(l, local, &empty) {
+        dropRest(l, c, p, local, &empty, &place, ty)
+    } else {
+        emitDrop(l, c, p, &place, ty)
+    }
+    ifDone(l, next)
+}
+
+/**
+ * Drops the locals owned by the scopes from `first` on, the latest first,
+ * without closing the scopes: for the jumps that leave them.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param first the first scope
+ */
+pub fn dropScopes(l: mut Lowerer, c: mut Checker, p: Program, first: int) {
+    if first >= l.scopes.len() {
+        return
+    }
+    var i = l.owned.len()
+    for i > l.scopes[first] {
+        dropIfSet(l, c, p, l.owned[i - 1])
+        i -= 1
+    }
+}
+
+/**
+ * Closes the innermost drop scope, dropping its locals.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ */
+pub fn dropScopeLeave(l: mut Lowerer, c: mut Checker, p: Program) {
+    dropScopes(l, c, p, l.scopes.len() - 1)
+    let first = l.scopes[l.scopes.len() - 1]
+    l.owned.truncate(first)
+    let _ = l.scopes.pop()
+}
+
+fn setFlagOf(l: mut Lowerer, flag: int, value: bool) {
+    emitAssign(l, flag, rvUse(opBool(value, BOOL)))
+}
+
+// Sets the local's flag and the flags of its parts: all have a value or none.
+fn setFlag(l: mut Lowerer, local: int, value: bool) {
+    setFlagOf(l, l.flags[local], value)
+    for i in 0..l.partFlags.len() {
+        if l.partFlags[i].part.local == local {
+            setFlagOf(l, l.partFlags[i].flag, value)
+        }
+    }
+}
+
+// Flags for the parts of `local` that the move analysis saw moved out.
+fn flagParts(l: mut Lowerer, local: int) {
+    for i in 0..l.movedParts.len() {
+        let ast = &l.movedParts[i]
+        if ast.local + 1 == local && partFlag(l, local, &ast.fields) == 0 {
+            let part = Part{local: local, fields: ast.fields.clone()}
+            let flag = newTemp(l, BOOL)
+            l.partFlags.push(PartFlag{part: part, flag: flag})
+        }
+    }
+}
+
+/**
+ * The innermost scope owns `local`: it is dropped at the scope's end.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param local the AIR local
+ * @param initialized whether it holds a value now
+ */
+pub fn ownLocal(l: mut Lowerer, c: mut Checker, p: Program, local: int, initialized: bool) {
+    if local >= l.flags.len() || isGlue(l.body.def) ||
+       !needsDrop(l, c, p, localType(l, c, local)) {
+        return
+    }
+    if local > 0 && local - 1 < l.borrowed.len() && l.borrowed[local - 1] {
+        return   // a `for` variable or a binding of a borrowed place
+    }
+    if l.flags[local] == 0 {
+        l.flags[local] = newTemp(l, BOOL)
+        flagParts(l, local)
+    }
+    setFlag(l, local, initialized)
+    l.owned.push(local)
+}
+
+/**
+ * The value of a local was moved out: its flag is cleared.
+ *
+ * @param l the lowering
+ * @param local the AIR local
+ */
+pub fn dropMoved(l: mut Lowerer, local: int) {
+    if local < l.flags.len() && l.flags[local] != 0 {
+        setFlag(l, local, false)
+    }
+}
+
+/**
+ * Before `local = value`: the old value is dropped.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param local the AIR local
+ */
+pub fn dropBeforeAssign(l: mut Lowerer, c: mut Checker, p: Program, local: int) {
+    if local < l.flags.len() && l.flags[local] != 0 {
+        dropIfSet(l, c, p, local)
+    }
+}
+
+/**
+ * After `local = value`: the flag is set.
+ *
+ * @param l the lowering
+ * @param local the AIR local
+ */
+pub fn assignDone(l: mut Lowerer, local: int) {
+    if local < l.flags.len() && l.flags[local] != 0 {
+        setFlag(l, local, true)
+    }
+}
+
+/**
+ * The value of a part is moved out: the flag of the part, or of the whole
+ * local, is cleared.
+ *
+ * @param l the lowering
+ * @param local the AIR local
+ * @param path the fields
+ */
+pub fn noteMoved(l: mut Lowerer, local: int, path: &List<int>) {
+    let flag = if path.len() > 0 { partFlag(l, local, path) } else { 0 }
+    if flag != 0 {
+        setFlagOf(l, flag, false)
+    } else {
+        dropMoved(l, local)
+    }
+}
+
+/**
+ * `p.a = v` for a part that may have been moved out: dropped only if its
+ * flag is set, which the assignment then sets.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param local the AIR local of the target
+ * @param path its fields
+ * @param place the target's place
+ * @param ty its type
+ * @returns false if the part has no flag
+ */
+pub fn assignPart(l: mut Lowerer, c: mut Checker, p: Program, local: int, path: &List<int>,
+                  place: &Place, ty: int) bool {
+    if path.len() == 0 {
+        return false
+    }
+    let flag = partFlag(l, local, path)
+    if flag == 0 {
+        return false
+    }
+    let next = ifSet(l, flag)
+    emitDrop(l, c, p, place, ty)
+    ifDone(l, next)
+    setFlagOf(l, flag, true)
+    return true
+}
+
+/**
+ * Opens a full expression: its temporaries are dropped at its end.
+ *
+ * @param l the lowering
+ */
+pub fn tempScopeEnter(l: mut Lowerer) {
+    l.tempScopes.push(l.temps.len())
+}
+
+/**
+ * Drops the temporaries of the full expressions from `first` on: for the
+ * jumps that leave them.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param first the first scope
+ */
+pub fn dropTemps(l: mut Lowerer, c: mut Checker, p: Program, first: int) {
+    if first >= l.tempScopes.len() {
+        return
+    }
+    var i = l.temps.len()
+    for i > l.tempScopes[first] {
+        let t = l.temps[i - 1]
+        emitDrop(l, c, p, &localPlace(t.local), t.ty)
+        i -= 1
+    }
+}
+
+/**
+ * Closes the innermost full expression, dropping its temporaries.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ */
+pub fn tempScopeLeave(l: mut Lowerer, c: mut Checker, p: Program) {
+    dropTemps(l, c, p, l.tempScopes.len() - 1)
+    let first = l.tempScopes[l.tempScopes.len() - 1]
+    l.temps.truncate(first)
+    let _ = l.tempScopes.pop()
+}
+
+// ---------------------------------------------------------------------------
+// Functions
+
+/**
+ * Whether parameter `index` of a function (-1 for `self`) is passed by
+ * address: a `mut` parameter, or the borrowed value a returned reference
+ * points into.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the function's `DefId`
+ * @param index the parameter
+ * @returns true if it is
+ */
+pub fn byAddress(c: Checker, p: Program, id: int, index: int) bool {
+    let decl = fnOf(p, c.loc(id))
+    let mode = if index < 0 { decl.selfMode } else { decl.params[index].mode }
+    let info = &c.info[id]
+    return mode == .Mut || (info.returnsBorrow && info.sourceByRef && info.borrowSource == index)
+}
+
+const DEPTH_LIMIT: int = 64   // spec 8.6
+
+/**
+ * Queues a function with its type arguments to be lowered: only the
+ * functions reachable from the roots are.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param id the function's `DefId`
+ * @param targs its type arguments, a tuple, `()` if it is not generic
+ */
+pub fn reach(l: mut Lowerer, c: mut Checker, p: Program, id: int, targs: int) {
+    let decl = fnOf(p, c.loc(id))
+    if decl.body.isNone() {
+        return
+    }
+    if targs == UNIT {   // not generic: a flag per DefId is enough
+        for l.reached.len() <= id {
+            l.reached.push(false)
+        }
+        if l.reached[id] {
+            return
+        }
+        l.reached[id] = true
+    } else {
+        let key = id * 4294967296 + targs
+        if l.instances.get(key).isSome() {
+            return
+        }
+        l.instances.insert(key, true)
+        if c.types.depth(targs) > DEPTH_LIMIT + 1 {   // + 1: the tuple
+            if !l.tooDeep {
+                c.error("E0331", decl.span, "instantiating `{c.text(decl.name)}` nests types "
+                        + "more than {DEPTH_LIMIT} levels deep: does it call itself with a "
+                        + "larger type?")
+            }
+            l.tooDeep = true
+            return
+        }
+    }
+    l.pending.push(Instance{def: id, targs: targs, glue: 0})
+}
+
+fn reachGlue(l: mut Lowerer, glue: int, targs: int) {
+    let key = glue * 4294967296 + targs
+    if l.instances.get(key).isSome() {
+        return
+    }
+    l.instances.insert(key, true)
+    l.pending.push(Instance{def: 0, targs: targs, glue: glue})
+}
+
+// Reaches the functions a lowered body calls.
+fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
+    if l.body.targs != UNIT && !isGlue(l.body.def) {
+        l.fail("generic functions")
+        return
+    }
+    for b in 0..l.body.blocks.len() {
+        for i in 0..l.body.blocks[b].stmts.len() {
+            let s = &l.body.blocks[b].stmts[i]
+            if s.kind == .Call && !s.runtime {
+                let callee = s.callee
+                let targs = s.targs
+                if isGlue(callee) {
+                    reachGlue(l, callee, targs)
+                } else {
+                    reach(l, c, p, callee, targs)
+                }
+            }
+        }
+    }
+}
+
+fn isMainFn(c: Checker, p: Program, id: int) bool {
+    let def = c.def(id)
+    if c.r.testing || def.module != 0 || def.item < 0 || def.member >= 0 {
+        return false
+    }
+    let isFn = match itemOf(p, c.loc(id)).kind {
+        .Fn(_) => true
+        _ => false
+    }
+    return isFn && c.text(def.name) == "main"
+}
+
+// The function's scope owns its `move` parameters (spec 5.3).
+fn ownParams(l: mut Lowerer, c: mut Checker, p: Program, id: int, localCount: int) {
+    let decl = fnOf(p, c.loc(id))
+    l.flags = List.filled(0, localCount + 1)
+    l.partFlags = []
+    l.owned = []
+    l.scopes = []
+    l.temps = []
+    l.tempScopes = []
+    l.forward = false
+    match c.fnMoves.get(id) {
+        .Some(found) => {
+            l.borrowed = found.borrowed.clone()
+            l.movedParts = found.parts.clone()
+        }
+        .None => {
+            l.borrowed = []
+            l.movedParts = []
+        }
+    }
+    dropScopeEnter(l)
+    if decl.hasSelf && decl.selfMode == .Move {
+        ownLocal(l, c, p, 1, true)
+    }
+    for i in 0..decl.params.len() {
+        if decl.params[i].mode == .Move {
+            ownLocal(l, c, p, c.localAt(decl.params[i].id.0) + 1, true)
+        }
+    }
+}
+
+fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
+    let id = inst.def
+    let decl = fnOf(p, c.loc(id))
+    let module = c.def(id).module
+    if moduleInStd(p, module) {
+        checkLate(c, p, id)   // a std body is checked when it is reached
+    }
+    let sig = c.info[id].ty
+    var body = AirBody{def: id, targs: inst.targs, name: decl.name, isMain: isMainFn(c, p, id),
+                       paramCount: decl.params.len() + if decl.hasSelf { 1 } else { 0 },
+                       locals: [], blocks: []}
+    body.newLocal(c.types.get(sig).inner, .None, decl.span)   // the return value
+    let locals: List<Local> = match c.r.tables[module].fnLocals.get(decl.id.0) {
+        .Some(list) => list.clone()
+        .None => []
+    }
+    let types: List<int> = match c.localTypesOf[module].get(decl.id.0) {
+        .Some(list) => list.clone()
+        .None => []
+    }
+    for i in 0..locals.len() {
+        body.newLocal(types[i], .Some(locals[i].name), locals[i].span)
+    }
+    // `mut self`, `mut` parameters and the source of a returned borrow are
+    // passed by address (spec 5.3, 5.6).
+    if decl.hasSelf && byAddress(c, p, id, -1) {
+        body.locals[1].byRef = true
+    }
+    for i in 0..decl.params.len() {
+        if byAddress(c, p, id, i) {
+            body.locals[c.localAt(decl.params[i].id.0) + 1].byRef = true
+        }
+    }
+    l.body = body
+    l.fnDef = id
+    l.block = l.body.newBlock()
+    ownParams(l, c, p, id, locals.len())
+    match decl.body {
+        .Some(block) => {
+            let _ = lowerBlock(l, c, p, &block, false)
+        }
+        .None => {}
+    }
+    // Falling off the end returns (); other functions were checked to return.
+    let end = if c.types.get(sig).inner == UNIT { TermKind.Return } else { TermKind.Unreachable }
+    dropScopeLeave(l, c, p)   // the `move` parameters
+    l.body.terminate(l.block, terminator(end))
+    monoBody(l, c, p)
+    l.out.push(mem.replace(l.body, emptyBody()))
+}
+
+fn emptyBody() AirBody {
+    return AirBody{def: 0, targs: UNIT, name: Symbol(0), isMain: false, paramCount: 0,
+                   locals: [], blocks: []}
+}
+
+// ---------------------------------------------------------------------------
+// Drop glue
+
+/**
+ * The type arguments of a method of `ty`: those of the type.
+ *
+ * @param c the checker
+ * @param ty the type
+ * @returns a tuple, or ()
+ */
+pub fn methodTargs(c: mut Checker, ty: int) int {
+    let t = c.types.get(ty)
+    if t.kind != .Adt {
+        return UNIT
+    }
+    let args = t.args.clone()
+    return c.types.tuple(args)
+}
+
+fn fieldPlace(base: &Place, step: int, field: int) Place {
+    var fields = base.fields.clone()
+    if step != 0 {
+        fields.push(step)
+    }
+    fields.push(field)
+    return Place{local: base.local, fields: fields, deref: base.deref}
+}
+
+// The body of `drop<T>(p)`: T's `drop` method, then its fields.
+fn glueBody(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
+    let value = Place{local: 1, fields: [], deref: true}
+    let method = typeMethod(c, p, ty, "drop")
+    if method != 0 {
+        let targs = methodTargs(c, ty)
+        let selfRef = c.types.ref(ty, true)
+        emitCall(l, method, targs, [opCopy(1, selfRef)], -1)
+    }
+    let t = c.types.get(ty)
+    let isStruct = t.kind == .Adt && c.def(t.data).kind == .Struct
+    if t.kind == .Tuple || isStruct {
+        let count = if t.kind == .Tuple { t.args.len() } else { fieldsOf(c, t.data).types.len() }
+        for i in 0..count {
+            let field = if c.types.kind(ty) == .Tuple { c.types.get(ty).args[i] } else {
+                structFieldType(c, p, ty, i)
+            }
+            emitDrop(l, c, p, &fieldPlace(&value, 0, i), field)
+        }
+    } else if t.kind == .Adt {
+        l.fail("the drop glue of enums")
+    }
+}
+
+fn lowerGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
+    let ty = c.types.get(targs).args[0]
+    l.body = AirBody{def: GLUE_DROP, targs: targs, name: Symbol(0), isMain: false,
+                     paramCount: 1, locals: [], blocks: []}
+    l.body.newLocal(UNIT, .None, noSpan())
+    l.body.newLocal(c.types.ref(ty, true), .None, noSpan())
+    l.fnDef = 0
+    l.flags = []
+    l.block = l.body.newBlock()
+    glueBody(l, c, p, ty)
+    l.body.terminate(l.block, terminator(.Return))
+    monoBody(l, c, p)
+    l.out.push(mem.replace(l.body, emptyBody()))
+}
+
+// The root module must declare `fn main()`.
+fn checkMain(c: mut Checker, p: Program) {
+    var id = 0
+    if let .Some(name) = c.r.names.find("main") {
+        id = c.r.scope.moduleIn(0, name)
+    }
+    var ok = id > 0 && c.def(id).kind == .Fn && c.def(id).module == 0
+    if ok {
+        ok = fnOf(p, c.loc(id)).body.isSome()
+    }
+    if !ok {
+        let file = p.modules[0].module.file
+        c.error("E0203", Span{file: file, start: 0, end: 0},
+                "the program has no `main` function".toOwned())
+        return
+    }
+    let decl = fnOf(p, c.loc(id))
+    if decl.params.len() > 0 || decl.ret.isSome() {
+        c.error("E0203", c.def(id).span, "`main` takes no parameters and returns nothing: "
+                + "`fn main() \{ ... \}`")
+    }
+}
+
+// The roots: `main` and the `extern "C" fn` functions, which C may call.
+fn findRoots(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
+    let items = &p.modules[m].module.items
+    for i in 0..items.len() {
+        match items[i].kind {
+            .Fn(decl) => {
+                let id = c.r.tables[m].fnDefs[decl.id.0]
+                let isMain = !c.r.testing && m == 0 && c.text(decl.name) == "main"
+                if id != 0 && decl.body.isSome() && (isMain || decl.abi.len() > 0) {
+                    reach(l, c, p, id, UNIT)
+                }
+            }
+            .Global(_, _) => {
+                c.error("E0901", items[i].span,
+                        "compiling this declaration is not supported yet".toOwned())
+            }
+            _ => {}
+        }
+    }
+}
+
+/**
+ * Lowers the functions reachable from the roots, in the order they are
+ * reached, so that the output is deterministic.
+ *
+ * @param c the checker, after a check without errors
+ * @param p the program
+ * @returns the lowering, with the bodies or `unsupported`
+ */
+pub fn lowerProgram(c: mut Checker, p: Program) Lowerer {
+    var l = Lowerer{body: emptyBody(), block: 0, loops: [], pending: [], reached: [],
+                    instances: Map.new(), owned: [], scopes: [], flags: [], borrowed: [],
+                    movedParts: [], partFlags: [], dropCache: [], temps: [], tempScopes: [],
+                    forward: false, tooDeep: false, fnDef: 0, unsupported: false, missing: "",
+                    out: []}
+    if c.r.testing {
+        l.fail("`ofir test`")
+        return l
+    }
+    checkMain(c, p)
+    for m in 0..p.modules.len() {
+        c.enter(m)
+        findRoots(l, c, p, m)
+    }
+    var next = 0
+    for next < l.pending.len() && !l.unsupported {
+        let inst = l.pending[next]
+        next += 1
+        if inst.def == 0 {
+            if inst.glue == GLUE_DROP {
+                c.enter(0)
+                lowerGlue(l, c, p, inst.targs)
+            } else {
+                l.fail("clone glue")
+            }
+            continue
+        }
+        c.enter(c.def(inst.def).module)
+        lowerFn(l, c, p, inst)
+    }
+    c.enter(0)
+    return l
+}

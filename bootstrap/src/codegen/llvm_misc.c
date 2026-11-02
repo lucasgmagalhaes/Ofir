@@ -81,14 +81,14 @@ void gen_misc(Gen *g, const Rvalue *rv, Value *result) {
     case RV_STR_LEN: {
         Value s = gen_operand(g, rv->a);
         next_temp(g, result->text);
-        out_fmt(&g->out, "  %s = extractvalue %%astra.str %s, 1\n", result->text, s.text);
+        out_fmt(&g->out, "  %s = extractvalue %%ofir.str %s, 1\n", result->text, s.text);
         break;
     }
     case RV_STR_BYTE: {
         Value s = gen_operand(g, rv->a), i = gen_operand(g, rv->b);
         char ptr[16], at[16];
         next_temp(g, ptr);
-        out_fmt(&g->out, "  %s = extractvalue %%astra.str %s, 0\n", ptr, s.text);
+        out_fmt(&g->out, "  %s = extractvalue %%ofir.str %s, 0\n", ptr, s.text);
         next_temp(g, at);
         out_fmt(&g->out, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", at, ptr, i.text);
         next_temp(g, result->text);

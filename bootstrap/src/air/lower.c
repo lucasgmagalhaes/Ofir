@@ -160,7 +160,7 @@ static void find_roots(Lowerer *l, ItemList items) {
     }
 }
 
-// `main` (or, for `astra test`, the generated entry point and the tests)
+// `main` (or, for `ofir test`, the generated entry point and the tests)
 // and the `extern "C" fn` functions of every module.
 static void find_all_roots(Lowerer *l, BodySink sink, void *context) {
     Sema *sema = l->sema;
