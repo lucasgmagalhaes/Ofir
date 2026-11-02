@@ -262,6 +262,14 @@ pub copy enum Use {
     Assign
 }
 
+/** What the lowering needs from the analysis of a function. */
+pub struct FnMoves {
+    /** Per local: it borrows a place (borrowed parameter, `for` variable, binding). */
+    pub borrowed: List<bool>
+    /** Every part moved somewhere. */
+    pub parts: List<Part>
+}
+
 /** A flag of `Moves.flags`: the value of the local is moved out, so it is not dropped. */
 pub const MOVES: int = 1
 /** A flag of `Moves.flags`: the temporary is consumed, so it is not dropped. */
@@ -281,22 +289,6 @@ pub struct Moves {
     pub loops: List<LoopFrame>
     /** Every part moved somewhere, for the drops. */
     pub allParts: List<Part>
-    /** By `NodeId`: `MOVES`, `CONSUMED`. */
-    pub flags: Map<int, int>
-
-    /**
-     * Records a flag of a node.
-     *
-     * @param id the node
-     * @param flag the flag
-     */
-    pub fn flag(mut self, id: int, flag: int) {
-        let old = match self.flags.get(id) {
-            .Some(value) => *value
-            .None => 0
-        }
-        self.flags.insert(id, old | flag)
-    }
 
     /**
      * Marks a part moved.
@@ -317,6 +309,21 @@ pub struct Moves {
         }
         self.allParts.push(part.clone())
     }
+}
+
+/**
+ * Records a flag of a node of the current module, for the lowering.
+ *
+ * @param c the checker
+ * @param id the node
+ * @param flag `MOVES`, `CONSUMED` or `COERCION_CONSUMED`
+ */
+pub fn markFlag(c: mut Checker, id: int, flag: int) {
+    let old = match c.moveFlags[c.module()].get(id) {
+        .Some(value) => *value
+        .None => 0
+    }
+    c.moveFlags[c.module()].insert(id, old | flag)
 }
 
 /**
@@ -575,7 +582,7 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
     }
     let count = c.locals.len()
     var m = Moves{fnDef: id, report: true, borrowed: List.filled(false, count), loops: [],
-                  allParts: [], flags: Map.new()}
+                  allParts: []}
     if decl.hasSelf && decl.selfMode == .Borrow && count > 0 {
         m.borrowed[0] = true
     }
@@ -591,4 +598,6 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
         .None => {}
     }
     checkMutParams(m, c, p, &s, decl.span)
+    c.fnMoves.insert(id, FnMoves{borrowed: mem.replace(m.borrowed, []),
+                                 parts: mem.replace(m.allParts, [])})
 }

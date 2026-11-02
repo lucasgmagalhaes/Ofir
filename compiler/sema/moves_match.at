@@ -13,6 +13,7 @@ import sema.moves.Part
 import sema.moves.State
 import sema.moves.Use
 import sema.moves.deadState
+import sema.moves.markFlag
 import sema.moves.movesBlock
 import sema.moves_expr.isPlace
 import sema.moves_expr.movesNode
@@ -126,7 +127,7 @@ fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
     let owned = place.local && place.via == .Nothing && !m.borrowed[place.part.local]
     if byMove && owned {
         m.movePart(s, &place.part)
-        m.flag(e.id.0, MOVES)
+        markFlag(c, e.id.0, MOVES)
     }
     return !owned && place.via != .Raw
 }

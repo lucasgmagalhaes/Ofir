@@ -9,12 +9,16 @@
  *     main types <file.at>    the types of declarations and locals, as `--emit=types`
  */
 
+import air.air_print.AirPrinter
+import air.lower.lowerProgram
 import base.intern.Interner
 import base.span.SourceMap
 import diag.Diagnostics
 import driver.modules.Front
 import driver.modules.loadProgram
+import sema.check.Checker
 import sema.check.checkProgram
+import sema.program.Program
 import sema.resolve.resolveProgram
 import sema.type_trace.traceTypes
 import std.fs
@@ -27,8 +31,10 @@ import syntax.token_print.printTokens
 fn main() {
     let args = os.args()
     let command = if args.len() == 3 { args[1].clone() } else { "" }
-    if command != "tokens" && command != "ast" && command != "names" && command != "types" {
-        eprintln("usage: main tokens|ast|names|types <file.at>")
+    let known = command == "tokens" || command == "ast" || command == "names" ||
+                command == "types" || command == "air"
+    if !known {
+        eprintln("usage: main tokens|ast|names|types|air <file.at>")
         os.exit(2)
     }
     let path = args[2].clone()
@@ -39,8 +45,8 @@ fn main() {
             os.exit(1)
         }
     }
-    if command == "names" || command == "types" {
-        names(path, text, command == "types")
+    if command == "names" || command == "types" || command == "air" {
+        names(path, text, command)
         return
     }
     var map = SourceMap.new()
@@ -69,7 +75,8 @@ fn main() {
 }
 
 // `main names <file.at>`: loads and resolves the program (roadmap 4.5).
-fn names(path: str, text: move str, types: bool) {
+fn names(path: str, text: move str, command: str) {
+    let types = command != "names"
     var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
     let file = front.map.add(path.clone(), text)
     let parsed = front.parseFile(file)
@@ -97,7 +104,35 @@ fn names(path: str, text: move str, types: bool) {
         os.exit(1)
     }
     var c = checkProgram(program, r)
+    if command == "air" {
+        air(c, program)
+        return
+    }
     print(traceTypes(c, program))
+    eprint(c.r.diags.render(c.r.map, .Human))
+    if c.r.diags.hasErrors() {
+        os.exit(1)
+    }
+}
+
+// `main air <file.at>`: lowers the program (roadmap 4.7). Exits with 3, and
+// prints nothing, when the program uses a construct stage 1 does not lower
+// yet.
+fn air(c: mut Checker, program: Program) {
+    if c.r.diags.hasErrors() {   // as stage 0: no lowering after errors
+        eprint(c.r.diags.render(c.r.map, .Human))
+        os.exit(1)
+    }
+    let l = lowerProgram(c, program)
+    if l.unsupported {
+        eprintln("stage 1 does not lower {l.missing} yet")
+        os.exit(3)
+    }
+    var printer = AirPrinter{out: ""}
+    for i in 0..l.out.len() {
+        printer.body(c, &l.out[i])
+    }
+    print(printer.out)
     eprint(c.r.diags.render(c.r.map, .Human))
     if c.r.diags.hasErrors() {
         os.exit(1)

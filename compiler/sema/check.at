@@ -31,6 +31,7 @@ import sema.enums.EnumInfo
 import sema.enums.checkEnumLayouts
 import sema.enums.enumVariants
 import sema.expr_check.checkConst
+import sema.moves.FnMoves
 import sema.moves.checkMoves
 import sema.program.Program
 import sema.resolve.Resolver
@@ -122,6 +123,10 @@ pub struct Checker {
     /** The values converted from `List<T>` to `&[T]` (`list.asSlice()`), by module:
      * `NodeId` to the element type. */
     pub sliceCoercions: List<Map<int, int>>
+    /** What the move analysis found, by module and `NodeId`: `moves.MOVES`, `moves.CONSUMED`. */
+    pub moveFlags: List<Map<int, int>>
+    /** What the move analysis found of each function, by `DefId`. */
+    pub fnMoves: Map<int, FnMoves>
     /** The type parameters in scope. */
     pub generics: Generics
     /** The locals of the function being checked. */
@@ -437,6 +442,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     var members: List<List<int>> = []
     var callTypeArgs: List<Map<int, int>> = []
     var sliceCoercions: List<Map<int, int>> = []
+    var moveFlags: List<Map<int, int>> = []
     for m in 0..p.modules.len() {
         itemDefs.push(List.filled(0, p.modules[m].module.items.len()))
         nodeTypes.push(List.filled(ERROR, p.modules[m].module.nodeCount))
@@ -446,6 +452,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         members.push(List.filled(-1, p.modules[m].module.nodeCount))
         callTypeArgs.push(Map.new())
         sliceCoercions.push(Map.new())
+        moveFlags.push(Map.new())
     }
     for id in 0..r.defs.len() {
         info.push(emptyInfo())
@@ -457,7 +464,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     }
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
                    adjusted,
-                   members, callTypeArgs, sliceCoercions,
+                   members, callTypeArgs, sliceCoercions, moveFlags, fnMoves: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
                    shorthandSpan: noSpan()}
