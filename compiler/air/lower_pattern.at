@@ -1,0 +1,317 @@
+/**
+ * @module
+ * Lowering of enum values, patterns and `match` (stage 0:
+ * bootstrap/src/air/lower_pattern.c). An enum value is its tag (field 0, an
+ * `i32`) and a payload viewed as variant `v` through the path step
+ * `VARIANT_STEP + v`.
+ */
+
+import air.air.Operand
+import air.air.VARIANT_STEP
+import air.air.branch
+import air.air.opCopy
+import air.air.opInt
+import air.air.opUnit
+import air.air.rvalue
+import air.air.terminator
+import air.lower.Lowerer
+import air.lower.Place
+import air.lower.dropScopeEnter
+import air.lower.dropScopeLeave
+import air.lower.emitAssign
+import air.lower.emitGoto
+import air.lower.emitStore
+import air.lower.localPlace
+import air.lower.newTemp
+import air.lower.placeOperand
+import air.lower.switchTo
+import air.lower.tempScopeEnter
+import air.lower.tempScopeLeave
+import air.lower.terminate
+import air.lower.toLocal
+import air.lower_expr.lowerBinaryOp
+import air.lower_expr.lowerBlock
+import air.lower_expr.lowerExpr
+import air.lower_expr.lowerTail
+import air.lower_expr.ownBindings
+import air.lower_expr.typeIsValue
+import diag.noSpan
+import sema.check.Checker
+import sema.enums.enumVariants
+import sema.enums.variantsOf
+import sema.program.Program
+import sema.structs.fieldsOf
+import sema.structs.structFields
+import sema.types.BOOL
+import sema.types.I32
+import sema.types.UNIT
+import syntax.ast.Arg
+import syntax.ast.Expr
+import syntax.ast.Op
+import syntax.ast.Pattern
+
+/**
+ * A place one step further: a field, or a variant's payload.
+ *
+ * @param place the place
+ * @param step the field, or `VARIANT_STEP + v`
+ * @returns the new place
+ */
+pub fn placeChild(place: &Place, step: int) Place {
+    var fields = place.fields.clone()
+    fields.push(step)
+    return Place{local: place.local, fields: fields, deref: place.deref}
+}
+
+fn tagOf(place: &Place) Operand {
+    return placeOperand(&placeChild(place, 0), .Copy, I32)
+}
+
+fn discriminant(c: mut Checker, p: Program, ty: int, index: int) Operand {
+    let id = c.types.get(ty).data
+    enumVariants(c, p, id)
+    return opInt(variantsOf(c, id).variants[index].discriminant as u64, I32)
+}
+
+/**
+ * A variant value from its fields.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param ty the enum type
+ * @param index the variant
+ * @param fields the values of its fields
+ * @returns the value
+ */
+pub fn variantValue(l: mut Lowerer, c: mut Checker, p: Program, ty: int, index: int,
+                    fields: move List<Operand>) Operand {
+    let dest = newTemp(l, ty)
+    let place = localPlace(dest)
+    let payload = placeChild(&place, VARIANT_STEP + index)
+    for i in 0..fields.len() {
+        emitStore(l, &placeChild(&payload, i), fields[i].clone())
+    }
+    emitStore(l, &placeChild(&place, 0), discriminant(c, p, ty, index))
+    return opCopy(dest, ty)
+}
+
+/**
+ * Builds variant `index` of `ty` from the arguments of a call.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param ty the enum type
+ * @param index the variant
+ * @param args the arguments
+ * @returns the value
+ */
+pub fn buildVariant(l: mut Lowerer, c: mut Checker, p: Program, ty: int, index: int,
+                    args: &List<Arg>) Operand {
+    let id = c.types.get(ty).data
+    enumVariants(c, p, id)
+    var count = variantsOf(c, id).variants[index].types.len()
+    if args.len() < count {
+        count = args.len()
+    }
+    var fields: List<Operand> = []
+    for i in 0..count {
+        fields.push(lowerExpr(l, c, p, &args[i].value))
+    }
+    return variantValue(l, c, p, ty, index, fields)
+}
+
+/**
+ * `a == b` and `a != b` on enums without payloads: their tags.
+ *
+ * @param l the lowering
+ * @param op the operator
+ * @param a the left value
+ * @param b the right value
+ * @returns the result
+ */
+pub fn enumEquality(l: mut Lowerer, op: Op, a: move Operand, b: move Operand) Operand {
+    let pa = localPlace(toLocal(l, a))
+    let pb = localPlace(toLocal(l, b))
+    let dest = newTemp(l, BOOL)
+    emitAssign(l, dest, rvalue(.Binary, op, tagOf(&pa), tagOf(&pb)))
+    return opCopy(dest, BOOL)
+}
+
+fn test(l: mut Lowerer, cond: move Operand, fail: int) {
+    let next = l.body.newBlock()
+    terminate(l, branch(cond, next, fail))
+    switchTo(l, next)
+}
+
+fn compare(l: mut Lowerer, c: mut Checker, p: Program, op: Op, ty: int, a: move Operand,
+           b: move Operand) Operand {
+    return lowerBinaryOp(l, c, op, ty, a, b, noSpan())
+}
+
+fn orPattern(l: mut Lowerer, c: mut Checker, p: Program, alternatives: &List<Pattern>,
+             place: &Place, fail: int) {
+    let ok = l.body.newBlock()
+    let count = alternatives.len()
+    for i in 0..count {
+        let next = if i + 1 < count { l.body.newBlock() } else { fail }
+        lowerPattern(l, c, p, &alternatives[i], place, next)
+        emitGoto(l, ok)
+        if i + 1 < count {
+            switchTo(l, next)
+        }
+    }
+    switchTo(l, ok)
+}
+
+fn bind(l: mut Lowerer, c: Checker, local: int, place: &Place, ty: int) {
+    if local < 0 {
+        l.fail("this pattern")
+        return
+    }
+    emitStore(l, &localPlace(local + 1), placeOperand(place, .Copy, ty))
+}
+
+/**
+ * Tests a pattern against the value at `place`: jumps to `fail` if it
+ * does not match, else continues in the current block with the bindings
+ * assigned.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param pattern the pattern
+ * @param place the value
+ * @param fail where a mismatch goes
+ */
+pub fn lowerPattern(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern,
+                    place: &Place, fail: int) {
+    let ty = c.typeOf(pattern.id.0)
+    match pattern.kind {
+        .Wildcard => {}
+        .Binding(_, _) => {
+            if c.localAt(pattern.id.0) < 0 && isEnum(c, ty) {   // `None`: a unit variant
+                variantTest(l, c, p, pattern, place, ty, &[], fail)
+            } else {
+                bind(l, c, c.localAt(pattern.id.0), place, ty)
+            }
+        }
+        .Literal(value) => {
+            let v = lowerExpr(l, c, p, &*value)
+            let eq = compare(l, c, p, .Eq, ty, placeOperand(place, .Copy, ty), v)
+            test(l, eq, fail)
+        }
+        .Range(lo, hi, inclusive) => {
+            let low = lowerExpr(l, c, p, &*lo)
+            let ge = compare(l, c, p, .Ge, ty, placeOperand(place, .Copy, ty), low)
+            test(l, ge, fail)
+            let high = lowerExpr(l, c, p, &*hi)
+            let op = if inclusive { Op.Le } else { Op.Lt }
+            let below = compare(l, c, p, op, ty, placeOperand(place, .Copy, ty), high)
+            test(l, below, fail)
+        }
+        .Tuple(items) => lowerPatterns(l, c, p, &items, place, fail)
+        .TupleStruct(_, args) => {
+            if isEnum(c, ty) {   // `Some(x)`
+                variantTest(l, c, p, pattern, place, ty, &args, fail)
+            } else {
+                lowerPatterns(l, c, p, &args, place, fail)
+            }
+        }
+        .Struct(_, fields, _) => {
+            let id = c.types.get(ty).data
+            structFields(c, p, id)
+            let names = fieldsOf(c, id).names.clone()
+            for i in 0..fields.len() {
+                var index = 0
+                for index + 1 < names.len() && names[index].0 != fields[i].name.0 {
+                    index += 1
+                }
+                let at = placeChild(place, index)
+                match fields[i].pattern {
+                    .Some(inner) => lowerPattern(l, c, p, &inner, &at, fail)
+                    .None => bind(l, c, c.localAt(fields[i].id.0), &at, c.typeOf(fields[i].id.0))
+                }
+            }
+        }
+        .Variant(_, _, args, _) => variantTest(l, c, p, pattern, place, ty, &args, fail)
+        .Or(alternatives) => orPattern(l, c, p, &alternatives, place, fail)
+    }
+}
+
+fn isEnum(c: Checker, ty: int) bool {
+    let t = c.types.get(ty)
+    return t.kind == .Adt && c.def(t.data).kind == .Enum
+}
+
+fn variantTest(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, place: &Place,
+               ty: int, args: &List<Pattern>, fail: int) {
+    let index = c.members[c.module()][pattern.id.0]
+    let tag = tagOf(place)
+    let is = compare(l, c, p, .Eq, I32, tag, discriminant(c, p, ty, index))
+    test(l, is, fail)
+    let payload = placeChild(place, VARIANT_STEP + index)
+    lowerPatterns(l, c, p, args, &payload, fail)
+}
+
+// Sub-patterns of positional fields.
+fn lowerPatterns(l: mut Lowerer, c: mut Checker, p: Program, list: &List<Pattern>,
+                 base: &Place, fail: int) {
+    for i in 0..list.len() {
+        lowerPattern(l, c, p, &list[i], &placeChild(base, i), fail)
+    }
+}
+
+fn armValue(l: mut Lowerer, c: mut Checker, p: Program, body: &Expr, asValue: bool) Operand {
+    return match body.kind {
+        .Block(block) | .Unsafe(block) => lowerBlock(l, c, p, &block, asValue)
+        _ => lowerTail(l, c, p, body)
+    }
+}
+
+/**
+ * `match value { arms }`.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param e the `match`
+ * @returns its value
+ */
+pub fn lowerMatch(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    let ty = c.typeOf(e.id.0)
+    let asValue = typeIsValue(ty)
+    let dest = if asValue { newTemp(l, ty) } else { 0 }
+    match e.kind {
+        .Match(scrutinee, arms) => {
+            let place = localPlace(toLocal(l, lowerExpr(l, c, p, &*scrutinee)))
+            let join = l.body.newBlock()
+            for i in 0..arms.len() {
+                let next = l.body.newBlock()
+                lowerPattern(l, c, p, &arms[i].pattern, &place, next)
+                if let .Some(guard) = arms[i].guard {
+                    tempScopeEnter(l)
+                    let value = lowerExpr(l, c, p, &guard)
+                    let gty = value.ty
+                    let cond = opCopy(toLocal(l, value), gty)
+                    tempScopeLeave(l, c, p)
+                    test(l, cond, next)
+                }
+                dropScopeEnter(l)   // the arm's bindings own what they took
+                ownBindings(l, c, p, &arms[i].pattern)
+                let value = armValue(l, c, p, &arms[i].body, asValue)
+                if asValue && value.kind != .Unit {
+                    emitStore(l, &localPlace(dest), value)
+                }
+                dropScopeLeave(l, c, p)
+                emitGoto(l, join)
+                switchTo(l, next)
+            }
+            terminate(l, terminator(.Unreachable))   // the match is exhaustive
+            switchTo(l, join)
+        }
+        _ => {}
+    }
+    return if asValue { opCopy(dest, ty) } else { opUnit(UNIT) }
+}

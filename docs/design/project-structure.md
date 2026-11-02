@@ -228,7 +228,8 @@ compiler/
 │   ├── air.at                AIR: operands, statements, blocks, bodies
 │   ├── air_print.at          the `main air` format (stage 0's `--emit=air`)
 │   ├── lower.at              lowering: roots, reached functions, drop scopes and flags
-│   ├── lower_expr.at         expressions, operators, statements and blocks
+│   ├── lower_expr.at         expressions, operators, methods, structs, statements, blocks
+│   ├── lower_pattern.at      enum values, patterns, `match`, `if let`
 │   ├── drops.at              drop elaboration [planned]
 │   ├── mono.at               monomorphization [planned]
 │   └── validate.at           AIR invariants checker [planned]

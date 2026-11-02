@@ -13,6 +13,7 @@ import air.air.Operand
 import air.air.PanicKind
 import air.air.Rvalue
 import air.air.Terminator
+import air.air.isGlue
 import air.air.runtimeName
 import sema.check.Checker
 import sema.types.UNIT
@@ -383,7 +384,8 @@ pub struct AirPrinter {
      * @param b the body
      */
     pub fn body(mut self, c: Checker, b: &AirBody) {
-        self.out.push("fn {c.text(b.name)}")
+        let name = if isGlue(b.def) { "" } else { c.text(b.name) }
+        self.out.push("fn {name}")
         self.typeArgs(c, b.targs)
         self.out.push(if b.isMain { " (entry) \{\n" } else { " \{\n" })
         for i in 0..b.locals.len() {
