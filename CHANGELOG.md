@@ -19,11 +19,9 @@ project uses [Semantic Versioning](https://semver.org/).
   `--emit=types` trace by `make compare-stages`.
 - Stage 1 move analysis (roadmap 4.7); `--emit=types` now runs the move
   analysis, so its errors are compared too.
-- Stage 1 AIR and the start of its lowering (roadmap 4.7): `main air`
-  equals stage 0's `--emit=air` on the programs it lowers so far (scalars,
-  strings, operators, `if`, loops, calls, methods, structs, tuples, enums,
-  patterns, `match`, drop glue, lists, maps, `?`, `??`, intrinsics,
-  monomorphization); `make compare-stages` counts them.
+- Stage 1 AIR and lowering (roadmap 4.7): `main air` equals stage 0's
+  `--emit=air` on every program of the repository, stage 1 itself
+  included; drops, clones, hashes and monomorphization included.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 
