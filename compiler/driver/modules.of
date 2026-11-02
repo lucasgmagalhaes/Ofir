@@ -26,7 +26,7 @@ import std.os
 import syntax.ast.ItemKind
 import syntax.ast.Module
 import syntax.lexer.tokenize
-import syntax.parser.parse
+import syntax.parser.parseFrom
 
 /**
  * The tables of a compilation: files, names and diagnostics.
@@ -60,13 +60,24 @@ pub struct Front {
      * @returns its tree, also when it has syntax errors
      */
     pub fn parseFile(mut self, file: FileId) Option<Module> {
+        return self.parseFileFrom(file, 0)
+    }
+
+    /**
+     * `parseFile` with the nodes numbered from `firstId`.
+     *
+     * @param file a file of the source map
+     * @param firstId the number of the first node
+     * @returns its tree
+     */
+    pub fn parseFileFrom(mut self, file: FileId, firstId: int) Option<Module> {
         let tokens = tokenize(self.map.file(file).text, file, self.names, self.diags)
         if self.diags.hasErrors() {
             return .None
         }
         let names = mem.replace(self.names, Interner.new())
         let diags = mem.replace(self.diags, Diagnostics.new())
-        let parsed = parse(file, self.map.file(file).text, tokens, names, diags)
+        let parsed = parseFrom(file, self.map.file(file).text, tokens, names, diags, firstId)
         self.names = parsed.names
         self.diags = parsed.diags
         return .Some(parsed.module)
@@ -77,6 +88,32 @@ struct Loader {
     modules: List<ProgramModule>
     rootDir: str
     stdDir: Option<str>
+    testing: bool
+}
+
+// `ofir test` (spec 12.2): the tests of `a/b.of` are in `a/b_test.of`, part
+// of the same module, so that they may use its private declarations. The
+// test file of a module outside std, or of the root, joins its items.
+fn addTestFile(ld: Loader, front: mut Front, module: mut Module, name: str, path: str) {
+    let inStd = name.startsWith("std")
+    if !ld.testing || (inStd && ld.modules.len() > 0) || path.len() < 3 {
+        return
+    }
+    let test = "{path.slice(0, path.len() - 3)}_test.of"
+    if !fs.exists(test) {
+        return
+    }
+    let Some(file) = front.load(test) else {
+        return
+    }
+    let Some(tests) = front.parseFileFrom(file, module.nodeCount) else {
+        return
+    }
+    if tests.items.len() == 0 {
+        return
+    }
+    module.items.extend(tests.items)
+    module.nodeCount = tests.nodeCount
 }
 
 // The position of the last `/` of `path`, or -1.
@@ -129,7 +166,9 @@ fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
     let Some(file) = front.load(path) else {
         return
     }
-    if let .Some(module) = front.parseFile(file) {
+    if let .Some(parsed) = front.parseFile(file) {
+        var module = parsed
+        addTestFile(ld, front, module, name, path)
         ld.modules.push(ProgramModule{name: name.toOwned(), module})
     }
 }
@@ -260,9 +299,10 @@ fn rootModuleName(ld: Loader, input: str, inProject: bool) str {
  * @param input the root file's path, as given
  * @param root its tree
  * @param front the tables, where the other files go
+ * @param testing `ofir test`: the test files of the modules are loaded
  * @returns the program, the root first
  */
-pub fn loadProgram(input: str, root: move Module, front: mut Front) Program {
+pub fn loadProgram(input: str, root: move Module, front: mut Front, testing: bool) Program {
     let slash = lastSlash(input)
     var rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
     let project = projectDir(input)
@@ -270,9 +310,11 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front) Program {
     if let .Some(dir) = project {
         rootDir = dir
     }
-    var ld = Loader{modules: [], rootDir, stdDir: findStd()}
+    var ld = Loader{modules: [], rootDir, stdDir: findStd(), testing}
     let name = rootModuleName(ld, input, inProject)
-    ld.modules.push(ProgramModule{name, module: root})
+    var module = root
+    addTestFile(ld, front, module, name, input)
+    ld.modules.push(ProgramModule{name, module})
     if !isLoaded(ld, "std.core") {   // the prelude, in every program
         if let .Some(core) = moduleFile(ld, "std.core") {
             loadModule(ld, front, "std.core", core)

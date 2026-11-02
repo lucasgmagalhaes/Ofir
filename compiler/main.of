@@ -1,19 +1,19 @@
 /**
  * @module
- * The stage 1 compiler's entry point (roadmap phase 4). Until the driver
- * (task 4.9) it has the commands that compare each port with stage 0:
+ * The stage 1 compiler's entry point (roadmap 4.9): the command line of
+ * stage 0 (bootstrap/src/main.c, driver.c).
  *
- *     main tokens <file.of>   the tokens, as `ofir build --emit=tokens`
- *     main ast <file.of>      the syntax tree, as `ofir build --emit=ast`
- *     main names <file.of>    what the names resolve to, as `--emit=names`
- *     main types <file.of>    the types of declarations and locals, as `--emit=types`
+ *     ofir build <file.of>   compile a program
+ *     ofir run <file.of>     compile and run a program
+ *     ofir test <file.of>    compile and run the `@test` functions
+ *     ofir version           print the compiler version
  */
 
 import air.air_print.AirPrinter
 import air.lower.lowerProgram
 import base.intern.Interner
-import codegen.llvm.generate
 import base.span.SourceMap
+import codegen.llvm.generate
 import diag.Diagnostics
 import diag.Format
 import driver.modules.Front
@@ -24,188 +24,301 @@ import sema.program.Program
 import sema.resolve.resolveProgram
 import sema.type_trace.traceTypes
 import std.fs
+import std.mem
 import std.os
 import syntax.ast_print.printModule
 import syntax.lexer.tokenize
 import syntax.parser.parse
 import syntax.token_print.printTokens
 
-/** The command line of `main build` and `main run`. */
+const VERSION: str = "0.1.0"
+
+fn printUsage() {
+    eprintln("usage: ofir <command> [arguments]\n\ncommands:\n"
+             + "  build <file.of>   compile a program\n"
+             + "  run <file.of>     compile and run a program\n"
+             + "  test <file.of>    compile and run the `@test` functions\n"
+             + "  version           print the compiler version\n\noptions:\n"
+             + "  -o <path>                 output path\n"
+             + "  --emit=tokens             print the tokens and stop\n"
+             + "  --emit=ast                print the syntax tree and stop\n"
+             + "  --emit=names              print what the names resolve to and stop\n"
+             + "  --emit=types              print the types of declarations and locals and stop\n"
+             + "  --emit=air                print the intermediate representation and stop\n"
+             + "  --emit=llvm               write <output>.ll and stop\n"
+             + "  --release                 optimize the program\n"
+             + "  --deny-warnings           treat warnings as errors\n"
+             + "  --message-format=short    one line per diagnostic\n"
+             + "  --stop-after=PHASE       run the phases up to lex, parse or check, without "
+             + "output\n"
+             + "  --time-passes             report the time spent in each phase")
+}
+
+/** What the command line asks for. */
 struct Options {
-    /** The command. */
+    /** `build`, `run` or `test`. */
     command: str
-    /** `--deny-warnings`: warnings are errors. */
+    /** The root file. */
+    input: str
+    /** `-o <path>`. */
+    output: Option<str>
+    /** `--emit=...`: what to print, or "". */
+    emit: str
+    /** `--stop-after=...`: the last phase, or "". */
+    stopAfter: str
+    /** `--release`. */
+    release: bool
+    /** `--deny-warnings`. */
     deny: bool
     /** `--message-format=short`. */
     short: bool
-    /** `-o <path>`: the executable. */
-    output: Option<str>
 }
 
-fn usage() ! {
-    eprintln("usage: main tokens|ast|names|types|air|llvm <file.of>")
-    eprintln("       main build|run <file.of> [-o <exe>] [--deny-warnings] "
-             + "[--message-format=short]")
-    os.exit(2)
-}
-
-fn options(args: &List<str>) Options {
-    var opts = Options{command: args[1].clone(), deny: false, short: false, output: .None}
-    let building = opts.command == "build" || opts.command == "run"
-    if !building {
-        if args.len() != 3 {
-            usage()
-        }
-        return opts
-    }
-    var i = 3
+fn parseOptions(args: &List<str>) Option<Options> {
+    var opts = Options{command: args[1].clone(), input: "", output: .None, emit: "",
+                       stopAfter: "", release: false, deny: false, short: false}
+    var hasInput = false
+    var i = 2
     for i < args.len() {
-        if args[i] == "--deny-warnings" {
-            opts.deny = true
-        } else if args[i] == "--message-format=short" {
-            opts.short = true
-        } else if args[i] == "-o" && i + 1 < args.len() {
-            opts.output = .Some(args[i + 1].clone())
-            i += 1
+        let arg = args[i].clone()
+        if arg.startsWith("-") {
+            if arg == "-o" && i + 1 < args.len() {
+                opts.output = .Some(args[i + 1].clone())
+                i += 1
+            } else if arg.startsWith("--emit=") && knownEmit(arg.sliceFrom(7)) {
+                opts.emit = arg.sliceFrom(7).toOwned()
+            } else if arg == "--deny-warnings" {
+                opts.deny = true
+            } else if arg == "--release" {
+                opts.release = true
+            } else if arg == "--message-format=short" {
+                opts.short = true
+            } else if arg == "--message-format=human" {
+                opts.short = false
+            } else if arg.startsWith("--stop-after=") && knownPhase(arg.sliceFrom(13)) {
+                opts.stopAfter = arg.sliceFrom(13).toOwned()
+            } else if arg != "--time-passes" {
+                eprintln("error: unknown option `{arg}`")
+                return .None
+            }
+        } else if !hasInput {
+            opts.input = arg
+            hasInput = true
         } else {
-            usage()
+            eprintln("error: unexpected argument `{arg}`")
+            return .None
         }
         i += 1
     }
-    return opts
+    if !hasInput {
+        eprintln("error: `{opts.command}` needs an input file")
+        return .None
+    }
+    return .Some(opts)
+}
+
+fn knownEmit(what: str) bool {
+    return what == "tokens" || what == "ast" || what == "names" || what == "types" ||
+           what == "air" || what == "llvm"
+}
+
+fn knownPhase(what: str) bool {
+    return what == "lex" || what == "parse" || what == "check"
 }
 
 fn main() {
     let args = os.args()
-    if args.len() < 3 {
-        usage()
+    if args.len() < 2 {
+        printUsage()
+        os.exit(2)
     }
-    let opts = options(&args)
-    let command = opts.command.clone()
-    let known = command == "tokens" || command == "ast" || command == "names" ||
-                command == "types" || command == "air" || command == "llvm" ||
-                command == "build" || command == "run"
-    if !known {
-        usage()
-    }
-    let path = args[2].clone()
-    let text = match fs.readToString(path) {
-        .Ok(text) => text
-        .Err(_) => {
-            eprintln("error[E0900]: cannot read `{path}`")
-            os.exit(1)
-        }
-    }
-    if command != "tokens" && command != "ast" {
-        names(path, text, opts)
+    let command = args[1].clone()
+    if command == "version" {
+        println("ofir {VERSION} (stage 1)")
         return
     }
-    var map = SourceMap.new()
-    let file = map.add(path, text)
-    var names = Interner.new()
-    var diags = Diagnostics.new()
-    let tokens = tokenize(map.file(file).text, file, names, diags)
-    if args[1] == "tokens" {
-        print(printTokens(tokens, *map.file(file), names))
-        eprint(diags.render(map, .Human))
-        if diags.hasErrors() {
-            os.exit(1)
-        }
+    if command == "help" {
+        printUsage()
         return
     }
-    if diags.hasErrors() {   // as stage 0: no tree after lexical errors
-        eprint(diags.render(map, .Human))
-        os.exit(1)
+    if command != "build" && command != "run" && command != "test" {
+        eprintln("error: unknown command `{command}`\n")
+        printUsage()
+        os.exit(2)
     }
-    let parsed = parse(file, map.file(file).text, tokens, names, diags)
-    print(printModule(parsed.module, parsed.names))
-    eprint(parsed.diags.render(map, .Human))
-    if parsed.diags.hasErrors() {
-        os.exit(1)
+    let Some(opts) = parseOptions(&args) else {
+        os.exit(2)
     }
+    os.exit(build(opts))
 }
 
-// `main names <file.of>`: loads and resolves the program (roadmap 4.5).
-fn names(path: str, text: move str, opts: Options) {
-    let command = opts.command.clone()
-    let types = command != "names"
+// `ofir test a/b_test.of` tests the module `a/b.of`, which loads its test file.
+fn testRoot(opts: &Options) str {
+    let input = opts.input.clone()
+    let suffix = "_test.of"
+    if opts.command != "test" || input.len() <= suffix.len() || !input.endsWith(suffix) {
+        return input
+    }
+    let root = "{input.slice(0, input.len() - suffix.len())}.of"
+    return if fs.exists(root) { root } else { input }
+}
+
+/** A compilation: what it was asked and what it built. */
+struct Pipeline {
+    /** The options. */
+    opts: Options
+    /** The executable, or "" when none was built. */
+    exe: str
+    /** The names of the `@test` functions, for `ofir test`. */
+    tests: List<str>
+}
+
+// Writes the diagnostics in the requested format.
+fn render(diags: Diagnostics, map: SourceMap, short: bool) {
+    eprint(diags.render(map, if short { Format.Short } else { Format.Human }))
+}
+
+// Runs the phases in order, then the program or its tests. Returns the
+// exit status.
+fn build(given: move Options) int {
+    var opts = given
+    opts.input = testRoot(&opts)
+    var pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
     var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
     front.diags.denyWarnings = opts.deny
-    let file = front.map.add(path.clone(), text)
-    let parsed = front.parseFile(file)
-    if front.diags.hasErrors() {   // as stage 0: the root's errors stop before loading
-        fail(front.diags, front.map)
+    let Some(file) = front.load(opts.input) else {
+        eprintln("error[E0900]: cannot read `{opts.input}`")
+        return 1
     }
-    let Some(root) = parsed else {
-        fail(front.diags, front.map)
+    let tokens = tokenize(front.map.file(file).text, file, front.names, front.diags)
+    if opts.emit == "tokens" {
+        print(printTokens(tokens, *front.map.file(file), front.names))
     }
-    let program = loadProgram(path, root, front)
+    let lexed = opts.emit == "tokens" || opts.stopAfter == "lex"
+    if front.diags.hasErrors() || lexed {
+        return finish(front.diags, front.map, &pipeline)
+    }
+    let names = mem.replace(front.names, Interner.new())
+    let diags = mem.replace(front.diags, Diagnostics.new())
+    let parsed = parse(file, front.map.file(file).text, tokens, names, diags)
+    front.names = parsed.names
+    front.diags = parsed.diags
+    if opts.emit == "ast" {
+        print(printModule(parsed.module, front.names))
+    }
+    let done = opts.emit == "ast" || opts.stopAfter == "parse"
+    if front.diags.hasErrors() || done {
+        return finish(front.diags, front.map, &pipeline)
+    }
+    let testing = opts.command == "test"
+    let program = loadProgram(opts.input, parsed.module, front, testing)
     if front.diags.hasErrors() {
-        fail(front.diags, front.map)
+        return finish(front.diags, front.map, &pipeline)
     }
-    let r = resolveProgram(program, front.names, front.diags, front.map, !types)
-    if !types {
+    let r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
+                           testing)
+    if opts.emit == "names" {
         print(r.trace.out)
-        eprint(r.diags.render(r.map, .Human))
-        if r.diags.hasErrors() {
-            os.exit(1)
-        }
-        return
+        return finish(r.diags, r.map, &pipeline)
     }
-    if r.diags.hasErrors() {   // as stage 0: no checking after name errors
-        eprint(r.diags.render(r.map, .Human))
-        os.exit(1)
+    if r.diags.hasErrors() {
+        return finish(r.diags, r.map, &pipeline)
     }
     var c = checkProgram(program, r)
-    if command == "air" || command == "llvm" {
-        air(c, program, command == "llvm")
-        return
+    if opts.emit == "types" {
+        print(traceTypes(c, program))
+        return finish(c.r.diags, c.r.map, &pipeline)
     }
-    if command == "build" || command == "run" {
-        build(c, program, path, opts)
-        return
+    if c.r.diags.hasErrors() || opts.stopAfter == "check" {
+        return finish(c.r.diags, c.r.map, &pipeline)
     }
-    print(traceTypes(c, program))
-    eprint(c.r.diags.render(c.r.map, .Human))
-    if c.r.diags.hasErrors() {
-        os.exit(1)
+    let ok = backend(c, program, pipeline)
+    if !ok && !c.r.diags.hasErrors() {
+        render(c.r.diags, c.r.map, opts.short)
+        return 1
     }
+    return finish(c.r.diags, c.r.map, &pipeline)
 }
 
-// `main air <file.of>`: lowers the program (roadmap 4.7). Exits with 3, and
-// prints nothing, when the program uses a construct stage 1 does not lower
-// yet.
-fn air(c: mut Checker, program: Program, llvm: bool) {
-    if c.r.diags.hasErrors() {   // as stage 0: no lowering after errors
-        eprint(c.r.diags.render(c.r.map, .Human))
-        os.exit(1)
-    }
+// Lowers the program, then prints its AIR (`--emit=air`), or writes its
+// LLVM IR and links it with clang. Returns false if a step failed.
+fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
+    let opts = pipeline.opts.clone()
     let l = lowerProgram(c, program)
     if l.unsupported {
-        eprintln("stage 1 does not lower {l.missing} yet")
-        os.exit(3)
+        eprintln("error[E0901]: stage 1 does not compile {l.missing} yet")
+        return false
     }
-    if llvm {   // `main llvm`: the module stage 0's `--emit=llvm` writes (roadmap 4.8)
-        print(generate(c, program, &l.out))
-    } else {
+    for i in 0..l.tests.len() {
+        let def = c.def(l.tests[i])
+        pipeline.tests.push("{c.r.moduleNames[def.module]}.{c.text(def.name)}")
+    }
+    if opts.emit == "air" {
         var printer = AirPrinter{out: ""}
         for i in 0..l.out.len() {
             printer.body(c, &l.out[i])
         }
         print(printer.out)
+        return true
     }
-    eprint(c.r.diags.render(c.r.map, .Human))
-    if c.r.diags.hasErrors() {
-        os.exit(1)
+    let exe = outputPath(&opts)
+    let ll = "{exe}.ll"
+    if fs.writeString(ll, generate(c, program, &l.out)).isErr() {
+        eprintln("error[E0902]: cannot write `{ll}`")
+        return false
     }
+    if c.r.diags.hasErrors() {   // the lowering reported errors
+        let _ = fs.removeFile(ll)
+        return true
+    }
+    if opts.emit == "llvm" {
+        return true
+    }
+    let linked = link(&opts, ll, exe.clone())
+    let _ = fs.removeFile(ll)
+    if linked {
+        pipeline.exe = exe
+    }
+    return linked
 }
 
-fn render(c: Checker, opts: Options) str {
-    return c.r.diags.render(c.r.map, if opts.short { Format.Short } else { Format.Human })
+// The executable: `-o`, the input's name without `.of`, or for `run` and
+// `test` a file in the temporary directory named after the input's path,
+// so that parallel runs do not share it.
+fn outputPath(opts: &Options) str {
+    if let .Some(output) = opts.output {
+        return output.clone()
+    }
+    let input = opts.input.clone()
+    var slash = -1
+    for i in 0..input.len() {
+        if input[i] == b'/' {
+            slash = i
+        }
+    }
+    var base = input.sliceFrom(slash + 1).toOwned()
+    if base.len() > 3 && base.endsWith(".of") {
+        base = base.slice(0, base.len() - 3).toOwned()
+    }
+    if opts.command != "run" && opts.command != "test" {
+        return base
+    }
+    let full = match fs.canonicalize(input) {
+        .Ok(path) => path
+        .Err(_) => input.clone()
+    }
+    var name = ""
+    for i in 0..full.len() {
+        let b = full[i]
+        let letter = (b >= b'a' && b <= b'z') || (b >= b'A' && b <= b'Z')
+        let plain = letter || (b >= b'0' && b <= b'9')
+        name.push(if plain { full.slice(i, i + 1) } else { "_" })
+    }
+    let dir = os.env("TMPDIR") ?? "/tmp".toOwned()
+    return "{dir}/ofir-{opts.command}-{name}"
 }
 
-// The runtime library: `OFIR_RUNTIME`, or next to the compiler, as stage 0
-// looks for it.
+// The runtime library: `OFIR_RUNTIME`, or next to the compiler.
 fn runtimeLibrary() Option<str> {
     if let .Some(path) = os.env("OFIR_RUNTIME") {
         return .Some(path)
@@ -229,94 +342,91 @@ fn runtimeLibrary() Option<str> {
     return .None
 }
 
-// Where `main run` puts the executable: a name made from the source path,
-// so that parallel runs do not share it.
-fn runPath(path: str) str {
-    let full = match fs.canonicalize(path) {
-        .Ok(p) => p
-        .Err(_) => path.toOwned()
-    }
-    var name = ""
-    for i in 0..full.len() {
-        let c = full[i]
-        let plain = (c >= b'a' && c <= b'z') || (c >= b'A' && c <= b'Z') || (c >= b'0' &&
-                                                                          c <= b'9')
-        name.push(if plain { full.slice(i, i + 1) } else { "_" })
-    }
-    let dir = os.env("TMPDIR") ?? "/tmp".toOwned()
-    return "{dir}/ofir1-{name}"
-}
-
-// `main build` and `main run` (roadmap 4.8): the program is lowered, its
-// LLVM IR written next to the executable, and clang links it with the
-// runtime library, as stage 0 does.
-fn build(c: mut Checker, program: Program, path: str, opts: Options) {
-    if c.r.diags.hasErrors() {
-        eprint(render(c, opts))
-        os.exit(1)
-    }
-    let l = lowerProgram(c, program)
-    eprint(render(c, opts))
-    if c.r.diags.hasErrors() {
-        os.exit(1)
-    }
-    if l.unsupported {
-        eprintln("error[E0901]: stage 1 does not compile {l.missing} yet")
-        os.exit(1)
-    }
-    let exe = match opts.output {
-        .Some(o) => o.clone()
-        .None => if opts.command == "run" { runPath(path) } else {
-            let base = if path.endsWith(".of") { path.slice(0, path.len() - 3) } else {
-                path.sliceFrom(0)
-            }
-            base.toOwned()
-        }
-    }
-    let ll = "{exe}.ll"
-    if fs.writeString(ll, generate(c, program, &l.out)).isErr() {
-        eprintln("error[E0902]: cannot write `{ll}`")
-        os.exit(1)
-    }
+// clang compiles the module and links it with the runtime. The module has
+// no target triple: clang uses its default target.
+fn link(opts: &Options, ll: str, exe: str) bool {
     let Some(runtime) = runtimeLibrary() else {
         eprintln("error[E0902]: cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)")
-        os.exit(1)
+        return false
     }
-    let clang = os.env("OFIR_CLANG") ?? "clang".toOwned()
-    let linked = os.run(clang, ["-O0", "-Wno-override-module", ll.clone(), runtime, "-lm", "-o",
-                                exe.clone()])
-    let _ = fs.removeFile(ll)
-    let ok = match linked {
-        .Ok(out) => {
-            eprint(out.stderr)
-            out.status == 0
+    var clang = "clang".toOwned()
+    if let .Some(name) = os.env("OFIR_CLANG") {
+        if name.len() > 0 {
+            clang = name
         }
-        .Err(_) => false
     }
-    if !ok {
-        eprintln("error[E0902]: clang failed to compile the generated code")
-        os.exit(1)
-    }
-    if opts.command != "run" {
-        return
-    }
-    let empty: List<str> = []
-    let result = os.run(exe, empty)
-    let _ = fs.removeFile(exe)
-    match result {
+    let level = if opts.release { "-O2" } else { "-O0" }
+    let args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime,
+                "-lm".toOwned(), "-o".toOwned(), exe.toOwned()]
+    let ok = match os.run(clang, args) {
         .Ok(out) => {
             print(out.stdout)
             eprint(out.stderr)
-            os.exit(out.status)
+            out.status == 0
+        }
+        .Err(_) => {
+            eprintln("error[E0902]: cannot run `{clang}`")
+            false
+        }
+    }
+    if !ok {
+        eprintln("error[E0902]: clang failed to compile the generated code")
+    }
+    return ok
+}
+
+// Runs a program, its output passed on; returns its exit status.
+fn runProgram(exe: str, args: [str]) int {
+    return match os.run(exe, args) {
+        .Ok(out) => {
+            print(out.stdout)
+            eprint(out.stderr)
+            let status = if out.status < 0 { 1 } else { out.status }
+            status
         }
         .Err(_) => {
             eprintln("error[E0902]: cannot run `{exe}`")
-            os.exit(1)
+            1
         }
     }
 }
 
-fn fail(diags: Diagnostics, map: SourceMap) ! {
-    eprint(diags.render(map, .Human))
-    os.exit(1)
+// Each test runs in its own process: the program runs the test whose
+// index it is given.
+fn runTests(exe: str, tests: &List<str>) int {
+    var failed = 0
+    for i in 0..tests.len() {
+        print("test {tests[i]} ... ")
+        let status = runProgram(exe, ["{i}"])
+        if status == 0 {
+            println("ok")
+        } else {
+            println("FAILED (exit status {status})")
+            failed += 1
+        }
+    }
+    println("\n{tests.len()} tests: {tests.len() - failed} passed, {failed} failed")
+    return if failed > 0 { 1 } else { 0 }
+}
+
+// The diagnostics, then the program or its tests.
+fn finish(diags: Diagnostics, map: SourceMap, pipeline: &Pipeline) int {
+    render(diags, map, pipeline.opts.short)
+    if diags.hasErrors() {
+        return 1
+    }
+    if pipeline.exe.len() == 0 {
+        return 0
+    }
+    var status = 0
+    if pipeline.opts.command == "run" {
+        let empty: List<str> = []
+        status = runProgram(pipeline.exe, empty)
+    } else if pipeline.opts.command == "test" {
+        status = runTests(pipeline.exe, &pipeline.tests)
+    }
+    if pipeline.opts.output.isNone() && pipeline.opts.command != "build" {
+        let _ = fs.removeFile(pipeline.exe)
+    }
+    return status
 }

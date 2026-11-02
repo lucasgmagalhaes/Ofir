@@ -25,6 +25,8 @@ project uses [Semantic Versioning](https://semver.org/).
 - Stage 1 LLVM codegen (roadmap 4.8): `main llvm` equals stage 0's
   `--emit=llvm`; `main build` and `main run` compile programs with clang,
   and the run and panic tests pass with stage 1 (`make test-stage1`).
+- Stage 1 driver (roadmap 4.9): stage 0's command line, `ofir test`
+  included; every test passes with stage 1 as the compiler.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 

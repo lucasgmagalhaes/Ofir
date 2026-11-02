@@ -125,6 +125,8 @@ pub struct Checker {
     pub sliceCoercions: List<Map<int, int>>
     /** What the move analysis found, by module and `NodeId`: `moves.MOVES`, `moves.CONSUMED`. */
     pub moveFlags: List<Map<int, int>>
+    /** The std functions checked with the root whose move analysis waits for the lowering. */
+    pub movesPending: Map<int, bool>
     /** The functions whose body was checked, by `DefId`. */
     pub bodyChecked: Map<int, bool>
     /** What the move analysis found of each function, by `DefId`. */
@@ -486,7 +488,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
                    adjusted,
                    members, callTypeArgs, sliceCoercions, moveFlags, fnMoves: Map.new(),
-                   bodyChecked: Map.new(),
+                   bodyChecked: Map.new(), movesPending: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
                    shorthandSpan: noSpan()}
@@ -526,6 +528,11 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
  * @param id the function's `DefId`
  */
 pub fn checkLate(c: mut Checker, p: Program, id: int) {
+    if c.movesPending.get(id).isSome() {   // checked with the root, analyzed now
+        let _ = c.movesPending.remove(id)
+        lateMoves(c, p, id)
+        return
+    }
     if c.bodyChecked.get(id).isSome() || fnOf(p, c.loc(id)).body.isNone() {
         return
     }
@@ -548,6 +555,26 @@ pub fn checkLate(c: mut Checker, p: Program, id: int) {
     let outer = c.enterGenerics(Generics{owner: owner, fnParams: []})
     checkBody(c, p, id, selfType, true)
     c.enterGenerics(outer)
+    c.enter(previous)
+}
+
+// The move analysis of a std function checked with the root module (stage
+// 0: `sema_moves_late`), with the function's locals and their types.
+fn lateMoves(c: mut Checker, p: Program, id: int) {
+    let decl = fnOf(p, c.loc(id))
+    let module = c.def(id).module
+    let previous = c.enter(module)
+    c.locals = match c.r.tables[module].fnLocals.get(decl.id.0) {
+        .Some(list) => list.clone()
+        .None => []
+    }
+    c.localTypes = match c.localTypesOf[module].get(decl.id.0) {
+        .Some(list) => list.clone()
+        .None => []
+    }
+    c.fnNode = decl.id.0
+    c.fnDef = id
+    checkMoves(c, p, id)
     c.enter(previous)
 }
 
@@ -592,8 +619,12 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
                 "function may reach its end without returning a value".toOwned())
     }
     // No cascade after type errors; std functions wait until the lowering reaches them.
-    if c.r.diags.errorCount() == errors && (late || !moduleInStd(p, c.module())) {
-        checkMoves(c, p, id)
+    if c.r.diags.errorCount() == errors {
+        if late || !moduleInStd(p, c.module()) {
+            checkMoves(c, p, id)
+        } else {
+            c.movesPending.insert(id, true)
+        }
     }
     let types = mem.replace(c.localTypes, [])
     c.localTypesOf[c.module()].insert(decl.id.0, types)
