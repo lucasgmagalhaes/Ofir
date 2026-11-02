@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks the layout rule `[fmt] inline-blocks = false` (docs/style-guide.md,
+"""Checks the layout rule `"fmt": {"inlineBlocks": false}` (docs/style-guide.md,
 "Layout"): the body of a function, and the block of a statement (`if`,
 `else`, `for`, `unsafe`, a `match` arm, the `else` of `let ... else`), never
 shares a line with its braces. An `if` or `unsafe` used as a value may stay

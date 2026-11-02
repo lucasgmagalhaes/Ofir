@@ -5,7 +5,7 @@ use only the bootstrap subset defined in [`docs/bootstrap.md`](../docs/bootstrap
 
 Architecture: [`docs/design/compiler-architecture.md`](../docs/design/compiler-architecture.md).
 
-`ofir.toml` makes this directory a project: imports resolve from here
+`ofir.json` makes this directory a project: imports resolve from here
 (`import base.span`). Each port is checked against stage 0:
 
 ```

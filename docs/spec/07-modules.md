@@ -24,7 +24,7 @@ import parser.ast as ast
 - Importing a type (`import std.collections.Map`) brings that name into scope.
 - Imports are resolved relative to the project root and to the standard
   library. The project root is the nearest directory above the root file
-  that holds an `ofir.toml`, or else the root file's own directory; a root
+  that holds an `ofir.json`, or else the root file's own directory; a root
   file inside a project is named after its path from there
   (`compiler/base/intern.of` is `base.intern`).
 - Circular imports are allowed; declarations in a module can reference each

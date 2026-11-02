@@ -29,7 +29,7 @@ check-sizes:
 check-docs:
 	$(PYTHON) tools/check_docs.py
 
-# No inline function or statement bodies (docs/style-guide.md, `[fmt] inline-blocks`).
+# No inline function or statement bodies (docs/style-guide.md, `fmt.inlineBlocks`).
 check-format:
 	$(PYTHON) tools/check_format.py
 

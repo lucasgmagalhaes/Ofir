@@ -1,7 +1,7 @@
 // Loading the modules of a program (spec 7.1 and 7.2): the root file, then
 // every module it imports, transitively. `import a.b` is the file
 // `<root dir>/a/b.of` or `<root dir>/a/b/index.of`, where the root dir is
-// the project's (the nearest directory with an `ofir.toml`) or the root
+// the project's (the nearest directory with an `ofir.json`) or the root
 // file's; `import std.x` is in the standard library, and `std.core` (the
 // prelude) is always loaded. When
 // `a.b` names a declaration rather than a module (`import
@@ -172,7 +172,7 @@ static bool name_under(Loader *ld, const char *input, const char *dir, const cha
 }
 
 // The project root (spec 7.2): the nearest directory above the root file
-// that holds an `ofir.toml`; imports are resolved from there.
+// that holds an `ofir.json`; imports are resolved from there.
 static bool project_dir(const char *input, char out[PATH_SIZE]) {
     char path[PATH_MAX];
     if (!realpath(input, path)) {
@@ -180,9 +180,9 @@ static bool project_dir(const char *input, char out[PATH_SIZE]) {
     }
     for (char *slash = strrchr(path, '/'); slash && slash > path; slash = strrchr(path, '/')) {
         *slash = '\0';
-        char toml[PATH_SIZE];
-        if (snprintf(toml, sizeof toml, "%s/ofir.toml", path) < (int)sizeof toml &&
-            access(toml, R_OK) == 0) {
+        char manifest[PATH_SIZE];
+        if (snprintf(manifest, sizeof manifest, "%s/ofir.json", path) < (int)sizeof manifest &&
+            access(manifest, R_OK) == 0) {
             return snprintf(out, PATH_SIZE, "%s", path) < PATH_SIZE;
         }
     }

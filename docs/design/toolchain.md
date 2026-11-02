@@ -6,7 +6,7 @@ A single executable provides every tool:
 
 | Command | Description |
 |---------|-------------|
-| `ofir new <name>` | create a project with `ofir.toml` and `src/main.of` |
+| `ofir new <name>` | create a project with `ofir.json` and `src/main.of` |
 | `ofir build [--release]` | compile the project to an executable |
 | `ofir run [--release] [-- args]` | build and run |
 | `ofir check` | run every phase up to the borrow checker, no code generation |
@@ -38,7 +38,7 @@ A single file can be compiled without a project: `ofir run hello.of`.
 
 ```
 my_app/
-├── ofir.toml
+├── ofir.json
 ├── src/
 │   ├── main.of             root module of an executable
 │   └── net/
@@ -48,29 +48,32 @@ my_app/
     └── release/
 ```
 
-### `ofir.toml`
+### `ofir.json`
 
-```toml
-[package]
-name = "my_app"
-version = "0.1.0"
-edition = "2027"
+The manifest is JSON with comments (`//`, `/* */`) and trailing commas
+allowed, the format of `tsconfig.json` (ADR 0026). Keys are camelCase.
 
-[build]
-kind = "exe"            # "exe" or "lib"
-root = "src/main.of"
-
-[dependencies]          # [planned] package manager
-
-[fmt]                   # what `ofir fmt` produces (docs/style-guide.md)
-inline-blocks = false   # a function or statement body never shares a line with its braces
+```jsonc
+{
+  "name": "my_app",
+  "version": "0.1.0",
+  "edition": "2027",
+  "build": {
+    "kind": "exe",            // "exe" or "lib"
+    "root": "src/main.of",
+  },
+  "dependencies": {},         // [planned] package manager
+  "fmt": {                    // what `ofir fmt` produces (docs/style-guide.md)
+    "inlineBlocks": false,    // a function or statement body never shares a line with its braces
+  },
+}
 ```
 
-`[fmt]` properties:
+`fmt` properties:
 
 | Property | Default | Meaning |
 |----------|---------|---------|
-| `inline-blocks` | `false` | when `false`, the body of every function and of every statement (`if`, `else`, `for`, `unsafe`, `match` arm, `let ... else`) is broken onto its own lines; an `if` or `unsafe` used as a value may stay on one line if each block holds one expression. `true` lets a body of a single statement stay on one line. |
+| `inlineBlocks` | `false` | when `false`, the body of every function and of every statement (`if`, `else`, `for`, `unsafe`, `match` arm, `let ... else`) is broken onto its own lines; an `if` or `unsafe` used as a value may stay on one line if each block holds one expression. `true` lets a body of a single statement stay on one line. |
 
 Until `ofir fmt` exists, `tools/check_format.py` checks the repository
 against the default, and `--fix` applies it.
@@ -89,7 +92,7 @@ checks it can prove unnecessary.
 ## 4. Build steps
 
 ```
-1. read ofir.toml, locate the root module
+1. read ofir.json, locate the root module
 2. parse the root module and, transitively, every imported module
 3. check (resolve, type check, borrow check) all modules
 4. lower, monomorphize and generate build/<profile>/<name>.ll

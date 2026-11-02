@@ -13,7 +13,7 @@ is taken by other projects, and the project chose a name of its own.
 The language is **Ofir**, and its source files end in **`.of`**:
 
 - the compiler is `ofir` (`ofir build`, `ofir run`, `ofir test`);
-- a project root has an `ofir.toml`; a module is `name.of` or
+- a project root has an `ofir.json`; a module is `name.of` or
   `name/index.of`, its tests `name_test.of`;
 - the environment variables are `OFIR_STD`, `OFIR_CLANG`, `OFIR_HOME`;
 - the runtime library is `libofir_rt.a` (`runtime/include/ofir_rt.h`), and
