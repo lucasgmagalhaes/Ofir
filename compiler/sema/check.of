@@ -536,12 +536,12 @@ pub fn checkLate(c: mut Checker, p: Program, id: int) {
     if c.bodyChecked.get(id).isSome() || fnOf(p, c.loc(id)).body.isNone() {
         return
     }
-    let def = c.def(id)
-    let module = def.module
+    let module = c.def(id).module
+    let member = c.def(id).member
     let previous = c.enter(module)
     var selfType = ERROR
     var owner: List<Symbol> = []
-    if def.member >= 0 {
+    if member >= 0 {
         let item = itemOf(p, c.loc(id))
         let isType = match item.kind {
             .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
