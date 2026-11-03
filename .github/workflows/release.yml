@@ -1,0 +1,116 @@
+name: Release
+
+# Publishes a release and its seed (docs/bootstrap.md): the LLVM IR that
+# the compiler writes for itself, checked by building the compiler from it
+# on every CI platform before the release is created.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (must equal VERSION in compiler/main.of)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    name: seed
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM
+        run: |
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          sudo bash llvm.sh 21
+          echo "OFIR_CLANG=clang-21" >> "$GITHUB_ENV"
+
+      - name: Check the version
+        run: |
+          version=$(sed -n 's/^const VERSION: str = "\(.*\)"/\1/p' compiler/main.of)
+          if [ "$version" != "${{ inputs.version }}" ]; then
+            echo "compiler/main.of has version $version, not ${{ inputs.version }}"
+            exit 1
+          fi
+
+      - name: Build the seed
+        run: make seed
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: seed
+          path: |
+            build/seed/ofir-${{ inputs.version }}.ll
+            build/seed/ofir-${{ inputs.version }}.ll.sha256
+
+  check:
+    name: check ${{ matrix.os }} / LLVM ${{ matrix.llvm }}
+    needs: seed
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        llvm: ["17", "21"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          sudo bash llvm.sh ${{ matrix.llvm }}
+          echo "OFIR_CLANG=clang-${{ matrix.llvm }}" >> "$GITHUB_ENV"
+
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm@${{ matrix.llvm }}
+          echo "OFIR_CLANG=$(brew --prefix llvm@${{ matrix.llvm }})/bin/clang" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: seed
+          path: seed-download
+
+      - name: Build the compiler from the seed
+        run: make check-seed SEED=seed-download/ofir-${{ inputs.version }}.ll
+
+  release:
+    name: release
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: seed
+          path: seed-download
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          # The CHANGELOG section of this version, then the seed checksum.
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "### Seed"
+            echo
+            echo '```'
+            cat "seed-download/ofir-$VERSION.ll.sha256"
+            echo '```'
+          } >> notes.md
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "Ofir $VERSION" \
+            --notes-file notes.md \
+            "seed-download/ofir-$VERSION.ll" "seed-download/ofir-$VERSION.ll.sha256"
