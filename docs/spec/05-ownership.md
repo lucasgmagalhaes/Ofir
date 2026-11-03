@@ -236,9 +236,9 @@ A borrow lasts from the point where it is created to its **last use**
 **Stage 0** checks where references may be stored and returned (E0702),
 and that writes go through `&mut`, but does not check borrows against
 moves and mutations of what they borrow: that is the borrow checker of the
-self-hosted compiler (roadmap 4.7). A function that returns a borrow
-receives its source by address, so that the borrow points into the
-caller's value.
+self-hosted compiler (roadmap 4.10; E0700, E0701, E0703 to E0705). A
+function that returns a borrow receives its source by address, so that the
+borrow points into the caller's value.
 
 ### Returning a borrow
 

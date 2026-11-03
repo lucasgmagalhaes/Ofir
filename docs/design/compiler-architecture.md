@@ -291,7 +291,21 @@ It tracks whole variables and the field paths moved out of them, the
 variables that borrow (borrowed parameters, `for` variables, bindings of a
 matched borrowed place), and the `mut` parameters that must hold a value
 again at each return. Step 3 is in `sema/check_ref.c`; step 2, the borrow
-checker proper, comes with stage 1 (roadmap 4.7).
+checker proper, is in stage 1 only (roadmap 4.10).
+
+**Stage 1** (`compiler/sema/borrows.of`) does step 2 in the same walk as
+the move analysis. The state at each point also keeps the loans that may be
+alive: a loan is a borrowed place of a local and its *holder*, a local
+whose value holds a reference (`let r = &list`, `let f = list.first()`, a
+borrowing `for` or `match` binding) or a `for` loop. The value being
+computed carries the loans it holds, and a `let`, `var` or assignment
+gives them to the local. A call result that holds a reference borrows the
+argument it comes from (spec 5.6). An access to a place overlapping a loan
+it is not compatible with records a conflict, which is reported only when
+the holder is used afterwards: that gives non-lexical borrows without a
+separate liveness pass. The `mut` arguments of a call are borrowed after
+all the arguments are evaluated (two-phase borrows), and the places of the
+arguments are checked against each other.
 
 ## 9. Drop elaboration
 
