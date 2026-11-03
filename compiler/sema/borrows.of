@@ -1,0 +1,434 @@
+/**
+ * @module
+ * The borrow checker (spec 5.4, 5.5, 5.6), run with the move analysis.
+ *
+ * A *loan* is a borrow of a place of a local, held by a *holder*: a local
+ * that holds a reference (`let r = &list`, `let f = list.first()`), a
+ * binding that borrows (`for x in list`, `match` on a borrowed place), or a
+ * `for` loop, which borrows what it iterates. The state at each program
+ * point keeps the loans that may be alive. An access to a place that
+ * overlaps a loan it is not compatible with (a write, a move or an
+ * exclusive borrow while it is borrowed, any use while it is borrowed
+ * mutably) records a *conflict*; the conflict is an error only if its
+ * holder is used afterwards, so a borrow lasts until its last use
+ * (non-lexical borrows). The arguments of one call are checked against
+ * each other at once: `append(a, a)`.
+ */
+
+import base.span.Span
+import sema.check.Checker
+import sema.moves.Moves
+import sema.moves.Part
+import sema.moves.State
+import sema.moves.localName
+import sema.moves.moveError
+import sema.structs.fieldsOf
+
+/** A borrow of a part of a local. */
+pub struct Loan {
+    /** The local holding it, or a `for` loop (`Moves.holderBase` + depth). */
+    pub holder: int
+    /** What it borrows. */
+    pub part: Part
+    /** An exclusive borrow. */
+    pub mutable: bool
+    /** Where the borrow is made. */
+    pub span: Span
+
+    /**
+     * Whether two loans are the same.
+     *
+     * @param other the other loan
+     * @returns true if they are
+     */
+    pub fn same(self, other: &Loan) bool {
+        return self.holder == other.holder && self.mutable == other.mutable &&
+               self.span.start == other.span.start && self.span.end == other.span.end &&
+               self.part.same(&other.part)
+    }
+}
+
+/** How a place is accessed. */
+pub copy enum Access {
+    Read
+    Write
+    Move
+    Borrow
+    BorrowMut
+}
+
+/** An access to a borrowed place: an error if the loan's holder is used later. */
+pub struct Conflict {
+    /** The loan. */
+    pub loan: Loan
+    /** The access. */
+    pub access: Access
+    /** The accessed place. */
+    pub part: Part
+    /** Where. */
+    pub span: Span
+
+    /**
+     * Whether two conflicts are the same.
+     *
+     * @param other the other conflict
+     * @returns true if they are
+     */
+    pub fn same(self, other: &Conflict) bool {
+        return self.access == other.access && self.span.start == other.span.start &&
+               self.span.end == other.span.end && self.loan.same(&other.loan)
+    }
+}
+
+/**
+ * Adds a loan to a state, once.
+ *
+ * @param s the state
+ * @param loan the loan
+ */
+pub fn addLoan(s: mut State, loan: &Loan) {
+    for i in 0..s.loans.len() {
+        if s.loans[i].same(loan) {
+            return
+        }
+    }
+    s.loans.push(loan.clone())
+}
+
+/**
+ * Adds a conflict to a state, once.
+ *
+ * @param s the state
+ * @param conflict the conflict
+ */
+pub fn addConflict(s: mut State, conflict: &Conflict) {
+    for i in 0..s.conflicts.len() {
+        if s.conflicts[i].same(conflict) {
+            return
+        }
+    }
+    s.conflicts.push(conflict.clone())
+}
+
+/**
+ * Whether two states have the same loans and conflicts.
+ *
+ * @param a a state
+ * @param b the other
+ * @returns true if they have
+ */
+pub fn sameLoans(a: &State, b: &State) bool {
+    if a.loans.len() != b.loans.len() || a.conflicts.len() != b.conflicts.len() {
+        return false
+    }
+    for i in 0..a.loans.len() {
+        if !hasLoan(b, &a.loans[i]) {
+            return false
+        }
+    }
+    for i in 0..a.conflicts.len() {
+        if !hasConflict(b, &a.conflicts[i]) {
+            return false
+        }
+    }
+    return true
+}
+
+fn hasLoan(s: &State, loan: &Loan) bool {
+    for i in 0..s.loans.len() {
+        if s.loans[i].same(loan) {
+            return true
+        }
+    }
+    return false
+}
+
+fn hasConflict(s: &State, conflict: &Conflict) bool {
+    for i in 0..s.conflicts.len() {
+        if s.conflicts[i].same(conflict) {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * Joins the loans and conflicts of another path into a state.
+ *
+ * @param s the state
+ * @param other the other path's state
+ */
+pub fn joinLoans(s: mut State, other: &State) {
+    for i in 0..other.loans.len() {
+        addLoan(s, &other.loans[i])
+    }
+    for i in 0..other.conflicts.len() {
+        addConflict(s, &other.conflicts[i])
+    }
+}
+
+/**
+ * A holder gets a new value: its loans, and their conflicts, end.
+ *
+ * @param s the state
+ * @param holder the holder
+ */
+pub fn killHolder(s: mut State, holder: int) {
+    var loans: List<Loan> = []
+    for i in 0..s.loans.len() {
+        if s.loans[i].holder != holder {
+            loans.push(s.loans[i].clone())
+        }
+    }
+    s.loans = loans
+    dropConflicts(s, holder)
+}
+
+fn dropConflicts(s: mut State, holder: int) {
+    var kept: List<Conflict> = []
+    for i in 0..s.conflicts.len() {
+        if s.conflicts[i].loan.holder != holder {
+            kept.push(s.conflicts[i].clone())
+        }
+    }
+    s.conflicts = kept
+}
+
+/**
+ * A holder takes loans (the borrows of the value it is given).
+ *
+ * @param s the state
+ * @param holder the holder
+ * @param loans the loans; their holders are replaced
+ */
+pub fn bindLoans(s: mut State, holder: int, loans: &List<Loan>) {
+    if s.dead {
+        return
+    }
+    for i in 0..loans.len() {
+        var loan = loans[i].clone()
+        loan.holder = holder
+        addLoan(s, &loan)
+    }
+}
+
+/**
+ * The loans of a holder.
+ *
+ * @param s the state
+ * @param holder the holder
+ * @returns a copy of them
+ */
+pub fn loansOf(s: &State, holder: int) List<Loan> {
+    var loans: List<Loan> = []
+    for i in 0..s.loans.len() {
+        if s.loans[i].holder == holder {
+            loans.push(s.loans[i].clone())
+        }
+    }
+    return loans
+}
+
+/**
+ * The loans carried since `mark`, the borrows of the value being computed.
+ *
+ * @param m the analysis
+ * @param mark `m.carry.len()` before the value
+ * @returns a copy of them
+ */
+pub fn carriedSince(m: Moves, mark: int) List<Loan> {
+    var loans: List<Loan> = []
+    for i in mark..m.carry.len() {
+        loans.push(m.carry[i].clone())
+    }
+    return loans
+}
+
+/**
+ * Forgets the loans carried since `mark`.
+ *
+ * @param m the analysis
+ * @param mark `m.carry.len()` before
+ */
+pub fn dropCarry(m: mut Moves, mark: int) {
+    if m.carry.len() > mark {
+        m.carry.truncate(mark)
+    }
+}
+
+/**
+ * A value read from a holder carries its loans.
+ *
+ * @param m the analysis
+ * @param s the state
+ * @param holder the holder
+ */
+pub fn carryHolder(m: mut Moves, s: &State, holder: int) {
+    for i in 0..s.loans.len() {
+        if s.loans[i].holder == holder {
+            m.carry.push(s.loans[i].clone())
+        }
+    }
+}
+
+/**
+ * Makes a new loan of a part, carried by the value being computed.
+ *
+ * @param m the analysis
+ * @param part the borrowed part
+ * @param mutable an exclusive borrow
+ * @param span where
+ */
+pub fn lend(m: mut Moves, part: &Part, mutable: bool, span: Span) {
+    m.carry.push(Loan{holder: -1, part: part.clone(), mutable, span})
+}
+
+fn conflicts(loan: &Loan, kind: Access) bool {
+    return loan.mutable || !(kind == .Read || kind == .Borrow)
+}
+
+/**
+ * An access to a part: each loan of an overlapping part it is not
+ * compatible with gets a conflict.
+ *
+ * @param s the state
+ * @param part the accessed part
+ * @param kind the access
+ * @param span where
+ */
+pub fn access(s: mut State, part: &Part, kind: Access, span: Span) {
+    if s.dead || s.loans.len() == 0 {
+        return
+    }
+    for i in 0..s.loans.len() {
+        if s.loans[i].part.overlaps(part) && conflicts(&s.loans[i], kind) {
+            let conflict = Conflict{loan: s.loans[i].clone(), access: kind, part: part.clone(),
+                                    span}
+            addConflict(s, &conflict)
+        }
+    }
+}
+
+/**
+ * A holder is used: the conflicts with its loans are errors.
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param s the state
+ * @param holder the holder
+ */
+pub fn useHolder(m: Moves, c: mut Checker, s: mut State, holder: int) {
+    if s.dead || s.conflicts.len() == 0 {
+        return
+    }
+    var found: List<Conflict> = []
+    for i in 0..s.conflicts.len() {
+        if s.conflicts[i].loan.holder == holder {
+            found.push(s.conflicts[i].clone())
+        }
+    }
+    if found.len() == 0 {
+        return
+    }
+    dropConflicts(s, holder)
+    let by = holderName(m, c, holder)
+    for i in 0..found.len() {
+        reportConflict(m, c, &found[i], by)
+    }
+}
+
+fn holderName(m: Moves, c: Checker, holder: int) str {
+    if holder >= m.holderBase {
+        return "the `for` loop".toOwned()
+    }
+    return "`{localName(c, holder)}`"
+}
+
+fn reportConflict(m: Moves, c: mut Checker, conflict: &Conflict, by: str) {
+    let place = placeText(c, &conflict.part)
+    let span = conflict.span
+    match conflict.access {
+        .BorrowMut => {
+            if conflict.loan.mutable {
+                moveError(m, c, "E0700", span, "cannot borrow `{place}` as mutable more than "
+                          + "once: it is also borrowed by {by}")
+            } else {
+                moveError(m, c, "E0701", span, "cannot borrow `{place}` as mutable because it "
+                          + "is also borrowed as shared by {by}")
+            }
+        }
+        .Write => {
+            moveError(m, c, "E0704", span, "cannot assign to `{place}` while it is borrowed by "
+                      + "{by}")
+        }
+        .Move => {
+            moveError(m, c, "E0705", span, "cannot move out of `{place}` while it is borrowed "
+                      + "by {by}")
+        }
+        _ => {
+            moveError(m, c, "E0703", span, "cannot use `{place}` while it is borrowed as "
+                      + "mutable by {by}")
+        }
+    }
+}
+
+/**
+ * Two arguments of one call borrow overlapping places, one of them
+ * mutably (E0700, E0701).
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param a the place borrowed twice
+ * @param shared whether one of the borrows is shared
+ * @param span where
+ */
+pub fn argumentConflict(m: Moves, c: mut Checker, a: &Part, shared: bool, span: Span) {
+    let place = placeText(c, a)
+    if shared {
+        moveError(m, c, "E0701", span, "cannot borrow `{place}` as mutable because it is also "
+                  + "borrowed as shared")
+    } else {
+        moveError(m, c, "E0700", span, "cannot borrow `{place}` as mutable more than once")
+    }
+}
+
+/**
+ * The text of a part, for messages: `pair.a`.
+ *
+ * @param c the checker
+ * @param part the part
+ * @returns its text
+ */
+pub fn placeText(c: mut Checker, part: &Part) str {
+    var text = localName(c, part.local)
+    var ty = if part.local < c.localTypes.len() { c.localTypes[part.local] } else { -1 }
+    for i in 0..part.fields.len() {
+        let field = part.fields[i]
+        var name = "{field}"
+        var next = -1
+        if ty >= 0 {
+            let kind = c.types.kind(ty)
+            if kind == .Tuple {
+                if field < c.types.get(ty).args.len() {
+                    next = c.types.get(ty).args[field]
+                }
+            } else if kind == .Adt {
+                let def = c.types.get(ty).data
+                if c.def(def).kind == .Struct && c.info[def].fields.isSome() {
+                    let info = fieldsOf(c, def)
+                    if field < info.types.len() {
+                        if !info.isTuple {
+                            name = c.text(info.names[field]).toOwned()
+                        }
+                        let declared = info.types[field]
+                        let args = c.types.get(ty).args.clone()
+                        next = c.types.subst(declared, args)
+                    }
+                }
+            }
+        }
+        text = "{text}.{name}"
+        ty = next
+    }
+    return text
+}

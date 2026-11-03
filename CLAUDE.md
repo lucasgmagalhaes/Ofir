@@ -20,8 +20,11 @@ with clang.
 ## Working rules
 
 - Talk to the user in Portuguese. Code, docs, commits and PRs in English.
-- Conventional Commits (`CONTRIBUTING.md`); small commits that each build.
-- Git author and committer: Lucas Gomes <lucasgsm88@gmail.com>.
+- Commit as you go, in small commits that each build: Conventional
+  Commits (`CONTRIBUTING.md`), messages in English.
+- Git author and committer of every commit: Lucas Gomes
+  <lucasgsm88@gmail.com> (`git -c user.name=... -c user.email=...` if the
+  config differs).
 - Every change reaches `main` through a pull request, merged after CI is
   green. Never push to `main` directly or merge locally.
 - A change to stage 0 or std must not raise benchmark instructions by more

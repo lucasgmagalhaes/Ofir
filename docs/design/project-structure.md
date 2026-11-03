@@ -212,6 +212,7 @@ compiler/
 │   ├── moves.of              move analysis: states, statements, loops (E0600-E0602)
 │   ├── moves_expr.of         move analysis of expressions and places
 │   ├── moves_match.of        move analysis of patterns, `if let`, `match`
+│   ├── borrows.of            borrow checking, non-lexical (E0700-E0705)
 │   ├── type_trace.of         the `--emit=types` format
 │   ├── check_items.of        declarations, signatures
 │   ├── check_exprs.of        expressions and statements

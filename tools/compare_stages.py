@@ -5,7 +5,9 @@ that stage 1 implements so far must give the same standard output, standard
 error and exit status as stage 0's matching option (after an error, the
 standard error and the status only: the trees built while recovering need
 not agree). `--fuzz N` also
-compares N mutated sources (tools/fuzz_frontend.py's mutations).
+compares N mutated sources (tools/fuzz_frontend.py's mutations). Files
+marked `// requires: stage1` (stage 1 checks more, e.g. borrows) and the
+mutations of them are skipped.
 
     python3 tools/compare_stages.py [--compiler build/stage0/ofir] [--fuzz 200]
 """
@@ -13,6 +15,7 @@ compares N mutated sources (tools/fuzz_frontend.py's mutations).
 import argparse
 import concurrent.futures
 import random
+import re
 import subprocess
 import sys
 import os
@@ -31,6 +34,12 @@ SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 
 # Both stages read the same standard library, so that paths in messages agree.
 ENV = dict(os.environ, OFIR_STD=str(ROOT / "std"))
+
+STAGE1_ONLY = re.compile(r"^//\s*requires:\s*stage1\b", re.MULTILINE)
+
+
+def comparable(path: Path) -> bool:
+    return not STAGE1_ONLY.search(path.read_text())
 
 
 def run(argv: list) -> tuple:
@@ -83,7 +92,7 @@ def main() -> int:
             sys.stderr.write(built[2].decode())
             print("stages: stage 1 does not build")
             return 1
-        files = sorted(p for d in SOURCES for p in (ROOT / d).rglob("*.of"))
+        files = sorted(p for d in SOURCES for p in (ROOT / d).rglob("*.of") if comparable(p))
         rng = random.Random(args.seed)
         for i in range(args.fuzz):
             case = Path(tmp) / f"fuzz{i}.of"
