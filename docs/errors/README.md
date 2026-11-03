@@ -85,6 +85,9 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0700 | cannot borrow `x` as mutable more than once | stage 1 |
 | E0701 | cannot borrow `x` as mutable because it is also borrowed as shared | stage 1 |
 | E0702 | a reference cannot be stored or returned here | stage 0 |
+| E0703 | cannot use `x` while it is borrowed as mutable | stage 1 |
+| E0704 | cannot assign to `x` while it is borrowed | stage 1 |
+| E0705 | cannot move out of `x` while it is borrowed | stage 1 |
 | E0800 | the constant `x` depends on itself | stage 0 |
 | E0801 | a constant may only use literals, constants and operators | stage 0 |
 | E0802 | integer overflow, division by zero, invalid shift or cast in a constant | stage 0 |

@@ -13,6 +13,15 @@
  */
 
 import base.span.Span
+import sema.borrows.Access
+import sema.borrows.access
+import sema.borrows.argumentConflict
+import sema.borrows.bindLoans
+import sema.borrows.carryHolder
+import sema.borrows.dropCarry
+import sema.borrows.killHolder
+import sema.borrows.lend
+import sema.borrows.useHolder
 import sema.check.Checker
 import sema.check.fnOf
 import sema.check_box.adjustedType
@@ -20,6 +29,7 @@ import sema.check_box.boxInner
 import sema.check_methods.hasMethod
 import sema.check_methods.primitiveName
 import sema.check_methods.typeNameOf
+import sema.check_ref.holdsRef
 import sema.def.Res
 import sema.enums.enumVariants
 import sema.enums.variantIndex
@@ -45,6 +55,8 @@ import syntax.ast.Arg
 import syntax.ast.Expr
 import syntax.ast.ExprKind
 import syntax.ast.FieldInit
+import syntax.ast.FnDecl
+import syntax.ast.Mode
 
 /** What else than fields a place goes through, which forbids moving out of it. */
 pub copy enum Via {
@@ -149,7 +161,19 @@ fn isPlaceExpr(c: Checker, e: &Expr) bool {
  * @returns true if it is
  */
 pub fn isPlace(c: Checker, e: &Expr) bool {
-    return !coerced(c, e) && (derefCount(c, e) > 0 || isPlaceExpr(c, e))
+    return !coerced(c, e) && isPlaceView(c, e)
+}
+
+/**
+ * Whether `e`, with its implicit dereferences, is a place, also when it
+ * is converted (`list` given as `[T]` is the place `list`).
+ *
+ * @param c the checker
+ * @param e the expression
+ * @returns true if it is
+ */
+pub fn isPlaceView(c: Checker, e: &Expr) bool {
+    return derefCount(c, e) > 0 || isPlaceExpr(c, e)
 }
 
 /**
@@ -185,7 +209,12 @@ pub fn movesNode(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut Stat
         movesView(m, c, p, e, derefCount(c, e), s, .Read)
         return
     }
+    let mark = m.carry.len()
     movesView(m, c, p, e, derefCount(c, e), s, use)
+    // A computed value that holds no reference borrows nothing: `r.len()`.
+    if m.carry.len() > mark && !isPlaceView(c, e) && !holdsRef(c, p, c.typeOf(e.id.0)) {
+        dropCarry(m, mark)
+    }
 }
 
 fn movesView(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mut State,
@@ -199,7 +228,7 @@ fn movesView(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: 
         if use == .Move {   // else a temporary, dropped (3.2)
             markFlag(c, e.id.0, CONSUMED)
         }
-        walk(m, c, p, e, s, use)
+        walk(m, c, p, e, s, if use == .Mutate { Use.Read } else { use })
     }
     if viewType(c, e, depth) == NEVER {
         s.dead = true
@@ -281,7 +310,10 @@ fn boxPointer(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s:
     if place.local && place.part.fields.len() < PART_DEPTH {
         place.part.fields.push(0)
     }
-    usePlace(m, c, &place, &s, e.span)
+    usePlace(m, c, &place, s, e.span)
+    if place.local {
+        access(s, &place.part, .Read, e.span)
+    }
 }
 
 fn fieldPlace(m: mut Moves, c: mut Checker, p: Program, base: &Expr, field: int,
@@ -294,7 +326,9 @@ fn fieldPlace(m: mut Moves, c: mut Checker, p: Program, base: &Expr, field: int,
 }
 
 /**
- * Reports E0601 or E0600 if a place may not hold a value.
+ * Reports E0601 or E0600 if a place may not hold a value. A local that
+ * holds loans is used: their conflicts are errors, and the value read
+ * carries them.
  *
  * @param m the analysis
  * @param c the checker
@@ -302,11 +336,13 @@ fn fieldPlace(m: mut Moves, c: mut Checker, p: Program, base: &Expr, field: int,
  * @param s the state
  * @param span where it is used
  */
-pub fn usePlace(m: Moves, c: mut Checker, place: &Place, s: &State, span: Span) {
+pub fn usePlace(m: mut Moves, c: mut Checker, place: &Place, s: mut State, span: Span) {
     if !place.local {
         return
     }
     let local = place.part.local
+    useHolder(m, c, s, local)
+    carryHolder(m, &s, local)
     if s.uninit[local] {
         moveError(m, c, "E0601", span, "use of possibly uninitialized variable "
                   + "`{localName(c, local)}`")
@@ -350,7 +386,14 @@ fn assignPlace(m: mut Moves, c: mut Checker, e: &Expr, place: &Place, s: mut Sta
     let local = place.part.local
     if place.part.fields.len() > 0 && s.moved[local] {
         usePlace(m, c, &Place{local: true, part: Part{local: local, fields: []}, via: .Nothing},
-                 &s, span)
+                 s, span)
+    }
+    access(s, &place.part, .Write, span)
+    if place.part.fields.len() == 0 && place.via == .Nothing {
+        killHolder(s, local)   // the old value's loans end with it
+    }
+    if m.refLocal[local] {
+        bindLoans(s, local, &m.binding)
     }
     s.initPart(&place.part)
 }
@@ -400,12 +443,21 @@ fn consumeRoot(m: mut Moves, c: mut Checker, e: &Expr, depth: int) {
 fn placeExpr(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mut State,
              use: Use) {
     let place = placeOf(m, c, p, e, depth, s)
+    m.lastLocal = place.local
+    if place.local {
+        m.lastPlace = place.part.clone()
+    }
     if use == .Assign {   // the target of `=`: overwritten, not read
         assignPlace(m, c, e, &place, s, e.span)
         return
     }
-    usePlace(m, c, &place, &s, e.span)
-    if use != .Move || isCopy(c, p, viewType(c, e, depth)) {
+    usePlace(m, c, &place, s, e.span)
+    let copied = isCopy(c, p, viewType(c, e, depth))
+    if place.local && use != .Mutate {   // a `mut` argument is borrowed after the others
+        let moves = use == .Move && !copied && place.via == .Nothing
+        access(s, &place.part, if moves { Access.Move } else { Access.Read }, e.span)
+    }
+    if use != .Move || copied {
         return
     }
     if !place.local {
@@ -427,8 +479,12 @@ fn shorthand(m: mut Moves, c: mut Checker, p: Program, init: &FieldInit, span: S
         .Local(id) => Place{local: true, part: Part{local: id, fields: []}, via: .Nothing}
         _ => noPlace(.Nothing)
     }
-    usePlace(m, c, &place, &s, span)
-    if !isCopy(c, p, c.typeOf(init.id.0)) {
+    usePlace(m, c, &place, s, span)
+    let copied = isCopy(c, p, c.typeOf(init.id.0))
+    if place.local {
+        access(s, &place.part, if copied { Access.Read } else { Access.Move }, span)
+    }
+    if !copied {
         movePlace(m, c, &place, s, span)
         if place.local {
             markFlag(c, init.id.0, MOVES)
@@ -447,14 +503,111 @@ fn eachArg(m: mut Moves, c: mut Checker, p: Program, args: &List<Arg>, uses: &Li
     }
 }
 
-// How a function's parameters use their arguments.
-fn paramUses(c: Checker, p: Program, id: int) List<Use> {
-    let decl = fnOf(p, c.loc(id))
-    var uses: List<Use> = []
-    for i in 0..decl.params.len() {
-        uses.push(if decl.params[i].mode == .Move { Use.Move } else { Use.Read })
+/** An argument of a call that borrows a place of a local. */
+struct ArgPlace {
+    /** The place. */
+    part: Part
+    /** Borrowed mutably (a `mut` parameter or `mut self`). */
+    mutable: bool
+    /** The parameter, -1 for `self`. */
+    param: int
+    /** The argument holds no reference, so a returned borrow borrows the place itself. */
+    direct: bool
+    /** Where. */
+    span: Span
+}
+
+fn modeUse(mode: Mode) Use {
+    return match mode {
+        .Move => Use.Move
+        .Mut => Use.Mutate
+        _ => Use.Read
     }
-    return uses
+}
+
+// Walks an argument; one that borrows a place is added to `places`.
+fn argument(m: mut Moves, c: mut Checker, p: Program, arg: &Expr, use: Use, param: int,
+            s: mut State, places: mut List<ArgPlace>) {
+    m.lastLocal = false
+    movesNode(m, c, p, arg, s, use)
+    if !m.lastLocal || !isPlaceView(c, arg) || use == .Move {
+        return
+    }
+    let ty = viewType(c, arg, -1)
+    if use == .Read && isCopy(c, p, ty) {
+        return   // passed by value
+    }
+    places.push(ArgPlace{part: m.lastPlace.clone(), mutable: use == .Mutate, param,
+                         direct: !holdsRef(c, p, ty), span: arg.span})
+}
+
+// The parameter a function returns a borrow from (spec 5.6): -1 for
+// `self`, -2 for none.
+fn borrowSource(c: Checker, p: Program, decl: &FnDecl, args: &List<Arg>) int {
+    if decl.hasSelf && decl.selfMode != .Move {
+        return -1
+    }
+    if decl.isUnsafe {
+        return -2
+    }
+    var source = -2
+    var count = 0
+    for i in 0..decl.params.len() {
+        if i < args.len() {
+            let ty = viewType(c, &args[i].value, -1)
+            let mode = decl.params[i].mode
+            if holdsRef(c, p, ty) || (mode == .Borrow && !isCopy(c, p, ty)) {
+                source = i
+                count += 1
+            }
+        }
+    }
+    return if count == 1 { source } else { -2 }
+}
+
+// A call of a function: its arguments are evaluated, then its `mut`
+// arguments are borrowed mutably; none of them may overlap another one
+// (E0700, E0701). A result that holds a reference borrows the source.
+fn fnCall(m: mut Moves, c: mut Checker, p: Program, e: &Expr, id: int, receiver: &Expr,
+          hasReceiver: bool, args: &List<Arg>, s: mut State) {
+    let decl = fnOf(p, c.loc(id))
+    var places: List<ArgPlace> = []
+    if hasReceiver && decl.hasSelf {
+        argument(m, c, p, receiver, modeUse(decl.selfMode), -1, s, places)
+    }
+    for i in 0..args.len() {
+        let use = if i < decl.params.len() { modeUse(decl.params[i].mode) } else { Use.Read }
+        argument(m, c, p, &args[i].value, use, i, s, places)
+    }
+    if s.dead {
+        return
+    }
+    var reported = false
+    for i in 0..places.len() {
+        for j in 0..i {
+            let a = &places[j]
+            let b = &places[i]
+            if !reported && (a.mutable || b.mutable) && a.part.overlaps(&b.part) {
+                let span = if b.mutable { b.span } else { a.span }
+                argumentConflict(m, c, &b.part, !(a.mutable && b.mutable), span)
+                reported = true
+            }
+        }
+    }
+    for i in 0..places.len() {
+        if places[i].mutable {
+            access(s, &places[i].part, .BorrowMut, places[i].span)
+        }
+    }
+    if !holdsRef(c, p, c.typeOf(e.id.0)) {
+        return
+    }
+    let source = borrowSource(c, p, decl, args)
+    for i in 0..places.len() {
+        if places[i].param == source && places[i].direct && source > -2 {
+            lend(m, &places[i].part, places[i].mutable, places[i].span)
+        }
+    }
 }
 
 fn isVariant(c: mut Checker, p: Program, owner: int, field: &Expr) bool {
@@ -468,14 +621,14 @@ fn isVariant(c: mut Checker, p: Program, owner: int, field: &Expr) bool {
 }
 
 // A call of a name: a function, a constructor or a variant.
-fn nameCall(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List<Arg>,
-            s: mut State) {
+fn nameCall(m: mut Moves, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
+            args: &List<Arg>, s: mut State) {
     let none: List<Use> = []
     match c.res(callee.id.0) {
         .Def(id) => {
             let kind = c.def(id).kind
             if kind == .Fn {
-                eachArg(m, c, p, args, &paramUses(c, p, id), .Read, s)
+                fnCall(m, c, p, e, id, callee, false, args, s)
             } else {
                 let build = kind == .Struct || kind == .Variant
                 eachArg(m, c, p, args, &none, if build { Use.Move } else { Use.Read }, s)
@@ -490,14 +643,14 @@ fn nameCall(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List
 
 // A call consumes the arguments of `move` parameters (and of constructors
 // and variants) and only reads the others.
-fn call(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List<Arg>,
+fn call(m: mut Moves, c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<Arg>,
         s: mut State) {
     let none: List<Use> = []
     match callee.kind {
         .Field(baseBox, _, _) => {
             let base = &*baseBox
             if moduleMember(c, callee) {   // `m.f(x)`: a function of an imported module
-                nameCall(m, c, p, callee, args, s)
+                nameCall(m, c, p, e, callee, args, s)
                 return
             }
             if isVariant(c, p, typeNameOf(c, base), callee) {
@@ -506,18 +659,13 @@ fn call(m: mut Moves, c: mut Checker, p: Program, callee: &Expr, args: &List<Arg
             }
             let member = c.members[c.module()][callee.id.0]
             if member > 0 {   // a method, or an associated function
-                let decl = fnOf(p, c.loc(member))
-                if decl.hasSelf {
-                    let selfUse = if decl.selfMode == .Move { Use.Move } else { Use.Read }
-                    movesNode(m, c, p, base, s, selfUse)
-                }
-                eachArg(m, c, p, args, &paramUses(c, p, member), .Read, s)
+                fnCall(m, c, p, e, member, base, true, args, s)
                 return
             }
             movesNode(m, c, p, base, s, .Read)   // the built-in methods read
             eachArg(m, c, p, args, &none, .Read, s)
         }
-        .Ident(_) | .Generic(_, _) => nameCall(m, c, p, callee, args, s)
+        .Ident(_) | .Generic(_, _) => nameCall(m, c, p, e, callee, args, s)
         _ => {
             movesNode(m, c, p, callee, s, .Read)
             eachArg(m, c, p, args, &none, .Read, s)
@@ -542,10 +690,19 @@ fn conditional(m: mut Moves, c: mut Checker, p: Program, lhs: &Expr, rhs: &Expr,
     s.join(&other)
 }
 
-fn borrow(m: mut Moves, c: mut Checker, p: Program, operand: &Expr, s: mut State) {
+// `&x`, `&mut x`: a new loan of `x`, carried by the reference.
+fn borrow(m: mut Moves, c: mut Checker, p: Program, operand: &Expr, s: mut State,
+          mutable: bool) {
     if isPlace(c, operand) {
         let place = placeOf(m, c, p, operand, derefCount(c, operand), s)
-        usePlace(m, c, &place, &s, operand.span)
+        usePlace(m, c, &place, s, operand.span)
+        if place.local {
+            access(s, &place.part, if mutable { Access.BorrowMut } else { Access.Borrow },
+                   operand.span)
+            if !s.dead {
+                lend(m, &place.part, mutable, operand.span)
+            }
+        }
     } else {
         movesNode(m, c, p, operand, s, .Read)
     }
@@ -556,7 +713,7 @@ fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: U
         .Interp(parts) => each(m, c, p, &parts, s, .Read)
         .Unary(op, operand) => {
             if op == .Ref || op == .RefMut {   // a borrow
-                borrow(m, c, p, &*operand, s)
+                borrow(m, c, p, &*operand, s, op == .RefMut)
             } else {
                 movesNode(m, c, p, &*operand, s, .Read)
             }
@@ -591,7 +748,7 @@ fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: U
                 }
             }
         }
-        .Call(callee, args) => call(m, c, p, &*callee, &args, s)
+        .Call(callee, args) => call(m, c, p, e, &*callee, &args, s)
         .Try(inner) => movesNode(m, c, p, &*inner, s, .Move)
         .Struct(_, fields, base) => {
             for i in 0..fields.len() {
