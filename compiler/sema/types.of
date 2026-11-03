@@ -34,7 +34,10 @@ pub copy enum TyKind {
     Array
     /** `(A, B)` */
     Tuple
-    /** `fn(A, B) R`; `inner` is the result. */
+    /**
+     * `fn(A, B) R`; `inner` is the result, `data` is 0 for a function's
+     * signature, `FN_BORROWED` or `FN_OWNED` for a written type.
+     */
     Fn
     /** A struct or an enum; `data` is its `DefId`, `args` its type arguments. */
     Adt
@@ -90,6 +93,10 @@ pub const F64: int = 13
 pub const STR: int = 14
 /** The number of built-in types. */
 pub const BUILTIN_COUNT: int = 15
+/** `data` of a written `fn(A) R`: a borrowed function value. */
+pub const FN_BORROWED: int = 1
+/** `data` of a written `move fn(A) R`: an owned function value. */
+pub const FN_OWNED: int = 2
 
 /**
  * The table of every type of a program.
@@ -242,6 +249,20 @@ pub struct TypeTable {
      */
     pub fn fnType(mut self, params: [int], ret: int) int {
         return self.intern(.Fn, 0, ret, params)
+    }
+
+    /**
+     * The type of a function value, as written: `fn(A) R` (borrowed,
+     * second-class, spec 10.2) or `move fn(A) R` (owned). Both print as
+     * `fn(A) R`, as in stage 0.
+     *
+     * @param params the parameter types
+     * @param ret the result type
+     * @param owned `move fn`
+     * @returns the type
+     */
+    pub fn fnValueType(mut self, params: [int], ret: int, owned: bool) int {
+        return self.intern(.Fn, if owned { FN_OWNED } else { FN_BORROWED }, ret, params)
     }
 
     /**

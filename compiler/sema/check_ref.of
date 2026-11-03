@@ -2,7 +2,8 @@
  * @module
  * References (spec 5.6; stage 0: bootstrap/src/sema/check_ref.c): `&place`,
  * `&mut place`, and the rules that keep references second-class (ADR
- * 0002). There is no borrow checker yet (roadmap 4.10).
+ * 0002), and borrowed function values (`fn(A) R`, spec 10.2). The borrow
+ * checker is `sema.borrows`.
  */
 
 import base.span.Span
@@ -16,6 +17,7 @@ import sema.expr_check.checkExpr
 import sema.program.Program
 import sema.structs.isCopy
 import sema.types.ERROR
+import sema.types.FN_BORROWED
 import sema.types.STR
 import syntax.ast.Block
 import syntax.ast.Expr
@@ -79,6 +81,29 @@ pub fn holdsRef(c: Checker, p: Program, ty: int) bool {
     return false
 }
 
+/**
+ * Whether a type holds a borrowed function value (`fn(A) R`), which is
+ * second-class like a reference (spec 10.2) but cannot be returned.
+ *
+ * @param c the checker
+ * @param ty the type
+ * @returns true if it does
+ */
+pub fn holdsBorrowedFn(c: Checker, ty: int) bool {
+    let t = c.types.get(ty)
+    if t.kind == .Fn {
+        return t.data == FN_BORROWED
+    }
+    if t.kind == .Adt || t.kind == .Tuple {
+        for i in 0..t.args.len() {
+            if holdsBorrowedFn(c, t.args[i]) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 fn isRefStruct(c: Checker, p: Program, id: int) bool {
     if c.def(id).item < 0 {
         return false
@@ -99,7 +124,10 @@ fn isRefStruct(c: Checker, p: Program, id: int) bool {
  * @param where the place, for the message
  */
 pub fn checkStorable(c: mut Checker, p: Program, ty: int, span: Span, where: str) {
-    if holdsRef(c, p, ty) {
+    if holdsBorrowedFn(c, ty) {
+        c.error("E0702", span, "a borrowed function value cannot be stored in {where}: "
+                + "use a `move fn` type")
+    } else if holdsRef(c, p, ty) {
         c.error("E0702", span, "a reference cannot be stored in {where}: store an owned value, "
                 + "or declare a `ref struct`")
     }
@@ -144,6 +172,11 @@ fn lends(c: Checker, p: Program, mode: Mode, ty: int) bool {
  */
 pub fn checkBorrowSource(c: mut Checker, p: Program, id: int, sig: int, selfType: int) {
     let ret = c.types.get(sig).inner
+    if holdsBorrowedFn(c, ret) {
+        c.error("E0702", fnOf(p, c.loc(id)).span, "a function cannot return a borrowed "
+                + "function value: return a `move fn`")
+        return
+    }
     if !holdsRef(c, p, ret) {
         return
     }

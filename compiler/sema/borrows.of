@@ -55,6 +55,8 @@ pub copy enum Access {
     Move
     Borrow
     BorrowMut
+    /** The end of a local's block. */
+    Drop
 }
 
 /** An access to a borrowed place: an error if the loan's holder is used later. */
@@ -365,9 +367,51 @@ fn reportConflict(m: Moves, c: mut Checker, conflict: &Conflict, by: str) {
             moveError(m, c, "E0705", span, "cannot move out of `{place}` while it is borrowed "
                       + "by {by}")
         }
+        .Drop => {
+            moveError(m, c, "E0706", conflict.loan.span, "`{place}` does not live long enough: "
+                      + "it is dropped at the end of its block while still borrowed by {by}")
+        }
         _ => {
             moveError(m, c, "E0703", span, "cannot use `{place}` while it is borrowed as "
                       + "mutable by {by}")
+        }
+    }
+}
+
+/**
+ * The end of a block: its owned locals die, so the loans of them conflict
+ * with any later use of their holders, and the loans they hold end.
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param s the state
+ * @param base `m.scope.len()` when the block opened
+ * @param span where
+ */
+pub fn endScope(m: Moves, c: mut Checker, s: mut State, base: int, span: Span) {
+    for i in base..m.scope.len() {
+        let local = m.scope[i]
+        access(s, &Part{local, fields: []}, .Drop, span)
+        killHolder(s, local)
+    }
+}
+
+/**
+ * The value of a block may not borrow a local of the block (E0706).
+ *
+ * @param m the analysis
+ * @param c the checker
+ * @param base `m.scope.len()` when the block opened
+ */
+pub fn escapesBlock(m: Moves, c: mut Checker, base: int) {
+    for i in 0..m.carry.len() {
+        let loan = &m.carry[i]
+        for j in base..m.scope.len() {
+            if loan.part.local == m.scope[j] {
+                let place = placeText(c, &loan.part)
+                moveError(m, c, "E0706", loan.span, "`{place}` does not live long enough: "
+                          + "the value of its block borrows it")
+            }
         }
     }
 }

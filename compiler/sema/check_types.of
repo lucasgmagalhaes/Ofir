@@ -303,7 +303,7 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
             }
             c.types.tuple(types)
         }
-        .Fn(params, _, ret, _) => {
+        .Fn(params, _, ret, owned) => {
             var types: List<int> = []
             for i in 0..params.len() {
                 types.push(resolveType(c, p, &params[i]))
@@ -312,7 +312,7 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
                 .Some(r) => resolveType(c, p, &*r)
                 .None => UNIT
             }
-            c.types.fnType(types, result)
+            c.types.fnValueType(types, result, owned)
         }
         .Never => NEVER
         .Dyn(_) => c.unsupported(t.span, "`dyn` types are")

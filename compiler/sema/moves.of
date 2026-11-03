@@ -27,6 +27,8 @@ import sema.borrows.access
 import sema.borrows.bindLoans
 import sema.borrows.carriedSince
 import sema.borrows.dropCarry
+import sema.borrows.endScope
+import sema.borrows.escapesBlock
 import sema.borrows.joinLoans
 import sema.borrows.killHolder
 import sema.borrows.loansOf
@@ -40,6 +42,7 @@ import sema.moves_expr.isPlaceView
 import sema.moves_expr.movesNode
 import sema.moves_expr.viewType
 import sema.moves_match.patternInit
+import sema.moves_match.patternLocals
 import sema.program.Program
 import sema.structs.isCopy
 import syntax.ast.Block
@@ -275,6 +278,8 @@ pub struct LoopFrame {
     pub breaks: State
     /** Joined at each `continue` and at the end of the body. */
     pub continues: State
+    /** `Moves.scope.len()` before the loop's variables. */
+    pub scope: int
 }
 
 /**
@@ -330,6 +335,10 @@ pub struct Moves {
     pub lastPlace: Part
     /** The last place expression walked is rooted at a local. */
     pub lastLocal: bool
+    /** The owned locals of the open blocks, innermost last: they die at its end. */
+    pub scope: List<int>
+    /** How many blocks are open; 1 is the function's body. */
+    pub depth: int
 
     /**
      * Marks a part moved.
@@ -429,6 +438,8 @@ fn checkMutParams(m: Moves, c: mut Checker, p: Program, s: &State, span: Span) {
 pub fn movesBlock(m: mut Moves, c: mut Checker, p: Program, block: &Block, s: mut State,
                   tail: Use) {
     let count = block.stmts.len()
+    let base = m.scope.len()
+    m.depth += 1
     for i in 0..count {
         let stmt = &block.stmts[i]
         var done = false
@@ -442,7 +453,30 @@ pub fn movesBlock(m: mut Moves, c: mut Checker, p: Program, block: &Block, s: mu
             let mark = m.carry.len()
             movesStmt(m, c, p, stmt, s)
             dropCarry(m, mark)
+            declaredLocals(m, c, stmt)
         }
+    }
+    m.depth -= 1
+    if m.depth > 0 {   // the function's locals end with it: returning a borrow is E0702
+        escapesBlock(m, c, base)
+        endScope(m, c, s, base, block.span)
+    }
+    if m.scope.len() > base {
+        m.scope.truncate(base)
+    }
+}
+
+// The owned locals a statement declares: they die at the end of the block.
+fn declaredLocals(m: mut Moves, c: Checker, stmt: &Stmt) {
+    match stmt.kind {
+        .Let(pattern, _, _, _) => patternLocals(c, &pattern, m.scope)
+        .Var(_, _, _) => {
+            let local = c.localAt(stmt.id.0)
+            if local >= 0 {
+                m.scope.push(local)
+            }
+        }
+        _ => {}
     }
 }
 
@@ -509,6 +543,7 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
         .Break => {
             let last = m.loops.len() - 1
             if last >= 0 {   // else E0309 was reported
+                endScope(m, c, s, m.loops[last].scope, stmt.span)
                 m.loops[last].breaks.join(&s)
             }
             s.dead = true
@@ -516,6 +551,7 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
         .Continue => {
             let last = m.loops.len() - 1
             if last >= 0 {
+                endScope(m, c, s, m.loops[last].scope, stmt.span)
                 useHolder(m, c, s, m.holderBase + last)   // the next iteration
                 m.loops[last].continues.join(&s)
             }
@@ -549,6 +585,8 @@ fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &Stat
     let last = m.loops.len() - 1
     m.loops[last].breaks = deadState()
     m.loops[last].continues = deadState()
+    let base = m.scope.len()
+    m.loops[last].scope = base
     var st = entry.dup()
     var exit = deadState()
     match stmt.kind {
@@ -571,6 +609,7 @@ fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &Stat
                     if first >= 0 {
                         st.initPart(&Part{local: first, fields: []})
                         bindLoopVar(m, st, first, false, last)
+                        m.scope.push(first)   // a new one each iteration
                     }
                 } else if first >= 0 {   // the variables borrow the elements
                     m.borrowed[first] = true
@@ -585,6 +624,10 @@ fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &Stat
                 }
             }
             movesBlock(m, c, p, &body, st, .Read)
+            endScope(m, c, st, base, body.span)
+            if m.scope.len() > base {
+                m.scope.truncate(base)
+            }
             useHolder(m, c, st, m.holderBase + last)   // the next iteration
         }
         _ => {}
@@ -637,7 +680,7 @@ fn loopLoans(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut Stat
 // once more to report. Errors reported twice are rendered once.
 fn loopBody(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut State) {
     loopLoans(m, c, p, stmt, st)
-    m.loops.push(LoopFrame{breaks: deadState(), continues: deadState()})
+    m.loops.push(LoopFrame{breaks: deadState(), continues: deadState(), scope: m.scope.len()})
     let last = m.loops.len() - 1
     var entry = st.dup()
     var exit = iteration(m, c, p, stmt, &entry)
@@ -687,7 +730,8 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
     }
     var m = Moves{fnDef: id, report: true, borrowed: List.filled(false, count), loops: [],
                   allParts: [], refLocal, copyLocal, holderBase: count, carry: [],
-                  binding: [], lastPlace: Part{local: 0, fields: []}, lastLocal: false}
+                  binding: [], lastPlace: Part{local: 0, fields: []}, lastLocal: false,
+                  scope: [], depth: 0}
     if decl.hasSelf && decl.selfMode == .Borrow && count > 0 {
         m.borrowed[0] = true
     }
