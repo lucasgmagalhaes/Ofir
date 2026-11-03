@@ -173,7 +173,7 @@ Each port is verified by comparing outputs with stage 0.
 | 4.11 | Escape rules for references and borrowed function values (spec 5.4, 10.2) | M | **done**: stage 1 reports E0702 for a borrowed `fn(A) R` stored in a field, variant or container, or returned, and E0706 for a borrow that outlives the block of what it borrows (block ends, `break`, `continue`, loop iterations, block values); `tests/borrow/escape*.of`; no errors in `compiler/` or std |
 | 4.12 | Fix the compiler's own code until it passes its borrow checker | M | **done**: `compiler/` compiles with no borrow errors; the one error found (`checkLate` in `compiler/sema/check.of`) was fixed with 4.10, and the escape rules of 4.11 found none; `make verify` builds stage 2 and stage 3 with the checker on |
 | 4.13 | Stage 1 builds itself (stage 2), stage 2 builds itself (stage 3) | M | **done** (before 4.10–4.12, which it does not need): `make verify` (part of `make test`) builds stage 2 and stage 3; their LLVM IR for `compiler/` is identical, and equal to stage 0's |
-| 4.14 | `make verify` in CI; publish the first seed (bootstrap.md) | S | **M4: self-hosted** → release 0.2 |
+| 4.14 | `make verify` in CI; publish the first seed (bootstrap.md) | S | **done**, **M4: self-hosted** → release 0.2: `make verify` runs in `make test` on CI; `make seed`, `make check-seed`, and the Release workflow, which publishes `ofir-0.2.0.ll` with its checksum (`seed/SEEDS.md`) |
 
 From M4 on, new features are implemented only in stage 1. Stage 0 is
 frozen. `compiler/` may use a feature only once it has shipped in a tagged

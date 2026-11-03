@@ -6,6 +6,11 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-03
+
+Milestone M4: the compiler is self-hosted. The first seed,
+`ofir-0.2.0.ll`, is attached to the release (`docs/bootstrap.md`).
+
 ### Added
 
 - Stage 1 (roadmap phase 4): `compiler/base`, `compiler/diag`, the lexer
@@ -30,6 +35,16 @@ project uses [Semantic Versioning](https://semver.org/).
 - Self-hosting (roadmap 4.13): stage 1 builds itself (stage 2), which
   builds itself (stage 3); `make verify` checks that both write the same
   LLVM IR for `compiler/`.
+- Stage 1 borrow checker (roadmap 4.10): shared and exclusive borrows of
+  places are checked against moves, writes and each other, with
+  non-lexical borrows and two-phase borrows (E0700, E0701, E0703 to
+  E0705). The compiler passes its own borrow checker (roadmap 4.12).
+- Stage 1 escape rules (roadmap 4.11): a borrowed `fn(A) R` cannot be
+  stored or returned (E0702), and a borrow cannot outlive the block of
+  what it borrows (E0706).
+- Release seeds (roadmap 4.14): `make seed` writes the LLVM IR of the
+  compiler, `make check-seed SEED=...` builds a compiler from one and
+  tests it; the Release workflow publishes a release with its seed.
 - `checkedAdd`, `checkedSub`, `checkedMul`, `checkedDiv` and `parse` for
   the integer types, `parse` for the float types, `ParseError`.
 
