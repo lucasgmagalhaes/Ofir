@@ -46,16 +46,26 @@ feature may be used in `compiler/` only **after it has shipped in a tagged
 release**, so release *N* is always compilable by release *N − 1*.
 
 Each release publishes a **seed**: the LLVM IR that the release compiler
-generates for itself (`ofir-<version>-<target>.ll`), attached to the
-release, with its SHA-256 checksum recorded in `seed/SEEDS.md`. There are
-two ways to build the current compiler:
+generates for itself (`ofir-<version>.ll`), attached to the release, with
+its SHA-256 checksum recorded in `seed/SEEDS.md`. The IR has no target
+triple, so one seed serves every 64-bit target clang supports; it records
+the source paths of the machine that built it, for panic messages. There
+are two ways to build the current compiler:
 
 1. **Fast path (normal):** download the seed of the previous release, compile
-   it with clang, and use that compiler to build the current sources.
+   it with clang, and use that compiler to build the current sources:
+   `make check-seed SEED=ofir-<version>.ll` does this and runs the tests
+   with the result.
 2. **Auditable path:** stage 0 → the first self-hosted release → every
    following release in order. It requires only a C compiler and clang and
-   proves that no seed hides anything ("trusting trust"). CI runs it on a
-   schedule, not on every commit.
+   proves that no seed hides anything ("trusting trust"). Running it in CI
+   on a schedule is planned.
+
+`make seed` writes the seed of the current sources
+(`build/seed/ofir-<version>.ll` and its `.sha256`), after `make verify`.
+The Release workflow (`.github/workflows/release.yml`, run by hand with the
+version) builds the seed, checks it with `make check-seed` on every CI
+platform, and creates the tag `v<version>` and the release with the seed.
 
 Stage 0 stays in the repository, frozen, as the root of the auditable path.
 
