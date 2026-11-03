@@ -307,6 +307,16 @@ separate liveness pass. The `mut` arguments of a call are borrowed after
 all the arguments are evaluated (two-phase borrows), and the places of the
 arguments are checked against each other.
 
+Step 3 in stage 1 adds two rules to `sema/check_ref.of`'s checks of
+stored and returned types: a borrowed function type `fn(A) R` (a `Fn`
+type with `data` `FN_BORROWED`, while `move fn` is `FN_OWNED`) is second-
+class like a reference, so it cannot be a field, a variant payload, a
+container element or a return type (E0702). And a borrow cannot outlive
+its block: at the end of each block, and at a `break` or `continue` for
+the blocks it leaves, the owned locals declared in it are dropped (a
+`Drop` access, which conflicts with any loan on them); a loan that is
+still used afterwards, or carried by the block's value, is E0706.
+
 ## 9. Drop elaboration
 
 Using the move analysis results, inserts `Drop(place)` at:

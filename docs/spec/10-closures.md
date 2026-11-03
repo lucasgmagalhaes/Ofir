@@ -73,6 +73,9 @@ fn onClick(b: mut Button, handler: move fn()) {      // keeps `handler`
 }
 ```
 
+Storing or returning a `fn(A) R` is E0702, checked by the self-hosted
+compiler (stage 0 accepts it).
+
 ## 10.3 Captures
 
 A non-`move` closure captures each variable it uses by reference, chosen
