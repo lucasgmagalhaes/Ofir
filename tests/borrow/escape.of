@@ -1,0 +1,71 @@
+// requires: stage1
+// References and borrowed function values that would outlive what they
+// borrow (spec 5.6, 10.2).
+
+struct Handlers {
+    onClick: fn(int)            // error[E0702]: a borrowed function value cannot be stored in a struct field: use a `move fn` type
+    owned: move fn(int)
+}
+
+enum Event {
+    Click(fn())                 // error[E0702]: a borrowed function value cannot be stored in an enum variant: use a `move fn` type
+    Key(move fn())
+}
+
+fn callbacks(fs: List<fn(int)>) {   // error[E0702]: a borrowed function value cannot be stored in a container or a struct: use a `move fn` type
+}
+
+fn pick(f: fn(int) int) fn(int) int {   // error[E0702]: a function cannot return a borrowed function value: return a `move fn`
+    return f
+}
+
+fn innerBlock() {
+    let a = [1]
+    var r = &a
+    {
+        let b = [2, 3]
+        r = &b                  // error[E0706]: `b` does not live long enough: it is dropped at the end of its block while still borrowed by `r`
+    }
+    println("{r.len()}")
+}
+
+fn eachIteration() {
+    let a = [1]
+    var r = &a
+    for i in 0..3 {
+        println("{r.len()}")
+        let b = [i]
+        r = &b                  // error[E0706]: `b` does not live long enough: it is dropped at the end of its block while still borrowed by `r`
+    }
+}
+
+fn loopVariable() {
+    let a = 0
+    var r = &a
+    for i in 0..3 {
+        r = &i                  // error[E0706]: `i` does not live long enough: it is dropped at the end of its block while still borrowed by `r`
+    }
+    println("{*r}")
+}
+
+fn breakOut() {
+    let a = [1]
+    var r = &a
+    for i in 0..3 {
+        let b = [i]
+        r = &b                  // error[E0706]: `b` does not live long enough: it is dropped at the end of its block while still borrowed by `r`
+        break
+    }
+    println("{r.len()}")
+}
+
+fn blockValue() {
+    let r = {
+        let b = [1]
+        &b                      // error[E0706]: `b` does not live long enough: the value of its block borrows it
+    }
+    println("{r.len()}")
+}
+
+fn main() {
+}

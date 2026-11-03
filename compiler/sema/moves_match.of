@@ -92,6 +92,48 @@ fn initLocal(m: mut Moves, local: int, s: mut State, borrowed: bool) {
     }
 }
 
+fn listLocals(c: Checker, list: &List<Pattern>, out: mut List<int>) {
+    for i in 0..list.len() {
+        patternLocals(c, &list[i], out)
+    }
+}
+
+/**
+ * The locals a pattern binds.
+ *
+ * @param c the checker
+ * @param pattern the pattern
+ * @param out gets them
+ */
+pub fn patternLocals(c: Checker, pattern: &Pattern, out: mut List<int>) {
+    match pattern.kind {
+        .Binding(_, _) => {
+            let local = c.localAt(pattern.id.0)
+            if local >= 0 {
+                out.push(local)
+            }
+        }
+        .Variant(_, _, args, _) => listLocals(c, &args, out)
+        .Tuple(items) => listLocals(c, &items, out)
+        .TupleStruct(_, args) => listLocals(c, &args, out)
+        .Or(alternatives) => listLocals(c, &alternatives, out)
+        .Struct(_, fields, _) => {
+            for i in 0..fields.len() {
+                match fields[i].pattern {
+                    .Some(inner) => patternLocals(c, &inner, out)
+                    .None => {
+                        let local = c.localAt(fields[i].id.0)
+                        if local >= 0 {
+                            out.push(local)
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 fn initList(m: mut Moves, c: Checker, list: &List<Pattern>, s: mut State, borrowed: bool) {
     for i in 0..list.len() {
         patternInit(m, c, &list[i], s, borrowed)

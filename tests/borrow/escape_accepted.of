@@ -1,0 +1,49 @@
+// Borrows that end before what they borrow (spec 5.6).
+
+struct Handlers {
+    owned: move fn(int)
+}
+
+fn each(xs: List<int>, f: fn(int)) {
+}
+
+fn maybe(f: Option<fn(int)>) {
+}
+
+// A borrow of an inner local that is not used after its block.
+fn innerBlock() {
+    let a = [1]
+    var r = &a
+    {
+        let b = [2, 3]
+        r = &b
+        println("{r.len()}")
+    }
+    r = &a
+    println("{r.len()}")
+}
+
+// A reference made and used in each iteration.
+fn eachIteration() {
+    for i in 0..3 {
+        let b = [i]
+        let r = &b
+        println("{r.len()}")
+    }
+}
+
+// A block whose value copies out of a local of the block.
+fn blockValue() {
+    let n = {
+        let b = [1, 2]
+        let r = &b
+        r.len()
+    }
+    println("{n}")
+}
+
+fn main() {
+    innerBlock()
+    eachIteration()
+    blockValue()
+}
