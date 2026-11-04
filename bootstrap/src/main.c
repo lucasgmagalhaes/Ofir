@@ -5,6 +5,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
+
 #define OFIR_VERSION "0.1.0"
 
 static void print_usage(FILE *out) {
@@ -81,6 +86,11 @@ static bool parse_options(int argc, char **argv, Options *opts) {
                 return false;
             }
         } else if (!opts->input) {
+#ifdef _WIN32
+            for (char *c = argv[i]; *c; c++) {   // the driver splits paths at `/`
+                *c = *c == '\\' ? '/' : *c;
+            }
+#endif
             opts->input = argv[i];
         } else {
             fprintf(stderr, "error: unexpected argument `%s`\n", argv[i]);
@@ -95,6 +105,11 @@ static bool parse_options(int argc, char **argv, Options *opts) {
 }
 
 int main(int argc, char **argv) {
+#ifdef _WIN32
+    // Output is LF, as on every other host.
+    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stderr), _O_BINARY);
+#endif
     if (argc < 2) {
         print_usage(stderr);
         return 2;

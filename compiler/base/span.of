@@ -125,7 +125,7 @@ pub struct SourceFile {
     pub fn lineText(self, line: int) str {
         let start = self.lineStarts[line - 1]
         var end = if line < self.lineStarts.len() { self.lineStarts[line] } else { self.text.len() }
-        if end > start && self.text[end - 1] == b'\n' {
+        for end > start && (self.text[end - 1] == b'\n' || self.text[end - 1] == b'\r') {
             end -= 1
         }
         return self.text.slice(start, end)

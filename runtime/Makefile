@@ -1,5 +1,7 @@
 # C runtime linked into every Ofir program → $(BUILD)/libofir_rt.a
 
+include ../tools/platform.mk
+
 CC    ?= cc
 AR    ?= ar
 BUILD ?= ../build

@@ -38,6 +38,14 @@ ENV = dict(os.environ, OFIR_STD=str(ROOT / "std"))
 STAGE1_ONLY = re.compile(r"^//\s*requires:\s*stage1\b", re.MULTILINE)
 
 
+def executable(path: str) -> str:
+    """The compiler as an absolute path; on Windows, `.exe` may be implied."""
+    full = Path(path).resolve()
+    if os.name == "nt" and not full.suffix and full.with_suffix(".exe").exists():
+        full = full.with_suffix(".exe")
+    return str(full)
+
+
 def comparable(path: Path) -> bool:
     return not STAGE1_ONLY.search(path.read_text())
 
@@ -81,8 +89,10 @@ def compare(stage0: str, stage1: str, path: Path) -> tuple:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "ofir"))
-    parser.add_argument("--stage1", help="use an already built stage 1 compiler")
+    parser.add_argument("--compiler", type=executable,
+                        default=str(ROOT / "build" / "stage0" / "ofir"))
+    parser.add_argument("--stage1", type=executable,
+                        help="use an already built stage 1 compiler")
     parser.add_argument("--fuzz", type=int, default=0)
     parser.add_argument("--seed", type=int, default=1)
     args = parser.parse_args()

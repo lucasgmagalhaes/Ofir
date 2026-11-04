@@ -2,6 +2,8 @@
 # See docs/design/toolchain.md, section 7.
 
 BUILD  ?= build
+
+include tools/platform.mk
 PYTHON ?= python3
 
 .PHONY: all stage0 stage1 stage2 verify runtime unit runner-selftest test test-std test-stage1 compare-stages check-format check-codes check-sizes check-docs check-leaks check-asan seed check-seed bench bench-compare clean
@@ -35,37 +37,37 @@ check-format:
 
 # Every run test and example under valgrind: no leaks, no invalid accesses.
 check-leaks: stage0 runtime
-	$(PYTHON) tools/check_leaks.py --compiler $(BUILD)/stage0/ofir
+	$(PYTHON) tools/check_leaks.py --compiler $(BUILD)/stage0/ofir$(EXE)
 
 # The `@test` functions of std and of the stage 1 compiler (spec 12.2).
 test-std: stage0 runtime
-	$(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage0/ofir
+	$(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage0/ofir$(EXE)
 
 # Every run and panic test and example under ASan and UBSan (needs gcc).
 check-asan: stage0 runtime
-	$(PYTHON) tools/check_asan.py --compiler $(BUILD)/stage0/ofir
+	$(PYTHON) tools/check_asan.py --compiler $(BUILD)/stage0/ofir$(EXE)
 
 # Stage 1 (compiler/, built by stage 0) gives the same output as stage 0.
 compare-stages: stage1
-	$(PYTHON) tools/compare_stages.py --compiler $(BUILD)/stage0/ofir --stage1 $(BUILD)/stage1/ofir --fuzz 200
+	$(PYTHON) tools/compare_stages.py --compiler $(BUILD)/stage0/ofir$(EXE) --stage1 $(BUILD)/stage1/ofir$(EXE) --fuzz 200
 
 # Stage 1, built by stage 0.
 stage1: stage0 runtime
 	mkdir -p $(BUILD)/stage1
-	OFIR_STD=$(abspath std) $(BUILD)/stage0/ofir build compiler/main.of -o $(BUILD)/stage1/ofir
+	OFIR_STD=$(abspath std) $(BUILD)/stage0/ofir$(EXE) build compiler/main.of -o $(BUILD)/stage1/ofir$(EXE)
 
 # Stage 2: the compiler built by stage 1 (roadmap 4.13).
 STAGE_ENV = OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a
 stage2: stage1
 	mkdir -p $(BUILD)/stage2
-	$(STAGE_ENV) $(BUILD)/stage1/ofir build compiler/main.of -o $(BUILD)/stage2/ofir
+	$(STAGE_ENV) $(BUILD)/stage1/ofir$(EXE) build compiler/main.of -o $(BUILD)/stage2/ofir$(EXE)
 
 # Stage 2 builds itself (stage 3): both write the same LLVM IR for compiler/.
 verify: stage2
 	mkdir -p $(BUILD)/stage3
-	$(STAGE_ENV) $(BUILD)/stage2/ofir build compiler/main.of -o $(BUILD)/stage3/ofir
-	$(STAGE_ENV) $(BUILD)/stage2/ofir build compiler/main.of --emit=llvm -o $(BUILD)/stage2/self
-	$(STAGE_ENV) $(BUILD)/stage3/ofir build compiler/main.of --emit=llvm -o $(BUILD)/stage3/self
+	$(STAGE_ENV) $(BUILD)/stage2/ofir$(EXE) build compiler/main.of -o $(BUILD)/stage3/ofir$(EXE)
+	$(STAGE_ENV) $(BUILD)/stage2/ofir$(EXE) build compiler/main.of --emit=llvm -o $(BUILD)/stage2/self
+	$(STAGE_ENV) $(BUILD)/stage3/ofir$(EXE) build compiler/main.of --emit=llvm -o $(BUILD)/stage3/self
 	cmp $(BUILD)/stage2/self.ll $(BUILD)/stage3/self.ll
 	@echo "verify: stage 2 and stage 3 generate the same LLVM IR for compiler/"
 
@@ -82,29 +84,29 @@ seed: verify
 
 # The fast path of the bootstrap: clang builds a compiler from a seed
 # (SEED=path), which must build the current compiler and pass the tests.
-SEED_CLANG = $(if $(OFIR_CLANG),$(OFIR_CLANG),clang)
+SEED_CLANG = "$(if $(OFIR_CLANG),$(OFIR_CLANG),clang)" $(CLANG_TARGET)
 check-seed: runtime
 	mkdir -p $(BUILD)/from-seed
 	$(SEED_CLANG) -O2 -Wno-override-module $(SEED) $(BUILD)/libofir_rt.a -lm \
-	    -o $(BUILD)/from-seed/seed
-	$(STAGE_ENV) $(BUILD)/from-seed/seed build compiler/main.of -o $(BUILD)/from-seed/ofir
-	$(BUILD)/from-seed/ofir version
-	$(STAGE_ENV) $(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/from-seed/ofir --stage 1
+	    -o $(BUILD)/from-seed/seed$(EXE)
+	$(STAGE_ENV) $(BUILD)/from-seed/seed$(EXE) build compiler/main.of -o $(BUILD)/from-seed/ofir$(EXE)
+	$(BUILD)/from-seed/ofir$(EXE) version
+	$(STAGE_ENV) $(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/from-seed/ofir$(EXE) --stage 1
 
 # Every test with stage 1 as the compiler (roadmap 4.8, 4.9).
 test-stage1: stage1
 	OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a \
-	    $(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage1/ofir --stage 1
+	    $(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage1/ofir$(EXE) --stage 1
 	OFIR_STD=$(abspath std) OFIR_RUNTIME=$(abspath $(BUILD))/libofir_rt.a \
-	    $(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage1/ofir
+	    $(PYTHON) tools/run_std_tests.py --compiler $(BUILD)/stage1/ofir$(EXE)
 
 test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs check-format test-std compare-stages test-stage1 verify
-	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/ofir
+	$(PYTHON) tests/runner/run_tests.py --compiler $(BUILD)/stage0/ofir$(EXE)
 
 # Performance (docs/design/performance.md)
 bench:
 	$(MAKE) -C bootstrap release BUILD=$(abspath $(BUILD))/release
-	$(PYTHON) bench/run_bench.py --compiler $(BUILD)/release/ofir
+	$(PYTHON) bench/run_bench.py --compiler $(BUILD)/release/ofir$(EXE)
 
 BASE ?= origin/main
 bench-compare:

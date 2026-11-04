@@ -8,11 +8,10 @@
 // std.collections.Map`), its module `a` is loaded. Imports that match no
 // file are reported by the resolver (E0204).
 
-#define _XOPEN_SOURCE 700   // realpath
-
 #include "driver_internal.h"
 
-#include <limits.h>
+#include "base/platform.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -149,8 +148,8 @@ static StrView root_name(Loader *ld, const char *input) {
 // `prefix` (`std.` for the standard library), if `input` is inside it.
 static bool name_under(Loader *ld, const char *input, const char *dir, const char *prefix,
                        StrView *name) {
-    char file[PATH_MAX], base[PATH_MAX];
-    if (!realpath(input, file) || !realpath(dir, base)) {
+    char file[PLATFORM_PATH_SIZE], base[PLATFORM_PATH_SIZE];
+    if (!platform_realpath(input, file) || !platform_realpath(dir, base)) {
         return false;
     }
     size_t n = strlen(base);
@@ -174,8 +173,8 @@ static bool name_under(Loader *ld, const char *input, const char *dir, const cha
 // The project root (spec 7.2): the nearest directory above the root file
 // that holds an `ofir.json`; imports are resolved from there.
 static bool project_dir(const char *input, char out[PATH_SIZE]) {
-    char path[PATH_MAX];
-    if (!realpath(input, path)) {
+    char path[PLATFORM_PATH_SIZE];
+    if (!platform_realpath(input, path)) {
         return false;
     }
     for (char *slash = strrchr(path, '/'); slash && slash > path; slash = strrchr(path, '/')) {

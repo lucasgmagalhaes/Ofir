@@ -3,6 +3,8 @@
 #   make release    optimized build
 #   make test       build and run the C unit tests in tests/
 
+include ../tools/platform.mk
+
 CC       ?= cc
 BUILD    ?= ../build/stage0
 MODE     ?= debug
@@ -27,16 +29,16 @@ SRCS      := $(shell find src -name '*.c' | sort)
 LIB_SRCS  := $(filter-out src/main.c,$(SRCS))
 OBJS      := $(patsubst src/%.c,$(BUILD)/obj/$(MODE)/%.o,$(SRCS))
 LIB_OBJS  := $(patsubst src/%.c,$(BUILD)/obj/$(MODE)/%.o,$(LIB_SRCS))
-TESTS     := $(patsubst tests/%.c,$(BUILD)/tests/%,$(wildcard tests/*.c))
+TESTS     := $(patsubst tests/%.c,$(BUILD)/tests/%$(EXE),$(wildcard tests/*.c))
 
 .PHONY: all release test clean
 
-all: $(BUILD)/ofir
+all: $(BUILD)/ofir$(EXE)
 
 release:
 	$(MAKE) MODE=release
 
-$(BUILD)/ofir: $(OBJS)
+$(BUILD)/ofir$(EXE): $(OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) -o $@ $^ -lm
 
@@ -44,7 +46,7 @@ $(BUILD)/obj/$(MODE)/%.o: src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
-$(BUILD)/tests/%: tests/%.c $(LIB_OBJS)
+$(BUILD)/tests/%$(EXE): tests/%.c $(LIB_OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lm
 

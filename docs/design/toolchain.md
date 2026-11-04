@@ -125,8 +125,11 @@ The compiler finds:
 
 ## 6. Targets
 
-Version 1 supports 64-bit Linux (x86_64, aarch64) and macOS (aarch64,
-x86_64). Windows support is **[planned]**. Cross-compilation uses
+Version 1 supports 64-bit Linux (x86_64, aarch64), macOS (aarch64,
+x86_64) and Windows (x86_64). On Windows the compilers pass
+`--target=x86_64-w64-windows-gnu` to clang: the runtime and the programs
+use the MinGW C library, so a MinGW-w64 toolchain (for example WinLibs)
+must be installed next to clang. Cross-compilation uses
 `--target=<llvm triple>` and relies on clang's cross-compilation support.
 
 ## 7. Repository build (for contributors)
@@ -142,3 +145,6 @@ make test          # run all suites in tests/ against the newest stage
 
 Requirements: a C11 compiler, `make`, clang ≥ 17, and Python 3 for the
 test runner (a development dependency only; users never need Python).
+On Windows, run `make` from a POSIX shell (Git Bash); `tools/platform.mk`
+builds with clang for the MinGW target and finds clang on `PATH` or in
+`C:/Program Files/LLVM/bin`.

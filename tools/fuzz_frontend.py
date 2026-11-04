@@ -10,6 +10,7 @@ UBSan). Failing inputs are kept in the output directory.
 """
 
 import argparse
+import os
 import random
 import subprocess
 import sys
@@ -19,6 +20,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TOKENS = ["{", "}", "(", ")", "@test\n", '"', "fn ", "match x {", ".", "?", "&mut ", "[", "]",
           "move ", "\n", " as u8", "<T>", "0x", '"{', "/*", "self", "_ =>"]
+
+
+def executable(path: str) -> str:
+    """The compiler as an absolute path; on Windows, `.exe` may be implied."""
+    full = Path(path).resolve()
+    if os.name == "nt" and not full.suffix and full.with_suffix(".exe").exists():
+        full = full.with_suffix(".exe")
+    return str(full)
 
 
 def mutate(rng: random.Random, text: str) -> str:
@@ -51,7 +60,8 @@ def crashes(compiler: str, case: Path, emit: str, out: Path) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--compiler", default=str(ROOT / "build" / "stage0" / "ofir"))
+    parser.add_argument("--compiler", type=executable,
+                        default=str(ROOT / "build" / "stage0" / "ofir"))
     parser.add_argument("--count", type=int, default=500)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--out", default=tempfile.mkdtemp(prefix="ofir-fuzz-"))

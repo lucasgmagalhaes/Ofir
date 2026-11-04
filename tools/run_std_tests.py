@@ -28,6 +28,14 @@ DIRS = ["std", "compiler/base", "compiler/diag", "compiler/syntax", "compiler/se
         "compiler/driver"]
 
 
+def executable(path: str) -> str:
+    """The compiler as an absolute path; on Windows, `.exe` may be implied."""
+    full = Path(path).resolve()
+    if os.name == "nt" and not full.suffix and full.with_suffix(".exe").exists():
+        full = full.with_suffix(".exe")
+    return str(full)
+
+
 def modules_with_tests() -> list[Path]:
     """The modules with tests: the module of each `x_test.of` file
     (spec 12.2), and any module with `@test` functions of its own."""
@@ -42,7 +50,7 @@ def modules_with_tests() -> list[Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--compiler", required=True)
+    parser.add_argument("--compiler", type=executable, required=True)
     parser.add_argument("-j", "--jobs", type=int, default=min(4, os.cpu_count() or 1),
                         help="maximum concurrent compiler processes (default: up to 4)")
     args = parser.parse_args()

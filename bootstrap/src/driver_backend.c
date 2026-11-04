@@ -1,24 +1,16 @@
 // The back end: lowering, LLVM IR, clang (docs/design/toolchain.md, 4).
 
-#define _XOPEN_SOURCE 700   // realpath
-#define _DARWIN_C_SOURCE    // mkdtemp on macOS
-
 #include "driver_internal.h"
 
 #include "air/air_print.h"
 #include "air/lower.h"
+#include "base/platform.h"
 #include "codegen/llvm.h"
 
 #include <errno.h>
-#include <limits.h>
-#include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
-
-extern char **environ;
 
 // The executable path: `-o`, else the input's name without `.of` (for
 // `run`, in a temporary directory).
@@ -35,34 +27,16 @@ static bool output_path(const Options *opts, char out[PATH_SIZE]) {
     if (strcmp(opts->command, "run") != 0 && strcmp(opts->command, "test") != 0) {
         return snprintf(out, PATH_SIZE, "%.*s", (int)len, base) < PATH_SIZE;
     }
-    const char *tmp = getenv("TMPDIR");
     char dir[PATH_SIZE];
-    snprintf(dir, sizeof dir, "%s/ofir-run-XXXXXX", tmp && tmp[0] ? tmp : "/tmp");
-    if (!mkdtemp(dir)) {
+    if (!platform_make_temp_dir("ofir-run-", dir)) {
         return false;
     }
     return snprintf(out, PATH_SIZE, "%s/%.*s", dir, (int)len, base) < PATH_SIZE;
 }
 
-static int spawn_wait(char *const argv[]) {
-    pid_t pid;
-    int err = posix_spawnp(&pid, argv[0], NULL, NULL, argv, environ);
-    if (err != 0) {
-        fprintf(stderr, "error[E0902]: cannot run `%s`: %s\n", argv[0], strerror(err));
-        return -1;
-    }
-    int status;
-    while (waitpid(pid, &status, 0) < 0) {
-        if (errno != EINTR) {
-            return -1;
-        }
-    }
-    return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
-}
-
 int run_program(const char *exe, const char *arg) {
     char *argv[] = {(char *)exe, (char *)arg, NULL};
-    int status = spawn_wait(argv);
+    int status = platform_spawn_wait(argv);
     return status < 0 ? 1 : status;
 }
 
@@ -75,10 +49,16 @@ static Next link_program(const Options *opts, const char *ll, const char *exe) {
         return STOP_FAIL;
     }
     const char *clang = getenv("OFIR_CLANG");
-    // The module has no target triple: clang uses its default target.
-    char *argv[] = {(char *)(clang && clang[0] ? clang : "clang"), opts->release ? "-O2" : "-O0",
-                    "-Wno-override-module", (char *)ll, runtime, "-lm", "-o", (char *)exe, NULL};
-    if (spawn_wait(argv) != 0) {
+    // The module has no target triple: clang uses its default target, except
+    // on Windows, where the runtime is built for MinGW rather than MSVC and
+    // the main thread gets the 8 MiB stack Linux gives it, not 1 MiB.
+    char *argv[] = {(char *)(clang && clang[0] ? clang : "clang"),
+#ifdef _WIN32
+                    "--target=x86_64-w64-windows-gnu", "-Wl,--stack,8388608",
+#endif
+                    opts->release ? "-O2" : "-O0", "-Wno-override-module", (char *)ll, runtime,
+                    "-lm", "-o", (char *)exe, NULL};
+    if (platform_spawn_wait(argv) != 0) {
         fprintf(stderr, "error[E0902]: clang failed to compile the generated code\n");
         return STOP_FAIL;
     }
@@ -108,7 +88,7 @@ static void take_body(void *context, const AirBody *body) {
 
 // Lowers and writes `<exe>.ll`; returns false if lowering reported errors.
 static bool write_llvm(Pipeline *p, Sema *sema, const char *ll) {
-    FILE *out = fopen(ll, "w");
+    FILE *out = fopen(ll, "wb");
     if (!out) {
         fprintf(stderr, "error[E0902]: cannot write `%s`: %s\n", ll, strerror(errno));
         return false;

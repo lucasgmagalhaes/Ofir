@@ -21,7 +21,7 @@ fn main() {
         .Err(e) => println("missing {e.kind == io.IoErrorKind.NotFound}")
     }
     match os.currentDir() {
-        .Ok(dir) => println("cwd absolute {dir.startsWith("/")}")
+        .Ok(dir) => println("cwd absolute {dir.startsWith("/") || dir.slice(1, 3) == ":/"}")
         .Err(e) => println("cwd: {e.message}")
     }
     eprintln("this goes to standard error")

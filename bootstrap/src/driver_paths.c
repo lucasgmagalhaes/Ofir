@@ -1,9 +1,9 @@
 // Locating the files installed with the compiler: the runtime library and
 // the standard library (docs/design/toolchain.md, 4).
 
-#define _XOPEN_SOURCE 700   // realpath
-
 #include "driver_internal.h"
+
+#include "base/platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,10 +12,7 @@
 
 // The directory of the compiler's executable.
 static bool compiler_dir(const char *argv0, char out[PATH_SIZE]) {
-    ssize_t n = readlink("/proc/self/exe", out, PATH_SIZE - 1);   // Linux
-    if (n > 0) {
-        out[n] = '\0';
-    } else if (!realpath(argv0, out)) {   // macOS: the path the compiler was started with
+    if (!platform_exe_path(argv0, out)) {
         return false;
     }
     char *slash = strrchr(out, '/');

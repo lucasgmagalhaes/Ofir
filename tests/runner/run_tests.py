@@ -65,6 +65,14 @@ class Config:
     tmp: Path = field(default_factory=lambda: Path(tempfile.mkdtemp(prefix="ofir-tests-")))
 
 
+def executable(path: str) -> str:
+    """The compiler as an absolute path; on Windows, `.exe` may be implied."""
+    full = Path(path).resolve()
+    if os.name == "nt" and not full.suffix and full.with_suffix(".exe").exists():
+        full = full.with_suffix(".exe")
+    return str(full)
+
+
 def run_process(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
@@ -288,7 +296,8 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("filters", nargs="*",
                         help="run only tests whose path contains one of these")
-    parser.add_argument("--compiler", default=str(root / "build" / "stage0" / "ofir"))
+    parser.add_argument("--compiler", type=executable,
+                        default=str(root / "build" / "stage0" / "ofir"))
     parser.add_argument("--stage", type=int, choices=[0, 1],
                         help="compiler stage (default: 0 if the path contains 'stage0')")
     parser.add_argument("--tests-dir", type=Path, default=root / "tests")
