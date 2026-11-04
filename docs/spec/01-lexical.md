@@ -54,7 +54,7 @@ inside parentheses, so a closure passed as an argument has normal
 statements:
 
 ```ofir
-thread.spawn(move () => {
+task.run(move () => {
     let x = compute()       // the newline ends this statement
     send(x)
 })

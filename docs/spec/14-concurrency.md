@@ -8,17 +8,18 @@ now so that earlier features do not block it.
 - **No data races in safe code**, enforced at compile time, as with Rust.
 - **No mandatory runtime**: programs that do not use concurrency pay
   nothing for it.
-- **Simple model first**: OS threads and channels. Lightweight tasks
-  (green threads or async) may come later as a library.
+- **Simple model first**: tasks that communicate through channels, each
+  task on an OS thread of its own. A lighter scheduler (green threads or
+  async) may come later behind the same `task.run` API.
 
-## 14.2 Threads
+## 14.2 Tasks
 
 ```ofir
-import std.thread
+import std.task
 
 fn main() {
     let data = [1, 2, 3]
-    let handle = thread.spawn(move () int => {
+    let handle = task.run(move () int => {
         var sum = 0
         for x in data {
             sum += x
@@ -29,8 +30,10 @@ fn main() {
 }
 ```
 
-`thread.spawn` takes a `move fn() T` (chapter 10.2), so a thread can never
-hold a reference into another thread's stack.
+`task.run` starts a task and returns its handle; `join` waits for the task
+and returns its result. A task runs on an OS thread of its own. `task.run`
+takes a `move fn() T` (chapter 10.2), so a task can never hold a reference
+into another task's stack.
 
 ## 14.3 Marker interfaces
 
@@ -38,18 +41,18 @@ Two built-in marker interfaces (no methods), derived automatically:
 
 | Interface | Meaning |
 |-----------|---------|
-| `Send` | values of the type may be moved to another thread |
-| `Sync` | shared references to the type may be used from several threads |
+| `Send` | values of the type may be moved to another task |
+| `Sync` | shared references to the type may be used from several tasks |
 
 Raw pointers and `Rc<T>` are neither `Send` nor `Sync`. A struct is `Send`
-when all its fields are `Send`. `thread.spawn` requires its closure to be
+when all its fields are `Send`. `task.run` requires its closure to be
 `Send`.
 
 ## 14.4 Communication
 
 ```ofir
 let (tx, rx) = channel<int>()
-thread.spawn(move () => tx.send(42))
+task.run(move () => tx.send(42))
 println("{rx.recv().unwrap()}")
 ```
 

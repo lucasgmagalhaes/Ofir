@@ -293,7 +293,7 @@ std/
 ├── os/                       std.os: args, env, exit, run
 ├── math/                     std.math
 ├── testing/                  std.testing: assertEq, Bencher, test harness
-├── thread/                   std.thread [planned]
+├── task/                     std.task   [planned]
 └── sync/                     std.sync   [planned]
 ```
 
