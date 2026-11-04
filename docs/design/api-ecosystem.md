@@ -1,5 +1,10 @@
 # API and service ecosystem plan
 
+This is the service-specific subplan of the
+[language completeness inventory](language-completeness.md). Shared language,
+runtime, library and tooling prerequisites are tracked there without duplicating
+implementation tasks. General-purpose readiness also requires non-service workloads.
+
 Status: **proposed backlog**, surveyed against `4b1da75` on 2026-11-04.
 This is an implementation plan, not a normative standard-library API.
 Module/package names below describe intended homes; none is promised as an

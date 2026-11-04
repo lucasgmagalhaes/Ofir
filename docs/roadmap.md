@@ -253,6 +253,37 @@ optional integrations. The linked plan defines the exact gate membership.
 Use blocking I/O with bounded workers first, following chapter 14; optional
 async and automatic codec/schema generation must not block the first service.
 
+### Language-wide completeness (proposed)
+
+The [master capability inventory](design/language-completeness.md) expands the
+survey beyond APIs: **86 capability records**, OFIR-01 through OFIR-86, covering
+the language, runtime, compiler, general libraries, tools and ecosystem. Records
+audit or extend existing tasks as well as expose new work; they are not 86 absent
+features or independent implementation tickets. Reuse phase 5/6 tasks and the
+API subplan wherever they overlap. Existing completion markers remain unchanged.
+
+G0 establishes implementation truth and safety; G1 proposes a general-purpose
+baseline; G2 identifies optional specializations. Select the release subset
+explicitly rather than treating this inventory as a new 1.0 commitment.
+
+| # | Coverage epic | Capability records | Completion gate |
+|---|---------------|--------------------|-----------------|
+| 6.22 | Specification, conformance inventory and compatibility policy | OFIR-01 to OFIR-07 | Guarantees mapped to source/tests, stages, targets and feature states |
+| 6.23 | Language completion and unresolved semantic choices | OFIR-08 to OFIR-21 | Existing phase 5 tasks linked; accepted semantics and rejection cases tested |
+| 6.24 | Runtime, ownership, allocation, concurrency and ABI | OFIR-22 to OFIR-30 | Resource, failure, layout and concurrency contracts verified |
+| 6.25 | Compiler correctness, bootstrap, build performance and debug information | OFIR-31 to OFIR-38 | Invariants, parity, cache invalidation and debugger evidence recorded |
+| 6.26 | General-purpose standard library and public API quality | OFIR-39 to OFIR-47 | Documented exports, generic usage, portability and boundary tests |
+| 6.27 | FFI, native libraries, target tiers and cross compilation | OFIR-48 to OFIR-55 | Real foreign consumers and supported-target execution pass |
+| 6.28 | Formatting, LSP, diagnostics, debugging, profiling and documentation | OFIR-56 to OFIR-63 | End-to-end developer workflows work on supported platforms |
+| 6.29 | Packages, build inputs, registry, installation and releases | OFIR-64 to OFIR-71 | Clean-machine/offline builds, integrity and compatibility evidence |
+| 6.30 | Conformance, fuzzing, safety, performance, CI and build security | OFIR-72 to OFIR-78 | Reproducible checks plus representative applications across releases |
+| 6.31 | Service ecosystem, learning, domain packages and maintenance | OFIR-79 to OFIR-86 | Scoped deliverables, maintained examples, owners and explicit optional decisions |
+
+Keep stage 0 minimal. GUI, scientific computing, mobile, embedded, WebAssembly,
+alternative backends and async require separate workload and maintenance
+decisions. The master plan defines acceptance evidence and architectural
+boundaries; coverage epics must be split into small implementation PRs.
+
 ## Releases
 
 | Version | Content |
@@ -282,14 +313,18 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. Continue the remaining phase 5 language tasks; after completed 5.16,
+1. Establish the implementation matrix (OFIR-01) and classify specification,
+   safety and compatibility gaps before assigning new release commitments.
+2. Continue the remaining phase 5 language tasks; after completed 5.16,
    the next sequential item is key types and indexed access (5.17).
-2. Begin the API foundation contracts in 6.11 and the JSON codec in 6.13,
+3. Advance general-purpose std, tooling, packages and installation alongside
+   the API foundation contracts in 6.11 and the JSON codec in 6.13,
    using the dependency and priority order in the
    [API ecosystem plan](design/api-ecosystem.md). Coordinate interfaces (5.3)
    and concurrency (6.1) before committing to shared stream/driver contracts
    or a concurrent server.
-3. Validate each API milestone with the reference service (API-49), while
-   keeping optional adapters and language release commitments separate.
+4. Validate a CLI/filesystem utility, C consumer and concurrent program
+   (OFIR-76), plus each API milestone with the reference service (API-49).
+   Select optional adapters and domain ecosystems by concrete demand and ownership.
 
 See also the [risk register](risks.md).
