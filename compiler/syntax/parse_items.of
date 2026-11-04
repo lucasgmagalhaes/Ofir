@@ -12,6 +12,7 @@ import syntax.ast.FnDecl
 import syntax.ast.Item
 import syntax.ast.ItemKind
 import syntax.ast.TypeExpr
+import syntax.ast.WherePred
 import syntax.parse_decls.parseEnum
 import syntax.parse_decls.parseFn
 import syntax.parse_decls.parseStruct
@@ -20,6 +21,7 @@ import syntax.parse_types.parseType
 import syntax.parse_types.parseTypeParams
 import syntax.parser.Parser
 import syntax.parser.textOf
+import std.mem
 
 /**
  * The attributes and the `pub` before a declaration.
@@ -101,7 +103,11 @@ fn valueItem(p: mut Parser, isConst: bool) (Symbol, ItemKind) {
 
 fn typeAlias(p: mut Parser) (Symbol, ItemKind) {
     let name = p.expectName("a type name") ?? Symbol(0)
-    let params = parseTypeParams(p)
+    var bounds: List<WherePred> = []
+    let params = parseTypeParams(p, bounds)
+    if bounds.len() > 0 {
+        p.syntaxError(bounds[0].span, "a type alias cannot bound its type parameters".toOwned())
+    }
     p.expect(.Eq, "`=` and a type")
     return (name, .TypeAlias(params, parseType(p)))
 }
@@ -185,13 +191,16 @@ fn item(p: mut Parser) Option<Item> {
     let start = header.span
     let isPub = header.isPub
     let attributes = header.attributes.clone()
-    let .Some(body) = itemBody(p, header) else {
+    let found = itemBody(p, header)
+    let bounds = mem.replace(p.typeBounds, [])
+    let .Some(body) = found else {
         return .None
     }
     if p.recovering {
         return .None   // an incomplete item is left out of the tree
     }
-    return .Some(Item{kind: body.1, span: p.spanSince(start), name: body.0, attributes, isPub})
+    return .Some(Item{kind: body.1, span: p.spanSince(start), name: body.0, attributes, isPub,
+                      bounds})
 }
 
 /**

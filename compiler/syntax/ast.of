@@ -357,6 +357,8 @@ pub struct FnDecl {
     pub abi: str
     /** Its type parameters. */
     pub typeParams: List<Symbol>
+    /** The bounds of its type parameters, inline (`<T: Eq>`) and in `where`, in order. */
+    pub bounds: List<WherePred>
     /** Whether it is a method. */
     pub hasSelf: bool
     /** How a method receives `self`. */
@@ -367,6 +369,18 @@ pub struct FnDecl {
     pub ret: Option<TypeExpr>
     /** Its body; `None` in an `extern` block. */
     pub body: Option<Block>
+}
+
+/**
+ * A bound on a type: `T: Eq + Hash` (spec 8.1, 8.4).
+ */
+pub struct WherePred {
+    /** The bounded type: a type parameter. */
+    pub ty: TypeExpr
+    /** Its bounds: interfaces. */
+    pub bounds: List<TypeExpr>
+    /** Where it is written. */
+    pub span: Span
 }
 
 /**
@@ -427,6 +441,8 @@ pub struct Item {
     pub attributes: List<Attribute>
     /** `pub` */
     pub isPub: bool
+    /** The bounds of a struct's or enum's type parameters (`<T: Eq>`). */
+    pub bounds: List<WherePred>
 }
 
 /**

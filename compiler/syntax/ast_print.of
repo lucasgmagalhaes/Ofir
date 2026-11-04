@@ -24,6 +24,7 @@ import syntax.ast.Pattern
 import syntax.ast.Stmt
 import syntax.ast.TypeExpr
 import syntax.ast.Variant
+import syntax.ast.WherePred
 import syntax.ast_text.literalText
 import syntax.ast_text.modeText
 import syntax.ast_text.patternText
@@ -332,6 +333,17 @@ struct Printer {
         }
     }
 
+    fn bounds(mut self, preds: &List<WherePred>, names: Interner) {
+        for i in 0..preds.len() {
+            var text = "bound {typeText(&preds[i].ty, names)}:"
+            for j in 0..preds[i].bounds.len() {
+                text.push(if j > 0 { " + " } else { " " })
+                text.push(typeText(&preds[i].bounds[j], names))
+            }
+            self.line(text)
+        }
+    }
+
     fn symbols(mut self, label: str, list: List<Symbol>, sep: str, names: Interner) {
         if list.len() == 0 {
             return
@@ -366,6 +378,7 @@ struct Printer {
         self.depth += 1
         self.attributes(f.attributes, names)
         self.symbols("type_params", f.typeParams, ", ", names)
+        self.bounds(&f.bounds, names)
         if f.hasSelf {
             self.line("{modeText(f.selfMode)}self")
         }
@@ -437,6 +450,7 @@ struct Printer {
                 self.depth += 1
                 self.attributes(it.attributes, names)
                 self.symbols("type_params", typeParams, ", ", names)
+                self.bounds(&it.bounds, names)
                 self.fields(fields, names)
                 self.methods(methods, names)
                 self.depth -= 1
@@ -446,6 +460,7 @@ struct Printer {
                 self.depth += 1
                 self.attributes(it.attributes, names)
                 self.symbols("type_params", typeParams, ", ", names)
+                self.bounds(&it.bounds, names)
                 self.variants(variants, names)
                 self.methods(methods, names)
                 self.depth -= 1
