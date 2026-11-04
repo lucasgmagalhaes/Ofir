@@ -90,6 +90,7 @@ import sema.check.Checker
 import sema.check.fnOf
 import sema.check.itemOf
 import sema.check.itemTypeParams
+import sema.interfaces.isInterfaceMethod
 import sema.check_methods.typeNameOf
 import sema.def.Res
 import sema.moves.COERCION_CONSUMED
@@ -812,6 +813,18 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
             .None => UNIT
         }
     }
+    var callee = id
+    if isInterfaceMethod(c, p, id) {   // static dispatch on the instance's `Self` (spec 9.6)
+        let concrete = concreteType(l, c, targs)
+        let selfType = c.types.get(concrete).args[0]
+        let found = typeMethod(c, p, selfType, c.text(decl.name))
+        if found != 0 {
+            callee = found
+            targs = methodTargs(c, selfType)
+        } else {   // the interface's default method, for that `Self`
+            targs = concrete
+        }
+    }
     let paramCount = decl.params.len()
     var operands: List<Operand> = []
     if let .Some(recv) = receiver {
@@ -819,14 +832,14 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         if args.len() > 0 {
             next = .Some(&args[0].value)
         }
-        operands.push(argument(l, c, p, recv, byAddress(c, p, id, -1), next))
+        operands.push(argument(l, c, p, recv, byAddress(c, p, callee, -1), next))
     }
     for i in 0..args.len() {
         var next: Option<&Expr> = .None
         if i + 1 < args.len() {
             next = .Some(&args[i + 1].value)
         }
-        let byRef = i < paramCount && byAddress(c, p, id, i)
+        let byRef = i < paramCount && byAddress(c, p, callee, i)
         operands.push(argument(l, c, p, &args[i].value, byRef, next))
     }
     let ty = c.typeOf(e.id.0)
@@ -836,7 +849,7 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         dest = newTemp(l, ty)
         result = opCopy(dest, ty)
     }
-    emitCall(l, id, targs, operands, dest)
+    emitCall(l, callee, targs, operands, dest)
     if ty == NEVER {
         terminate(l, terminator(.Unreachable))
     }

@@ -12,6 +12,7 @@ import base.span.Span
 import diag.Diagnostics
 import syntax.ast.Module
 import syntax.ast.NodeId
+import syntax.ast.TypeExpr
 import syntax.ast.WherePred
 import syntax.parse_items.moduleItems
 import syntax.token.Token
@@ -55,6 +56,8 @@ pub struct Parser {
     pub nextId: int
     /** The bounds of the type parameters of the struct or enum being parsed. */
     pub typeBounds: List<WherePred>
+    /** The interfaces asserted by the struct or enum being parsed. */
+    pub typeAsserts: List<TypeExpr>
 
     /**
      * Numbers a new node.
@@ -403,7 +406,8 @@ pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move I
     let words = Words{move: names.find("move"), type: names.find("type"), ref: names.find("ref"),
                       where: names.find("where"), wildcard: names.find("_")}
     var p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
-                   recovering: false, names, diags, words, nextId: firstId, typeBounds: []}
+                   recovering: false, names, diags, words, nextId: firstId, typeBounds: [],
+                   typeAsserts: []}
     let items = moduleItems(p)
     let module = Module{file, nodeCount: p.nextId, docs, items}
     return ParseResult{module, names: p.names, diags: p.diags}

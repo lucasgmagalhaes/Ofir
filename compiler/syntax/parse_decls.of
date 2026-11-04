@@ -187,10 +187,7 @@ pub fn parseStruct(p: mut Parser, isCopy: bool, isRef: bool) (Symbol, ItemKind) 
     p.typeBounds = bounds
     var fields: List<FieldDecl> = []
     var methods: List<FnDecl> = []
-    if p.at(.Colon) {
-        p.syntaxError(p.here(), "interface assertions are not supported by stage 0".toOwned())
-        return (name, .Struct(isCopy, isRef, false, typeParams, fields, methods))
-    }
+    assertions(p)
     let tuple = p.at(.LParen)
     if tuple {
         tupleStructBody(p, fields, methods)
@@ -259,6 +256,58 @@ fn variant(p: mut Parser) Variant {
     return Variant{name, fields, hasFields, discriminant, span: p.spanSince(start)}
 }
 
+// `: Shape + Display` after a struct or enum name: the interfaces it asserts
+// it satisfies (spec 9.2).
+fn assertions(p: mut Parser) {
+    if p.accept(.Colon) {
+        p.typeAsserts = parseBounds(p)
+    }
+}
+
+/**
+ * An interface after `interface` (spec 9.1, 9.4).
+ *
+ * @param p the parser
+ * @returns its name and the item
+ */
+pub fn parseInterface(p: mut Parser) (Symbol, ItemKind) {
+    let name = p.expectName("an interface name") ?? Symbol(0)
+    var bounds: List<WherePred> = []
+    let declared = parseTypeParams(p, bounds)
+    p.typeBounds = bounds
+    var typeParams = [p.names.intern("Self")]   // `Self` is the first parameter
+    for i in 0..declared.len() {
+        typeParams.push(declared[i])
+    }
+    var embeds: List<TypeExpr> = []
+    var methods: List<FnDecl> = []
+    p.expect(.LBrace, "`\{` and the methods")
+    p.skipNewlines()
+    for !p.at(.RBrace) && !p.at(.Eof) {
+        if atMethod(p) {
+            methods.push(interfaceMethod(p))
+        } else {
+            embeds.push(parseType(p))
+        }
+        memberEnd(p)
+    }
+    p.expect(.RBrace, "`\}` to close the interface")
+    return (name, .Interface(typeParams, embeds, methods))
+}
+
+// A method of an interface: with a body, it is a default method (spec 9.3).
+fn interfaceMethod(p: mut Parser) FnDecl {
+    let header = parseItemHeader(p)
+    let start = header.span
+    p.expect(.Fn, "`fn`")
+    var decl = parseFn(p, header, false)
+    if p.at(.LBrace) {
+        decl.body = .Some(parseBlock(p))
+        decl.span = p.spanSince(start)
+    }
+    return decl
+}
+
 /**
  * An enum after `enum` (and `copy`).
  *
@@ -271,6 +320,7 @@ pub fn parseEnum(p: mut Parser, isCopy: bool) (Symbol, ItemKind) {
     var bounds: List<WherePred> = []
     let typeParams = parseTypeParams(p, bounds)
     p.typeBounds = bounds
+    assertions(p)
     var variants: List<Variant> = []
     var methods: List<FnDecl> = []
     p.expect(.LBrace, "`\{` and the variants")

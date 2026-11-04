@@ -15,6 +15,7 @@ import syntax.ast.TypeExpr
 import syntax.ast.WherePred
 import syntax.parse_decls.parseEnum
 import syntax.parse_decls.parseFn
+import syntax.parse_decls.parseInterface
 import syntax.parse_decls.parseStruct
 import syntax.parse_exprs.parseExpr
 import syntax.parse_types.parseType
@@ -179,10 +180,10 @@ fn itemBody(p: mut Parser, header: move ItemHeader) Option<(Symbol, ItemKind)> {
         return .Some(typeAlias(p))
     }
     if kind == .Interface {
-        p.syntaxError(p.here(), "interfaces are not supported by stage 0".toOwned())
-    } else {
-        p.unexpected("a declaration (`fn`, `struct`, `enum`, `const`, `import`, ...)")
+        p.advance()
+        return .Some(parseInterface(p))
     }
+    p.unexpected("a declaration (`fn`, `struct`, `enum`, `const`, `import`, ...)")
     return .None
 }
 
@@ -193,6 +194,7 @@ fn item(p: mut Parser) Option<Item> {
     let attributes = header.attributes.clone()
     let found = itemBody(p, header)
     let bounds = mem.replace(p.typeBounds, [])
+    let asserts = mem.replace(p.typeAsserts, [])
     let .Some(body) = found else {
         return .None
     }
@@ -200,7 +202,7 @@ fn item(p: mut Parser) Option<Item> {
         return .None   // an incomplete item is left out of the tree
     }
     return .Some(Item{kind: body.1, span: p.spanSince(start), name: body.0, attributes, isPub,
-                      bounds})
+                      bounds, asserts})
 }
 
 /**

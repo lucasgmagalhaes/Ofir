@@ -1,0 +1,71 @@
+// requires: stage1
+// Default methods (spec 9.3) and embedding (spec 9.5): a method with a body
+// is inherited by bounded types and by types that assert the interface.
+
+interface Named {
+    fn name(self) str
+
+    fn greet(self) str {
+        return "hello, {self.name()}"
+    }
+}
+
+interface Sized {
+    fn size(self) int
+}
+
+interface Item {
+    Named
+    Sized
+
+    fn describe(self) str {
+        return "{self.name()} ({self.size()})"
+    }
+}
+
+struct File: Item {
+    path: str
+    bytes: int
+
+    fn name(self) str {
+        return self.path.clone()
+    }
+
+    fn size(self) int {
+        return self.bytes
+    }
+}
+
+struct Dir {
+    entries: int
+
+    fn name(self) str {
+        return "dir"
+    }
+
+    fn size(self) int {
+        return self.entries
+    }
+
+    fn greet(self) str {
+        return "a dir"
+    }
+}
+
+fn show<T: Item>(x: T) {
+    println(x.greet())
+    println(x.describe())
+}
+
+fn total<T: Sized>(a: T, b: T) int {
+    return a.size() + b.size()
+}
+
+fn main() {
+    let f = File{path: "a.txt", bytes: 12}
+    println(f.greet())
+    println(f.describe())
+    show(f)
+    show(Dir{entries: 3})
+    println("{total(Dir{entries: 1}, Dir{entries: 2})}")
+}

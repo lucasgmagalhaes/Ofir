@@ -1,8 +1,4 @@
 // Features left to stage 1 (docs/bootstrap.md).
-interface Shape {   // error[E0100]: interfaces are not supported by stage 0
-    fn area(self) float
-}
-
 fn apply() {
     let f = fn(x: int) int => x   // error[E0100]: closures are not supported by stage 0
 }

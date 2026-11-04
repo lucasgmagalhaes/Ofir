@@ -1,0 +1,267 @@
+/**
+ * @module
+ * Interfaces (spec 9): the methods an interface requires, embedded
+ * interfaces included, and whether a type satisfies them. Satisfaction is
+ * structural: a type satisfies an interface when it has a method of the
+ * same name, `self` mode and signature for each method without a body.
+ */
+
+import base.intern.Symbol
+import sema.check.Checker
+import sema.check.interfaceOf
+import sema.check.itemOf
+import sema.check_methods.methodAt
+import sema.check_methods.methodCount
+import sema.check_types.fnSignature
+import sema.program.Program
+
+/**
+ * An interface and the interfaces it embeds, directly or not, each once.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param iface the interface's `DefId`
+ * @returns their `DefId`s, `iface` first
+ */
+pub fn interfaceClosure(c: mut Checker, p: Program, iface: int) List<int> {
+    var out = [iface]
+    var i = 0
+    for i < out.len() {
+        let id = out[i]
+        match itemOf(p, c.loc(id)).kind {
+            .Interface(_, embeds, _) => {
+                let saved = c.enter(c.def(id).module)
+                for j in 0..embeds.len() {
+                    let embedded = interfaceOf(c, &embeds[j])
+                    if embedded != 0 && !contains(&out, embedded) {
+                        out.push(embedded)
+                    }
+                }
+                c.enter(saved)
+            }
+            _ => {}
+        }
+        i += 1
+    }
+    return out
+}
+
+fn contains(list: &List<int>, x: int) bool {
+    for i in 0..list.len() {
+        if list[i] == x {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * The position of method `name` among the methods of a type or interface.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param owner its `DefId`
+ * @param name the method
+ * @returns the position, or -1
+ */
+pub fn methodIndex(c: Checker, p: Program, owner: int, name: Symbol) int {
+    if owner == 0 || c.def(owner).item < 0 {
+        return -1
+    }
+    for i in 0..methodCount(p, c.loc(owner)) {
+        if methodAt(p, c.loc(owner), i).name.0 == name.0 {
+            return i
+        }
+    }
+    return -1
+}
+
+/**
+ * The interface, among `iface` and those it embeds, that declares method
+ * `name`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param iface the interface
+ * @param name the method
+ * @returns its `DefId`, or 0
+ */
+pub fn declaringInterface(c: mut Checker, p: Program, iface: int, name: Symbol) int {
+    let all = interfaceClosure(c, p, iface)
+    for i in 0..all.len() {
+        if methodIndex(c, p, all[i], name) >= 0 {
+            return all[i]
+        }
+    }
+    return 0
+}
+
+/**
+ * Whether the interfaces bounding a type parameter include `iface`, or
+ * one that embeds it.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param param the parameter's number
+ * @param iface the interface
+ * @returns true if they do
+ */
+pub fn paramHas(c: mut Checker, p: Program, param: int, iface: int) bool {
+    if param >= c.generics.ifaces.len() {
+        return false
+    }
+    let bounds = c.generics.ifaces[param].clone()
+    for i in 0..bounds.len() {
+        let all = interfaceClosure(c, p, bounds[i])
+        if contains(&all, iface) {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * The interface bounding a type parameter that declares method `name`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param param the parameter's number
+ * @param name the method
+ * @returns its `DefId`, or 0
+ */
+pub fn paramMethodOwner(c: mut Checker, p: Program, param: int, name: Symbol) int {
+    if param >= c.generics.ifaces.len() {
+        return 0
+    }
+    let bounds = c.generics.ifaces[param].clone()
+    for i in 0..bounds.len() {
+        let found = declaringInterface(c, p, bounds[i], name)
+        if found != 0 {
+            return found
+        }
+    }
+    return 0
+}
+
+/**
+ * Why a type does not satisfy an interface, or "" when it does. Type
+ * parameters satisfy the interfaces they are bounded by; other types need
+ * a matching method for each method without a body.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @param iface the interface
+ * @returns "" or the reason, as in "missing method `area`"
+ */
+pub fn unsatisfied(c: mut Checker, p: Program, ty: int, iface: int) str {
+    let kind = c.types.kind(ty)
+    if kind == .Error || kind == .Never {
+        return ""
+    }
+    if kind == .Param {
+        if paramHas(c, p, c.types.get(ty).data, iface) {
+            return ""
+        }
+        return "it is not bounded by it"
+    }
+    var owner = 0
+    var args: List<int> = []
+    if kind == .Adt {
+        owner = c.types.get(ty).data
+        args = c.types.get(ty).args.clone()
+    } else if ty < c.r.lang.len() {
+        owner = c.r.lang[ty]
+    }
+    let all = interfaceClosure(c, p, iface)
+    for i in 0..all.len() {
+        let why = unsatisfiedBy(c, p, ty, owner, &args, all[i])
+        if why.len() > 0 {
+            return why
+        }
+    }
+    return ""
+}
+
+// The first method of `iface` without a body that `owner` lacks or declares
+// with another signature.
+fn unsatisfiedBy(c: mut Checker, p: Program, ty: int, owner: int, args: &List<int>,
+                 iface: int) str {
+    let module = c.def(iface).module
+    for m in 0..methodCount(p, c.loc(iface)) {
+        let wanted = methodAt(p, c.loc(iface), m)
+        if wanted.body.isSome() {
+            continue   // a default method
+        }
+        let name = wanted.name
+        let index = methodIndex(c, p, owner, name)
+        if index < 0 {
+            return "missing method `{c.text(name)}`"
+        }
+        let found = methodAt(p, c.loc(owner), index)
+        let sameShape = (found.hasSelf == wanted.hasSelf && found.selfMode == wanted.selfMode
+            && found.typeParams.len() == 0 && wanted.typeParams.len() == 0)
+        let foundId = c.r.tables[c.def(owner).module].fnDefs[found.id.0]
+        let wantedId = c.r.tables[module].fnDefs[wanted.id.0]
+        let foundSig = c.types.subst(fnSignature(c, p, foundId), args.clone())
+        let wantedSig = c.types.subst(fnSignature(c, p, wantedId), [ty])
+        if !sameShape || foundSig != wantedSig {
+            return "method `{c.text(name)}` has a different signature"
+        }
+    }
+    return ""
+}
+
+/**
+ * Whether a method is declared in an interface.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the method's `DefId`
+ * @returns true if it is
+ */
+pub fn isInterfaceMethod(c: Checker, p: Program, id: int) bool {
+    if c.def(id).member < 0 {
+        return false
+    }
+    return match itemOf(p, c.loc(id)).kind {
+        .Interface(_, _, _) => true
+        _ => false
+    }
+}
+
+/**
+ * The interface asserted by a struct or enum (`struct C: Shape`), or one
+ * it embeds, that gives the type default method `name` (spec 9.3).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param owner the type's `DefId`
+ * @param name the method
+ * @returns the interface's `DefId`, or 0
+ */
+pub fn assertedDefault(c: mut Checker, p: Program, owner: int, name: Symbol) int {
+    if owner == 0 || c.def(owner).item < 0 {
+        return 0
+    }
+    let asserts = itemOf(p, c.loc(owner)).asserts.clone()
+    var ifaces: List<int> = []
+    let saved = c.enter(c.def(owner).module)
+    for i in 0..asserts.len() {
+        ifaces.push(interfaceOf(c, &asserts[i]))
+    }
+    c.enter(saved)
+    for i in 0..ifaces.len() {
+        if ifaces[i] == 0 {
+            continue
+        }
+        let all = interfaceClosure(c, p, ifaces[i])
+        for j in 0..all.len() {
+            let index = methodIndex(c, p, all[j], name)
+            if index >= 0 && methodAt(p, c.loc(all[j]), index).body.isSome() {
+                return all[j]
+            }
+        }
+    }
+    return 0
+}

@@ -38,6 +38,9 @@ import sema.expr_check.checkArgsOf
 import sema.expr_check.checkExpr
 import sema.expr_check.coerce
 import sema.expr_check.nameRes
+import sema.interfaces.assertedDefault
+import sema.interfaces.isInterfaceMethod
+import sema.interfaces.paramMethodOwner
 import sema.program.Program
 import sema.struct_exprs.checkStructField
 import sema.structs.isCopy
@@ -75,6 +78,7 @@ pub fn methodCount(p: Program, owner: Loc) int {
     return match itemOf(p, owner).kind {
         .Struct(_, _, _, _, _, methods) => methods.len()
         .Enum(_, _, _, methods) => methods.len()
+        .Interface(_, _, methods) => methods.len()
         _ => 0
     }
 }
@@ -91,6 +95,7 @@ pub fn methodAt(p: Program, owner: Loc, i: int) &FnDecl {
     return match itemOf(p, owner).kind {
         .Struct(_, _, _, _, _, methods) => &methods[i]
         .Enum(_, _, _, methods) => &methods[i]
+        .Interface(_, _, methods) => &methods[i]
         _ => {
             panic("methodAt: not a type")
         }
@@ -103,7 +108,7 @@ fn findMethod(c: Checker, p: Program, owner: int, name: Symbol) int {
         return -1
     }
     let isType = match itemOf(p, c.loc(owner)).kind {
-        .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
+        .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) | .Interface(_, _, _) => true
         _ => false
     }
     if !isType {
@@ -223,7 +228,12 @@ fn methodArgs(c: mut Checker, p: Program, call: &Expr, field: &Expr, explicit: &
     }
     let ownerCount = generics.owner.len()
     var inf = inferNew(generics)
-    inferFromSelf(c, inf, selfType, ownerCount)
+    if isInterfaceMethod(c, p, id) {   // `Self` is the receiver's type
+        inf.args[0] = selfType
+        inf.known[0] = true
+    } else {
+        inferFromSelf(c, inf, selfType, ownerCount)
+    }
     if explicit.len() > 0 {
         inferExplicit(c, p, inf, false, explicit, field.span)
     }
@@ -253,6 +263,13 @@ pub fn checkUserMethod(c: mut Checker, p: Program, call: &Expr, field: &Expr, ba
                        name: Symbol, explicit: &List<TypeExpr>, args: &List<Arg>, owner: int,
                        viaType: bool, selfType: int, expected: int) int {
     let index = findMethod(c, p, owner, name)
+    if index < 0 && !viaType && c.def(owner).kind != .Interface {
+        let iface = assertedDefault(c, p, owner, name)
+        if iface != 0 {   // a default method of an asserted interface
+            return checkUserMethod(c, p, call, field, base, name, explicit, args, iface, false,
+                                   selfType, expected)
+        }
+    }
     let isClone = c.text(name) == "clone"
     if index < 0 && !viaType && isClone {
         return checkDerivedClone(c, p, call, field, explicit, args, selfType)
@@ -276,7 +293,8 @@ pub fn checkUserMethod(c: mut Checker, p: Program, call: &Expr, field: &Expr, ba
     if decl.hasSelf && decl.selfMode == .Mut {
         requireMutable(c, p, base)
     }
-    checkVisible(c, c.def(owner).module, decl.isPub, name, field.span)
+    let isPub = decl.isPub || c.def(owner).kind == .Interface && c.def(owner).isPub
+    checkVisible(c, c.def(owner).module, isPub, name, field.span)
     let id = methodDef(c, p, owner, index)
     c.setMember(field.id.0, id)
     let ret = methodArgs(c, p, call, field, explicit, args, id, selfType, expected)
@@ -428,6 +446,13 @@ pub fn checkMethodCall(c: mut Checker, p: Program, call: &Expr, field: &Expr, ar
             }
             let found = checkExpr(c, p, base, ERROR)
             let selfType = methodReceiver(c, p, base, found, name)
+            if c.types.kind(selfType) == .Param {   // a method of a bounding interface
+                let iface = paramMethodOwner(c, p, c.types.get(selfType).data, name)
+                if iface != 0 {
+                    return checkUserMethod(c, p, call, field, base, name, &explicit, args, iface,
+                                           false, selfType, expected)
+                }
+            }
             if c.types.kind(selfType) == .Adt {
                 let id = c.types.get(selfType).data
                 return checkUserMethod(c, p, call, field, base, name, &explicit, args, id, false,

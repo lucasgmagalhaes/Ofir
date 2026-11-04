@@ -145,7 +145,7 @@ pub fn traceTypes(c: mut Checker, p: Program) str {
             }
             .Const(_, _) => constLine(c, out, i, item, true)
             .Global(_, _) => constLine(c, out, i, item, false)
-            .TypeAlias(_, _) | .Import(_, _) => {}
+            .TypeAlias(_, _) | .Import(_, _) | .Interface(_, _, _) => {}
         }
     }
     return out

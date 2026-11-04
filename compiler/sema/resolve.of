@@ -481,6 +481,7 @@ fn itemKind(kind: &ItemKind) DefKind {
         .Const(_, _) => .Const
         .Global(_, _) => .Global
         .TypeAlias(_, _) => .TypeAlias
+        .Interface(_, _, _) => .Interface
         _ => .Fn
     }
 }
@@ -508,6 +509,10 @@ fn collectItem(r: mut Resolver, item: &Item, index: int) {
             declareItem(r, newDef(r, .Enum, item.name, item.span, item.isPub, index, -1))
             checkMembers(r, methods, index)
             namedSlot(r, item, index)
+        }
+        .Interface(_, _, methods) => {
+            declareItem(r, newDef(r, .Interface, item.name, item.span, item.isPub, index, -1))
+            checkMembers(r, methods, index)
         }
         _ => declareItem(r, newDef(r, itemKind(&item.kind), item.name, item.span, item.isPub,
                                    index, -1))
@@ -549,7 +554,7 @@ fn resolveItem(r: mut Resolver, item: &Item) {
                 }
             }
         }
-        .Enum(_, _, _, methods) => {
+        .Enum(_, _, _, methods) | .Interface(_, _, methods) => {
             r.owner = .Some(item.name)
             for i in 0..methods.len() {
                 resolveFn(r, &methods[i])

@@ -253,6 +253,8 @@ def run_test(cfg: Config, suite: str, path: Path) -> Result:
     for requirement in REQUIRES_RE.findall(source):
         if requirement == "stage1" and cfg.stage == 0:
             return Result(path, "skip", "requires stage1")
+        if requirement == "stage0" and cfg.stage == 1:
+            return Result(path, "skip", "requires stage0")
     if suite == "lex":
         return check_emit(cfg, path, "tokens", ".tokens")
     if suite == "parse":
