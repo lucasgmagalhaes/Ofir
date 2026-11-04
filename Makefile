@@ -48,8 +48,8 @@ check-asan: stage0 runtime
 	$(PYTHON) tools/check_asan.py --compiler $(BUILD)/stage0/ofir$(EXE)
 
 # Stage 1 (compiler/, built by stage 0) gives the same output as stage 0.
-compare-stages: stage0 runtime
-	$(PYTHON) tools/compare_stages.py --compiler $(BUILD)/stage0/ofir$(EXE) --fuzz 200
+compare-stages: stage1
+	$(PYTHON) tools/compare_stages.py --compiler $(BUILD)/stage0/ofir$(EXE) --stage1 $(BUILD)/stage1/ofir$(EXE) --fuzz 200
 
 # Stage 1, built by stage 0.
 stage1: stage0 runtime

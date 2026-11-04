@@ -91,16 +91,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--compiler", type=executable,
                         default=str(ROOT / "build" / "stage0" / "ofir"))
+    parser.add_argument("--stage1", type=executable,
+                        help="use an already built stage 1 compiler")
     parser.add_argument("--fuzz", type=int, default=0)
     parser.add_argument("--seed", type=int, default=1)
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmp:
-        stage1 = str(Path(tmp) / "ofir1")
-        built = run([args.compiler, "build", str(ROOT / "compiler" / "main.of"), "-o", stage1])
-        if built[0] != 0:
-            sys.stderr.write(built[2].decode())
-            print("stages: stage 1 does not build")
-            return 1
+        stage1 = args.stage1 or str(Path(tmp) / "ofir1")
+        if not args.stage1:
+            built = run([args.compiler, "build", str(ROOT / "compiler" / "main.of"), "-o", stage1])
+            if built[0] != 0:
+                sys.stderr.write(built[2].decode())
+                print("stages: stage 1 does not build")
+                return 1
         files = sorted(p for d in SOURCES for p in (ROOT / d).rglob("*.of") if comparable(p))
         rng = random.Random(args.seed)
         for i in range(args.fuzz):
