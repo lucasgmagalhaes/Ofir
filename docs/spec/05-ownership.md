@@ -89,9 +89,9 @@ a type with a `drop` method but no `clone` method cannot be cloned, since
 the resource it owns has no known copy (E0322). A Copy value's clone is
 the value itself.
 
-Stage 0: until bounds (roadmap 5.2), `.clone()` on a value of a type
-parameter `T` is an error (E0322); std reaches the clone of any `T` with
-the `cloneOf<T>` intrinsic.
+`.clone()` on a value of a type parameter `T` needs the bound `T: Clone`
+(chapter 8.1); without it, it is an error (E0322). Stage 0 has no bounds:
+std reaches the clone of any `T` with the `cloneOf<T>` intrinsic.
 
 ## 5.3 Parameter modes
 

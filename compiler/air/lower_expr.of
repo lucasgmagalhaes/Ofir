@@ -1528,7 +1528,24 @@ fn binary(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, op: Op, lhs: &Ex
     let first = lowerExpr(l, c, p, lhs)
     let a = settle(l, first, rhs)
     let b = lowerExpr(l, c, p, rhs)
-    return lowerBinaryOp(l, c, op, c.typeOf(lhs.id.0), a, b, e.span)
+    let ty = c.typeOf(lhs.id.0)
+    if !c.types.get(ty).hasParam {
+        return lowerBinaryOp(l, c, op, ty, a, b, e.span)
+    }
+    let concrete = concreteType(l, c, ty)   // a bounded parameter (spec 8.1)
+    let tuple = c.types.kind(concrete) == .Tuple
+    if !tuple || (op != .Eq && op != .Ne) {
+        var x = a
+        var y = b
+        x.ty = concrete
+        y.ty = concrete
+        return lowerBinaryOp(l, c, op, concrete, x, y, e.span)
+    }
+    let same = equalValues(l, c, a, b, concrete)
+    if op == .Eq {
+        return same
+    }
+    return tempValue(l, BOOL, rvalue(.Unary, .Not, same, unit()))
 }
 
 // ---------------------------------------------------------------------------

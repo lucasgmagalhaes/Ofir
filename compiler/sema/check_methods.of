@@ -10,6 +10,7 @@
 
 import base.intern.Symbol
 import base.span.Span
+import sema.check.BOUND_CLONE
 import sema.check.Checker
 import sema.check.Loc
 import sema.check.fnOf
@@ -22,6 +23,7 @@ import sema.check_generic.fnGenerics
 import sema.check_generic.inferExplicit
 import sema.check_generic.inferFromSelf
 import sema.check_generic.inferNew
+import sema.check_generic.paramBounds
 import sema.check_list.checkListSort
 import sema.check_list.checkRangeIndex
 import sema.check_list.sequenceElem
@@ -603,7 +605,7 @@ fn cloneableAdt(c: mut Checker, p: Program, ty: int, visiting: mut List<int>) bo
 fn cloneableIn(c: mut Checker, p: Program, ty: int, visiting: mut List<int>) bool {
     let kind = c.types.kind(ty)
     if kind == .Param {
-        return false   // no bounds yet (roadmap 5.2)
+        return paramBounds(c, ty) & BOUND_CLONE != 0
     }
     if kind == .Str || isCopy(c, p, ty) {
         return true

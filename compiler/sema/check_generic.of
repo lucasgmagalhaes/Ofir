@@ -9,20 +9,29 @@
  * `i`.
  */
 
-import base.intern.Symbol
 import base.span.Span
+import sema.check.BOUND_EQ
+import sema.check.BOUND_HASH
+import sema.check.BOUND_ORD
 import sema.check.Checker
 import sema.check.Generics
+import sema.check.fnGenericsIn
 import sema.check.fnOf
 import sema.check.itemOf
-import sema.check.itemTypeParams
+import sema.check.noGenerics
+import sema.check.typeGenerics
 import sema.check_list.checkMapKey
+import sema.check_list.hashable
+import sema.check_methods.isCloneable
 import sema.check_types.resolveType
+import sema.enums.enumOf
+import sema.enums.variantsOf
 import sema.expr_check.checkExpr
 import sema.expr_check.requireType
 import sema.program.Program
 import sema.types.ERROR
 import sema.types.NEVER
+import sema.types.kindNumber
 import syntax.ast.Arg
 import syntax.ast.TypeExpr
 
@@ -48,11 +57,11 @@ pub struct Infer {
  */
 pub fn fnGenerics(c: Checker, p: Program, id: int) Generics {
     let def = c.def(id)
-    var owner: List<Symbol> = []
+    var owner = noGenerics()
     if def.item >= 0 {
-        owner = itemTypeParams(itemOf(p, c.loc(id)))
+        owner = typeGenerics(c, itemOf(p, c.loc(id)))
     }
-    return Generics{owner, fnParams: fnOf(p, c.loc(id)).typeParams.clone()}
+    return fnGenericsIn(c, &owner, fnOf(p, c.loc(id)))
 }
 
 /**
@@ -249,6 +258,7 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
         inferFrom(c, inf, param, found)
     }
     inferFinish(c, inf, span)
+    checkBoundArgs(c, p, &inf, span)
     for i in 0..args.len() {
         if i < params.len() {
             let wanted = inferApply(c, &inf, params[i])
@@ -262,4 +272,151 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
     let result = inferApply(c, &inf, ret)
     checkMapKey(c, p, result, span)
     return result
+}
+
+// ---------------------------------------------------------------------------
+// Bounds (spec 8.1): until interfaces (roadmap 5.3), the built-in `Eq`,
+// `Ord`, `Hash` and `Clone`.
+
+/**
+ * The bounds of a type parameter in scope, or 0 for other types.
+ *
+ * @param c the checker
+ * @param ty a type
+ * @returns its bits: `BOUND_EQ`, ...
+ */
+pub fn paramBounds(c: Checker, ty: int) int {
+    let t = c.types.get(ty)
+    if t.kind != .Param || t.data >= c.generics.bounds.len() {
+        return 0
+    }
+    return c.generics.bounds[t.data]
+}
+
+/**
+ * Whether `==` and `!=` compare values of a type: scalars, `str`,
+ * pointers, enums without payloads, tuples of these and parameters bound
+ * by `Eq`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @returns true if they do
+ */
+pub fn equatable(c: mut Checker, p: Program, ty: int) bool {
+    let kind = c.types.kind(ty)
+    if kindNumber(kind) <= 6 || kind == .Ptr {
+        return true
+    }
+    if kind == .Param {
+        return paramBounds(c, ty) & BOUND_EQ != 0
+    }
+    if kind == .Tuple {
+        let elems = c.types.get(ty).args.clone()
+        for i in 0..elems.len() {
+            if !equatable(c, p, elems[i]) {
+                return false
+            }
+        }
+        return true
+    }
+    if let .Some(id) = enumOf(c, p, ty) {
+        return !variantsOf(c, id).hasPayload
+    }
+    return false
+}
+
+/**
+ * Whether `<`, `<=`, `>`, `>=` and `sort` order values of a type.
+ *
+ * @param c the checker
+ * @param ty the type
+ * @returns true for numbers, `str` and parameters bound by `Ord`
+ */
+pub fn orderable(c: Checker, ty: int) bool {
+    let kind = c.types.kind(ty)
+    return kind == .Int || kind == .Float || kind == .Str || kind == .Error ||
+           (kind == .Param && paramBounds(c, ty) & BOUND_ORD != 0)
+}
+
+/**
+ * Whether a type satisfies a bound.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @param bit the bound
+ * @returns true if it does
+ */
+pub fn satisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
+    let kind = c.types.kind(ty)
+    if kind == .Error || kind == .Never {
+        return true
+    }
+    if kind == .Param && paramBounds(c, ty) & bit != 0 {
+        return true
+    }
+    return if bit == BOUND_EQ {
+        equatable(c, p, ty)
+    } else if bit == BOUND_ORD {
+        orderable(c, ty)
+    } else if bit == BOUND_HASH {
+        hashable(c, ty)
+    } else {
+        isCloneable(c, p, ty)
+    }
+}
+
+fn boundName(bit: int) str {
+    return if bit == BOUND_EQ {
+        "Eq"
+    } else if bit == BOUND_ORD {
+        "Ord"
+    } else if bit == BOUND_HASH {
+        "Hash"
+    } else {
+        "Clone"
+    }
+}
+
+/**
+ * Reports E0332 for each type argument that does not satisfy the bounds of
+ * its parameter.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param params the parameters, with their bounds
+ * @param args the arguments
+ * @param span where
+ */
+pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<int>,
+                   span: Span) {
+    let owner = params.owner.len()
+    for i in 0..params.bounds.len() {
+        if i >= args.len() {
+            return
+        }
+        let bits = params.bounds[i]
+        for b in 0..4 {
+            let bit = 1 << b
+            if bits & bit == 0 || satisfies(c, p, args[i], bit) {
+                continue
+            }
+            let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
+            c.error("E0332", span, "the type `{c.typeName(args[i])}` does not satisfy the "
+                    + "bound `{boundName(bit)}` of `{c.text(name)}`")
+        }
+    }
+}
+
+/**
+ * Reports E0332 for the inferred arguments of a generic use.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param inf the inference, finished
+ * @param span where
+ */
+pub fn checkBoundArgs(c: mut Checker, p: Program, inf: &Infer, span: Span) {
+    checkBounds(c, p, &inf.params, &inf.args, span)
 }

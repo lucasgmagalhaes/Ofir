@@ -9,6 +9,7 @@ import base.span.Span
 import syntax.ast.Mode
 import syntax.ast.TypeExpr
 import syntax.ast.TypeKind
+import syntax.ast.WherePred
 import syntax.parse_exprs.parseExpr
 import syntax.parser.Parser
 
@@ -68,16 +69,38 @@ pub fn parseTypeArgs(p: mut Parser) List<TypeExpr> {
 }
 
 /**
- * Optional type parameters: `<T, U>`.
+ * The bounds after `:`: `Eq + Hash`.
  *
  * @param p the parser
+ * @returns them
+ */
+pub fn parseBounds(p: mut Parser) List<TypeExpr> {
+    var bounds = [parseType(p)]
+    for p.accept(.Plus) {
+        bounds.push(parseType(p))
+    }
+    return bounds
+}
+
+/**
+ * Optional type parameters: `<T, U: Eq>`.
+ *
+ * @param p the parser
+ * @param preds where the inline bounds go
  * @returns their names
  */
-pub fn parseTypeParams(p: mut Parser) List<Symbol> {
+pub fn parseTypeParams(p: mut Parser, preds: mut List<WherePred>) List<Symbol> {
     var params: List<Symbol> = []
     if p.accept(.Lt) {
         for p.at(.Ident) {
-            params.push(p.takeName())
+            let start = p.here()
+            let name = p.takeName()
+            params.push(name)
+            if p.accept(.Colon) {
+                let ty = newType(p, .Path([name], []), start)
+                let bounds = parseBounds(p)
+                preds.push(WherePred{ty, bounds, span: p.spanSince(start)})
+            }
             if !p.accept(.Comma) {
                 break
             }

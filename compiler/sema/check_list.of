@@ -8,12 +8,16 @@
 
 import base.intern.Symbol
 import base.span.Span
+import sema.check.BOUND_EQ
+import sema.check.BOUND_HASH
 import sema.check.Checker
 import sema.check.fnOf
 import sema.check.itemOf
 import sema.check.itemTypeParams
 import sema.check_box.autoDeref
 import sema.check_box.methodReceiver
+import sema.check_generic.orderable
+import sema.check_generic.paramBounds
 import sema.check_methods.hasMethod
 import sema.check_methods.methodAt
 import sema.check_methods.methodCount
@@ -161,8 +165,16 @@ pub fn mapParts(c: Checker, ty: int) Option<(int, int)> {
     return .Some((t.args[0], t.args[1]))
 }
 
-// The keys Map can hash and compare without bounds (roadmap 5.2).
-fn hashable(c: Checker, ty: int) bool {
+/**
+ * Whether `Map` can hash and compare keys of a type: integers, bool,
+ * `str`, tuples of them and parameters bound by `Hash + Eq` (in std, any
+ * parameter).
+ *
+ * @param c the checker
+ * @param ty the type
+ * @returns true if it can
+ */
+pub fn hashable(c: Checker, ty: int) bool {
     let t = c.types.get(ty)
     if t.kind == .Tuple {
         for i in 0..t.args.len() {
@@ -173,8 +185,9 @@ fn hashable(c: Checker, ty: int) bool {
         return true
     }
     let inStd = c.r.moduleName.startsWith("std")
+    let both = BOUND_HASH | BOUND_EQ
     return t.kind == .Int || t.kind == .Bool || t.kind == .Str || t.kind == .Error ||
-           (t.kind == .Param && inStd)
+           (t.kind == .Param && (inStd || paramBounds(c, ty) & both == both))
 }
 
 /**
@@ -369,8 +382,7 @@ pub fn checkListSort(c: mut Checker, call: &Expr) {
         args = c.types.get(targs).args.clone()
     }
     let elem = if args.len() > 0 { args[0] } else { ERROR }
-    let kind = c.types.kind(elem)
-    if kind != .Int && kind != .Float && kind != .Str && kind != .Error {
+    if !orderable(c, elem) {
         c.error("E0313", call.span, "`sort` needs elements of type int, float or str in stage "
                 + "0, not `{c.typeName(elem)}`")
     }

@@ -1,0 +1,26 @@
+// requires: stage1
+// Bounds and `where` clauses (spec 8.1, 8.4).
+
+struct Sorted<T: Ord + Clone> {
+    items: List<T>
+}
+
+enum Tree<K: Ord, V> {
+    Leaf
+    Node(key: K, value: V)
+}
+
+fn max<T: Ord>(a: move T, b: move T) T {
+    return if a > b { a } else { b }
+}
+
+fn merge<K, V>(a: Map<K, V>, b: Map<K, V>) int
+where
+    K: Eq + Hash,
+    V: Clone,
+{
+    return a.len() + b.len()
+}
+
+fn check<T>(x: T) where T: Eq {
+}

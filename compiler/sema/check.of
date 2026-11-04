@@ -48,6 +48,9 @@ import syntax.ast.FnDecl
 import syntax.ast.Item
 import syntax.ast.ItemKind
 import syntax.ast.Mode
+import syntax.ast.TypeExpr
+import syntax.ast.WherePred
+import syntax.ast_text.typeText
 import std.mem
 
 /**
@@ -83,6 +86,8 @@ pub struct Generics {
     pub owner: List<Symbol>
     /** The function's own parameters. */
     pub fnParams: List<Symbol>
+    /** The bounds of each parameter, numbered as above: `BOUND_EQ`, ... (spec 8.1). */
+    pub bounds: List<int>
 }
 
 /**
@@ -91,7 +96,129 @@ pub struct Generics {
  * @returns the empty generics
  */
 pub fn noGenerics() Generics {
-    return Generics{owner: [], fnParams: []}
+    return Generics{owner: [], fnParams: [], bounds: []}
+}
+
+/** The built-in interfaces a bound can name until interfaces (roadmap 5.3), as bits. */
+pub const BOUND_EQ: int = 1
+/** `Ord`: `<`, `<=`, `>`, `>=` and `sort`. */
+pub const BOUND_ORD: int = 2
+/** `Hash`: with `Eq`, `Map` keys. */
+pub const BOUND_HASH: int = 4
+/** `Clone`: `.clone()`. */
+pub const BOUND_CLONE: int = 8
+
+/**
+ * The bit of the built-in interface a bound names, or 0.
+ *
+ * @param c the checker
+ * @param t the bound
+ * @returns `BOUND_EQ`, `BOUND_ORD`, `BOUND_HASH`, `BOUND_CLONE` or 0
+ */
+pub fn boundBit(c: Checker, t: &TypeExpr) int {
+    let name = match t.kind {
+        .Path(segments, args) => if segments.len() == 1 && args.len() == 0 {
+            segments[0]
+        } else {
+            return 0
+        }
+        _ => {
+            return 0
+        }
+    }
+    let text = c.text(name)
+    return if text == "Eq" {
+        BOUND_EQ
+    } else if text == "Ord" {
+        BOUND_ORD
+    } else if text == "Hash" {
+        BOUND_HASH
+    } else if text == "Clone" {
+        BOUND_CLONE
+    } else {
+        0
+    }
+}
+
+/**
+ * The number of the type parameter a bounded type names, or -1.
+ *
+ * @param t the bounded type
+ * @param owner the type's parameters
+ * @param fnParams the function's own
+ * @returns its number: the type's first, then the function's
+ */
+pub fn boundedParam(t: &TypeExpr, owner: &List<Symbol>, fnParams: &List<Symbol>) int {
+    let name = match t.kind {
+        .Path(segments, args) => if segments.len() == 1 && args.len() == 0 {
+            segments[0]
+        } else {
+            return -1
+        }
+        _ => {
+            return -1
+        }
+    }
+    for i in 0..fnParams.len() {
+        if fnParams[i].0 == name.0 {
+            return owner.len() + i
+        }
+    }
+    for i in 0..owner.len() {
+        if owner[i].0 == name.0 {
+            return i
+        }
+    }
+    return -1
+}
+
+fn addBounds(c: Checker, preds: &List<WherePred>, owner: &List<Symbol>,
+             fnParams: &List<Symbol>, bounds: mut List<int>) {
+    for i in 0..preds.len() {
+        let index = boundedParam(&preds[i].ty, owner, fnParams)
+        if index < 0 {
+            continue   // E0334, reported with the declaration
+        }
+        for j in 0..preds[i].bounds.len() {
+            bounds[index] = bounds[index] | boundBit(c, &preds[i].bounds[j])
+        }
+    }
+}
+
+/**
+ * The type parameters of a struct or enum, with their bounds; none for
+ * other items.
+ *
+ * @param c the checker
+ * @param item the item
+ * @returns them
+ */
+pub fn typeGenerics(c: Checker, item: &Item) Generics {
+    let owner = itemTypeParams(item)
+    var bounds = List.filled(0, owner.len())
+    let none: List<Symbol> = []
+    addBounds(c, &item.bounds, &owner, &none, bounds)
+    return Generics{owner, fnParams: [], bounds}
+}
+
+/**
+ * The type parameters of a function declared in `outer`: the type's, then
+ * its own, with their bounds and those of its `where` clause.
+ *
+ * @param c the checker
+ * @param outer the type's parameters
+ * @param decl the function
+ * @returns them
+ */
+pub fn fnGenericsIn(c: Checker, outer: &Generics, decl: &FnDecl) Generics {
+    var bounds = List.filled(0, outer.owner.len() + decl.typeParams.len())
+    for i in 0..outer.owner.len() {
+        if i < outer.bounds.len() {
+            bounds[i] = outer.bounds[i]
+        }
+    }
+    addBounds(c, &decl.bounds, &outer.owner, &decl.typeParams, bounds)
+    return Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(), bounds}
 }
 
 /**
@@ -508,8 +635,9 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
  */
 pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
     let decl = fnOf(p, c.loc(id))
-    let outer = c.enterGenerics(Generics{owner: c.generics.owner.clone(),
-                                         fnParams: decl.typeParams.clone()})
+    let inner = fnGenericsIn(c, &c.generics, decl)
+    let outer = c.enterGenerics(inner)
+    checkDeclBounds(c, &decl.bounds)
     let sig = fnSignature(c, p, id)
     checkBorrowSource(c, p, id, sig, selfType)   // what callers need, now
     c.enterGenerics(outer)
@@ -540,7 +668,7 @@ pub fn checkLate(c: mut Checker, p: Program, id: int) {
     let member = c.def(id).member
     let previous = c.enter(module)
     var selfType = ERROR
-    var owner: List<Symbol> = []
+    var owner = noGenerics()
     if member >= 0 {
         let item = itemOf(p, c.loc(id))
         let isType = match item.kind {
@@ -549,10 +677,10 @@ pub fn checkLate(c: mut Checker, p: Program, id: int) {
         }
         if isType {
             selfType = ownerTypeOf(c, p, module, c.def(id).item)
-            owner = itemTypeParams(itemOf(p, c.loc(id)))
+            owner = typeGenerics(c, itemOf(p, c.loc(id)))
         }
     }
-    let outer = c.enterGenerics(Generics{owner: owner, fnParams: []})
+    let outer = c.enterGenerics(owner)
     checkBody(c, p, id, selfType, true)
     c.enterGenerics(outer)
     c.enter(previous)
@@ -581,8 +709,8 @@ fn lateMoves(c: mut Checker, p: Program, id: int) {
 fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
     c.bodyChecked.insert(id, true)
     let decl = fnOf(p, c.loc(id))
-    let outer = c.enterGenerics(Generics{owner: c.generics.owner.clone(),
-                                         fnParams: decl.typeParams.clone()})
+    let inner = fnGenericsIn(c, &c.generics, decl)
+    let outer = c.enterGenerics(inner)
     let sig = fnSignature(c, p, id)
     let locals = c.r.tables[c.module()].fnLocals.get(decl.id.0)
     c.locals = match locals {
@@ -637,7 +765,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
 fn checkMethods(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>) {
     let item = &p.modules[c.module()].module.items[index]
     let selfType = ownerTypeOf(c, p, c.module(), index)
-    let outer = c.enterGenerics(Generics{owner: itemTypeParams(item), fnParams: []})
+    let outer = c.enterGenerics(typeGenerics(c, item))
     for i in 0..methods.len() {
         let def = c.r.tables[c.module()].fnDefs[methods[i].id.0]
         if def != 0 {
@@ -668,6 +796,36 @@ fn checkExtern(c: mut Checker, p: Program, item: &Item, abi: str, fns: &List<FnD
     }
 }
 
+/**
+ * Reports the bounds that name no type parameter in scope (E0334) or no
+ * interface (E0333).
+ *
+ * @param c the checker, with the declaration's parameters in scope
+ * @param preds the bounds
+ */
+pub fn checkDeclBounds(c: mut Checker, preds: &List<WherePred>) {
+    for i in 0..preds.len() {
+        let pred = &preds[i]
+        if boundedParam(&pred.ty, &c.generics.owner, &c.generics.fnParams) < 0 {
+            c.error("E0334", pred.ty.span, "`{typeText(&pred.ty, c.r.names)}` is not a type "
+                    + "parameter of this declaration: only type parameters take bounds")
+        }
+        for j in 0..pred.bounds.len() {
+            if boundBit(c, &pred.bounds[j]) == 0 {
+                c.error("E0333", pred.bounds[j].span, "`{typeText(&pred.bounds[j], c.r.names)}` "
+                        + "is not an interface: a bound is `Eq`, `Ord`, `Hash` or `Clone` "
+                        + "until interfaces (roadmap 5.3)")
+            }
+        }
+    }
+}
+
+fn checkTypeBounds(c: mut Checker, item: &Item) {
+    let outer = c.enterGenerics(typeGenerics(c, item))
+    checkDeclBounds(c, &item.bounds)
+    c.enterGenerics(outer)
+}
+
 fn checkItem(c: mut Checker, p: Program, index: int) {
     let item = &p.modules[c.module()].module.items[index]
     let id = c.itemDefs[c.module()][index]
@@ -684,6 +842,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
         }
         .Extern(abi, fns) => checkExtern(c, p, item, abi, &fns)
         .Struct(_, _, _, _, _, methods) => {
+            checkTypeBounds(c, item)
             if id != 0 {
                 structFields(c, p, id)
                 checkStructLayouts(c, p, id)
@@ -691,6 +850,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
             checkMethods(c, p, index, &methods)
         }
         .Enum(_, _, _, methods) => {
+            checkTypeBounds(c, item)
             if id != 0 {
                 enumVariants(c, p, id)
                 checkEnumLayouts(c, p, id)

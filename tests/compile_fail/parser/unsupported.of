@@ -6,7 +6,3 @@ interface Shape {   // error[E0100]: interfaces are not supported by stage 0
 fn apply() {
     let f = fn(x: int) int => x   // error[E0100]: closures are not supported by stage 0
 }
-
-fn largest<T>(items: &[T]) T where T: Ord {   // error[E0100]: `where` clauses are not supported by stage 0
-    return items[0]
-}

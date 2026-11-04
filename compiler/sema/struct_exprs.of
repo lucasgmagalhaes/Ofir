@@ -7,11 +7,13 @@
 import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
-import sema.check.Generics
 import sema.check.itemOf
 import sema.check.itemTypeParams
+import sema.check.noGenerics
+import sema.check.typeGenerics
 import sema.check_box.autoDeref
 import sema.check_generic.Infer
+import sema.check_generic.checkBoundArgs
 import sema.check_generic.checkGenericArgs
 import sema.check_generic.inferApply
 import sema.check_generic.inferExplicit
@@ -37,7 +39,6 @@ import syntax.ast.Arg
 import syntax.ast.Expr
 import syntax.ast.ExprKind
 import syntax.ast.FieldInit
-import syntax.ast.ItemKind
 import syntax.ast.TypeExpr
 
 /**
@@ -141,7 +142,7 @@ pub fn checkConstructor(c: mut Checker, p: Program, call: &Expr, id: int,
     if owner.len() == 0 && explicit.len() == 0 {
         return checkArgs(c, p, call.span, args, &params, ty)
     }
-    var inf = inferNew(Generics{owner, fnParams: []})
+    var inf = inferNew(typeGenerics(c, itemOf(p, c.loc(id))))
     if explicit.len() > 0 {
         let callee = match call.kind {
             .Call(callee, _) => callee.span
@@ -243,7 +244,7 @@ pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) i
             }
             var ty = ERROR
             if owner.len() > 0 || explicit.isSome() {
-                var inf = inferNew(Generics{owner, fnParams: []})
+                var inf = inferNew(typeGenerics(c, itemOf(p, c.loc(id))))
                 if let .Some(args) = explicit {
                     inferExplicit(c, p, inf, true, &args, name.span)
                 }
@@ -252,6 +253,7 @@ pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) i
                 checkLiteralFields(c, p, id, &fields, given, inf, true)
                 var finished = inf
                 inferFinish(c, finished, name.span)
+                checkBoundArgs(c, p, &finished, name.span)
                 let types = fieldsOf(c, id).types.clone()
                 for i in 0..fields.len() {
                     let index = fieldIndex(fieldsOf(c, id), fields[i].name)
@@ -269,7 +271,7 @@ pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) i
                 ty = inferApply(c, &finished, selfType)
             } else {
                 ty = c.types.adt(id, [])
-                var none = inferNew(Generics{owner: [], fnParams: []})
+                var none = inferNew(noGenerics())
                 checkLiteralFields(c, p, id, &fields, given, none, false)
             }
             c.setType(name.id.0, ty)

@@ -14,16 +14,19 @@ import syntax.ast.Mode
 import syntax.ast.Param
 import syntax.ast.TypeExpr
 import syntax.ast.Variant
+import syntax.ast.WherePred
 import syntax.ast.VariantField
 import syntax.parse_control.parseBlock
 import syntax.parse_exprs.parseExpr
 import syntax.parse_items.ItemHeader
 import syntax.parse_items.parseItemHeader
 import syntax.parse_types.canStartType
+import syntax.parse_types.parseBounds
 import syntax.parse_types.parseMode
 import syntax.parse_types.parseType
 import syntax.parse_types.parseTypeParams
 import syntax.parser.Parser
+import syntax.parser.symbolOf
 
 // ---------------------------------------------------------------------------
 // Functions
@@ -62,7 +65,8 @@ fn selfParam(p: mut Parser) Option<Mode> {
  */
 pub fn parseFn(p: mut Parser, header: move ItemHeader, withBody: bool) FnDecl {
     let name = p.expectName("a function name") ?? Symbol(0)
-    let typeParams = parseTypeParams(p)
+    var bounds: List<WherePred> = []
+    let typeParams = parseTypeParams(p, bounds)
     p.expect(.LParen, "`(` and the parameters")
     var params: List<Param> = []
     let selfMode = selfParam(p)
@@ -76,20 +80,52 @@ pub fn parseFn(p: mut Parser, header: move ItemHeader, withBody: bool) FnDecl {
     }
     p.expect(.RParen, "`)` to close the parameters")
     var ret: Option<TypeExpr> = .None
-    if !p.at(.LBrace) && canStartType(p) {
+    if !p.at(.LBrace) && canStartType(p) && !atWhere(p, 0) {
         ret = .Some(parseType(p))
     }
-    if p.atWord(p.words.where) {
-        p.syntaxError(p.here(), "`where` clauses are not supported by stage 0".toOwned())
-    }
+    whereClause(p, bounds)
     var body: Option<Block> = .None
     if withBody {
         body = .Some(parseBlock(p))
     }
     return FnDecl{id: p.newId(), span: p.spanSince(header.span), name,
                   attributes: header.attributes, isPub: header.isPub, isUnsafe: false, abi: "",
-                  typeParams, hasSelf: selfMode.isSome(), selfMode: selfMode ?? .Borrow, params,
-                  ret, body}
+                  typeParams, bounds, hasSelf: selfMode.isSome(),
+                  selfMode: selfMode ?? .Borrow, params, ret, body}
+}
+
+// Whether token `ahead` is the word `where`.
+fn atWhere(p: Parser, ahead: int) bool {
+    let t = p.token(ahead)
+    let word = p.words.where
+    return t.kind == .Ident && word.isSome() && symbolOf(t).0 == word.unwrapOr(Symbol(0)).0
+}
+
+// `where T: Eq, U: Ord + Hash` after a signature, on its line or the next
+// ones (spec 8.4).
+fn whereClause(p: mut Parser, preds: mut List<WherePred>) {
+    var ahead = 0
+    for p.peekAt(ahead) == .Newline {
+        ahead += 1
+    }
+    if !atWhere(p, ahead) {
+        return
+    }
+    p.skipNewlines()
+    p.advance()   // where
+    p.skipNewlines()
+    for canStartType(p) {
+        let start = p.here()
+        let ty = parseType(p)
+        p.expect(.Colon, "`:` and the bounds")
+        let bounds = parseBounds(p)
+        preds.push(WherePred{ty, bounds, span: p.spanSince(start)})
+        if !p.accept(.Comma) {
+            break
+        }
+        p.skipNewlines()
+    }
+    p.skipNewlines()
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +182,9 @@ fn field(p: mut Parser) FieldDecl {
  */
 pub fn parseStruct(p: mut Parser, isCopy: bool, isRef: bool) (Symbol, ItemKind) {
     let name = p.expectName("a struct name") ?? Symbol(0)
-    let typeParams = parseTypeParams(p)
+    var bounds: List<WherePred> = []
+    let typeParams = parseTypeParams(p, bounds)
+    p.typeBounds = bounds
     var fields: List<FieldDecl> = []
     var methods: List<FnDecl> = []
     if p.at(.Colon) {
@@ -230,7 +268,9 @@ fn variant(p: mut Parser) Variant {
  */
 pub fn parseEnum(p: mut Parser, isCopy: bool) (Symbol, ItemKind) {
     let name = p.expectName("an enum name") ?? Symbol(0)
-    let typeParams = parseTypeParams(p)
+    var bounds: List<WherePred> = []
+    let typeParams = parseTypeParams(p, bounds)
+    p.typeBounds = bounds
     var variants: List<Variant> = []
     var methods: List<FnDecl> = []
     p.expect(.LBrace, "`\{` and the variants")
