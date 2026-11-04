@@ -1,0 +1,2 @@
+type Hidden<T> = U // error[E0200]: cannot find type `U` in this scope
+fn use<U>(x: Hidden<int>) {}

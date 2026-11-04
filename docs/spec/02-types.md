@@ -274,6 +274,23 @@ type Table = Map<str, List<int>>
 An alias is another name for the same type, not a new type. To create a
 distinct type, wrap it in a struct: `struct NodeId { value: u32 }`.
 
+Aliases may take type parameters:
+
+```ofir
+type Pair<T> = (T, T)
+type TableOf<V> = Map<str, V>
+type Nested<T> = Pair<List<T>>
+```
+
+All arguments must be supplied at each use (`Pair<int>`); they are resolved
+in the caller's scope. The alias body is resolved in its declaring module,
+with its parameters replaced by those arguments. Aliases are transparent:
+`Pair<int>` and `(int, int)` have the same identity, layout and operations.
+The underlying type's bounds and storage restrictions still apply.
+Direct and indirect cycles between alias bodies are errors, even through a
+container. Nested uses such as `Pair<Pair<int>>` are valid. Alias parameters
+do not declare bounds; bounds on the resulting type are checked at each use.
+
 ## 2.15 The never type
 
 `!` is the type of expressions that never produce a value: `panic(...)`,

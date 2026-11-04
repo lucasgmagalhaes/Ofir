@@ -1,0 +1,2 @@
+type Loop<T> = List<Loop<T>> // error[E0310]: the type alias `Loop` refers to itself
+fn use(x: Loop<int>) {}

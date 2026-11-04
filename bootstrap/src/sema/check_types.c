@@ -2,26 +2,42 @@
 
 #include "sema/check_internal.h"
 
-static TypeId resolve_alias(Checker *c, Def *def, Span span) {
+static void resolve_list(Checker *c, TypeList list, TypeId *out);
+
+static TypeId resolve_alias(Checker *c, Def *def, TypeList list, Span span) {
+    SymbolList params = def->item->as.alias.type_params;
+    if (list.len != params.len) {
+        check_error(c, "E0302", span, "wrong number of type arguments for `" SV_FMT "`: "
+                    "expected %u, found %u",
+                    SV_ARG(symbol_name(&c->sema->session->names, def->name)), params.len, list.len);
+        return type_id(TID_ERROR);
+    }
+    // Resolve arguments before marking the body: Pair<Pair<int>> is not a cycle.
+    TypeId *args = ARENA_ARRAY(&c->sema->session->arena, TypeId, list.len + 1);
+    resolve_list(c, list, args);
     if (def->checking) {
         check_error(c, "E0310", span, "the type alias `" SV_FMT "` refers to itself",
                     SV_ARG(symbol_name(&c->sema->session->names, def->name)));
         return type_id(TID_ERROR);
     }
-    if (def->item->as.alias.type_params.len > 0) {
-        return unsupported(c, span, "generic type aliases are");
+    if (params.len == 0 && def->typed) {
+        return def->type;
     }
-    if (!def->typed) {
-        uint32_t saved = sema_enter(c->sema, def->module);
-        Generics outer = enter_generics(c, (Generics){0});
-        def->checking = true;
-        def->type = resolve_type(c, def->item->as.alias.type);
-        def->checking = false;
-        enter_generics(c, outer);
+    uint32_t saved = sema_enter(c->sema, def->module);
+    Generics outer = enter_generics(c, (Generics){.owner = params, .alias_args = args});
+    TypeId saved_self = c->self_type;
+    c->self_type = type_id(TID_ERROR);
+    def->checking = true;
+    TypeId result = resolve_type(c, def->item->as.alias.type);
+    def->checking = false;
+    c->self_type = saved_self;
+    enter_generics(c, outer);
+    sema_enter(c->sema, saved);
+    if (params.len == 0) {
+        def->type = result;
         def->typed = true;
-        sema_enter(c->sema, saved);
     }
-    return def->type;
+    return result;
 }
 
 Generics enter_generics(Checker *c, Generics generics) {
@@ -56,18 +72,18 @@ static bool type_parameter(Checker *c, Symbol name, TypeId *out) {
     }
     for (uint32_t i = 0; i < c->generics.owner.len; i++) {
         if (symbol_eq(c->generics.owner.items[i], name)) {
-            *out = type_param(c->types, i, name);
+            *out = c->generics.alias_args ? c->generics.alias_args[i]
+                                         : type_param(c->types, i, name);
             return true;
         }
     }
     return false;
 }
 
-static void resolve_list(Checker *c, TypeList list, TypeId *out);
-
 static TypeId named_type(Checker *c, Def *def, DefId id, const TypeExpr *type) {
     TypeList list = type->as.path.args;
-    if (list.len > 0 && def->kind != DEF_STRUCT && def->kind != DEF_ENUM) {
+    if (list.len > 0 && def->kind != DEF_STRUCT && def->kind != DEF_ENUM
+            && def->kind != DEF_TYPE_ALIAS) {
         check_error(c, "E0302", type->span, "`" SV_FMT "` takes no type arguments",
                     SV_ARG(symbol_name(&c->sema->session->names, def->name)));
         return type_id(TID_ERROR);
@@ -75,7 +91,7 @@ static TypeId named_type(Checker *c, Def *def, DefId id, const TypeExpr *type) {
     Span span = type->span;
     switch (def->kind) {
     case DEF_PRIMITIVE: return def->type;
-    case DEF_TYPE_ALIAS: return resolve_alias(c, def, span);
+    case DEF_TYPE_ALIAS: return resolve_alias(c, def, list, span);
     case DEF_STRUCT: case DEF_ENUM: {
         if (list.len == 0) {
             return adt_instance(c, id, NULL, 0, span);

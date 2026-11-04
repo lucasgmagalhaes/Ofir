@@ -1,0 +1,27 @@
+type Pair<T> = (T, T)
+type Identity<T> = T
+type Flipped<A, B> = (B, A)
+type Nested<T> = Pair<List<T>>
+type Maybe<T> = Option<T>
+type Table<V> = Map<str, V>
+type View<T> = &T
+type Transform<T> = fn(T) T
+
+fn wrap<U>(value: move U) Identity<U> {
+    return value
+}
+
+fn main() {
+    let a: Pair<int> = (1, 2)
+    let b: Pair<str> = ("a", "b")
+    let nested: Pair<Pair<int>> = (a, (3, 4))
+    let flipped: Flipped<str, int> = (5, "five")
+    let lists: Nested<int> = ([1, 2], [3])
+    let maybe: Maybe<int> = Some(7)
+    var table: Table<int> = Map.new()
+    table.insert("answer", 42)
+    let text: View<str> = "view"
+    println("{a.0} {a.1} {b.0}{b.1} {nested.1.0}")
+    println("{flipped.0} {flipped.1} {lists.0.len()} {maybe.unwrap()}")
+    println("{table.len()} {text} {wrap(8)}")
+}

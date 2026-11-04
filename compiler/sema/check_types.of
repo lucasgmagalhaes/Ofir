@@ -69,36 +69,51 @@ pub fn ownerType(c: mut Checker, p: Program, id: int) int {
     return ownerTypeOf(c, p, c.def(id).module, c.def(id).item)
 }
 
-// The type of a type alias, computed once.
-fn resolveAlias(c: mut Checker, p: Program, id: int, span: Span) int {
-    if c.info[id].checking {
-        c.error("E0310", span, "the type alias `{c.text(c.def(id).name)}` refers to itself")
-        return ERROR
-    }
+// Expand with actual arguments so all underlying type checks run at each use.
+fn resolveAlias(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
     let item = itemOf(p, c.loc(id))
     return match item.kind {
-        .TypeAlias(typeParams, aliased) => aliasType(c, p, id, &typeParams, &aliased, span)
+        .TypeAlias(typeParams, aliased) => aliasType(c, p, id, &typeParams, &aliased, args, span)
         _ => ERROR
     }
 }
 
 fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
-             aliased: &TypeExpr, span: Span) int {
-    if typeParams.len() > 0 {
-        return c.unsupported(span, "generic type aliases are")
+             aliased: &TypeExpr, args: &List<TypeExpr>, span: Span) int {
+    if args.len() != typeParams.len() {
+        c.error("E0302", span, "wrong number of type arguments for `{c.text(c.def(id).name)}`: "
+                + "expected {typeParams.len()}, found {args.len()}")
+        return ERROR
     }
-    if !c.info[id].typed {
-        let saved = c.enter(c.def(id).module)
-        let outer = c.enterGenerics(noGenerics())
-        c.info[id].checking = true
-        let ty = resolveType(c, p, aliased)
+    // Arguments belong to the caller; nested uses are not recursive bodies.
+    var generics = noGenerics()
+    generics.owner = typeParams.clone()
+    generics.bounds = c.generics.bounds.clone()
+    for i in 0..args.len() {
+        generics.aliasArgs.push(resolveType(c, p, &args[i]))
+    }
+    if c.info[id].checking {
+        c.error("E0310", span, "the type alias `{c.text(c.def(id).name)}` refers to itself")
+        return ERROR
+    }
+    if typeParams.len() == 0 && c.info[id].typed {
+        return c.info[id].ty
+    }
+    let saved = c.enter(c.def(id).module)
+    let outer = c.enterGenerics(generics)
+    let savedSelf = c.selfType
+    c.selfType = ERROR
+    c.info[id].checking = true
+    let ty = resolveType(c, p, aliased)
+    c.info[id].checking = false
+    c.selfType = savedSelf
+    c.enterGenerics(outer)
+    c.enter(saved)
+    if typeParams.len() == 0 {
         c.info[id].ty = ty
-        c.info[id].checking = false
-        c.enterGenerics(outer)
         c.info[id].typed = true
-        c.enter(saved)
     }
-    return c.info[id].ty
+    return ty
 }
 
 /**
@@ -139,7 +154,8 @@ fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
     }
     for i in 0..c.generics.owner.len() {
         if c.generics.owner[i].0 == name.0 {
-            return .Some(c.types.param(i, name.0))
+            return .Some(if c.generics.aliasArgs.len() > 0 { c.generics.aliasArgs[i] }
+                         else { c.types.param(i, name.0) })
         }
     }
     return .None
@@ -147,13 +163,13 @@ fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
 
 fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
     let kind = c.def(id).kind
-    if args.len() > 0 && kind != .Struct && kind != .Enum {
+    if args.len() > 0 && kind != .Struct && kind != .Enum && kind != .TypeAlias {
         c.error("E0302", span, "`{c.text(c.def(id).name)}` takes no type arguments")
         return ERROR
     }
     return match kind {
         .Primitive => c.def(id).primitive
-        .TypeAlias => resolveAlias(c, p, id, span)
+        .TypeAlias => resolveAlias(c, p, id, args, span)
         .Struct | .Enum => {
             if c.def(id).lang {
                 return c.def(id).primitive   // a `@lang` body names its primitive

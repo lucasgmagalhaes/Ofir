@@ -1,0 +1,15 @@
+import defs
+import defs.Identity
+
+type Hidden = str
+
+fn nested<A, B>(a: move A, b: move B) (Identity<B>, Identity<A>) {
+    return (b, a)
+}
+
+fn main() {
+    let a: defs.Pair<str> = ("module", 42)
+    let b = nested(1, "caller")
+    let c: Identity<Hidden> = "scope"
+    println("{a.0} {a.1} {b.0} {b.1} {c}")
+}

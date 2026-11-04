@@ -1,0 +1,10 @@
+// requires: stage1
+struct Ordered<T: Ord> {
+    value: T
+}
+struct Unordered {
+    value: int
+}
+type Sorted<T> = Ordered<T> // error[E0332]: the type `Unordered` does not satisfy the bound `Ord` of `T`
+fn valid(x: Sorted<int>) {}
+fn use(x: Sorted<Unordered>) {}
