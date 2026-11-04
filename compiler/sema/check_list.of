@@ -227,8 +227,7 @@ pub fn iteratorItem(c: mut Checker, p: Program, ty: int) Option<int> {
         return .None
     }
     let decl = fnOf(p, c.loc(next))
-    let ownerParams = itemTypeParams(itemOf(p, c.loc(next))).len()
-    if ownerParams + decl.typeParams.len() > 0 {   // as stage 0: not generic ones
+    if decl.typeParams.len() > 0 {   // the owner's are the type's arguments
         return .None
     }
     let ret = c.types.get(fnSignature(c, p, next)).inner

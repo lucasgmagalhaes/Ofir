@@ -1,4 +1,4 @@
-// `for x in iterator` (roadmap 3.7). Until interfaces (roadmap 5.1), a
+// `for x in iterator` (roadmap 3.7). Until interfaces (roadmap 5.8), a
 // value is an iterator when its type declares `fn next(mut self)
 // Option<T>`: the loop calls `next` until it returns `None`, and `x` owns
 // each item. An iterator held in a variable is advanced in place, so the
@@ -28,7 +28,7 @@ bool iterator_item(Checker *c, TypeId type, TypeId *item) {
         return false;
     }
     const FnDecl *next = next_method(c, sema_def(c->sema, (DefId){ty->data}));
-    if (!next || fn_type_param_count(sema_def(c->sema, next->def)) > 0) {
+    if (!next || next->type_params.len > 0) {   // the owner's are the type's arguments
         return false;
     }
     TypeId ret = type_get(c->types, fn_signature(c, (FnDecl *)next))->inner;
