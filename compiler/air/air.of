@@ -210,6 +210,16 @@ pub copy enum RvalueKind {
      * being compiled, with the environment a (or none)
      */
     Closure
+    /**
+     * the fat pointer to `dyn I` (type `to`) made from the thin pointer or box a,
+     * whose target has the concrete type of b; `flag` is 1 if that type needs drop
+     */
+    Unsize
+    /**
+     * the method in slot `flag` of the vtable of the fat pointer a, as a function
+     * value whose environment is the data pointer
+     */
+    DynFn
 }
 
 /** The float functions of `RvalueKind.FloatFn`. */

@@ -28,11 +28,16 @@ import air.air.isGlue
 import air.air.noPath
 import air.air.opCopy
 import air.air.runtimeName
+import air.lower.byAddress
+import air.lower.dynObject
+import air.lower.dynSlotTarget
 import base.span.Span
 import sema.check.Checker
 import sema.check.fnOf
 import sema.check.itemOf
 import sema.check.itemTypeParams
+import sema.check_box.boxInner
+import sema.interfaces.dynMethods
 import sema.enums.enumVariants
 import sema.enums.variantsOf
 import sema.program.Program
@@ -85,6 +90,14 @@ pub struct Gen {
     pub fnValues: List<bool>
     /** Whether a `move` closure allocates or frees its environment. */
     pub heap: bool
+    /** The vtables, by number: the concrete type of each. */
+    pub vtTypes: List<int>
+    /** The interface of each vtable. */
+    pub vtIfaces: List<int>
+    /** Whether the concrete type of each vtable needs drop. */
+    pub vtDrops: List<bool>
+    /** The vtable numbers, by `type * 2^32 + interface`. */
+    pub vtIds: Map<int, int>
 }
 
 fn hexDigit(n: u64) str {
@@ -145,7 +158,7 @@ pub fn newGen() Gen {
     return Gen{module: "", out: "", globals: "", typeDefs: "", strCount: 0, locCount: 0,
                overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
                temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
-               fnValues: []}
+               fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new()}
 }
 
 fn nextTemp(g: mut Gen) str {
@@ -174,7 +187,7 @@ pub fn llvmType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
         .Adt => adtType(g, c, p, ty)
         .Param => panic("llvmType: a type parameter survived monomorphization")
         .Tuple => tupleType(g, c, p, ty)
-        .Ref | .Ptr => "ptr".toOwned()
+        .Ref | .Ptr => if c.types.isFat(ty) { FN_LLVM.toOwned() } else { "ptr".toOwned() }
         .Bool => "i1".toOwned()
         .Int => "i{intBits(data)}"
         .Float => if data == 32 { "float".toOwned() } else { "double".toOwned() }
@@ -248,7 +261,7 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
         .Int => Layout{size: intBits(data) / 8, align: intBits(data) / 8}
         .Float => Layout{size: data / 8, align: data / 8}
         .Str => Layout{size: 24, align: 8}
-        .Ref | .Ptr => Layout{size: 8, align: 8}
+        .Ref | .Ptr => Layout{size: if c.types.isFat(ty) { 16 } else { 8 }, align: 8}
         .Fn => Layout{size: 16, align: 8}   // the code and the environment
         .Tuple => {
             let args = c.types.get(ty).args.clone()
@@ -625,6 +638,11 @@ fn castOp(c: Checker, from: int, to: int) str {
 fn castValue(g: mut Gen, c: mut Checker, p: Program, from: int, to: int, a: move Value) Value {
     let op = castOp(c, from, to)
     let target = llvmType(g, c, p, to)
+    if c.types.isFat(from) && !c.types.isFat(to) {   // the data pointer of a fat pointer
+        let data = nextTemp(g)
+        g.out.push("  {data} = extractvalue {FN_LLVM} {a.text}, 0\n")
+        return Value{ty: target, text: data}
+    }
     if op == "" {
         return Value{ty: target, text: a.text}
     }
@@ -907,6 +925,43 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {t} = insertvalue {FN_LLVM} {code}, ptr {env}, 1\n")
             return Value{ty: ty, text: t}
         }
+        .Unsize => {
+            let thin = operand(g, c, p, body, &rv.a)
+            let iface = c.types.get(dynObject(c, rv.to)).data
+            let vt = vtable(g, rv.b.ty, iface, rv.flag == 1)
+            var data = thin.text.clone()
+            let boxed = boxInner(c, rv.to).isSome()
+            if boxed {
+                data = nextTemp(g)
+                g.out.push("  {data} = extractvalue {thin.ty} {thin.text}, 0\n")
+            }
+            let half = nextTemp(g)
+            g.out.push("  {half} = insertvalue {FN_LLVM} undef, ptr {data}, 0\n")
+            let fat = nextTemp(g)
+            g.out.push("  {fat} = insertvalue {FN_LLVM} {half}, ptr @\"ofir.vt{vt}\", 1\n")
+            if !boxed {
+                return Value{ty: ty, text: fat}
+            }
+            let t = nextTemp(g)
+            g.out.push("  {t} = insertvalue {ty} undef, {FN_LLVM} {fat}, 0\n")
+            return Value{ty: ty, text: t}
+        }
+        .DynFn => {
+            let fat = operand(g, c, p, body, &rv.a)
+            let data = nextTemp(g)
+            g.out.push("  {data} = extractvalue {FN_LLVM} {fat.text}, 0\n")
+            let vt = nextTemp(g)
+            g.out.push("  {vt} = extractvalue {FN_LLVM} {fat.text}, 1\n")
+            let at = nextTemp(g)
+            g.out.push("  {at} = getelementptr inbounds ptr, ptr {vt}, i64 {rv.flag + 3}\n")
+            let code = nextTemp(g)
+            g.out.push("  {code} = load ptr, ptr {at}\n")
+            let half = nextTemp(g)
+            g.out.push("  {half} = insertvalue {FN_LLVM} undef, ptr {code}, 0\n")
+            let t = nextTemp(g)
+            g.out.push("  {t} = insertvalue {FN_LLVM} {half}, ptr {data}, 1\n")
+            return Value{ty: ty, text: t}
+        }
         .Closure => {
             var env = "null"
             if rv.a.kind != .Unit && c.types.kind(rv.a.ty) == .Tuple {   // `move`: on the heap
@@ -1019,6 +1074,110 @@ fn thunks(g: mut Gen, c: mut Checker, p: Program) {
             g.module.push("  %r = call fastcc {ret} {name}({forward})\n  ret {ret} %r\n\}\n")
         }
     }
+}
+
+// The number of the vtable of a concrete type for an interface.
+fn vtable(g: mut Gen, ty: int, iface: int, drops: bool) int {
+    let key = ty * 4294967296 + iface
+    if let .Some(found) = g.vtIds.get(key) {
+        return *found
+    }
+    let id = g.vtTypes.len()
+    g.vtTypes.push(ty)
+    g.vtIfaces.push(iface)
+    g.vtDrops.push(drops)
+    g.vtIds.insert(key, id)
+    return id
+}
+
+// The vtables: the drop glue, the size, the alignment, then a thunk per
+// method, which takes the data pointer as `self` (spec 9.7).
+fn vtables(g: mut Gen, c: mut Checker, p: Program) {
+    var noDrop = false
+    for k in 0..g.vtTypes.len() {
+        let ty = g.vtTypes[k]
+        let slots = dynMethods(c, p, g.vtIfaces[k])
+        let l = layout(g, c, p, ty)
+        var drop = "@ofir.dyn.nodrop".toOwned()
+        if g.vtDrops[k] {
+            drop = functionName(c, p, GLUE_DROP, c.types.tuple([ty]), false)
+        } else {
+            noDrop = true
+        }
+        g.module.push("\n@\"ofir.vt{k}\" = internal constant [{slots.len() + 3} x ptr] [")
+        g.module.push("ptr {drop}, ptr inttoptr (i64 {l.size} to ptr), ")
+        g.module.push("ptr inttoptr (i64 {l.align} to ptr)")
+        for i in 0..slots.len() {
+            g.module.push(", ptr @\"ofir.vt{k}.{i}\"")
+        }
+        g.module.push("]\n")
+        for i in 0..slots.len() {
+            vtableThunk(g, c, p, ty, slots[i], "@\"ofir.vt{k}.{i}\"")
+        }
+    }
+    if noDrop {
+        g.module.push("\ndefine internal fastcc void @ofir.dyn.nodrop(ptr %self) \{\n")
+        g.module.push("  ret void\n\}\n")
+    }
+}
+
+// A vtable slot: calls the concrete type's method, converting `self` and
+// the arguments passed by address or by value as the method takes them.
+fn vtableThunk(g: mut Gen, c: mut Checker, p: Program, ty: int, id: int, name: str) {
+    let target = dynSlotTarget(c, p, ty, id)
+    let sig = c.info[target.def].ty
+    let targs = c.types.get(target.targs).args.clone()
+    let ret = llvmType(g, c, p, c.types.subst(c.types.get(sig).inner, targs.clone()))
+    let params = c.types.get(sig).args.clone()
+    var head = "\ndefine internal fastcc {ret} {name}(ptr %self"
+    var body = ""
+    var forward = ""
+    if byAddress(c, p, target.def, -1) {
+        forward.push("ptr %self")
+    } else {
+        let selfType = llvmType(g, c, p, ty)
+        if selfType != "void" {
+            body.push("  %s = load {selfType}, ptr %self\n")
+            forward.push("{selfType} %s")
+        }
+    }
+    let first = if fnOf(p, c.loc(target.def)).hasSelf { 1 } else { 0 }
+    for i in first..params.len() {
+        let index = i - first
+        let pty = llvmType(g, c, p, c.types.subst(params[i], targs.clone()))
+        if pty == "void" {
+            continue
+        }
+        let given = byAddress(c, p, id, index)
+        let taken = byAddress(c, p, target.def, index)
+        head.push(", {if given { "ptr" } else { pty }} %a{i}")
+        var arg = "{if taken { "ptr" } else { pty }} %a{i}"
+        if given && !taken {
+            body.push("  %v{i} = load {pty}, ptr %a{i}\n")
+            arg = "{pty} %v{i}"
+        } else if taken && !given {
+            body.push("  %m{i} = alloca {pty}\n  store {pty} %a{i}, ptr %m{i}\n")
+            arg = "ptr %m{i}"
+        }
+        forward.push("{if forward.len() > 0 { ", " } else { "" }}{arg}")
+    }
+    g.module.push(head)
+    g.module.push(") \{\n")
+    g.module.push(body)
+    let callee = functionName(c, p, target.def, target.targs, false)
+    if ret == "void" {
+        g.module.push("  call fastcc void {callee}({forward})\n  ret void\n\}\n")
+    } else {
+        g.module.push("  %r = call fastcc {ret} {callee}({forward})\n  ret {ret} %r\n\}\n")
+    }
+}
+
+// Drop glue of a `dyn I`: the drop function in its vtable, on its data.
+fn dropDyn(g: mut Gen) {
+    g.out.push("  %dyn.data = extractvalue {FN_LLVM} %p1, 0\n")
+    g.out.push("  %dyn.vt = extractvalue {FN_LLVM} %p1, 1\n")
+    g.out.push("  %dyn.drop = load ptr, ptr %dyn.vt\n")
+    g.out.push("  call fastcc void %dyn.drop(ptr %dyn.data)\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -1276,6 +1435,10 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
        c.types.kind(c.types.get(body.targs).args[0]) == .Fn {   // drop glue of a function value
         dropFnEnv(g)
     }
+    if body.def == GLUE_DROP && !body.isMain &&
+       c.types.kind(c.types.get(body.targs).args[0]) == .Dyn {
+        dropDyn(g)
+    }
     g.out.push("  br label %bb0\n")
     for b in 0..body.blocks.len() {
         g.out.push("bb{b}:\n")
@@ -1448,6 +1611,7 @@ pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>) str {
         function(g, c, p, &bodies[i])
     }
     thunks(g, c, p)
+    vtables(g, c, p)
     g.module.push(runtimeDecls())
     overflowDecls(g)
     floatDecls(g)

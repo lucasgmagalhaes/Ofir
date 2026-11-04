@@ -278,6 +278,8 @@ pub struct AirPrinter {
             .SizeOf => self.out.push("size_of {c.typeName(rv.to)}")
             .FnValue => self.operands(c, "fn_value {c.text(c.def(rv.flag).name)}", &rv.a, .None)
             .Closure => self.operands(c, "closure c{rv.flag}", &rv.a, .None)
+            .Unsize => self.operands(c, "unsize {c.typeName(rv.to)}", &rv.a, .Some(&rv.b))
+            .DynFn => self.operands(c, "dyn_fn {rv.flag}", &rv.a, .None)
             .Aggregate => {
                 self.out.push("\{")
                 for i in 0..rv.items.len() {

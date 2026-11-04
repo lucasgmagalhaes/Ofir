@@ -154,8 +154,9 @@ pub fn checkInstanceStorable(c: mut Checker, p: Program, ty: int, span: Span) {
         return
     }
     let args = t.args.clone()
+    let boxed = t.data == c.r.langItems[0]
     for i in 0..args.len() {
-        if t.data == c.r.langItems[0] && c.types.kind(args[i]) == .Dyn {
+        if boxed && c.types.kind(args[i]) == .Dyn {
             continue   // `Box<dyn I>`
         }
         checkStorable(c, p, args[i], span, "a container or a struct")

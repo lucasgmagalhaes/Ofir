@@ -10,6 +10,7 @@ import air.air.Operand
 import air.air.FloatFn
 import air.air.CALL_VALUE
 import air.air.GLUE_CLONE
+import air.air.GLUE_DROP
 import air.air.Rvalue
 import air.air.RvalueKind
 import air.air.isGlue
@@ -93,6 +94,11 @@ import sema.check.fnOf
 import sema.check.itemOf
 import sema.check.itemTypeParams
 import sema.interfaces.isInterfaceMethod
+import sema.interfaces.dynMethods
+import sema.check_box.adjustedType
+import sema.check_types.fnSignature
+import sema.check_dyn.dynBorrowed
+import sema.check_dyn.dynSourceType
 import sema.check_methods.typeNameOf
 import sema.def.Res
 import sema.moves.COERCION_CONSUMED
@@ -387,6 +393,9 @@ pub fn lowerExpr(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     if coerced(c, e) {
         return coercion(l, c, p, e)
     }
+    if dynSourceType(c, e) >= 0 {
+        return dynCoercion(l, c, p, e)
+    }
     return lowerView(l, c, p, e, derefCount(c, e))
 }
 
@@ -609,6 +618,10 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
             return unit()   // the value is consumed, and nothing runs
         }
         let elem = concreteType(l, c, callTypeArg(c, e))
+        if c.types.kind(elem) == .Dyn {   // through the vtable: the fat pointer itself
+            emitCall(l, GLUE_DROP, c.types.tuple([elem]), [value], -1)
+            return unit()
+        }
         let place = Place{local: toLocal(l, value), fields: [], deref: true}
         emitDrop(l, c, p, &place, elem)
         return unit()
@@ -935,6 +948,10 @@ fn fieldCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr
         }
     }
     let member = c.members[c.module()][callee.id.0]
+    let dynBase = member > 0 && c.types.kind(adjustedType(c, base)) == .Dyn
+    if dynBase && isInterfaceMethod(c, p, member) {
+        return dynCall(l, c, p, e, base, member, args)
+    }
     if member > 0 {   // a method declared in a type
         let hasSelf = fnOf(p, c.loc(member)).hasSelf
         return emitUserCall(l, c, p, e, member, args, if hasSelf { Option.Some(base) } else {
@@ -1125,6 +1142,79 @@ fn coercion(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     }
     l.temps.push(Temp{local: dest, ty: ty})
     return opCopy(dest, ty)
+}
+
+// A pointer, a box or a borrowed value converted to a `dyn` type (spec
+// 9.7): the thin pointer, then the fat pointer with the vtable.
+fn dynCoercion(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    let found = dynSourceType(c, e)
+    let ty = c.typeOf(e.id.0)
+    c.setType(e.id.0, found)   // the expression itself has the type found
+    let borrowed = dynBorrowed(c, e)
+    let thin = if borrowed {
+        placeOperand(&lowerPlace(l, c, p, e), .Addr, c.types.ref(found, false))
+    } else {
+        lowerView(l, c, p, e, derefCount(c, e))
+    }
+    c.setType(e.id.0, ty)
+    let target = if borrowed { found } else {
+        match boxInner(c, found) {
+            .Some(inner) => inner
+            .None => c.types.get(found).inner
+        }
+    }
+    var rv = rvalue(.Unsize, .Add, thin, opUnit(target))
+    rv.to = ty
+    return tempValue(l, ty, rv)
+}
+
+// `base.m(args)` where `base` reaches a `dyn I`: the method is loaded from
+// the vtable and called with the data pointer as its `self`.
+fn dynCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr, id: int,
+           args: &List<Arg>) Operand {
+    let n = derefCount(c, base)
+    if n == 0 {
+        l.fail("this `dyn` call")
+        return unit()
+    }
+    let iface = c.types.get(adjustedType(c, base)).data
+    let slots = dynMethods(c, p, iface)
+    var slot = 0
+    for i in 0..slots.len() {
+        if slots[i] == id {
+            slot = i
+        }
+    }
+    let fat = if boxInner(c, stepType(c, base, n - 1)).isSome() {
+        boxPointer(l, c, p, base, n - 1)
+    } else {
+        lowerView(l, c, p, base, n - 1)
+    }
+    var rv = rvalue(.DynFn, .Add, fat, unit())
+    rv.flag = slot
+    let method = tempValue(l, fnSignature(c, p, id), rv)
+    var operands = [method]
+    let paramCount = fnOf(p, c.loc(id)).params.len()
+    for i in 0..args.len() {
+        var next: Option<&Expr> = .None
+        if i + 1 < args.len() {
+            next = .Some(&args[i + 1].value)
+        }
+        let byRef = i < paramCount && byAddress(c, p, id, i)
+        operands.push(argument(l, c, p, &args[i].value, byRef, next))
+    }
+    let ty = c.typeOf(e.id.0)
+    var dest = -1
+    var result = unit()
+    if typeIsValue(ty) {
+        dest = newTemp(l, ty)
+        result = opCopy(dest, ty)
+    }
+    emitCall(l, CALL_VALUE, UNIT, operands, dest)
+    if ty == NEVER {
+        terminate(l, terminator(.Unreachable))
+    }
+    return result
 }
 
 // `xs[a..b]`, `xs[a..]`, `xs[..b]`: `xs.slice(a, b)` or `xs.sliceFrom(a)`,
