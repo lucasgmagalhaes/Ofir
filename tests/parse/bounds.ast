@@ -1,0 +1,47 @@
+module
+  struct Sorted
+    type_params T
+    bound T: Ord + Clone
+    field items: List<T>
+  enum Tree
+    type_params K, V
+    bound K: Ord
+    variant Leaf
+    variant Node(key: K, value: V)
+  fn max
+    type_params T
+    bound T: Ord
+    param a: move T
+    param b: move T
+    returns T
+    body
+      return
+        if
+          binary >
+            ident a
+            ident b
+          then
+            ident a
+          else
+            ident b
+  fn merge
+    type_params K, V
+    bound K: Eq + Hash
+    bound V: Clone
+    param a: Map<K, V>
+    param b: Map<K, V>
+    returns int
+    body
+      return
+        binary +
+          call
+            field len
+              ident a
+          call
+            field len
+              ident b
+  fn check
+    type_params T
+    bound T: Eq
+    param x: T
+    body

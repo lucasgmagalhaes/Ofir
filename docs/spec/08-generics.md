@@ -29,6 +29,24 @@ A type parameter can only be used in ways allowed by its bounds. Without
 bounds, a value of type `T` can only be moved, dropped, borrowed and passed
 to other generic code.
 
+Until interfaces (chapter 9, roadmap 5.3), a bound names one of the
+built-in interfaces:
+
+| Bound | Allows | Satisfied by |
+|-------|--------|--------------|
+| `Eq` | `==`, `!=` | integers, floats, `bool`, `str`, `()`, pointers, enums without payloads, tuples of these |
+| `Ord` | `<`, `<=`, `>`, `>=`, `list.sort()` | integers, floats, `str` |
+| `Hash` | with `Eq`, `Map<T, V>` keys | integers, `bool`, `str`, tuples of these |
+| `Clone` | `.clone()` | every type that can be cloned (chapter 5.2) |
+
+A type parameter satisfies a bound it declares. A bound that names no
+interface is an error (E0333), and so is a bound on a type that is not a
+type parameter of the declaration (E0334). Type arguments, written or
+inferred, of calls, struct literals, variants and types such as
+`Tree<Point, int>` must satisfy the bounds of their parameters (E0332).
+
+Stage 0 does not accept bounds; stage 1 does.
+
 ## 8.2 Generic types
 
 ```ofir
@@ -73,7 +91,11 @@ fn map<U>(self, f: fn(T) U) Stack<U> { ... }
 
 ## 8.4 `where` clauses
 
-Bounds may be written after the signature when they are long:
+Bounds may be written after the signature when they are long. The
+clause comes after the result type, on the same line or the next ones; the
+bounded type is one of the declaration's type parameters, including those
+of the type of a method (`where T: Eq` in a method of `Stack<T>` binds only
+that method):
 
 ```ofir
 fn merge<K, V>(a: move Map<K, V>, b: move Map<K, V>) Map<K, V>

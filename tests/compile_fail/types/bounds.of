@@ -1,0 +1,52 @@
+// requires: stage1
+// Bounds (spec 8.1): what a parameter without them cannot do, and type
+// arguments that do not satisfy them.
+
+struct Point {
+    x: int
+}
+
+struct Sorted<T: Ord> {
+    items: List<T>
+}
+
+fn eq<T>(a: T, b: T) bool {
+    return a == b                // error[E0313]: operator cannot be applied to type `T`
+}
+
+fn lt<T: Eq>(a: T, b: T) bool {
+    return a < b                 // error[E0313]: operator cannot be applied to type `T`
+}
+
+fn dup<T: Ord>(a: T) T {
+    return a.clone()             // error[E0322]: type `T` cannot be cloned
+}
+
+fn size<K: Hash, V>(m: Map<K, V>) int {   // error[E0313]: `Map` keys must be integers, bool, str or tuples of them in stage 0, not `K`
+    return m.len()
+}
+
+fn sortAll<T: Eq>(xs: mut List<T>) {
+    xs.sort()                    // error[E0313]: `sort` needs elements of type int, float or str in stage 0, not `T`
+}
+
+fn max<T: Ord>(a: move T, b: move T) T {
+    return if a > b { a } else { b }
+}
+
+fn same<T: Eq>(a: T, b: T) bool {
+    return a == b
+}
+
+fn bad<T: Display>(a: T)          // error[E0333]: `Display` is not an interface
+where
+    U: Eq,                         // error[E0334]: `U` is not a type parameter of this declaration
+    int: Ord,                      // error[E0334]: `int` is not a type parameter of this declaration
+{
+}
+
+fn main() {
+    let p = max(Point{x: 1}, Point{x: 2})        // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
+    let s: Sorted<Point> = Sorted{items: []}     // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
+    let e = same([1], [2])                       // error[E0332]: the type `List<int>` does not satisfy the bound `Eq` of `T`
+}

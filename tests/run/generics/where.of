@@ -1,0 +1,73 @@
+// requires: stage1
+// `where` clauses (spec 8.4), bounds on the parameters of types and on a
+// method's use of them (spec 8.3).
+
+struct Pair<T: Clone> {
+    a: T
+    b: T
+
+    fn swapped(self) Pair<T> {
+        return Pair{a: self.b.clone(), b: self.a.clone()}
+    }
+}
+
+struct Stack<T> {
+    items: List<T>
+
+    fn contains(self, item: T) bool where T: Eq {
+        for i in 0..self.items.len() {
+            if self.items[i] == item {
+                return true
+            }
+        }
+        return false
+    }
+
+    fn top(self) T
+    where
+        T: Clone,
+    {
+        return self.items[self.items.len() - 1].clone()
+    }
+}
+
+enum Tree<K: Ord, V> {
+    Leaf
+    Node(key: K, value: V)
+}
+
+fn holds<K: Ord, V>(t: Tree<K, V>, key: K) bool {
+    return match t {
+        .Leaf => false
+        .Node(k, _) => !(k < key) && !(key < k)
+    }
+}
+
+fn merge<K, V>(a: Map<K, V>, b: Map<K, V>) int
+where
+    K: Eq + Hash,
+    V: Clone,
+{
+    return a.len() + b.len()
+}
+
+struct Node {
+    name: str
+    kids: Pair<List<Node>>
+}
+
+fn main() {
+    let p = Pair{a: "x", b: "y"}.swapped()
+    println("{p.a}{p.b}")
+    let s = Stack{items: ["a", "b"]}
+    println("{s.contains("b")} {s.contains("z")} {s.top()}")
+    let t: Tree<int, str> = .Node(3, "three")
+    println("{holds(t, 3)} {holds(t, 4)}")
+    var a: Map<str, int> = Map.new()
+    a.insert("one", 1)
+    let b: Map<str, int> = Map.new()
+    println("{merge(a, b)}")
+    let n = Node{name: "root", kids: Pair{a: [], b: []}}
+    let twin = n.clone()
+    println("{twin.name} {twin.kids.a.len()}")
+}

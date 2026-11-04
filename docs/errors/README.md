@@ -67,6 +67,9 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0322 | type `T` cannot be cloned: a part of it has `drop` but no `clone` | stage 0 |
 | E0330 | cannot infer the type parameter `T`: write the type arguments | stage 0 |
 | E0331 | instantiating `f` nests types more than 64 levels deep | stage 0 |
+| E0332 | the type `X` does not satisfy the bound `B` of `T` | stage 1 |
+| E0333 | `B` is not an interface: a bound is `Eq`, `Ord`, `Hash` or `Clone` until interfaces | stage 1 |
+| E0334 | `X` is not a type parameter of this declaration: only type parameters take bounds | stage 1 |
 | E0340 | `keyof` needs a struct or tuple type (spec 16) | planned |
 | E0341 | `T` has no field `.k` (spec 16) | planned |
 | E0342 | the fields of these keys have different types (spec 16) | planned |
