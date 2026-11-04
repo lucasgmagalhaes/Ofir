@@ -244,6 +244,23 @@ pub struct List<T> {
     }
 
     /**
+     * An iterator over borrows of the elements, in order. Unlike
+     * `for x in l`, it works for elements that are not Copy.
+     *
+     * @returns a `ListIter` that borrows the list
+     * @example
+     * ```ofir
+     * let names = ["ana", "bia"]
+     * for name in names.iter() {
+     *     println(*name)
+     * }
+     * ```
+     */
+    pub fn iter(self) ListIter<T> {
+        return ListIter{list: &self, index: 0}
+    }
+
+    /**
      * A view of part of the list: `l[lo..hi]`.
      *
      * @param lo the first position
@@ -493,6 +510,28 @@ pub struct List<T> {
         if i < 0 || i >= self.len {
             panic("index out of bounds: the length is {self.len} but the index is {i}")
         }
+    }
+}
+
+/**
+ * An iterator over borrows of the elements of a list (`List.iter`). It
+ * borrows the list, so the list cannot change while it is in use.
+ *
+ * @typeParam T the type of the elements
+ */
+pub ref struct ListIter<T> {
+    list: &List<T>
+    index: int
+
+    /**
+     * The next element.
+     *
+     * @returns `Some` with a reference to it, or `None` after the last one
+     */
+    pub fn next(mut self) Option<&T> {
+        let item = self.list.get(self.index)
+        self.index += 1
+        return item
     }
 }
 

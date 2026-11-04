@@ -1,0 +1,37 @@
+// `List.iter()` (spec 5.6): a generic `ref struct` iterator over borrows of
+// the elements, which need not be Copy.
+
+struct P {
+    name: str
+    tags: List<str>
+}
+
+fn longest(ps: &List<P>) int {
+    var best = 0
+    for p in ps.iter() {
+        if p.tags.len() > best {
+            best = p.tags.len()
+        }
+    }
+    return best
+}
+
+fn main() {
+    let rows = [[1, 2], [3], [4, 5, 6]]
+    var sum = 0
+    for row in rows.iter() {
+        for x in row.iter() {
+            sum += *x
+        }
+    }
+    println("{sum}")
+    let ps = [P{name: "a", tags: ["x"]}, P{name: "b", tags: ["y", "z"]}]
+    println("{longest(&ps)}")
+    var it = ps.iter()
+    if let Some(p) = it.next() {
+        println(p.name)
+    }
+    for p in it {
+        println(p.name)
+    }
+}
