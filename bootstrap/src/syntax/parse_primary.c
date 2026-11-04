@@ -243,6 +243,71 @@ static Expr *struct_literal(Parser *p, Expr *type) {
 }
 
 // ---------------------------------------------------------------------------
+// Closures: stage 0 recognizes them (the same lookahead as stage 1, spec
+// 10.1) only to report that it does not support them.
+
+static bool type_start(TokenKind kind) {
+    switch (kind) {
+    case TOK_IDENT: case TOK_KW_SELF_TYPE: case TOK_AMP: case TOK_STAR: case TOK_LBRACKET:
+    case TOK_LPAREN: case TOK_KW_FN: case TOK_BANG: case TOK_KW_DYN:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The position of `=>` when a closure starts here, else 0.
+static size_t closure_arrow(const Parser *p) {
+    if (p->no_struct_literal) {
+        return 0;
+    }
+    size_t i = at_word(p, p->words.move) && peek_at(p, 1) != TOK_FAT_ARROW ? 1 : 0;
+    if (peek_at(p, i) == TOK_IDENT) {
+        return peek_at(p, i + 1) == TOK_FAT_ARROW ? i + 1 : 0;
+    }
+    if (peek_at(p, i) != TOK_LPAREN) {
+        return 0;
+    }
+    i++;
+    for (int depth = 1; depth > 0; i++) {
+        TokenKind kind = peek_at(p, i);
+        if (kind == TOK_EOF || kind == TOK_LBRACE || kind == TOK_RBRACE) {
+            return 0;
+        }
+        depth += kind == TOK_LPAREN ? 1 : kind == TOK_RPAREN ? -1 : 0;
+    }
+    if (peek_at(p, i) == TOK_FAT_ARROW) {
+        return i;
+    }
+    if (!type_start(peek_at(p, i))) {
+        return 0;
+    }
+    for (;; i++) {
+        TokenKind kind = peek_at(p, i);
+        if (kind == TOK_FAT_ARROW) {
+            return i;
+        }
+        if (kind == TOK_EOF || kind == TOK_NEWLINE || kind == TOK_LBRACE || kind == TOK_RBRACE ||
+            kind == TOK_EQ) {
+            return 0;
+        }
+    }
+}
+
+// Reports the closure, then parses its body to recover.
+static Expr *closure(Parser *p, size_t arrow) {
+    Span start = peek_token(p, 0)->span;
+    syntax_error(p, start, "closures are not supported by stage 0");
+    for (size_t i = 0; i <= arrow; i++) {
+        advance(p);
+    }
+    skip_newlines(p);
+    parse_expr(p);
+    return new_expr(p, EXPR_TUPLE, start);
+}
+
+
+// ---------------------------------------------------------------------------
 // Primary and postfix
 
 Expr *parse_primary(Parser *p) {
@@ -251,17 +316,20 @@ Expr *parse_primary(Parser *p) {
     case TOK_INT: case TOK_FLOAT: case TOK_BYTE: case TOK_STR: case TOK_KW_TRUE: case TOK_KW_FALSE:
         return literal_token(p);
     case TOK_STR_START: return interpolation(p);
-    case TOK_IDENT: return name(p);
+    case TOK_IDENT: {
+        size_t arrow = closure_arrow(p);
+        return arrow > 0 ? closure(p, arrow) : name(p);
+    }
     case TOK_KW_SELF_VALUE: advance(p); return new_expr(p, EXPR_SELF, start);
     case TOK_KW_SELF_TYPE: advance(p); return new_expr(p, EXPR_SELF_TYPE, start);
-    case TOK_LPAREN: return parenthesized(p);
+    case TOK_LPAREN: {
+        size_t arrow = closure_arrow(p);
+        return arrow > 0 ? closure(p, arrow) : parenthesized(p);
+    }
     case TOK_LBRACKET: return array(p);
     case TOK_DOT: return variant_shorthand(p);
     case TOK_LBRACE: case TOK_KW_IF: case TOK_KW_MATCH: case TOK_KW_UNSAFE:
         return parse_control(p);
-    case TOK_KW_FN:
-        syntax_error(p, peek_token(p, 0)->span, "closures are not supported by stage 0");
-        return new_expr(p, EXPR_TUPLE, start);
     default:
         unexpected(p, "an expression");
         return new_expr(p, EXPR_TUPLE, start);

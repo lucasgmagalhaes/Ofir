@@ -19,6 +19,7 @@ import syntax.ast.Arg
 import syntax.ast.Block
 import syntax.ast.Expr
 import syntax.ast.FnDecl
+import syntax.ast.Param
 import syntax.ast.ForKind
 import syntax.ast.Pattern
 import syntax.ast.PatternKind
@@ -35,6 +36,41 @@ fn declareLocal(r: mut Resolver, name: Symbol, span: Span, mutable: bool) int {
     return id
 }
 
+// A use of `local`: each closure being resolved that starts after it
+// captures it (spec 10.3).
+fn capture(r: mut Resolver, local: int) {
+    var k = r.closureBases.len() - 1
+    for k >= 0 && local < r.closureBases[k] {
+        var known = false
+        for c in 0..r.closureCaptures[k].len() {
+            known = known || r.closureCaptures[k][c] == local
+        }
+        if !known {
+            r.closureCaptures[k].push(local)
+        }
+        k -= 1
+    }
+}
+
+// A closure: its parameters are locals of the enclosing function, numbered
+// after the locals before it; the outer locals it uses are its captures.
+fn resolveClosure(r: mut Resolver, e: &Expr, params: &List<Param>, body: &Expr) {
+    r.closureBases.push(r.locals.len())
+    r.closureCaptures.push([])
+    r.scope.enter()
+    for i in 0..params.len() {
+        let param = &params[i]
+        let local = declareLocal(r, param.name, param.span, param.mode == .Mut)
+        r.locals[local].used = true   // parameters are exempt from W0001
+        r.setLocal(param.id.0, local)
+    }
+    resolveExpr(r, body)
+    r.scope.leave()
+    let _ = r.closureBases.pop()
+    let captures = r.closureCaptures.pop() ?? []
+    r.tables[r.current].captures.insert(e.id.0, captures)
+}
+
 fn lookup(r: mut Resolver, name: Symbol, span: Span) Res {
     let res = find(r, name, span)
     traceUse(r, "use", name, span, res)
@@ -44,6 +80,7 @@ fn lookup(r: mut Resolver, name: Symbol, span: Span) Res {
 fn find(r: mut Resolver, name: Symbol, span: Span) Res {
     if let .Some(local) = r.scope.localOf(name) {
         r.locals[local].used = true
+        capture(r, local)
         return .Local(local)
     }
     let def = r.scope.module(name)
@@ -178,6 +215,7 @@ fn resolveOptional(r: mut Resolver, e: &Option<Box<Expr>>) {
 
 fn resolveSelf(r: mut Resolver, e: &Expr) {
     if let .Some(local) = r.scope.localOf(r.selfName) {
+        capture(r, local)
         r.setRes(e.id.0, .Local(local))
         traceUse(r, "use", r.selfName, e.span, .Local(local))
     } else {
@@ -285,6 +323,7 @@ pub fn resolveExpr(r: mut Resolver, e: &Expr) {
         }
         .Block(block) => resolveBlock(r, &block)
         .Unsafe(block) => resolveBlock(r, &block)
+        .Closure(params, _, body, _) => resolveClosure(r, e, &params, &*body)
     }
 }
 

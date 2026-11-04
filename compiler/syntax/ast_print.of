@@ -171,6 +171,16 @@ struct Printer {
             .Match(scrutinee, arms) => self.matchExpr(&*scrutinee, arms, names)
             .Block(block) => self.block("block", &block, names)
             .Unsafe(block) => self.block("unsafe", &block, names)
+            .Closure(params, ret, body, isMove) => {
+                self.line(if isMove { "closure move" } else { "closure" })
+                self.depth += 1
+                for i in 0..params.len() {
+                    self.param(&params[i], names)
+                }
+                self.typeLine("returns", &ret, names)
+                self.expr(&*body, names)
+                self.depth -= 1
+            }
         }
     }
 
@@ -366,7 +376,11 @@ struct Printer {
 
     fn param(mut self, param: &Param, names: Interner) {
         let ty = typeText(&param.ty, names)
-        self.line("param {names.name(param.name)}: {modeText(param.mode)}{ty}")
+        if ty.len() == 0 {   // a closure parameter without a written type
+            self.line("param {names.name(param.name)}")
+        } else {
+            self.line("param {names.name(param.name)}: {modeText(param.mode)}{ty}")
+        }
         if let .Some(value) = param.defaultValue {
             self.depth += 1
             self.line("default")

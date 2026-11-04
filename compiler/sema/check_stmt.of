@@ -6,6 +6,7 @@
 
 import base.span.Span
 import sema.check.Checker
+import sema.check_closure.noteWrite
 import sema.check_list.checkForCollection
 import sema.check_option.checkUnusedResult
 import sema.check_pattern.checkPattern
@@ -116,6 +117,7 @@ fn checkPlace(c: mut Checker, p: Program, target: &Expr) {
                 c.error("E0304", target.span, "cannot assign twice to immutable variable "
                         + "`{c.text(c.locals[id].name)}`")
             }
+            noteWrite(c, target.span, id)
         }
         .Def(id) => {
             if c.def(id).kind != .Global {

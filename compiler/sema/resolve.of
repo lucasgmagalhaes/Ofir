@@ -44,6 +44,9 @@ pub struct Resolutions {
     pub fnDefs: List<int>
     /** The locals of each function with a body, by the `NodeId` of its `FnDecl`. */
     pub fnLocals: Map<int, List<Local>>
+    /** The locals of the enclosing function that each closure uses, in the
+     * order of their first use, by the `NodeId` of the closure. */
+    pub captures: Map<int, List<int>>
 }
 
 
@@ -99,6 +102,10 @@ pub struct Resolver {
     pub testing: bool
     /** The imports, in module order. */
     pub imports: List<ImportUse>
+    /** For each closure being resolved, outermost first: its first local. */
+    pub closureBases: List<int>
+    /** For each closure being resolved: the outer locals it uses. */
+    pub closureCaptures: List<List<int>>
 
     /**
      * Marks the import that binds `name` in the current module as used,
@@ -270,12 +277,14 @@ fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
         moduleNames.push(program.modules[m].name.clone())
         let count = program.modules[m].module.nodeCount
         tables.push(Resolutions{res: List.filled(Res.None, count), locals: List.filled(-1, count),
-                                fnDefs: List.filled(0, count), fnLocals: Map.new()})
+                                fnDefs: List.filled(0, count), fnLocals: Map.new(),
+                                captures: Map.new()})
     }
     return Resolver{defs, scope, tables, langItems: List.filled(0, 6),
                     lang: List.filled(0, PRIMITIVE_TYPES), names, diags, map,
                     trace: Trace.new(trace), moduleNames, current: 0, moduleName: "", locals: [],
-                    owner: .None, selfName, testing: false, imports: []}
+                    owner: .None, selfName, testing: false, imports: [],
+                    closureBases: [], closureCaptures: []}
 }
 
 fn noDef() Def {

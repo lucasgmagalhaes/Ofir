@@ -208,6 +208,11 @@ pub enum ExprKind {
     Block(block: Block)
     /** `unsafe { ... }` */
     Unsafe(block: Block)
+    /**
+     * `x => body`, `(a: T, b) R => body`, `move () => body` (spec 10.1); a
+     * parameter without a written type has an empty path as its type.
+     */
+    Closure(params: List<Param>, ret: Option<TypeExpr>, body: Box<Expr>, isMove: bool)
 }
 
 /**

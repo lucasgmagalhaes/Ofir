@@ -11,6 +11,7 @@ import sema.check.fnOf
 import sema.check.itemOf
 import sema.check.noGenerics
 import sema.check_box.autoDeref
+import sema.check_closure.checkClosure
 import sema.check_generic.checkGenericArgs
 import sema.check_generic.equatable
 import sema.check_generic.fnGenerics
@@ -512,6 +513,8 @@ fn synthesize(c: mut Checker, p: Program, e: &Expr, expected: int) int {
         .Repeat(value, count) => checkListRepeat(c, p, e, &*value, &*count, expected)
         .Variant(_, _, _) => checkVariantShorthand(c, p, e, expected)
         .Match(_, _) => checkMatch(c, p, e, expected, true)
+        .Closure(params, ret, body, isMove) => checkClosure(c, p, e, &params, &ret, &*body,
+                                                            isMove, expected)
     }
 }
 
