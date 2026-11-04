@@ -16,6 +16,13 @@ required before version 1.0.
 | `std.io`, `std.fs`, `std.os` | [system.md](system.md): input/output, files, processes |
 | `std.mem`, `std.math`, `std.testing`, `std.fmt` | [utilities.md](utilities.md) |
 
+## Planned API ecosystem
+
+The [API ecosystem plan](../design/api-ecosystem.md) tracks proposed I/O,
+filesystem, time, networking, codecs and HTTP facilities alongside framework,
+database and observability packages. It distinguishes implemented modules
+from pending work; proposed names there are not normative public signatures.
+
 ## Conventions
 
 - Methods that can fail return `Result` or `Option`; panicking variants
