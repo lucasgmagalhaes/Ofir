@@ -1,0 +1,2 @@
+# LF everywhere: the compiler, the tests and their expected output assume it.
+* text=auto eol=lf

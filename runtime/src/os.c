@@ -3,14 +3,19 @@
 #include "ofir_rt.h"
 
 #include <errno.h>
-#include <poll.h>
-#include <spawn.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <poll.h>
+#include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 extern char **environ;
+#endif
 
 static int arg_count;
 static char **arg_values;
@@ -61,6 +66,130 @@ static void buf_push(OfirBuf *buf, int64_t *cap, const uint8_t *data, int64_t n)
     memcpy(buf->ptr + buf->len, data, (size_t)n);
     buf->len += n;
 }
+
+#ifdef _WIN32
+
+// Appends `arg` to `line` (of capacity `*cap`), quoted as the C runtime of
+// the child splits its command line.
+static void quote_arg(char **line, int64_t *len, int64_t *cap, const char *arg) {
+    int64_t need = *len + 3 + 2 * (int64_t)strlen(arg);
+    if (need > *cap) {
+        *cap = need * 2;
+        *line = ofir_realloc(*line, *cap);
+    }
+    char *out = *line;
+    int64_t at = *len;
+    bool plain = arg[0] != '\0' && strpbrk(arg, " \t\n\v\"") == NULL;
+    if (at > 0) {
+        out[at++] = ' ';
+    }
+    if (!plain) {
+        out[at++] = '"';
+    }
+    for (const char *c = arg;; c++) {
+        int64_t slashes = 0;
+        for (; *c == '\\'; c++) {
+            slashes++;
+        }
+        bool end = *c == '\0';
+        // Backslashes are doubled before a quote, including the closing one.
+        int64_t copies = plain ? slashes : end ? slashes * 2 : *c == '"' ? slashes * 2 + 1
+                                                                           : slashes;
+        for (int64_t i = 0; i < copies; i++) {
+            out[at++] = '\\';
+        }
+        if (end) {
+            break;
+        }
+        out[at++] = *c;
+    }
+    if (!plain) {
+        out[at++] = '"';
+    }
+    out[at] = '\0';
+    *len = at;
+}
+
+typedef struct {
+    HANDLE pipe;
+    OfirBuf *buf;
+} Reader;
+
+// Reads a pipe until it closes (one thread per pipe, so that the child
+// never waits for the other one to be drained).
+static DWORD WINAPI read_pipe(void *arg) {
+    Reader *reader = arg;
+    int64_t cap = 0;
+    uint8_t chunk[4096];
+    DWORD n;
+    while (ReadFile(reader->pipe, chunk, sizeof chunk, &n, NULL) && n > 0) {
+        buf_push(reader->buf, &cap, chunk, n);
+    }
+    return 0;
+}
+
+static int32_t spawn(char **argv, OfirRun *run) {
+    int64_t len = 0, cap = 256;
+    char *line = ofir_alloc(cap);
+    line[0] = '\0';
+    for (char **arg = argv; *arg; arg++) {
+        quote_arg(&line, &len, &cap, *arg);
+    }
+    SECURITY_ATTRIBUTES inherit = {.nLength = sizeof inherit, .bInheritHandle = TRUE};
+    HANDLE out_read, out_write, err_read, err_write;
+    if (!CreatePipe(&out_read, &out_write, &inherit, 0)) {
+        ofir_free(line);
+        return EIO;
+    }
+    if (!CreatePipe(&err_read, &err_write, &inherit, 0)) {
+        CloseHandle(out_read);
+        CloseHandle(out_write);
+        ofir_free(line);
+        return EIO;
+    }
+    SetHandleInformation(out_read, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(err_read, HANDLE_FLAG_INHERIT, 0);
+    STARTUPINFOA startup = {.cb = sizeof startup, .dwFlags = STARTF_USESTDHANDLES};
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    startup.hStdOutput = out_write;
+    startup.hStdError = err_write;
+    PROCESS_INFORMATION process;
+    ofir_stdout_flush();
+    BOOL started = CreateProcessA(NULL, line, NULL, NULL, TRUE, 0, NULL, NULL, &startup,
+                                  &process);
+    DWORD error = GetLastError();
+    ofir_free(line);
+    CloseHandle(out_write);
+    CloseHandle(err_write);
+    if (!started) {
+        CloseHandle(out_read);
+        CloseHandle(err_read);
+        return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND ? ENOENT
+               : error == ERROR_ACCESS_DENIED                                ? EACCES
+                                                                             : EIO;
+    }
+    Reader err_reader = {err_read, &run->err};
+    HANDLE thread = CreateThread(NULL, 0, read_pipe, &err_reader, 0, NULL);
+    Reader out_reader = {out_read, &run->out};
+    read_pipe(&out_reader);
+    if (thread) {
+        WaitForSingleObject(thread, INFINITE);
+        CloseHandle(thread);
+    } else {
+        read_pipe(&err_reader);
+    }
+    CloseHandle(out_read);
+    CloseHandle(err_read);
+    WaitForSingleObject(process.hProcess, INFINITE);
+    DWORD status = 0;
+    GetExitCodeProcess(process.hProcess, &status);
+    CloseHandle(process.hProcess);
+    CloseHandle(process.hThread);
+    run->status = (int64_t)status;
+    return 0;
+}
+
+#else
 
 // Reads both pipes until they close, without blocking on one while the
 // child waits for the other to be drained.
@@ -119,6 +248,8 @@ static int32_t spawn(char **argv, OfirRun *run) {
     run->status = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
     return 0;
 }
+
+#endif
 
 // `args` holds `count` strings, each followed by a NUL: the program first.
 int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run) {

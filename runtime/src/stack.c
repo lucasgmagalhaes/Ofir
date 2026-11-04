@@ -6,6 +6,34 @@
 
 #include "ofir_rt.h"
 
+#ifdef _WIN32
+
+// Windows: a vectored exception handler, run on the stack space that
+// SetThreadStackGuarantee keeps after the guard page.
+
+#include <unistd.h>
+#include <windows.h>
+
+static LONG WINAPI on_exception(EXCEPTION_POINTERS *info) {
+    if (info->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW) {
+        static const char msg[] = "panic: stack overflow\n";
+        ofir_stdout_flush();
+        int ignored = write(2, msg, sizeof msg - 1);
+        (void)ignored;
+        _exit(OFIR_PANIC_STATUS);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void ofir_stack_guard_init(void *top) {
+    (void)top;
+    ULONG guarantee = 64 * 1024;
+    SetThreadStackGuarantee(&guarantee);
+    AddVectoredExceptionHandler(1, on_exception);
+}
+
+#else
+
 #include <signal.h>
 #include <string.h>
 #include <sys/resource.h>
@@ -52,3 +80,5 @@ void ofir_stack_guard_init(void *top) {
         sigaction(SIGBUS, &action, NULL);   // macOS reports some overflows as SIGBUS
     }
 }
+
+#endif

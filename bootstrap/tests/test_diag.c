@@ -6,8 +6,11 @@
 
 static char *render(Diagnostics *diags, SourceMap *map, DiagFormat format) {
     static char buffer[4096];
-    FILE *f = fmemopen(buffer, sizeof buffer, "w");
+    FILE *f = tmpfile();   // not fmemopen: MinGW has none
     diags_render(diags, map, format, f);
+    rewind(f);
+    size_t n = fread(buffer, 1, sizeof buffer - 1, f);
+    buffer[n] = '\0';
     fclose(f);
     return buffer;
 }

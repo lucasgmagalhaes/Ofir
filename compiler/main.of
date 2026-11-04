@@ -102,7 +102,8 @@ fn parseOptions(args: &List<str>) Option<Options> {
                 return .None
             }
         } else if !hasInput {
-            opts.input = arg
+            // The driver splits paths at `/`.
+            opts.input = if onWindows() { arg.replace("\\", "/") } else { arg }
             hasInput = true
         } else {
             eprintln("error: unexpected argument `{arg}`")
@@ -314,8 +315,28 @@ fn outputPath(opts: &Options) str {
         let plain = letter || (b >= b'0' && b <= b'9')
         name.push(if plain { full.slice(i, i + 1) } else { "_" })
     }
-    let dir = os.env("TMPDIR") ?? "/tmp".toOwned()
-    return "{dir}/ofir-{opts.command}-{name}"
+    return "{tempDir()}/ofir-{opts.command}-{name}"
+}
+
+// Windows sets `OS` to `Windows_NT` in every process.
+fn onWindows() bool {
+    return match os.env("OS") {
+        .Some(name) => name == "Windows_NT"
+        .None => false
+    }
+}
+
+// `TMPDIR`, then `TEMP` (Windows), then `/tmp`.
+fn tempDir() str {
+    let names = ["TMPDIR", "TEMP"]
+    for i in 0..names.len() {
+        if let .Some(dir) = os.env(names[i]) {
+            if dir.len() > 0 {
+                return dir.replace("\\", "/")
+            }
+        }
+    }
+    return "/tmp".toOwned()
 }
 
 // The runtime library: `OFIR_RUNTIME`, or next to the compiler.
@@ -356,8 +377,13 @@ fn link(opts: &Options, ll: str, exe: str) bool {
         }
     }
     let level = if opts.release { "-O2" } else { "-O0" }
-    let args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime,
+    var args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime,
                 "-lm".toOwned(), "-o".toOwned(), exe.toOwned()]
+    // MinGW, not MSVC; the main thread gets the 8 MiB stack Linux gives it.
+    if onWindows() {
+        args.push("--target=x86_64-w64-windows-gnu".toOwned())
+        args.push("-Wl,--stack,8388608".toOwned())
+    }
     let ok = match os.run(clang, args) {
         .Ok(out) => {
             print(out.stdout)

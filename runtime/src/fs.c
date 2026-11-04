@@ -17,6 +17,33 @@
 #include <mach-o/dyld.h>
 #endif
 
+#ifdef _WIN32
+#include <direct.h>
+#include <windows.h>
+
+#define mkdir(name, mode) _mkdir(name)
+
+// Paths given to programs use `/`, as on the other systems.
+static void forward_slashes(char *path) {
+    for (; *path; path++) {
+        *path = *path == '\\' ? '/' : *path;
+    }
+}
+
+static char *realpath(const char *name, char *full) {
+    if (_access(name, 0) != 0) {
+        return NULL;
+    }
+    if (!_fullpath(full, name, PATH_MAX)) {
+        return NULL;
+    }
+    forward_slashes(full);
+    return full;
+}
+#else
+#define O_BINARY 0
+#endif
+
 static int32_t read_fd(int fd, OfirBuf *out) {
     int64_t cap = 4096;
     *out = (OfirBuf){ofir_alloc(cap), 0};
@@ -41,7 +68,7 @@ static int32_t read_fd(int fd, OfirBuf *out) {
 
 int32_t ofir_read_file(const uint8_t *path, int64_t len, OfirBuf *out) {
     char *name = ofir_c_string(path, len);
-    int fd = name ? open(name, O_RDONLY) : -1;
+    int fd = name ? open(name, O_RDONLY | O_BINARY) : -1;
     int32_t code = name ? errno : EINVAL;
     ofir_free(name);
     if (fd < 0) {
@@ -55,7 +82,7 @@ int32_t ofir_read_file(const uint8_t *path, int64_t len, OfirBuf *out) {
 
 int32_t ofir_write_file(const uint8_t *path, int64_t len, const uint8_t *data, int64_t n) {
     char *name = ofir_c_string(path, len);
-    int fd = name ? open(name, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
+    int fd = name ? open(name, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666) : -1;
     int32_t code = name ? errno : EINVAL;
     ofir_free(name);
     if (fd < 0) {
@@ -115,7 +142,9 @@ static int32_t make_dirs(char *name) {
         }
         char saved = *at;
         *at = 0;
-        if (mkdir(name, 0777) != 0 && errno != EEXIST) {
+        struct stat info;
+        if (mkdir(name, 0777) != 0 && errno != EEXIST &&
+            (stat(name, &info) != 0 || !S_ISDIR(info.st_mode))) {   // `C:` on Windows
             return errno;
         }
         *at = saved;
@@ -184,7 +213,22 @@ int32_t ofir_read_line(OfirBuf *out) {
     ofir_stdout_flush();   // a prompt appears before the program waits
     char *line = NULL;
     size_t cap = 0;
+#ifdef _WIN32
+    ssize_t n = 0;   // MinGW has no getline
+    for (int c; (c = getc(stdin)) != EOF;) {
+        if ((size_t)n + 1 >= cap) {
+            cap = cap ? cap * 2 : 128;
+            line = realloc(line, cap);
+        }
+        line[n++] = (char)c;
+        if (c == '\n') {
+            break;
+        }
+    }
+    n = n == 0 ? -1 : n;
+#else
     ssize_t n = getline(&line, &cap, stdin);
+#endif
     *out = (OfirBuf){0};
     if (n < 0) {
         free(line);
@@ -208,6 +252,9 @@ int32_t ofir_current_dir(OfirBuf *out) {
     if (!getcwd(path, sizeof path)) {
         return errno;
     }
+#ifdef _WIN32
+    forward_slashes(path);
+#endif
     out->len = (int64_t)strlen(path);
     out->ptr = ofir_alloc(out->len);
     memcpy(out->ptr, path, (size_t)out->len);
@@ -220,6 +267,11 @@ int32_t ofir_executable_path(OfirBuf *out) {
 #ifdef __APPLE__
     uint32_t size = sizeof path;
     ssize_t n = _NSGetExecutablePath(path, &size) == 0 ? (ssize_t)strlen(path) : -1;
+#elif defined(_WIN32)
+    DWORD size = GetModuleFileNameA(NULL, path, sizeof path);
+    ssize_t n = size > 0 && size < sizeof path ? (ssize_t)size : -1;
+    errno = n < 0 ? ENAMETOOLONG : errno;
+    forward_slashes(path);
 #else
     ssize_t n = readlink("/proc/self/exe", path, sizeof path);
 #endif
