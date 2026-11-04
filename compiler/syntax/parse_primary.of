@@ -478,7 +478,6 @@ fn closureAt(p: Parser) bool {
         }
         i += 1
     }
-    return false
 }
 
 // A closure; `closureAt` holds.
