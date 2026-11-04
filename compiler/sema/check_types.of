@@ -43,6 +43,13 @@ pub fn ownerTypeOf(c: mut Checker, p: Program, m: int, index: int) int {
     }
     let id = c.itemDefs[m][index]
     let params = itemTypeParams(&p.modules[m].module.items[index])
+    let isInterface = match p.modules[m].module.items[index].kind {
+        .Interface(_, _, _) => true
+        _ => false
+    }
+    if isInterface {   // in an interface, `Self` is its type parameter 0
+        return c.types.param(0, params[0].0)
+    }
     var args: List<int> = []
     for i in 0..params.len() {
         args.push(c.types.param(i, params[i].0))
@@ -343,7 +350,7 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
     let decl = fnOf(p, c.loc(id))
     let item = itemOf(p, c.loc(id))
     let isMethod = match item.kind {
-        .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
+        .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) | .Interface(_, _, _) => true
         _ => false
     }
     let saved = c.enter(module)

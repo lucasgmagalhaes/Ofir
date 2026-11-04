@@ -32,6 +32,8 @@ pub copy enum DefKind {
     Module
     /** `Some`, `None`, `Ok`, `Err`: variant `member` of the enum `target`. */
     Variant
+    /** An interface: its methods are found through it. */
+    Interface
 }
 
 /**
@@ -52,6 +54,7 @@ pub fn kindName(kind: DefKind) str {
         .TypeAlias => "alias"
         .Module => "module"
         .Variant => "variant"
+        .Interface => "interface"
     }
 }
 

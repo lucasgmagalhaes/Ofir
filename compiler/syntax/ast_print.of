@@ -344,6 +344,12 @@ struct Printer {
         }
     }
 
+    fn asserts(mut self, list: &List<TypeExpr>, names: Interner) {
+        if list.len() > 0 {
+            self.line("asserts {typesText(list.clone(), names)}")
+        }
+    }
+
     fn symbols(mut self, label: str, list: List<Symbol>, sep: str, names: Interner) {
         if list.len() == 0 {
             return
@@ -451,6 +457,7 @@ struct Printer {
                 self.attributes(it.attributes, names)
                 self.symbols("type_params", typeParams, ", ", names)
                 self.bounds(&it.bounds, names)
+                self.asserts(&it.asserts, names)
                 self.fields(fields, names)
                 self.methods(methods, names)
                 self.depth -= 1
@@ -461,6 +468,7 @@ struct Printer {
                 self.attributes(it.attributes, names)
                 self.symbols("type_params", typeParams, ", ", names)
                 self.bounds(&it.bounds, names)
+                self.asserts(&it.asserts, names)
                 self.variants(variants, names)
                 self.methods(methods, names)
                 self.depth -= 1
@@ -486,6 +494,22 @@ struct Printer {
                 self.line("extern \"{abi}\"")
                 self.depth += 1
                 self.methods(fns, names)
+                self.depth -= 1
+            }
+            .Interface(typeParams, embeds, methods) => {
+                self.line("interface {name}{isPub}")
+                self.depth += 1
+                self.attributes(it.attributes, names)
+                var declared: List<Symbol> = []
+                for i in 1..typeParams.len() {   // after the implicit `Self`
+                    declared.push(typeParams[i])
+                }
+                self.symbols("type_params", declared, ", ", names)
+                self.bounds(&it.bounds, names)
+                for i in 0..embeds.len() {
+                    self.line("embed {typeText(&embeds[i], names)}")
+                }
+                self.methods(methods, names)
                 self.depth -= 1
             }
         }

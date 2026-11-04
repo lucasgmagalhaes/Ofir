@@ -444,7 +444,7 @@ fn functionName(c: mut Checker, p: Program, id: int, targs: int, isMain: bool) s
     if def.member >= 0 {
         let item = itemOf(p, c.loc(id))
         let isType = match item.kind {
-            .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) => true
+            .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) | .Interface(_, _, _) => true
             _ => false
         }
         if isType {   // a method: qualified by its type, `ofir.Point.norm`

@@ -28,6 +28,7 @@ import sema.enums.enumOf
 import sema.enums.variantsOf
 import sema.expr_check.checkExpr
 import sema.expr_check.requireType
+import sema.interfaces.unsatisfied
 import sema.program.Program
 import sema.types.ERROR
 import sema.types.NEVER
@@ -405,6 +406,24 @@ pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<in
             let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
             c.error("E0332", span, "the type `{c.typeName(args[i])}` does not satisfy the "
                     + "bound `{boundName(bit)}` of `{c.text(name)}`")
+        }
+        if i < params.ifaces.len() {
+            checkInterfaceBounds(c, p, params, i, args[i], span)
+        }
+    }
+}
+
+// E0332 for each interface bounding parameter `i` that `arg` does not satisfy.
+fn checkInterfaceBounds(c: mut Checker, p: Program, params: &Generics, i: int, arg: int,
+                        span: Span) {
+    let owner = params.owner.len()
+    let wanted = params.ifaces[i].clone()
+    for k in 0..wanted.len() {
+        let why = unsatisfied(c, p, arg, wanted[k])
+        if why.len() > 0 {
+            let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
+            c.error("E0332", span, "the type `{c.typeName(arg)}` does not satisfy the bound "
+                    + "`{c.text(c.def(wanted[k]).name)}` of `{c.text(name)}`: {why}")
         }
     }
 }

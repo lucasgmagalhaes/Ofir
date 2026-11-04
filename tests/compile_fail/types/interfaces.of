@@ -1,0 +1,44 @@
+// requires: stage1
+// Interfaces (spec 9): assertions a type does not meet, bounds it does not
+// satisfy, and names that are not interfaces.
+
+interface Shape {
+    fn area(self) float
+}
+
+interface Generic<T> {          // error[E0901]: generic interfaces are not supported yet
+    fn get(self) T
+}
+
+interface Both {
+    Shape
+    Point                       // error[E0333]: `Point` is not an interface
+}
+
+struct Point {
+    x: int
+}
+
+struct Circle: Shape {          // error[E0335]: the type `Circle` does not satisfy `Shape`: missing method `area`
+    r: float
+}
+
+struct Square: Shape {          // error[E0335]: the type `Square` does not satisfy `Shape`: method `area` has a different signature
+    side: int
+
+    fn area(self) int {
+        return self.side * self.side
+    }
+}
+
+struct Bad: Point {             // error[E0333]: `Point` is not an interface
+    x: int
+}
+
+fn measure<T: Shape>(s: T) float {
+    return s.area()
+}
+
+fn main() {
+    let a = measure(Point{x: 1})    // error[E0332]: the type `Point` does not satisfy the bound `Shape` of `T`: missing method `area`
+}

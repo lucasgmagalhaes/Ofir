@@ -443,6 +443,8 @@ pub struct Item {
     pub isPub: bool
     /** The bounds of a struct's or enum's type parameters (`<T: Eq>`). */
     pub bounds: List<WherePred>
+    /** The interfaces a struct or enum asserts it satisfies (`struct C: Shape`). */
+    pub asserts: List<TypeExpr>
 }
 
 /**
@@ -466,6 +468,8 @@ pub enum ItemKind {
     Import(path: List<Symbol>, alias: Option<Symbol>)
     /** `extern "C" { fns }` */
     Extern(abi: str, fns: List<FnDecl>)
+    /** `interface`: the interfaces it embeds and its methods, with or without bodies */
+    Interface(typeParams: List<Symbol>, embeds: List<TypeExpr>, methods: List<FnDecl>)
 }
 
 /**
