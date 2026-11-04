@@ -1,0 +1,46 @@
+// requires: stage1
+// `&mut dyn I` and `Box<dyn I>` (spec 9.7): `mut self` methods through the
+// vtable, and the concrete value dropped through it.
+
+interface Counter {
+    fn add(mut self, n: int)
+    fn total(self) int
+    fn name(self) str
+}
+
+struct Tally {
+    sum: int
+    label: str
+
+    fn add(mut self, n: int) {
+        self.sum = self.sum + n
+    }
+
+    fn total(self) int {
+        return self.sum
+    }
+
+    fn name(self) str {
+        return self.label.clone()
+    }
+
+    fn drop(mut self) {
+        println("drop {self.label}")
+    }
+}
+
+fn bump(c: &mut dyn Counter, n: int) {
+    c.add(n)
+}
+
+fn main() {
+    var t = Tally{sum: 1, label: "stack"}
+    bump(&mut t, 4)
+    println("{t.total()}")
+    var b: Box<dyn Counter> = Box.new(Tally{sum: 0, label: "boxed"})
+    b.add(10)
+    b.add(5)
+    println("{b.name()} {b.total()}")
+    let list: List<Box<dyn Counter>> = [Box.new(Tally{sum: 7, label: "a"})]
+    println("{list[0].total()}")
+}

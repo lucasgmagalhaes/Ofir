@@ -1,0 +1,48 @@
+// requires: stage1
+// `dyn I` (spec 9.7): interfaces with methods a vtable cannot hold,
+// methods it does not hold, unsized storage and types that do not satisfy.
+
+interface Shape {
+    fn area(self) int
+
+    fn pick<T>(self, x: move T) T {
+        return x
+    }
+}
+
+interface Eater {
+    fn eat(self) int
+}
+
+interface Cloner {
+    fn duplicate(self) Self
+}
+
+struct Point {
+    x: int
+}
+
+struct Square {
+    side: int
+
+    fn area(self) int {
+        return self.side
+    }
+}
+
+fn useCloner(c: &dyn Cloner) {  // error[E0338]: `dyn Cloner` is not allowed: method `duplicate` takes `self` by value, is generic or mentions `Self`
+}
+
+fn scale(s: &dyn Shape) {
+    s.pick(2)                   // error[E0339]: `pick` cannot be called on `dyn Shape`: it takes `self` by value, is generic or mentions `Self`
+}
+
+struct Holder {
+    shape: dyn Shape            // error[E0355]: `dyn Shape` has no size known at compile time and cannot be stored in a struct field: store a `Box<dyn Shape>`
+}
+
+fn main() {
+    let p = Point{x: 1}
+    let s: &dyn Shape = &p      // error[E0300]: mismatched types: expected &dyn Shape, found &Point: missing method `area`
+    let q: &dyn Shape = &Square{side: 2}
+}
