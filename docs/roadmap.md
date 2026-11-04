@@ -213,7 +213,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 
 | # | Task | Size |
 |---|------|:----:|
-| 6.1 | Concurrency (spec chapter 14): threads, channels, `Send`/`Sync`, `std.sync` | L |
+| 6.1 | Concurrency (spec chapter 14): tasks (`task.run`), channels, `Send`/`Sync`, `std.sync` | L |
 | 6.2 | `ofir fmt` implementing the [style guide](style-guide.md) | M |
 | 6.3 | Language server (diagnostics, go to definition, completion) | L |
 | 6.4 | `ofir doc` and doc tests | M |
@@ -245,7 +245,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 3. Labeled `break`/`continue` (task 6.7).
 4. Error handling conventions: error context and cause chains in `std`.
 5. 128-bit integers.
-6. Concurrency details beyond threads and channels (async, green threads).
+6. The M:N scheduler for lightweight tasks (ADR 0027): task stacks, non-blocking I/O, blocking C calls.
 7. Packages: registry hosting, versioning, `pub import` re-exports.
 8. Custom allocators and arenas in `std`.
 9. Advanced FFI: callbacks from C, variadic C functions, `union`.
