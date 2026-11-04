@@ -13,9 +13,8 @@ with clang.
   `docs/bootstrap.md`).
 - `std/`, `runtime/`, `tests/`, `tools/`, `docs/` (spec, ADRs, roadmap).
 - Manifest: `ofir.json` (JSONC, camelCase keys; ADR 0026).
-- Work follows `docs/roadmap.md`; next items: 4.10 borrow checker, 4.11
-  escape rules, 4.12 fix the compiler's own borrow errors, 4.14 seed and
-  release.
+- Work follows `docs/roadmap.md`; next items (phase 5): 5.2 generic bounds,
+  5.3 interfaces, 5.7 closures.
 
 ## Working rules
 

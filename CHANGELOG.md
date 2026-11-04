@@ -6,6 +6,12 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `List.iter()` (roadmap 5.1): a `ref struct ListIter<T>` written in Ofir
+  whose `next` returns `Option<&T>`, so `for x in list.iter()` works for
+  elements that are not Copy. `for` accepts iterators of generic types.
+
 ## [0.2.0] - 2026-11-03
 
 Milestone M4: the compiler is self-hosted. The first seed,

@@ -10,3 +10,18 @@ fn removeAndInsertShiftElements() {
     l.sort()
     assert(l[0] == 1 && l[2] == 4)
 }
+
+@test
+fn iterBorrowsEachElement() {
+    let words = ["a", "bc", "def"]
+    var total = 0
+    var count = 0
+    for w in words.iter() {
+        total += w.len()
+        count += 1
+    }
+    assert(count == 3 && total == 6)
+    let empty: List<str> = []
+    var it = empty.iter()
+    assert(it.next().isNone())
+}
