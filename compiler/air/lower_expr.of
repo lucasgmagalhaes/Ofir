@@ -8,6 +8,7 @@
 
 import air.air.Operand
 import air.air.FloatFn
+import air.air.CALL_VALUE
 import air.air.GLUE_CLONE
 import air.air.Rvalue
 import air.air.RvalueKind
@@ -39,6 +40,7 @@ import air.lower_pattern.enumEquality
 import air.lower_pattern.lowerMatch
 import air.lower_pattern.lowerPattern
 import air.lower.Lowerer
+import air.lower_closure.lowerClosure
 import air.lower.Place
 import air.lower.Temp
 import air.lower.assignDone
@@ -462,6 +464,7 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
         .Try(inner) => lowerTry(l, c, p, &*inner, ty)
         .Match(_, _) => lowerMatch(l, c, p, e)
         .Index(base, index) => lowerIndex(l, c, p, e, &*base, &*index)
+        .Closure(params, _, body, isMove) => lowerClosure(l, c, p, e, &params, &*body, isMove, ty)
         _ => {
             l.fail("this expression")
             unit()
@@ -493,6 +496,11 @@ fn name(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, ty: int) Operand {
         let none: List<Arg> = []
         return buildVariant(l, c, p, ty, c.def(id).member, &none)
     }
+    if kind == .Fn {   // a function value with no environment
+        var rv = rvalue(.FnValue, .Add, unit(), unit())
+        rv.flag = id
+        return tempValue(l, ty, rv)
+    }
     c.error("E0901", e.span, "global variables are not supported yet".toOwned())
     return unit()
 }
@@ -516,8 +524,7 @@ fn call(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
 fn nameCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
             args: &List<Arg>) Operand {
     let Res.Def(id) = c.res(callee.id.0) else {
-        l.fail("calls of function values")
-        return unit()
+        return valueCall(l, c, p, e, callee, args)
     }
     let kind = c.def(id).kind
     if kind == .Struct {
@@ -881,11 +888,38 @@ fn methodCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Exp
               args: &List<Arg>) Operand {
     return match callee.kind {
         .Field(base, name, _) => fieldCall(l, c, p, e, callee, &*base, name, args)
-        _ => {
-            l.fail("calls of function values")
-            unit()
-        }
+        _ => valueCall(l, c, p, e, callee, args)
     }
+}
+
+// A call of a function value (spec 10.4): the value, then the arguments.
+fn valueCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
+             args: &List<Arg>) Operand {
+    var operands: List<Operand> = []
+    var first: Option<&Expr> = .None
+    if args.len() > 0 {
+        first = .Some(&args[0].value)
+    }
+    operands.push(argument(l, c, p, callee, false, first))
+    for i in 0..args.len() {
+        var next: Option<&Expr> = .None
+        if i + 1 < args.len() {
+            next = .Some(&args[i + 1].value)
+        }
+        operands.push(argument(l, c, p, &args[i].value, false, next))
+    }
+    let ty = c.typeOf(e.id.0)
+    var dest = -1
+    var result = unit()
+    if typeIsValue(ty) {
+        dest = newTemp(l, ty)
+        result = opCopy(dest, ty)
+    }
+    emitCall(l, CALL_VALUE, UNIT, operands, dest)
+    if ty == NEVER {
+        terminate(l, terminator(.Unreachable))
+    }
+    return result
 }
 
 fn fieldCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr, base: &Expr,
@@ -965,7 +999,7 @@ fn builtinConst(c: Checker, ty: int, name: Symbol) Operand {
 // ---------------------------------------------------------------------------
 // Structs, tuples, indexing
 
-fn aggregate(l: mut Lowerer, ty: int, items: move List<Operand>) Operand {
+pub fn aggregate(l: mut Lowerer, ty: int, items: move List<Operand>) Operand {
     var rv = rvalue(.Aggregate, .Add, unit(), unit())
     rv.items = items
     return tempValue(l, ty, rv)
@@ -1821,7 +1855,7 @@ fn lowerPrint(l: mut Lowerer, c: mut Checker, p: Program, arg: &Expr, newline: b
 // ---------------------------------------------------------------------------
 // Statements
 
-fn assignOperand(l: mut Lowerer, dest: int, value: move Operand) {
+pub fn assignOperand(l: mut Lowerer, dest: int, value: move Operand) {
     if value.kind != .Unit {
         emitAssign(l, dest, rvUse(value))
     }

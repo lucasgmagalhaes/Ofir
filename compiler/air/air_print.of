@@ -6,6 +6,7 @@
 
 import air.air.AirBody
 import air.air.AirStmt
+import air.air.CALL_VALUE
 import air.air.FloatFn
 import air.air.GLUE_CLONE
 import air.air.GLUE_DROP
@@ -275,6 +276,8 @@ pub struct AirPrinter {
             .StrLen => self.operands(c, "str_len", &rv.a, .None)
             .PtrAdd => self.operands(c, "ptr_add", &rv.a, .Some(&rv.b))
             .SizeOf => self.out.push("size_of {c.typeName(rv.to)}")
+            .FnValue => self.operands(c, "fn_value {c.text(c.def(rv.flag).name)}", &rv.a, .None)
+            .Closure => self.operands(c, "closure c{rv.flag}", &rv.a, .None)
             .Aggregate => {
                 self.out.push("\{")
                 for i in 0..rv.items.len() {
@@ -337,6 +340,8 @@ pub struct AirPrinter {
             } else {
                 let name = if s.callee == GLUE_DROP { "drop" } else if s.callee == GLUE_CLONE {
                     "clone"
+                } else if s.callee == CALL_VALUE {
+                    "value"
                 } else {
                     c.text(c.def(s.callee).name)
                 }
@@ -387,6 +392,12 @@ pub struct AirPrinter {
         let name = if isGlue(b.def) { "" } else { c.text(b.name) }
         self.out.push("fn {name}")
         self.typeArgs(c, b.targs)
+        if let .Some(closure) = b.closure {
+            self.out.push(".c{closure.id}")
+            if closure.drop {
+                self.out.push(".drop")
+            }
+        }
         self.out.push(if b.isMain { " (entry) \{\n" } else { " \{\n" })
         for i in 0..b.locals.len() {
             let local = &b.locals[i]

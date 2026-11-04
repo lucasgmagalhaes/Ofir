@@ -1,0 +1,49 @@
+// requires: stage1
+// Named functions as values (spec 10.2): borrowed `fn` parameters and
+// locals, owned `move fn` values stored and returned, indirect calls.
+
+struct Point {
+    x: int
+    y: int
+}
+
+fn double(x: int) int {
+    return x * 2
+}
+
+fn show(p: Point) {
+    println("{p.x},{p.y}")
+}
+
+fn sum(p: Point) int {
+    return p.x + p.y
+}
+
+fn greet(name: str) str {
+    return "hi {name}"
+}
+
+fn apply(f: fn(int) int, x: int) int {
+    return f(x)
+}
+
+fn run(f: fn(Point), p: Point) {
+    f(p)
+}
+
+fn keep(f: move fn(Point) int) move fn(Point) int {
+    return f
+}
+
+fn main() {
+    let g = double
+    println("{apply(double, 3)} {g(5)}")
+    run(show, Point{x: 1, y: 2})
+    let k = keep(sum)
+    println("{k(Point{x: 3, y: 4})}")
+    var greeters: List<move fn(str) str> = []
+    greeters.push(greet)
+    println(greeters[0]("bob"))
+    let h: fn(Point) int = sum
+    println("{h(Point{x: 5, y: 5})}")
+}

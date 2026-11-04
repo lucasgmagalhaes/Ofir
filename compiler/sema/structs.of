@@ -17,6 +17,7 @@ import sema.enums.enumVariants
 import sema.expr_check.coerce
 import sema.program.Program
 import sema.types.ERROR
+import sema.types.FN_OWNED
 import sema.types.I64
 import sema.types.STR
 import sema.types.U8
@@ -89,6 +90,7 @@ pub fn isCopy(c: Checker, p: Program, ty: int) bool {
         .Tuple => argsAreCopy(c, p, &t.args)
         .Array => isCopy(c, p, t.inner)
         .Str | .Param | .Slice => false
+        .Fn => t.data != FN_OWNED   // a `move fn` owns its captured values
         _ => true
     }
 }

@@ -18,6 +18,7 @@ import sema.check_list.checkMapKey
 import sema.check_ref.checkInstanceStorable
 import sema.program.Program
 import sema.types.ERROR
+import sema.types.FN_BORROWED
 import sema.types.NEVER
 import sema.types.STR
 import sema.types.UNIT
@@ -378,7 +379,11 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
     }
     var params: List<int> = []
     for i in 0..decl.params.len() {
-        params.push(resolveType(c, p, &decl.params[i].ty))
+        var ty = resolveType(c, p, &decl.params[i].ty)
+        if decl.params[i].mode == .Move {   // `f: move fn(A) R` takes an owned function
+            ty = ownedFn(c, ty)
+        }
+        params.push(ty)
     }
     let ret = match decl.ret {
         .Some(t) => resolveType(c, p, &t)
@@ -404,4 +409,15 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
  */
 pub fn compatible(found: int, expected: int) bool {
     return found == expected || found == ERROR || expected == ERROR || found == NEVER
+}
+
+// The owned function type `move fn(A) R` of `fn(A) R`; other types as they are.
+fn ownedFn(c: mut Checker, ty: int) int {
+    let t = c.types.get(ty)
+    if t.kind != .Fn || t.data != FN_BORROWED {
+        return ty
+    }
+    let args = t.args.clone()
+    let ret = t.inner
+    return c.types.fnValueType(args, ret, true)
 }

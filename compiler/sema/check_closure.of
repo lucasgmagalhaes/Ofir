@@ -1,0 +1,195 @@
+/**
+ * @module
+ * Arrow closures (spec 10.1 and 10.3): their parameter and result types,
+ * and the captured variables they modify. Stage 0 has no closures.
+ */
+
+import base.span.Span
+import sema.check.Checker
+import sema.check_stmt.checkBlock
+import sema.check_types.resolveType
+import sema.expr_check.checkExpr
+import sema.expr_check.coerce
+import sema.expr_check.requireTypeAt
+import sema.program.Program
+import sema.types.ERROR
+import sema.types.FN_OWNED
+import sema.types.UNIT
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.Param
+import syntax.ast.TypeExpr
+
+/**
+ * Checks a closure: each parameter's type comes from its annotation or
+ * from the function type the context expects (E0336 without either).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the closure
+ * @param params its parameters
+ * @param ret its written result type
+ * @param body its body
+ * @param isMove `move`
+ * @param expected the type the context expects, or `ERROR`
+ * @returns its type: `move fn(A) R` or `fn(A) R`
+ */
+pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
+                    ret: &Option<TypeExpr>, body: &Expr, isMove: bool, expected: int) int {
+    let hinted = c.types.kind(expected) == .Fn && c.types.get(expected).data != 0 &&
+                 c.types.get(expected).args.len() == params.len()
+    var types: List<int> = []
+    for i in 0..params.len() {
+        let param = &params[i]
+        if param.mode != .Borrow {
+            c.unsupported(param.ty.span, "`mut` and `move` closure parameters are")
+        }
+        let hint = if hinted { c.types.get(expected).args[i] } else { ERROR }
+        var ty = ERROR
+        if written(&param.ty) {
+            ty = resolveType(c, p, &param.ty)
+            if hint != ERROR {
+                requireTypeAt(c, param.ty.span, hint, ty)
+            }
+        } else if hint != ERROR {
+            ty = hint
+        } else {
+            c.error("E0336", param.ty.span, "cannot infer the type of the closure parameter "
+                    + "`{c.text(param.name)}`: write its type")
+        }
+        let local = c.localAt(param.id.0)
+        if local >= 0 {
+            c.localTypes[local] = ty
+        }
+        types.push(ty)
+    }
+    var result = ERROR
+    if let .Some(t) = *ret {
+        result = resolveType(c, p, &t)
+    } else if hinted {
+        result = c.types.get(expected).inner
+    }
+    let savedRet = c.ret
+    let savedLoops = c.loops.clone()
+    c.loops = []
+    c.closures.push(e.id.0)
+    c.closureMoves.push(isMove)
+    if result != ERROR {
+        c.ret = result
+        coerce(c, p, body, result)
+    } else {
+        match body.kind {
+            .Block(block) => {
+                c.ret = UNIT
+                checkBlock(c, p, &block, ERROR, false)
+                c.setType(body.id.0, UNIT)
+                result = UNIT
+            }
+            _ => {
+                c.ret = ERROR
+                result = checkExpr(c, p, body, ERROR)
+            }
+        }
+    }
+    c.closures.pop()
+    c.closureMoves.pop()
+    c.loops = savedLoops
+    c.ret = savedRet
+    let owned = isMove || (captureCount(c, e.id.0) == 0 && c.types.kind(expected) == .Fn &&
+                           c.types.get(expected).data == FN_OWNED)
+    return c.types.fnValueType(types, result, owned)
+}
+
+// A parameter without a written type has an empty path (the parser's mark).
+fn written(t: &TypeExpr) bool {
+    return match t.kind {
+        .Path(segments, _) => segments.len() > 0
+        _ => true
+    }
+}
+
+fn captureCount(c: Checker, closure: int) int {
+    return match c.r.tables[c.module()].captures.get(closure) {
+        .Some(list) => list.len()
+        .None => 0
+    }
+}
+
+fn captures(c: Checker, closure: int, local: int) bool {
+    return match c.r.tables[c.module()].captures.get(closure) {
+        .Some(list) => contains(list, local)
+        .None => false
+    }
+}
+
+fn contains(list: &List<int>, value: int) bool {
+    for i in 0..list.len() {
+        if list[i] == value {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * Notes that `local` is modified at `span`: E0337 if a `move` closure being
+ * checked captured it, else each closure capturing it takes it by `&mut`.
+ *
+ * @param c the checker
+ * @param span the write
+ * @param local the local
+ */
+pub fn noteWrite(c: mut Checker, span: Span, local: int) {
+    var k = c.closures.len()
+    for k > 0 {
+        k -= 1
+        let closure = c.closures[k]
+        if !captures(c, closure, local) {
+            break
+        }
+        if c.closureMoves[k] {
+            c.error("E0337", span, "`{c.text(c.locals[local].name)}` is captured by a `move` "
+                    + "closure: captured values are immutable")
+            return
+        }
+        let m = c.module()
+        var written: List<int> = match c.capturesMut[m].get(closure) {
+            .Some(list) => list.clone()
+            .None => []
+        }
+        if !contains(&written, local) {
+            written.push(local)
+        }
+        c.capturesMut[m].insert(closure, written)
+    }
+}
+
+/**
+ * The outer locals a closure of the current module captures, in order.
+ *
+ * @param c the checker
+ * @param closure its `NodeId`
+ * @returns the locals
+ */
+pub fn closureCaptures(c: Checker, closure: int) List<int> {
+    return match c.r.tables[c.module()].captures.get(closure) {
+        .Some(list) => list.clone()
+        .None => []
+    }
+}
+
+/**
+ * Whether a closure of the current module modifies a captured local: it
+ * captures it by `&mut`.
+ *
+ * @param c the checker
+ * @param closure its `NodeId`
+ * @param local the local
+ * @returns true if it does
+ */
+pub fn capturedMut(c: Checker, closure: int, local: int) bool {
+    return match c.capturesMut[c.module()].get(closure) {
+        .Some(list) => contains(list, local)
+        .None => false
+    }
+}

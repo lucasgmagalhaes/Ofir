@@ -10,10 +10,14 @@ import syntax.ast.Arg
 import syntax.ast.Expr
 import syntax.ast.ExprKind
 import syntax.ast.FieldInit
+import syntax.ast.Mode
+import syntax.ast.Param
 import syntax.ast.TypeExpr
 import syntax.parse_control.parseControl
 import syntax.parse_exprs.newExpr
 import syntax.parse_exprs.parseExpr
+import syntax.parse_types.parseMode
+import syntax.parse_types.parseType
 import syntax.parse_types.parseTypeArgs
 import syntax.parser.Parser
 import syntax.parser.symbolOf
@@ -266,7 +270,7 @@ pub fn parsePrimary(p: mut Parser) Expr {
     return match p.peek() {
         .Int | .Float | .Byte | .Str | .True | .False => literalToken(p)
         .StrStart => interpolation(p)
-        .Ident => name(p)
+        .Ident => if closureAt(p) { closure(p) } else { name(p) }
         .SelfValue => {
             p.advance()
             newExpr(p, .SelfValue, start)
@@ -275,14 +279,10 @@ pub fn parsePrimary(p: mut Parser) Expr {
             p.advance()
             newExpr(p, .SelfType, start)
         }
-        .LParen => parenthesized(p)
+        .LParen => if closureAt(p) { closure(p) } else { parenthesized(p) }
         .LBracket => array(p)
         .Dot => variantShorthand(p)
         .LBrace | .If | .Match | .Unsafe => parseControl(p)
-        .Fn => {
-            p.syntaxError(p.here(), "closures are not supported by stage 0".toOwned())
-            newExpr(p, .Tuple([]), start)
-        }
         _ => {
             p.unexpected("an expression")
             newExpr(p, .Tuple([]), start)
@@ -424,4 +424,101 @@ pub fn parsePostfix(p: mut Parser, base: move Expr) Expr {
             return e
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Closures
+
+// Whether a closure starts here (spec 10.1): `[move] x =>`, or `[move] (...)`
+// followed by `=>` or by a type and `=>`. Not directly in a guard or a
+// condition, where `=>` and `{` belong to the enclosing construct.
+fn closureAt(p: Parser) bool {
+    if p.noStructLiteral {
+        return false
+    }
+    let start = if p.atWord(p.words.move) && p.peekAt(1) != .FatArrow { 1 } else { 0 }
+    if p.peekAt(start) == .Ident {
+        return p.peekAt(start + 1) == .FatArrow
+    }
+    if p.peekAt(start) != .LParen {
+        return false
+    }
+    var i = start + 1
+    var depth = 1
+    for depth > 0 {
+        let kind = p.peekAt(i)
+        if kind == .Eof || kind == .LBrace || kind == .RBrace {
+            return false
+        }
+        if kind == .LParen {
+            depth += 1
+        } else if kind == .RParen {
+            depth -= 1
+        }
+        i += 1
+    }
+    let next = p.peekAt(i)
+    if next == .FatArrow {
+        return true
+    }
+    let typeStart = match next {
+        .Ident | .SelfType | .Amp | .Star | .LBracket | .LParen | .Fn | .Bang | .Dyn => true
+        _ => false
+    }
+    if !typeStart {
+        return false
+    }
+    for {
+        let kind = p.peekAt(i)
+        if kind == .FatArrow {
+            return true
+        }
+        if kind == .Eof || kind == .Newline || kind == .LBrace || kind == .RBrace || kind == .Eq {
+            return false
+        }
+        i += 1
+    }
+}
+
+// A closure; `closureAt` holds.
+fn closure(p: mut Parser) Expr {
+    let start = p.here()
+    let isMove = p.atWord(p.words.move) && p.peekAt(1) != .FatArrow
+    if isMove {
+        p.advance()
+    }
+    var params: List<Param> = []
+    var ret: Option<TypeExpr> = .None
+    if p.at(.Ident) {
+        params.push(closureParam(p))
+    } else {
+        p.advance()   // (
+        for !p.at(.RParen) && !p.at(.Eof) {
+            params.push(closureParam(p))
+            if !p.accept(.Comma) {
+                break
+            }
+        }
+        p.expect(.RParen, "`)`")
+        if !p.at(.FatArrow) {
+            ret = .Some(parseType(p))
+        }
+    }
+    p.expect(.FatArrow, "`=>`")
+    p.skipNewlines()
+    let body = parseExpr(p)
+    return newExpr(p, .Closure(params, ret, Box.new(body), isMove), start)
+}
+
+// `name` or `name: [mode] Type`; without a type, the type is an empty path.
+fn closureParam(p: mut Parser) Param {
+    let start = p.here()
+    let name = p.expectName("a parameter name") ?? Symbol(0)
+    var mode = Mode.Borrow
+    var ty = TypeExpr{kind: .Path([], []), span: p.here()}
+    if p.accept(.Colon) {
+        mode = parseMode(p)
+        ty = parseType(p)
+    }
+    return Param{id: p.newId(), name, mode, ty, defaultValue: .None, span: p.spanSince(start)}
 }

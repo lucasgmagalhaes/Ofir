@@ -23,6 +23,7 @@ const char *llvm_type(Gen *g, TypeId type) {
         }
     case TY_FLOAT: return ty->data == 32 ? "float" : "double";
     case TY_STR: return "%ofir.str";
+    case TY_FN: return "{ ptr, ptr }";   // the code and the environment
     default: return "void";   // (), ! and the types the checker rejects
     }
 }

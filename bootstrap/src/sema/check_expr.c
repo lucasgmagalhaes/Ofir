@@ -60,7 +60,10 @@ static TypeId interpolation(Checker *c, Expr *e) {
 static TypeId def_value(Checker *c, Def *def, Span span) {
     switch (def->kind) {
     case DEF_CONST: case DEF_GLOBAL: return check_const(c, def);
-    case DEF_FN: case DEF_BUILTIN: return unsupported(c, span, "function values are");
+    case DEF_FN:   // stage 1 has them (spec 10)
+        check_error(c, "E0901", span, "function values are not supported by stage 0");
+        return type_id(TID_ERROR);
+    case DEF_BUILTIN: return unsupported(c, span, "function values are");
     default:
         check_error(c, "E0310", span, "expected a value, found type `" SV_FMT "`",
                     SV_ARG(def_name(c, def)));

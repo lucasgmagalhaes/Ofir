@@ -5,6 +5,7 @@
  */
 
 import sema.check.Checker
+import sema.check_closure.noteWrite
 import sema.check_box.adjustedType
 import sema.check_box.boxInner
 import sema.check_box.derefsOf
@@ -155,7 +156,10 @@ fn requireRoot(c: mut Checker, p: Program, e: &Expr, level: int) {
         }
         _ => {
             let ok = match c.res(e.id.0) {
-                .Local(id) => c.locals[id].mutable
+                .Local(id) => {
+                    noteWrite(c, e.span, id)
+                    c.locals[id].mutable
+                }
                 .Def(id) => c.def(id).kind == .Global
                 _ => c.typeOf(e.id.0) == ERROR
             }

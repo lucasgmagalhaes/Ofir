@@ -37,6 +37,7 @@ import sema.borrows.useHolder
 import sema.check.Checker
 import sema.check.fnOf
 import sema.check_list.iteratorItem
+import sema.check_ref.holdsBorrowedFn
 import sema.check_ref.holdsRef
 import sema.moves_expr.isPlaceView
 import sema.moves_expr.movesNode
@@ -724,7 +725,7 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
     for i in 0..count {
         if i < c.localTypes.len() {
             let ty = c.localTypes[i]
-            refLocal[i] = holdsRef(c, p, ty)
+            refLocal[i] = holdsRef(c, p, ty) || holdsBorrowedFn(c, ty)
             copyLocal[i] = isCopy(c, p, ty)
         }
     }

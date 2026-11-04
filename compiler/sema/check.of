@@ -360,6 +360,13 @@ pub struct Checker {
     pub fnDef: int
     /** The struct literal being checked: where its shorthand fields `P\{x\}` are. */
     pub shorthandSpan: Span
+    /** The closures being checked, innermost last: their `NodeId`s. */
+    pub closures: List<int>
+    /** Whether each of them is a `move` closure. */
+    pub closureMoves: List<bool>
+    /** Per module, per closure `NodeId`: the captured locals it modifies,
+     * captured by `&mut` (spec 10.3). */
+    pub capturesMut: List<Map<int, List<int>>>
 
     /**
      * Reports an error.
@@ -677,6 +684,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     var callTypeArgs: List<Map<int, int>> = []
     var sliceCoercions: List<Map<int, int>> = []
     var moveFlags: List<Map<int, int>> = []
+    var capturesMut: List<Map<int, List<int>>> = []
     for m in 0..p.modules.len() {
         itemDefs.push(List.filled(0, p.modules[m].module.items.len()))
         nodeTypes.push(List.filled(ERROR, p.modules[m].module.nodeCount))
@@ -687,6 +695,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         callTypeArgs.push(Map.new())
         sliceCoercions.push(Map.new())
         moveFlags.push(Map.new())
+        capturesMut.push(Map.new())
     }
     for id in 0..r.defs.len() {
         info.push(emptyInfo())
@@ -702,7 +711,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
                    bodyChecked: Map.new(), movesPending: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
-                   shorthandSpan: noSpan()}
+                   shorthandSpan: noSpan(), closures: [], closureMoves: [], capturesMut}
 }
 
 // ---------------------------------------------------------------------------

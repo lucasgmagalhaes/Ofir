@@ -203,6 +203,13 @@ pub copy enum RvalueKind {
     PtrAdd
     /** the size in bytes of a value of type `to` (an int) */
     SizeOf
+    /** the function value of the function `flag`, with the environment a (or none) */
+    FnValue
+    /**
+     * the function value of the closure `flag` (its `NodeId`) of the function
+     * being compiled, with the environment a (or none)
+     */
+    Closure
 }
 
 /** The float functions of `RvalueKind.FloatFn`. */
@@ -312,6 +319,8 @@ pub fn runtimeName(f: RuntimeFn) str {
 pub const GLUE_DROP: int = 0
 /** The `fn` of a call to the clone glue of the type in `targs`. */
 pub const GLUE_CLONE: int = -2
+/** The `fn` of a call of a function value: the value is the first argument. */
+pub const CALL_VALUE: int = -3
 
 /**
  * Whether a function of a call or a body is glue.
@@ -461,6 +470,22 @@ pub struct AirLocal {
     pub byRef: bool
 }
 
+/** What the body of a closure (spec 10.3) adds to its enclosing function's. */
+pub struct ClosureBody {
+    /** The closure's `NodeId`. */
+    pub id: int
+    /** Its parameters, in order: locals of the enclosing function. */
+    pub params: List<int>
+    /** The locals it captures, in order, reached through its environment. */
+    pub captures: List<int>
+    /** A `move` closure: its environment holds the captured values. */
+    pub isMove: bool
+    /** A `move` closure's tuple of captured values, or 0. */
+    pub env: int
+    /** The function that drops a `move` closure's environment, not its body. */
+    pub drop: bool
+}
+
 /**
  * The body of a function: local 0 is the return value, locals
  * 1..paramCount the parameters. The body of an instance of a generic
@@ -481,6 +506,8 @@ pub struct AirBody {
     pub locals: List<AirLocal>
     /** The blocks; block 0 is the entry. */
     pub blocks: List<AirBlock>
+    /** The closure it is the body of; `def` is then the enclosing function. */
+    pub closure: Option<ClosureBody>
 
     /**
      * Adds a block.

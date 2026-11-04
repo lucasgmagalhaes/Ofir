@@ -1,0 +1,18 @@
+// requires: stage1
+// Closures (spec 10.3): parameters whose type nothing gives, and writes to
+// what a `move` closure captured.
+
+fn apply(f: fn(int) int, x: int) int {
+    return f(x)
+}
+
+fn main() {
+    var total = 0
+    let double = x => x * 2             // error[E0336]: cannot infer the type of the closure parameter `x`: write its type
+    println("{apply(x => x + 1, 4)}")
+    let bump = move () => {
+        total += 1                      // error[E0337]: `total` is captured by a `move` closure: captured values are immutable
+    }
+    bump()
+    double(1)
+}

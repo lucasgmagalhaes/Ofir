@@ -31,7 +31,8 @@ ClosureParam = identifier [ ":" [ Mode ] Type ] .
   `(a, b) => a + b`, `(x: int) => x`.
 - Parameter and result types can be omitted when they can be inferred from
   the expected function type; the result type comes after `)`, as in a
-  function signature: `(x: int) int => x * 2`.
+  function signature: `(x: int) int => x * 2`. A parameter whose type is
+  neither written nor inferred is E0336.
 - The body is an expression or a block. In a block, `return` returns from
   the closure.
 - A closure is recognized by looking ahead: an identifier followed by `=>`,
@@ -101,11 +102,11 @@ The captured borrows follow the borrowing rules of chapter 5: while
 
 A `move` closure captures each variable it uses **by value**: Copy values
 are copied, other values are moved into the closure. Captured values are
-**immutable** inside a `move` closure; mutable state that must outlive a
-call belongs in a struct with methods.
+**immutable** inside a `move` closure (E0337); mutable state that must
+outlive a call belongs in a struct with methods.
 
 ```ofir
-fn makeGreeter(name: str) move fn() str {
+fn makeGreeter(name: move str) move fn() str {
     return move () str => "hello, {name}"
 }
 ```
