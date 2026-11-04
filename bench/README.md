@@ -3,6 +3,18 @@
 Performance programs (`programs/`) with equivalent C, Rust and Go versions
 (`baselines/`). Target: within 10% of C compiled with `clang -O2`.
 
-`python3 bench/run_programs.py --compiler build/release/ofir` builds each
-program and its C version, checks that their outputs agree and prints the
-median wall times and their ratio (results in `HISTORY.md`).
+Run `make bench-programs` on Linux or macOS. It builds the release compiler and
+runtime, then builds each Ofir program and its C (`clang -O2`), Rust
+(`rustc -C opt-level=2`) and Go (`go build`) baselines. The runner checks
+outputs against C before measuring, performs one warmup and five timed rounds,
+then writes medians and toolchain versions to
+`build/generated-code-results.json`. It fails if any output differs.
+
+For a quick baseline check without the Ofir compiler, use
+`python3 bench/run_programs.py --baselines-only --clang gcc --runs 1 --warmups 0`.
+This checks C, Rust and Go output parity; its timings are not release results.
+CI runs the complete suite with three rounds and uploads the JSON artifact.
+
+At each release, run `make bench-programs` on a fixed machine and add the
+result table, commit, machine, compiler versions and run count to `HISTORY.md`.
+Compare ratios only when the workloads and toolchain conditions match.

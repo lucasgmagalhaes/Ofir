@@ -6,7 +6,7 @@ BUILD  ?= build
 include tools/platform.mk
 PYTHON ?= python3
 
-.PHONY: all stage0 stage1 stage2 verify runtime unit runner-selftest test test-std test-stage1 compare-stages check-format check-codes check-sizes check-docs check-leaks check-asan seed check-seed bench bench-compare clean
+.PHONY: all stage0 stage1 stage2 verify runtime unit runner-selftest test test-std test-stage1 compare-stages check-format check-codes check-sizes check-docs check-leaks check-asan seed check-seed bench bench-programs bench-compare clean
 
 all: stage0 runtime
 
@@ -107,6 +107,12 @@ test: stage0 runtime unit runner-selftest check-codes check-sizes check-docs che
 bench:
 	$(MAKE) -C bootstrap release BUILD=$(abspath $(BUILD))/release
 	$(PYTHON) bench/run_bench.py --compiler $(BUILD)/release/ofir$(EXE)
+
+BENCH_PROGRAM_RUNS ?= 5
+bench-programs: runtime
+	$(MAKE) -C bootstrap release BUILD=$(abspath $(BUILD))/release
+	$(STAGE_ENV) $(PYTHON) bench/run_programs.py --compiler $(BUILD)/release/ofir \
+	    --runs $(BENCH_PROGRAM_RUNS) --json $(BUILD)/generated-code-results.json
 
 BASE ?= origin/main
 bench-compare:
