@@ -183,7 +183,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
-| 5.1 | Returning borrows and `ref struct` (spec 5.6) | M | `List.iter()` written in Ofir |
+| 5.1 | Returning borrows and `ref struct` (spec 5.6) | M | **done**: `List.iter()` written in Ofir |
 | 5.2 | Generic bounds and `where` clauses | M | `tests/run/generics/*` pass |
 | 5.3 | Interfaces: declaration, structural satisfaction, assertions, default methods, embedding | L | `tests/run/interfaces/*` pass |
 | 5.4 | `dyn`: vtables, fat pointers, type switches, unsized types, `Any` and `typeName` (ADR 0024) | M | `examples/interfaces.of` runs |

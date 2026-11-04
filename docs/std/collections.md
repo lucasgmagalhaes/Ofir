@@ -29,7 +29,7 @@ from context).
 | `fn sort(mut self) where T: Ord` | stable; S0 only for integers, `str` and tuples of those | ✓ |
 | `fn sortBy(mut self, cmp: fn(T, T) Ordering)` | stable | |
 | `fn reverse(mut self)` | | ✓ |
-| `fn iter(self) ListIter<T>` | borrowing iterator | |
+| `fn iter(self) ListIter<T>` | borrowing iterator: `ListIter<T>` is a `ref struct` (spec 5.6) | ✓ |
 | `fn map<U>(self, f: fn(T) U) List<U>` | allocates | |
 | `fn filter(self, f: fn(T) bool) List<T> where T: Clone` | allocates | |
 | `fn join(self, sep: str) str where T: Display` | allocates | ✓ |
@@ -40,7 +40,7 @@ Stage 0: `List` is written in `std/core/list.of`, marked `@lang("list")`;
 the compiler builds literals with its `withCapacity`, `push`, `new` and
 `filled`, and reaches elements through its `ptr` and `len` fields.
 `for x in list` copies each element, so the element type must be Copy
-(E0321) until borrowing iterators; `sort` accepts int, float and str
+(E0321): `for x in list.iter()` borrows each element instead; `sort` accepts int, float and str
 elements until bounds.
 A `[T]` parameter accepts a `List<T>` (spec 5.3); slice methods (`len`, `get`, `first`, `last`,
 `contains`, `iter`) are shared. The slice method `fn toList(self) List<T> where T: Clone`
