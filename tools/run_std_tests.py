@@ -13,6 +13,8 @@ checks `ofir test` itself: the standard output of each
 """
 
 import argparse
+import concurrent.futures
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -41,32 +43,39 @@ def modules_with_tests() -> list[Path]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--compiler", required=True)
+    parser.add_argument("-j", "--jobs", type=int, default=min(4, os.cpu_count() or 1),
+                        help="maximum concurrent compiler processes (default: up to 4)")
     args = parser.parse_args()
+    if args.jobs < 1:
+        parser.error("--jobs must be at least 1")
     failed = []
     total = 0
-    for path in modules_with_tests():
-        result = subprocess.run([args.compiler, "test", str(path), "--deny-warnings"],
-                                capture_output=True, text=True)
-        total += sum(1 for line in result.stdout.splitlines() if line.startswith("test "))
-        if result.returncode != 0:
-            failed.append(path.relative_to(ROOT))
-            sys.stdout.write(result.stdout)
-            sys.stderr.write(result.stderr)
-    modules = len(modules_with_tests())
-    print(f"unit tests (std, compiler): {total} tests in {modules} modules, "
-          f"{len(failed)} modules with failures")
-    checked = check_std_whole(args.compiler)
+    paths = modules_with_tests()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        results = pool.map(lambda path: subprocess.run(
+            [args.compiler, "test", str(path), "--deny-warnings"],
+            capture_output=True, text=True), paths)
+        for path, result in zip(paths, results):
+            total += sum(1 for line in result.stdout.splitlines() if line.startswith("test "))
+            if result.returncode != 0:
+                failed.append(path.relative_to(ROOT))
+                sys.stdout.write(result.stdout)
+                sys.stderr.write(result.stderr)
+        print(f"unit tests (std, compiler): {total} tests in {len(paths)} modules, "
+              f"{len(failed)} modules with failures")
+        checked = check_std_whole(args.compiler, pool)
     return 1 if failed or not checked or not check_fixtures(args.compiler) else 0
 
 
-def check_std_whole(compiler: str) -> bool:
+def check_std_whole(compiler: str, pool: concurrent.futures.ThreadPoolExecutor) -> bool:
     """Checks each std module as the root, where every body is checked: a
     program checks only the std bodies it uses (sema_check_late)."""
     ok = True
     paths = [p for p in sorted((ROOT / "std").rglob("*.of")) if not p.stem.endswith("_test")]
-    for path in paths:
-        result = subprocess.run([compiler, "build", str(path), "--stop-after=check",
-                                 "--deny-warnings"], capture_output=True, text=True)
+    results = pool.map(lambda path: subprocess.run(
+        [compiler, "build", str(path), "--stop-after=check", "--deny-warnings"],
+        capture_output=True, text=True), paths)
+    for path, result in zip(paths, results):
         if result.returncode != 0:
             ok = False
             print(f"FAIL {path.relative_to(ROOT)}: does not check as a root module")
