@@ -1,0 +1,44 @@
+{
+  "name": "ofir-language",
+  "displayName": "Ofir Language",
+  "description": "Ofir language recognition, syntax highlighting, and file icon for Visual Studio Code.",
+  "version": "0.1.0",
+  "publisher": "ofir-language",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": ["Programming Languages"],
+  "icon": "icons/ofir.png",
+  "files": [
+    "icons/ofir.png",
+    "language-configuration.json",
+    "syntaxes/ofir.tmLanguage.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lucasgmagalhaes/Ofir.git"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "ofir",
+        "aliases": ["Ofir", "ofir"],
+        "extensions": [".of"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/ofir.png",
+          "dark": "./icons/ofir.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ofir",
+        "scopeName": "source.ofir",
+        "path": "./syntaxes/ofir.tmLanguage.json"
+      }
+    ]
+  }
+}

@@ -16,6 +16,12 @@ build/stage0/ofir run examples/hello.of
 
 Requirements: a C11 compiler, `make`, Python 3 and clang 17 or later.
 
+## Editor support
+
+The [VS Code extension](editors/vscode/README.md) recognizes `.of` files as
+Ofir, highlights syntax, configures comments and brackets, and displays the
+Ofir logo. Install it locally using the commands in its README.
+
 ## Documentation
 
 | Document | Content |
