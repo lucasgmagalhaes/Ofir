@@ -14,6 +14,7 @@
 import air.air.AirBody
 import air.air.AirStmt
 import air.air.FieldPath
+import air.air.CALL_VALUE
 import air.air.FloatFn
 import air.air.GLUE_CLONE
 import air.air.GLUE_DROP
@@ -80,6 +81,8 @@ pub struct Gen {
     pub adtTypes: Map<int, str>
     /** By `DefId`: the functions of extern blocks to declare. */
     pub cUsed: List<bool>
+    /** By `DefId`: the functions used as values, which need a thunk. */
+    pub fnValues: List<bool>
 }
 
 fn hexDigit(n: u64) str {
@@ -139,7 +142,8 @@ pub fn hasValue(ty: int) bool {
 pub fn newGen() Gen {
     return Gen{module: "", out: "", globals: "", typeDefs: "", strCount: 0, locCount: 0,
                overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
-               temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: []}
+               temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [],
+               fnValues: []}
 }
 
 fn nextTemp(g: mut Gen) str {
@@ -173,6 +177,7 @@ pub fn llvmType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
         .Int => "i{intBits(data)}"
         .Float => if data == 32 { "float".toOwned() } else { "double".toOwned() }
         .Str => "%ofir.str".toOwned()
+        .Fn => FN_LLVM.toOwned()   // the code and the environment
         _ => "void".toOwned()   // (), ! and the types the checker rejects
     }
 }
@@ -242,6 +247,7 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
         .Float => Layout{size: data / 8, align: data / 8}
         .Str => Layout{size: 24, align: 8}
         .Ref | .Ptr => Layout{size: 8, align: 8}
+        .Fn => Layout{size: 16, align: 8}   // the code and the environment
         .Tuple => {
             let args = c.types.get(ty).args.clone()
             fieldsLayout(g, c, p, &args)
@@ -883,6 +889,92 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             let v = floatFn(g, c, p, body, rv)
             return Value{ty: ty, text: v.text}
         }
+        .FnValue => {
+            for g.fnValues.len() <= rv.flag {
+                g.fnValues.push(false)
+            }
+            g.fnValues[rv.flag] = true
+            var env = "null"
+            if rv.a.kind != .Unit {
+                env = operand(g, c, p, body, &rv.a).text
+            }
+            let code = nextTemp(g)
+            let thunk = thunkName(c, p, rv.flag)
+            g.out.push("  {code} = insertvalue {FN_LLVM} undef, ptr {thunk}, 0\n")
+            let t = nextTemp(g)
+            g.out.push("  {t} = insertvalue {FN_LLVM} {code}, ptr {env}, 1\n")
+            return Value{ty: ty, text: t}
+        }
+    }
+}
+
+// The LLVM type of a function value: the code and the environment.
+const FN_LLVM: str = "\{ ptr, ptr \}"
+
+// The thunk of a function used as a value: it takes the environment first.
+fn thunkName(c: mut Checker, p: Program, id: int) str {
+    let name = functionName(c, p, id, UNIT, false)
+    return "{name.slice(0, name.len() - 1)}.fv\""
+}
+
+// A call of a function value: `args[0]` is the value.
+fn valueCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt) {
+    var values: List<Value> = []
+    for i in 0..s.args.len() {
+        values.push(operand(g, c, p, body, &s.args[i]))
+    }
+    let retType = c.types.get(s.args[0].ty).inner
+    let ret = llvmType(g, c, p, retType)
+    let code = nextTemp(g)
+    g.out.push("  {code} = extractvalue {FN_LLVM} {values[0].text}, 0\n")
+    let env = nextTemp(g)
+    g.out.push("  {env} = extractvalue {FN_LLVM} {values[0].text}, 1\n")
+    let hasDest = s.hasDest && hasValue(retType)
+    var result = ""
+    if hasDest {
+        result = nextTemp(g)
+        g.out.push("  {result} = ")
+    } else {
+        g.out.push("  ")
+    }
+    g.out.push("call fastcc {ret} {code}(ptr {env}")
+    for i in 1..values.len() {
+        if values[i].ty != "void" {
+            g.out.push(", {values[i].ty} {values[i].text}")
+        }
+    }
+    g.out.push(")\n")
+    if hasDest {
+        storeAt(g, c, p, body, s.dest, &noPath(), &Value{ty: ret, text: result})
+    }
+}
+
+// The thunks of the functions used as values.
+fn thunks(g: mut Gen, c: mut Checker, p: Program) {
+    for id in 0..g.fnValues.len() {
+        if !g.fnValues[id] {
+            continue
+        }
+        let sig = c.info[id].ty
+        let ret = llvmType(g, c, p, c.types.get(sig).inner)
+        let args = c.types.get(sig).args.clone()
+        var params = ""
+        var forward = ""
+        for i in 0..args.len() {
+            let ty = llvmType(g, c, p, args[i])
+            if ty != "void" {
+                params.push(", {ty} %a{i}")
+                forward.push("{if forward.len() > 0 { ", " } else { "" }}{ty} %a{i}")
+            }
+        }
+        let thunk = thunkName(c, p, id)
+        g.module.push("\ndefine internal fastcc {ret} {thunk}(ptr %env{params}) \{\n")
+        let name = functionName(c, p, id, UNIT, false)
+        if ret == "void" {
+            g.module.push("  call fastcc void {name}({forward})\n  ret void\n\}\n")
+        } else {
+            g.module.push("  %r = call fastcc {ret} {name}({forward})\n  ret {ret} %r\n\}\n")
+        }
     }
 }
 
@@ -927,6 +1019,10 @@ fn runtimeCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirSt
 }
 
 fn userCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt) {
+    if s.callee == CALL_VALUE {
+        valueCall(g, c, p, body, s)
+        return
+    }
     var values: List<Value> = []
     for i in 0..s.args.len() {
         values.push(operand(g, c, p, body, &s.args[i]))
@@ -1238,6 +1334,7 @@ pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>) str {
     for i in 0..bodies.len() {
         function(g, c, p, &bodies[i])
     }
+    thunks(g, c, p)
     g.module.push(runtimeDecls())
     overflowDecls(g)
     floatDecls(g)

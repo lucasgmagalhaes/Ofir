@@ -48,6 +48,8 @@ import sema.struct_exprs.checkTupleField
 import sema.types.BOOL
 import sema.types.ERROR
 import sema.types.F64
+import sema.types.FN_BORROWED
+import sema.types.FN_OWNED
 import sema.types.I64
 import sema.types.NEVER
 import sema.types.STR
@@ -136,10 +138,40 @@ fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>) int {
 // ---------------------------------------------------------------------------
 // Names
 
-fn defValue(c: mut Checker, p: Program, id: int, span: Span) int {
+// A named function used as a value (spec 10.2): the expected function type
+// when the signature matches it, else `fn(A) R`.
+fn fnValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
+    let decl = fnOf(p, c.loc(id))
+    if decl.typeParams.len() > 0 {
+        return c.unsupported(span, "generic functions as values are")
+    }
+    if c.def(id).member >= 0 {
+        return c.unsupported(span, "methods and external functions as values are")
+    }
+    if isUnsafeFn(c, p, id) {
+        return c.unsupported(span, "unsafe functions as values are")
+    }
+    for i in 0..decl.params.len() {
+        if decl.params[i].mode != .Borrow {
+            return c.unsupported(span, "functions with `mut` or `move` parameters as values are")
+        }
+    }
+    let sig = fnSignature(c, p, id)
+    let params = c.types.get(sig).args.clone()
+    let ret = c.types.get(sig).inner
+    if c.types.kind(ret) == .Ref {
+        return c.unsupported(span, "functions returning a borrow as values are")
+    }
+    let value = c.types.fnValueType(params.clone(), ret, false)
+    let owned = c.types.fnValueType(params, ret, true)
+    return if expected == owned { owned } else { value }
+}
+
+fn defValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
     return match c.def(id).kind {
         .Const | .Global => checkConst(c, p, id)
-        .Fn | .Builtin => c.unsupported(span, "function values are")
+        .Fn => fnValue(c, p, id, span, expected)
+        .Builtin => c.unsupported(span, "function values are")
         _ => {
             c.error("E0310", span, "expected a value, found type `{c.text(c.def(id).name)}`")
             ERROR
@@ -159,7 +191,7 @@ fn defValue(c: mut Checker, p: Program, id: int, span: Span) int {
 pub fn checkName(c: mut Checker, p: Program, res: Res, span: Span) int {
     return match res {
         .Local(id) => c.localTypes[id]
-        .Def(id) => defValue(c, p, id, span)
+        .Def(id) => defValue(c, p, id, span, ERROR)
         _ => ERROR
     }
 }
@@ -171,7 +203,7 @@ fn nameValue(c: mut Checker, p: Program, e: &Expr, expected: int) int {
             if c.def(id).kind == .Variant {   // `None`
                 return checkPreludeVariant(c, p, e, id, .None, expected)
             }
-            defValue(c, p, id, e.span)
+            defValue(c, p, id, e.span, expected)
         }
         _ => ERROR
     }
@@ -422,7 +454,7 @@ fn call(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<Arg>,
         c.setType(callee.id.0, fnSignature(c, p, id))
         return checkFnCall(c, p, e, callee, args, id, explicit, expected)
     }
-    let ty = defValue(c, p, id, callee.span)
+    let ty = defValue(c, p, id, callee.span, ERROR)
     c.setType(callee.id.0, ty)
     return notAFunction(c, p, callee, args, ty)
 }
@@ -462,7 +494,7 @@ fn synthesize(c: mut Checker, p: Program, e: &Expr, expected: int) int {
         .Unsafe(block) => checkUnsafeBlock(c, p, &block, expected, true)
         .Tuple(elems) => tuple(c, p, &elems, expected)
         .SelfType => match c.res(e.id.0) {   // `Self` as a value: the type's name
-            .Def(id) => defValue(c, p, id, e.span)
+            .Def(id) => defValue(c, p, id, e.span, ERROR)
             _ => ERROR
         }
         .Generic(name, _) => {
@@ -520,7 +552,23 @@ pub fn checkExpr(c: mut Checker, p: Program, e: &Expr, expected: int) int {
 fn weakensPointer(c: Checker, found: int, expected: int) bool {
     let f = c.types.get(found)
     let x = c.types.get(expected)
+    if f.kind == .Fn && x.kind == .Fn {   // `move fn(A) R` lends itself as `fn(A) R`
+        return f.data == FN_OWNED && x.data == FN_BORROWED && sameTypes(&f.args, &x.args) &&
+               f.inner == x.inner
+    }
     return f.kind == .Ptr && x.kind == .Ptr && f.data != 0 && x.data == 0 && f.inner == x.inner
+}
+
+fn sameTypes(a: &List<int>, b: &List<int>) bool {
+    if a.len() != b.len() {
+        return false
+    }
+    for i in 0..a.len() {
+        if a[i] != b[i] {
+            return false
+        }
+    }
+    return true
 }
 
 /**

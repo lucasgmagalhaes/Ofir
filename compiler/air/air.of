@@ -203,6 +203,8 @@ pub copy enum RvalueKind {
     PtrAdd
     /** the size in bytes of a value of type `to` (an int) */
     SizeOf
+    /** the function value of the function `flag`, with the environment a (or none) */
+    FnValue
 }
 
 /** The float functions of `RvalueKind.FloatFn`. */
@@ -312,6 +314,8 @@ pub fn runtimeName(f: RuntimeFn) str {
 pub const GLUE_DROP: int = 0
 /** The `fn` of a call to the clone glue of the type in `targs`. */
 pub const GLUE_CLONE: int = -2
+/** The `fn` of a call of a function value: the value is the first argument. */
+pub const CALL_VALUE: int = -3
 
 /**
  * Whether a function of a call or a body is glue.

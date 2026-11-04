@@ -34,6 +34,7 @@ import air.air.opCopy
 import air.air.opUnit
 import air.air.rvUse
 import air.air.terminator
+import air.air.CALL_VALUE
 import air.air.GLUE_CLONE
 import air.lower_expr.cloneValue
 import air.lower_expr.lowerBlock
@@ -970,9 +971,12 @@ fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
                 let targs = s.targs
                 if isGlue(callee) {
                     reachGlue(l, callee, targs)
-                } else {
+                } else if callee != CALL_VALUE {
                     reach(l, c, p, callee, targs)
                 }
+            } else if s.kind == .Assign && s.value.kind == .FnValue {
+                let fnDef = s.value.flag
+                reach(l, c, p, fnDef, UNIT)
             }
         }
     }

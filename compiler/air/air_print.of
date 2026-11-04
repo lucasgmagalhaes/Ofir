@@ -6,6 +6,7 @@
 
 import air.air.AirBody
 import air.air.AirStmt
+import air.air.CALL_VALUE
 import air.air.FloatFn
 import air.air.GLUE_CLONE
 import air.air.GLUE_DROP
@@ -275,6 +276,7 @@ pub struct AirPrinter {
             .StrLen => self.operands(c, "str_len", &rv.a, .None)
             .PtrAdd => self.operands(c, "ptr_add", &rv.a, .Some(&rv.b))
             .SizeOf => self.out.push("size_of {c.typeName(rv.to)}")
+            .FnValue => self.operands(c, "fn_value {c.text(c.def(rv.flag).name)}", &rv.a, .None)
             .Aggregate => {
                 self.out.push("\{")
                 for i in 0..rv.items.len() {
@@ -337,6 +339,8 @@ pub struct AirPrinter {
             } else {
                 let name = if s.callee == GLUE_DROP { "drop" } else if s.callee == GLUE_CLONE {
                     "clone"
+                } else if s.callee == CALL_VALUE {
+                    "value"
                 } else {
                     c.text(c.def(s.callee).name)
                 }
