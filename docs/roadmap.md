@@ -11,7 +11,7 @@ CI.
    compiler is written on paper in the bootstrap subset, to confirm the
    subset (and second-class references) are expressive enough.
 2. **Walking skeleton first.** Get `hello world` working end to end through
-   every phase (lexer â†’ clang) as early as possible, then grow the language
+   every phase (lexer → clang) as early as possible, then grow the language
    one feature at a time *through all phases*.
 3. **Tests before features.** Each feature starts with its `tests/run` and
    `tests/compile_fail` cases.
@@ -21,19 +21,19 @@ CI.
    results), then gains the borrow checker (required for M4), then the full
    language.
 
-Size legend: **S** â‰ˆ a few hours, **M** â‰ˆ a few days, **L** â‰ˆ one to two
+Size legend: **S** ≈ a few hours, **M** ≈ a few days, **L** ≈ one to two
 weeks of focused work.
 
 ## Overview
 
 ```
 Phase 0  Foundations            decisions, repository, CI, test runner, paper prototype
-Phase 1  Walking skeleton       hello world through all phases           â†’ M1
-Phase 2  Stage 0 core language  numbers â†’ structs â†’ enums â†’ collections
-Phase 3  Stage 0 systems        ownership, modules, FFI, std subset      â†’ M2
-Phase 4  Self-hosting           compiler in Ofir + borrow checker       â†’ M3, M4
-Phase 5  Full language          generics, interfaces, closures, perf     â†’ M5
-Phase 6  Towards 1.0            concurrency, tools, packages, docs       â†’ v1.0
+Phase 1  Walking skeleton       hello world through all phases           → M1
+Phase 2  Stage 0 core language  numbers → structs → enums → collections
+Phase 3  Stage 0 systems        ownership, modules, FFI, std subset      → M2
+Phase 4  Self-hosting           compiler in Ofir + borrow checker       → M3, M4
+Phase 5  Full language          generics, interfaces, closures, perf     → M5
+Phase 6  Towards 1.0            concurrency, tools, packages, docs       → v1.0
 ```
 
 ## Decisions needed before Phase 0
@@ -42,12 +42,12 @@ Phase 6  Towards 1.0            concurrency, tools, packages, docs       â†�
 |----------|--------|--------|
 | License | 0.2 | decided: **MIT** |
 
-Everything else needed for Phases 0â€“3 is decided in the specification and
+Everything else needed for Phases 0–3 is decided in the specification and
 the ADRs.
 
 ---
 
-## Phase 0 â€” Foundations
+## Phase 0 — Foundations
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
@@ -60,7 +60,7 @@ the ADRs.
 | 0.7 | CI workflow: build stage 0 and runtime, run all suites on Linux and macOS with the oldest and newest supported LLVM | S | **done**: green pipeline on the main branch |
 | 0.8 | **Paper prototype:** write the stage 1 lexer (`compiler/syntax/lexer.of`, ~500 lines) in the bootstrap subset, without compiling it; record every missing feature or awkward pattern | M | done: see [prototype review](design/prototype-review.md) |
 
-## Phase 1 â€” Walking skeleton (milestone M1)
+## Phase 1 — Walking skeleton (milestone M1)
 
 Goal: `ofir run examples/hello.of` prints `Hello, Ofir!`.
 
@@ -85,11 +85,11 @@ Goal: `ofir run examples/hello.of` prints `Hello, Ofir!`.
 | 1.17 | Runtime: entry point, stdout buffer, `ofir_write`, panic functions, allocator | S | **done**: runtime builds with `-Werror` |
 | 1.17a | **done**: Benchmark harness: `bench/run_bench.py`, `--time-passes`, `--stop-after`, CI regression gate | S | `make bench` and `make bench-compare` work |
 | 1.17b | Benchmarks for each new phase (`parse-100k`, `check-100k`, `build-100k`) added with the phase | S | **done**: `parse-*`, `check-*` and `llvm-*` (IR generation without clang) |
-| 1.18 | Driver: `ofir build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **done â€” M1: hello world runs**; binary size: 17 KiB (14.6 KiB stripped) |
+| 1.18 | Driver: `ofir build`/`run` for a single file, invoking clang, `--emit=*` flags | S | **done — M1: hello world runs**; binary size: 17 KiB (14.6 KiB stripped) |
 
-## Phase 2 â€” Stage 0 core language
+## Phase 2 — Stage 0 core language
 
-Each task covers lexer â†’ parser â†’ checker â†’ lowering â†’ codegen â†’ tests.
+Each task covers lexer → parser → checker → lowering → codegen → tests.
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
@@ -118,7 +118,7 @@ Each task covers lexer â†’ parser â†’ checker â†’ lowering â†�
 | 2.23 | `Map<K, V>`: insertion order, deterministic hashing of integers, `str` and tuples | L | **done**: `tests/run/map/*`; written in `std/core/map.of` and `hash.of`, keys hashed through the `hashOf`/`equals` intrinsics; `for key, value in map` and `for i, x in list` |
 | 2.24 | Warnings: unused variables, unused imports, unreachable code; `--deny-warnings` | S | **done**: `tests/compile_fail/warn_*`; W0001 exempts parameters and names starting with `_`; `run` tests use `--deny-warnings` |
 
-## Phase 2b â€” Standard library in Ofir (ADR 0019)
+## Phase 2b — Standard library in Ofir (ADR 0019)
 
 Done before the rest of phase 2, so that library functions are written in
 Ofir instead of being built into the compiler.
@@ -135,7 +135,7 @@ Then phase 2 resumes with generics (2.18, done), so that `Box`, `List`,
 `Option` and `Result` are written in `std` from the start (task 5.6 moves
 earlier accordingly).
 
-## Phase 3 â€” Stage 0 systems features (milestone M2)
+## Phase 3 — Stage 0 systems features (milestone M2)
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
@@ -151,9 +151,9 @@ earlier accordingly).
 | 3.10 | Runtime: stack overflow detection | S | **done**: `runtime/src/stack.c` (`sigaltstack` + `SIGSEGV`/`SIGBUS` handler); `tests/panic/stack_overflow*` pass |
 | 3.11 | `@test` functions and `ofir test` | M | **done**: `ofir test` (`air/lower_test.c`, `driver_test.c`), one process per test; `make test-std` (`tools/run_std_tests.py`) in `make test`; `tests/ofir_test/` |
 | 3.11a | First generated-code benchmarks (`fib`, `nbody`, `binary_trees`) against C | M | **done**: `bench/run_programs.py`; `binary_trees` 1.01, `nbody` 1.04, `fib` 1.80 (overflow checks; 1.0 with wrapping arithmetic), in `bench/HISTORY.md` |
-| 3.12 | Freeze review: all suites under ASan/UBSan, fix leaks and crashes | M | **done**: `make check-asan` (69 programs clean), `make check-leaks` (47 clean), `tools/fuzz_frontend.py` (2 600 mutated inputs, no crash); **M2: stage 0 complete** â†’ release 0.1 |
+| 3.12 | Freeze review: all suites under ASan/UBSan, fix leaks and crashes | M | **done**: `make check-asan` (69 programs clean), `make check-leaks` (47 clean), `tools/fuzz_frontend.py` (2 600 mutated inputs, no crash); **M2: stage 0 complete** → release 0.1 |
 
-## Phase 4 â€” Self-hosting (milestones M3 and M4)
+## Phase 4 — Self-hosting (milestones M3 and M4)
 
 Stage 1 is written in the bootstrap subset and mirrors stage 0's structure.
 Each port is verified by comparing outputs with stage 0.
@@ -172,14 +172,14 @@ Each port is verified by comparing outputs with stage 0.
 | 4.10 | Borrow checker: loans, liveness, conflicts (spec 5.5) | L | **done**: `compiler/sema/borrows.of`, in the move analysis walk; `tests/borrow/*` pass with stage 1 (E0700, E0701, E0703-E0705); non-lexical borrows, per-field places, two-phase borrows, borrows returned through a parameter; fixed what it found: one error in `compiler/`, and a std test that swapped two elements of one list |
 | 4.11 | Escape rules for references and borrowed function values (spec 5.4, 10.2) | M | **done**: stage 1 reports E0702 for a borrowed `fn(A) R` stored in a field, variant or container, or returned, and E0706 for a borrow that outlives the block of what it borrows (block ends, `break`, `continue`, loop iterations, block values); `tests/borrow/escape*.of`; no errors in `compiler/` or std |
 | 4.12 | Fix the compiler's own code until it passes its borrow checker | M | **done**: `compiler/` compiles with no borrow errors; the one error found (`checkLate` in `compiler/sema/check.of`) was fixed with 4.10, and the escape rules of 4.11 found none; `make verify` builds stage 2 and stage 3 with the checker on |
-| 4.13 | Stage 1 builds itself (stage 2), stage 2 builds itself (stage 3) | M | **done** (before 4.10â€“4.12, which it does not need): `make verify` (part of `make test`) builds stage 2 and stage 3; their LLVM IR for `compiler/` is identical, and equal to stage 0's |
-| 4.14 | `make verify` in CI; publish the first seed (bootstrap.md) | S | **done**, **M4: self-hosted** â†’ release 0.2: `make verify` runs in `make test` on CI; `make seed`, `make check-seed`, and the Release workflow, which publishes `ofir-0.2.0.ll` with its checksum (`seed/SEEDS.md`) |
+| 4.13 | Stage 1 builds itself (stage 2), stage 2 builds itself (stage 3) | M | **done** (before 4.10–4.12, which it does not need): `make verify` (part of `make test`) builds stage 2 and stage 3; their LLVM IR for `compiler/` is identical, and equal to stage 0's |
+| 4.14 | `make verify` in CI; publish the first seed (bootstrap.md) | S | **done**, **M4: self-hosted** → release 0.2: `make verify` runs in `make test` on CI; `make seed`, `make check-seed`, and the Release workflow, which publishes `ofir-0.2.0.ll` with its checksum (`seed/SEEDS.md`) |
 
 From M4 on, new features are implemented only in stage 1. Stage 0 is
 frozen. `compiler/` may use a feature only once it has shipped in a tagged
 release (bootstrap chain, `docs/bootstrap.md`).
 
-## Phase 5 â€” Full language (milestone M5)
+## Phase 5 — Full language (milestone M5)
 
 | # | Task | Size | Done when |
 |---|------|:----:|-----------|
@@ -207,9 +207,9 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.21 | Narrowing (17.4): type test patterns in `match` and `if let`, exhaustiveness, sub-unions; built-in interfaces on unions (17.5) | M | a std error type replaced by a union |
 
 **M5** is reached when every chapter of the specification not marked
-**[planned]** is implemented and tested â†’ release 0.5.
+**[planned]** is implemented and tested → release 0.5.
 
-## Phase 6 â€” Towards 1.0
+## Phase 6 — Towards 1.0
 
 | # | Task | Size |
 |---|------|:----:|
@@ -236,7 +236,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 
 ## Open questions
 
-These do not block Phases 0â€“4 and will be settled with an ADR when needed:
+These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 1. Lazy iterator chains (`list.iter().map(f).filter(g)`) versus eager
    `List.map`/`filter` only (before task 5.8).
