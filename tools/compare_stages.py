@@ -6,8 +6,9 @@ error and exit status as stage 0's matching option (after an error, the
 standard error and the status only: the trees built while recovering need
 not agree). `--fuzz N` also
 compares N mutated sources (tools/fuzz_frontend.py's mutations). Files
-marked `// requires: stage1` (stage 1 checks more, e.g. borrows) and the
-mutations of them are skipped.
+marked `// requires: stage1` (stage 1 checks more, e.g. borrows) or
+`// requires: stage0` (stage 0 rejects more) and the mutations of them are
+skipped.
 
     python3 tools/compare_stages.py [--compiler build/stage0/ofir] [--fuzz 200]
 """
@@ -35,7 +36,12 @@ SOURCES = ["tests", "std", "examples", "compiler", "bench"]
 # Both stages read the same standard library, so that paths in messages agree.
 ENV = dict(os.environ, OFIR_STD=str(ROOT / "std"))
 
-STAGE1_ONLY = re.compile(r"^//\s*requires:\s*stage1\b", re.MULTILINE)
+# Tests for one stage only: stage 1 checks more, stage 0 rejects more.
+ONE_STAGE = re.compile(r"^//\s*requires:\s*stage[01]\b", re.MULTILINE)
+
+
+# E0100's message: stage 0 rejects a feature that stage 1 may implement.
+STAGE0_LIMIT = b"not supported by stage 0"
 
 
 def executable(path: str) -> str:
@@ -47,7 +53,7 @@ def executable(path: str) -> str:
 
 
 def comparable(path: Path) -> bool:
-    return not STAGE1_ONLY.search(path.read_text())
+    return not ONE_STAGE.search(path.read_text())
 
 
 def run(argv: list) -> tuple:
@@ -76,6 +82,8 @@ def compare(stage0: str, stage1: str, path: Path) -> tuple:
         lowered = lowered or (command == "air" and actual[0] == 0)
         if expected[0] != 0 and actual[0] == expected[0] and actual[2] == expected[2]:
             continue   # after errors, the trees of the recovery need not agree
+        if STAGE0_LIMIT in expected[2] and STAGE0_LIMIT not in actual[2]:
+            break      # a feature stage 1 has and stage 0 rejects, as interfaces
         if expected != actual:
             names = ("status", "stdout", "stderr")
             what = [n for n, a, b in zip(names, expected, actual) if a != b]

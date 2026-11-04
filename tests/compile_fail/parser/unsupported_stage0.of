@@ -1,0 +1,5 @@
+// requires: stage0
+// Features stage 1 has and stage 0 does not (docs/bootstrap.md).
+interface Shape {   // error[E0100]: interfaces are not supported by stage 0
+    fn area(self) float
+}
