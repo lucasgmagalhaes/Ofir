@@ -14,6 +14,7 @@
 // numbered first, then those of the function (spec 8.3).
 typedef struct {
     SymbolList owner, fn;
+    const TypeId *alias_args; // actual arguments when expanding an alias
 } Generics;
 
 typedef struct {
