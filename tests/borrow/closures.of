@@ -1,0 +1,20 @@
+// requires: stage1
+// A closure that does not `move` borrows what it captures until its last
+// use, `&mut` if it modifies it (spec 10.3); a `move` closure moves it.
+
+fn main() {
+    var total = 0
+    let bump = () => {
+        total += 1
+    }
+    println("{total}")                  // error[E0703]: cannot use `total` while it is borrowed as mutable by `bump`
+    bump()
+    var count = 0
+    let read = () => count + 1
+    count = 5                           // error[E0704]: cannot assign to `count` while it is borrowed by `read`
+    println("{read()}")
+    let s = "hi".toOwned()
+    let own = move () => s.len()
+    println(s)                          // error[E0600]: use of moved value `s`: it was moved before; clone it, or move a copy
+    println("{own()}")
+}
