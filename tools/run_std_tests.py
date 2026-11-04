@@ -13,6 +13,7 @@ checks `ofir test` itself: the standard output of each
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +25,14 @@ ROOT = Path(__file__).resolve().parents[1]
 # (roadmap phase 4: base, diag, syntax, ...).
 DIRS = ["std", "compiler/base", "compiler/diag", "compiler/syntax", "compiler/sema",
         "compiler/driver"]
+
+
+def executable(path: str) -> str:
+    """The compiler as an absolute path; on Windows, `.exe` may be implied."""
+    full = Path(path).resolve()
+    if os.name == "nt" and not full.suffix and full.with_suffix(".exe").exists():
+        full = full.with_suffix(".exe")
+    return str(full)
 
 
 def modules_with_tests() -> list[Path]:
@@ -40,7 +49,7 @@ def modules_with_tests() -> list[Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--compiler", required=True)
+    parser.add_argument("--compiler", type=executable, required=True)
     args = parser.parse_args()
     failed = []
     total = 0
