@@ -9,8 +9,10 @@ now so that earlier features do not block it.
 - **No mandatory runtime**: programs that do not use concurrency pay
   nothing for it.
 - **Simple model first**: tasks that communicate through channels, each
-  task on an OS thread of its own. A lighter scheduler (green threads or
-  async) may come later behind the same `task.run` API.
+  task on an OS thread of its own. A later M:N scheduler makes tasks
+  lightweight behind the same `task.run` API.
+- **No `async`/`await`** (ADR 0027): functions have no color; the same
+  function runs in a task or outside one.
 
 ## 14.2 Tasks
 
