@@ -394,6 +394,9 @@ pub struct AirPrinter {
         self.typeArgs(c, b.targs)
         if let .Some(closure) = b.closure {
             self.out.push(".c{closure.id}")
+            if closure.drop {
+                self.out.push(".drop")
+            }
         }
         self.out.push(if b.isMain { " (entry) \{\n" } else { " \{\n" })
         for i in 0..b.locals.len() {

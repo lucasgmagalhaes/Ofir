@@ -480,6 +480,10 @@ pub struct ClosureBody {
     pub captures: List<int>
     /** A `move` closure: its environment holds the captured values. */
     pub isMove: bool
+    /** A `move` closure's tuple of captured values, or 0. */
+    pub env: int
+    /** The function that drops a `move` closure's environment, not its body. */
+    pub drop: bool
 }
 
 /**

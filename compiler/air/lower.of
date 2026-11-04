@@ -67,6 +67,7 @@ import sema.structs.structFieldType
 import sema.structs.structFields
 import sema.structs.variantFieldType
 import sema.types.BOOL
+import sema.types.FN_OWNED
 import sema.types.UNIT
 import std.mem
 
@@ -473,6 +474,9 @@ fn computeNeedsDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
     if kind == .Ref || kind == .Ptr || kind == .Param || kind == .Int || kind == .Float ||
        kind == .Bool {
         return false
+    }
+    if kind == .Fn {   // a `move fn` owns its environment
+        return c.types.get(ty).data == FN_OWNED
     }
     return typeMethod(c, p, ty, "drop") != 0 || fieldsNeedDrop(l, c, p, ty)
 }

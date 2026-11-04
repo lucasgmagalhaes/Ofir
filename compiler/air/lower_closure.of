@@ -4,6 +4,8 @@
  * of its own, which reaches the variables it captures through the
  * environment of the closure's value. A closure that does not `move` has
  * its environment on the stack: a tuple of references to what it captures.
+ * A `move` closure's is on the heap: a pointer to the function that drops
+ * it, then a tuple of the captured values.
  */
 
 import air.air.AirBody
@@ -19,9 +21,11 @@ import air.lower.Place
 import air.lower.dropScopeEnter
 import air.lower.dropScopeLeave
 import air.lower.dropTemps
+import air.lower.emitDrop
 import air.lower.emitTemp
 import air.lower.localPlace
 import air.lower.monoBody
+import air.lower.noteMoved
 import air.lower.placeOperand
 import air.lower.terminate
 import air.lower_expr.aggregate
@@ -30,6 +34,7 @@ import air.lower_expr.lowerExpr
 import sema.check.Checker
 import sema.check.fnOf
 import sema.program.Program
+import sema.structs.isCopy
 import sema.types.UNIT
 import std.mem
 import syntax.ast.Expr
@@ -50,10 +55,6 @@ import syntax.ast.Param
  */
 pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
                     body: &Expr, isMove: bool, ty: int) Operand {
-    if isMove {
-        l.fail("a `move` closure")
-        return opUnit(UNIT)
-    }
     let module = c.def(l.fnDef).module
     let captured: List<int> = match c.r.tables[module].captures.get(e.id.0) {
         .Some(list) => list.clone()
@@ -67,32 +68,71 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
     for i in 0..captured.len() {
         captures.push(captured[i] + 1)
     }
-    lowerBody(l, c, p, e, params, body, captures.clone(), isMove, ty)
+    // The environment: the captured values, or raw pointers to them (a `&str` is a view).
+    var types: List<int> = []
+    for i in 0..captures.len() {
+        let local = captures[i]
+        let captureType = l.body.locals[local].ty
+        types.push(if isMove { captureType } else {
+            c.types.ptr(captureType, contains(&written, captured[i]))
+        })
+    }
+    let envType = if captures.len() > 0 { c.types.tuple(types.clone()) } else { 0 }
+    lowerBody(l, c, p, e, params, body, captures.clone(), isMove, envType, ty)
+    if isMove && envType != 0 {
+        lowerEnvDrop(l, c, p, e, envType)
+    }
     var rv = rvalue(.Closure, .Add, opUnit(UNIT), opUnit(UNIT))
     rv.flag = e.id.0
-    if captures.len() > 0 {   // the environment: a reference to each captured variable
-        var types: List<int> = []   // raw pointers: a `&str` is a view
+    if envType != 0 {
         var items: List<Operand> = []
         for i in 0..captures.len() {
             let local = captures[i]
-            let ptrType = c.types.ptr(l.body.locals[local].ty, contains(&written, captured[i]))
-            types.push(ptrType)
             // A local passed by address holds the address of the value.
             let place = Place{local, fields: [], deref: l.body.locals[local].byRef}
-            items.push(placeOperand(&place, .Addr, ptrType))
+            if !isMove {
+                items.push(placeOperand(&place, .Addr, types[i]))
+            } else {
+                items.push(placeOperand(&place, .Copy, types[i]))
+                if !isCopy(c, p, types[i]) {   // moved into the closure
+                    let path: List<int> = []
+                    noteMoved(l, local, &path)
+                }
+            }
         }
-        let envType = c.types.tuple(types)
         let env = aggregate(l, envType, items)
-        rv.a = placeOperand(&localPlace(env.local), .Addr, c.types.ptr(envType, false))
+        rv.a = if isMove { env } else {
+            placeOperand(&localPlace(env.local), .Addr, c.types.ptr(envType, false))
+        }
     }
     return opCopy(emitTemp(l, ty, rv), ty)
+}
+
+// The function that drops a `move` closure's captured values; the caller
+// then frees the environment.
+fn lowerEnvDrop(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, envType: int) {
+    let info = ClosureBody{id: e.id.0, params: [], captures: [], isMove: true, env: envType,
+                           drop: true}
+    var drop = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
+                       isMain: false, paramCount: 0, locals: [], blocks: [],
+                       closure: .Some(info)}
+    drop.newLocal(UNIT, .None, e.span)
+    drop.newLocal(c.types.ref(envType, true), .None, e.span)   // the captured values
+    let outer = mem.replace(l.body, drop)
+    let block = l.block
+    l.block = l.body.newBlock()
+    emitDrop(l, c, p, &Place{local: 1, fields: [], deref: true}, envType)
+    terminate(l, terminator(TermKind.Return))
+    monoBody(l, c, p)
+    l.out.push(mem.replace(l.body, outer))
+    l.block = block
 }
 
 // The body of a closure, a function of its own: the locals of the
 // enclosing function, its parameters among them, the captured ones reached
 // through the environment.
 fn lowerBody(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
-             body: &Expr, captures: List<int>, isMove: bool, ty: int) {
+             body: &Expr, captures: List<int>, isMove: bool, env: int, ty: int) {
     let decl = fnOf(p, c.loc(l.fnDef))
     let count = match c.r.tables[c.def(l.fnDef).module].fnLocals.get(decl.id.0) {
         .Some(list) => list.len()
@@ -102,7 +142,8 @@ fn lowerBody(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List
     for i in 0..params.len() {
         paramLocals.push(c.localAt(params[i].id.0) + 1)
     }
-    let info = ClosureBody{id: e.id.0, params: paramLocals, captures: captures.clone(), isMove}
+    let info = ClosureBody{id: e.id.0, params: paramLocals, captures: captures.clone(), isMove,
+                           env: if isMove { env } else { 0 }, drop: false}
     var closure = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
                           isMain: false, paramCount: 0, locals: [], blocks: [],
                           closure: .Some(info)}

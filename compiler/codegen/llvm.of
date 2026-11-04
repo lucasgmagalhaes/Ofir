@@ -83,6 +83,8 @@ pub struct Gen {
     pub cUsed: List<bool>
     /** By `DefId`: the functions used as values, which need a thunk. */
     pub fnValues: List<bool>
+    /** Whether a `move` closure allocates or frees its environment. */
+    pub heap: bool
 }
 
 fn hexDigit(n: u64) str {
@@ -142,7 +144,7 @@ pub fn hasValue(ty: int) bool {
 pub fn newGen() Gen {
     return Gen{module: "", out: "", globals: "", typeDefs: "", strCount: 0, locCount: 0,
                overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
-               temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [],
+               temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
                fnValues: []}
 }
 
@@ -907,7 +909,20 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
         }
         .Closure => {
             var env = "null"
-            if rv.a.kind != .Unit {
+            if rv.a.kind != .Unit && c.types.kind(rv.a.ty) == .Tuple {   // `move`: on the heap
+                let values = operand(g, c, p, body, &rv.a)
+                let envType = "\{ ptr, {values.ty} \}"
+                let size = nextTemp(g)
+                g.out.push("  {size} = ptrtoint ptr getelementptr ({envType}, ptr null, i32 1) to i64\n")
+                env = nextTemp(g)
+                g.out.push("  {env} = call ptr @ofir_alloc(i64 {size})\n")
+                let drop = closureName(c, p, body.def, body.targs, rv.flag)
+                g.out.push("  store ptr {dropName(drop)}, ptr {env}\n")
+                let field = nextTemp(g)
+                g.out.push("  {field} = getelementptr inbounds {envType}, ptr {env}, i32 0, i32 1\n")
+                g.out.push("  store {values.ty} {values.text}, ptr {field}\n")
+                g.heap = true
+            } else if rv.a.kind != .Unit {
                 env = operand(g, c, p, body, &rv.a).text
             }
             let code = nextTemp(g)
@@ -927,6 +942,11 @@ fn closureName(c: mut Checker, p: Program, def: int, targs: int, id: int) str {
         return "@\"{name.slice(1, name.len())}.c{id}\""
     }
     return "{name.slice(0, name.len() - 1)}.c{id}\""
+}
+
+// The function that drops a `move` closure's captured values.
+fn dropName(closure: str) str {
+    return "{closure.slice(0, closure.len() - 1)}.drop\""
 }
 
 // The LLVM type of a function value: the code and the environment.
@@ -1162,6 +1182,20 @@ fn terminator(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, t: &Termin
     }
 }
 
+// Drop glue of a `move fn`: its environment, if it has one, is dropped by
+// the function its first field points to, then freed.
+fn dropFnEnv(g: mut Gen) {
+    g.heap = true
+    g.out.push("  %fn.envp = getelementptr inbounds {FN_LLVM}, ptr %p1, i32 0, i32 1\n")
+    g.out.push("  %fn.env = load ptr, ptr %fn.envp\n")
+    g.out.push("  %fn.none = icmp eq ptr %fn.env, null\n")
+    g.out.push("  br i1 %fn.none, label %bb0, label %fn.drop\n")
+    g.out.push("fn.drop:\n")
+    g.out.push("  %fn.dropfn = load ptr, ptr %fn.env\n")
+    g.out.push("  call fastcc void %fn.dropfn(ptr %fn.env)\n")
+    g.out.push("  call void @ofir_free(ptr %fn.env)\n")
+}
+
 fn localType(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, i: int) str {
     let local = &body.locals[i]
     return if local.byRef { "ptr".toOwned() } else { llvmType(g, c, p, local.ty) }
@@ -1177,7 +1211,12 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     g.out.push("define {linkage}{retType} ")
     var params: List<int> = []
     if let .Some(info) = body.closure {
-        g.out.push(closureName(c, p, body.def, body.targs, info.id))
+        let name = closureName(c, p, body.def, body.targs, info.id)
+        if info.drop {
+            g.out.push(dropName(name))
+        } else {
+            g.out.push(name)
+        }
         g.out.push("(ptr %env")
         params = info.params.clone()
     } else {
@@ -1211,12 +1250,29 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
         }
     }
     if let .Some(info) = body.closure {   // each captured variable, through the environment
+        var envType = ""
+        if info.env != 0 {
+            envType = "\{ ptr, {llvmType(g, c, p, info.env)} \}"
+        }
+        if info.drop {   // the captured values
+            g.out.push("  %values = getelementptr inbounds {envType}, ptr %env, i32 0, i32 1\n")
+            g.out.push("  store ptr %values, ptr %l1\n")
+        }
         for j in 0..info.captures.len() {
             let i = info.captures[j]
-            g.out.push("  %env.{j} = getelementptr inbounds ptr, ptr %env, i64 {j}\n")
-            g.out.push("  %cap.{j} = load ptr, ptr %env.{j}\n")
+            if info.env != 0 {   // `move`: the value is in the environment
+                g.out.push("  %cap.{j} = getelementptr inbounds {envType}, ptr %env, i32 0, ")
+                g.out.push("i32 1, i32 {j}\n")
+            } else {
+                g.out.push("  %env.{j} = getelementptr inbounds ptr, ptr %env, i64 {j}\n")
+                g.out.push("  %cap.{j} = load ptr, ptr %env.{j}\n")
+            }
             g.out.push("  store ptr %cap.{j}, ptr %l{i}\n")
         }
+    }
+    if body.def == GLUE_DROP && !body.isMain &&
+       c.types.kind(c.types.get(body.targs).args[0]) == .Fn {   // drop glue of a function value
+        dropFnEnv(g)
     }
     g.out.push("  br label %bb0\n")
     for b in 0..body.blocks.len() {
@@ -1359,6 +1415,19 @@ fn cDecls(g: mut Gen, c: mut Checker, p: Program) {
         }
         g.module.push(") nounwind\n")
     }
+    if g.heap {   // `move` closures: unless the program declares them already
+        heapDecl(g, c, "ofir_alloc", "declare ptr @ofir_alloc(i64) nounwind\n")
+        heapDecl(g, c, "ofir_free", "declare void @ofir_free(ptr) nounwind\n")
+    }
+}
+
+fn heapDecl(g: mut Gen, c: mut Checker, name: str, decl: str) {
+    for id in 0..g.cUsed.len() {
+        if g.cUsed[id] && c.text(c.def(id).name) == name {
+            return
+        }
+    }
+    g.module.push(decl)
 }
 
 /**
