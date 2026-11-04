@@ -9,9 +9,9 @@
 import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
-import sema.check.Generics
 import sema.check.itemOf
 import sema.check.itemTypeParams
+import sema.check.typeGenerics
 import sema.check_generic.checkGenericArgs
 import sema.check_generic.inferFromSelf
 import sema.check_generic.inferNew
@@ -25,7 +25,6 @@ import sema.program.Program
 import sema.types.ERROR
 import syntax.ast.Arg
 import syntax.ast.Expr
-import syntax.ast.ExprKind
 
 // Checks the payload of variant `index` of enum `id`, built at `at`.
 fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: int, index: int,
@@ -45,7 +44,7 @@ fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: in
     let given = args ?? &none
     let owner = itemTypeParams(itemOf(p, c.loc(id)))
     if owner.len() > 0 {   // the arguments come from `self`, the expected type or the payload
-        var inf = inferNew(Generics{owner: owner.clone(), fnParams: []})
+        var inf = inferNew(typeGenerics(c, itemOf(p, c.loc(id))))
         inferFromSelf(c, inf, selfType, owner.len())
         let selfType = ownerType(c, p, id)
         var params: List<int> = []

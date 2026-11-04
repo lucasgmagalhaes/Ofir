@@ -12,9 +12,11 @@ import sema.check.itemOf
 import sema.check.noGenerics
 import sema.check_box.autoDeref
 import sema.check_generic.checkGenericArgs
+import sema.check_generic.equatable
 import sema.check_generic.fnGenerics
 import sema.check_generic.inferExplicit
 import sema.check_generic.inferNew
+import sema.check_generic.orderable
 import sema.check_list.checkListLiteral
 import sema.check_list.checkListRepeat
 import sema.check_list.coerceToSlice
@@ -229,7 +231,7 @@ fn operandOk(c: Checker, ty: int, op: Op) bool {
         .Sub | .Mul | .Div | .Rem => kind == .Int || kind == .Float
         .And | .Or | .Xor | .Shl | .Shr => kind == .Int
         .Eq | .Ne => kindNumber(kind) <= 6 || kind == .Ptr
-        .Lt | .Le | .Gt | .Ge => kind == .Int || kind == .Float || kind == .Str
+        .Lt | .Le | .Gt | .Ge => orderable(c, ty)
         .LogicalAnd | .LogicalOr => kind == .Bool
         _ => false
     }
@@ -270,7 +272,8 @@ pub fn checkBinary(c: mut Checker, p: Program, span: Span, op: Op, lhs: &Expr, r
             fieldless = !variantsOf(c, id).hasPayload   // enums without payloads compare tags
         }
     }
-    if !fieldless && !operandOk(c, ty, op) && ty != ERROR {
+    let generic = c.types.get(ty).hasParam && (op == .Eq || op == .Ne) && equatable(c, p, ty)
+    if !fieldless && !generic && !operandOk(c, ty, op) && ty != ERROR {
         return operatorError(c, span, ty)
     }
     return if compares { BOOL } else { ty }

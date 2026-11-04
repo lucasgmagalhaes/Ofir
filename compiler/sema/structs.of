@@ -8,9 +8,8 @@ import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
 import sema.check.Loc
-import sema.check.Generics
 import sema.check.itemOf
-import sema.check.itemTypeParams
+import sema.check.typeGenerics
 import sema.check_ref.checkStorable
 import sema.check_types.ownerType
 import sema.check_types.resolveType
@@ -22,7 +21,6 @@ import sema.types.I64
 import sema.types.STR
 import sema.types.U8
 import syntax.ast.FieldDecl
-import syntax.ast.ItemKind
 
 /**
  * The fields of a struct.
@@ -249,8 +247,7 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     let declared = declaredFlags(p, c.loc(id))
     let saved = c.enter(c.def(id).module)
     let savedSelf = c.selfType
-    let outer = c.enterGenerics(Generics{owner: itemTypeParams(itemOf(p, c.loc(id))),
-                                         fnParams: []})
+    let outer = c.enterGenerics(typeGenerics(c, itemOf(p, c.loc(id))))
     c.selfType = if c.def(id).lang { c.def(id).primitive } else { ownerType(c, p, id) }
     c.info[id].checking = true
     var info = StructInfo{names: [], types: [], defaults: [], isTuple: declared.2,

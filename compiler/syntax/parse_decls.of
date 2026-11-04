@@ -80,7 +80,7 @@ pub fn parseFn(p: mut Parser, header: move ItemHeader, withBody: bool) FnDecl {
     }
     p.expect(.RParen, "`)` to close the parameters")
     var ret: Option<TypeExpr> = .None
-    if !p.at(.LBrace) && canStartType(p) {
+    if !p.at(.LBrace) && canStartType(p) && !atWhere(p, 0) {
         ret = .Some(parseType(p))
     }
     whereClause(p, bounds)
@@ -90,8 +90,15 @@ pub fn parseFn(p: mut Parser, header: move ItemHeader, withBody: bool) FnDecl {
     }
     return FnDecl{id: p.newId(), span: p.spanSince(header.span), name,
                   attributes: header.attributes, isPub: header.isPub, isUnsafe: false, abi: "",
-                  typeParams, bounds, hasSelf: selfMode.isSome(), selfMode: selfMode ?? .Borrow, params,
-                  ret, body}
+                  typeParams, bounds, hasSelf: selfMode.isSome(),
+                  selfMode: selfMode ?? .Borrow, params, ret, body}
+}
+
+// Whether token `ahead` is the word `where`.
+fn atWhere(p: Parser, ahead: int) bool {
+    let t = p.token(ahead)
+    let word = p.words.where
+    return t.kind == .Ident && word.isSome() && symbolOf(t).0 == word.unwrapOr(Symbol(0)).0
 }
 
 // `where T: Eq, U: Ord + Hash` after a signature, on its line or the next
@@ -101,9 +108,7 @@ fn whereClause(p: mut Parser, preds: mut List<WherePred>) {
     for p.peekAt(ahead) == .Newline {
         ahead += 1
     }
-    let t = p.token(ahead)
-    let word = p.words.where
-    if t.kind != .Ident || word.isNone() || symbolOf(t).0 != word.unwrapOr(Symbol(0)).0 {
+    if !atWhere(p, ahead) {
         return
     }
     p.skipNewlines()
