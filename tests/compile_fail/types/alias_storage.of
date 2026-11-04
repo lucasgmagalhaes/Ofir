@@ -1,0 +1,2 @@
+type Items<T> = List<T> // error[E0702]: a reference cannot be stored in a container or a struct: store an owned value, or declare a `ref struct`
+fn use(x: Items<&int>) {}

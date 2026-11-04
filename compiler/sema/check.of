@@ -88,6 +88,8 @@ pub struct Generics {
     pub fnParams: List<Symbol>
     /** The bounds of each parameter, numbered as above: `BOUND_EQ`, ... (spec 8.1). */
     pub bounds: List<int>
+    /** Actual arguments when expanding an alias; empty for generic declarations. */
+    pub aliasArgs: List<int>
 }
 
 /**
@@ -96,7 +98,7 @@ pub struct Generics {
  * @returns the empty generics
  */
 pub fn noGenerics() Generics {
-    return Generics{owner: [], fnParams: [], bounds: []}
+    return Generics{owner: [], fnParams: [], bounds: [], aliasArgs: []}
 }
 
 /** The built-in interfaces a bound can name until interfaces (roadmap 5.3), as bits. */
@@ -198,7 +200,7 @@ pub fn typeGenerics(c: Checker, item: &Item) Generics {
     var bounds = List.filled(0, owner.len())
     let none: List<Symbol> = []
     addBounds(c, &item.bounds, &owner, &none, bounds)
-    return Generics{owner, fnParams: [], bounds}
+    return Generics{owner, fnParams: [], bounds, aliasArgs: []}
 }
 
 /**
@@ -218,7 +220,8 @@ pub fn fnGenericsIn(c: Checker, outer: &Generics, decl: &FnDecl) Generics {
         }
     }
     addBounds(c, &decl.bounds, &outer.owner, &decl.typeParams, bounds)
-    return Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(), bounds}
+    return Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(),
+                   bounds, aliasArgs: []}
 }
 
 /**

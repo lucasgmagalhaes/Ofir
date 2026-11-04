@@ -1,0 +1,3 @@
+type First<T> = Second<List<T>>
+type Second<T> = First<T> // error[E0310]: the type alias `First` refers to itself
+fn use(x: First<int>) {}
