@@ -1,0 +1,55 @@
+{
+  "name": "Ofir",
+  "scopeName": "source.ofir",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#attributes" },
+    { "include": "#keywords" },
+    { "include": "#numbers" },
+    { "include": "#types" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.ofir", "match": "//.*$" },
+        { "name": "comment.block.ofir", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.ofir",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.ofir", "match": "\\\\(?:[0nrt\\\"\\\\]|x[0-9a-fA-F]{2}|u\\{[0-9a-fA-F]+\\})" }
+          ]
+        }
+      ]
+    },
+    "attributes": {
+      "patterns": [
+        { "name": "entity.name.function.attribute.ofir", "match": "@[A-Za-z_][A-Za-z_0-9]*\\b" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control.ofir", "match": "\\b(?:break|continue|else|for|if|in|match|return)\\b" },
+        { "name": "storage.modifier.ofir", "match": "\\b(?:const|copy|dyn|extern|fn|import|interface|let|move|mut|pub|ref|struct|type|unsafe|var|where|enum|comptime)\\b" },
+        { "name": "constant.language.boolean.ofir", "match": "\\b(?:true|false)\\b" },
+        { "name": "keyword.operator.ofir", "match": "\\b(?:as|Self|self)\\b|=>|\\?\\?|\\.\\.=|\\.\\." }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.ofir", "match": "\\b(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|[0-9][0-9_]*(?:\\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9][0-9_]*)?)\\b" }
+      ]
+    },
+    "types": {
+      "patterns": [
+        { "name": "support.type.primitive.ofir", "match": "\\b(?:bool|byte|char|float|int|str|u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)\\b" }
+      ]
+    }
+  }
+}
