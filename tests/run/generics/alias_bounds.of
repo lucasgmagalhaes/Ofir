@@ -1,0 +1,17 @@
+// requires: stage1
+struct Boxed<T: Clone> {
+    value: T
+}
+
+type Value<T> = Boxed<T>
+type Transform<T> = fn(T) T
+
+fn wrap<A, B: Clone>(unused: A, value: move B) Value<B> {
+    return Boxed{value}
+}
+
+fn main() {
+    let a: Value<int> = Boxed{value: 3}
+    let b = wrap(0, "bounds")
+    println("{a.value} {b.value}")
+}
