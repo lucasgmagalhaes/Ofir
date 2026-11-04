@@ -39,7 +39,10 @@ import sema.expr_check.checkExpr
 import sema.expr_check.coerce
 import sema.expr_check.nameRes
 import sema.interfaces.assertedDefault
+import sema.interfaces.declaringInterface
+import sema.interfaces.dynCallable
 import sema.interfaces.isInterfaceMethod
+import sema.interfaces.methodIndex
 import sema.interfaces.paramMethodOwner
 import sema.program.Program
 import sema.struct_exprs.checkStructField
@@ -452,6 +455,21 @@ pub fn checkMethodCall(c: mut Checker, p: Program, call: &Expr, field: &Expr, ar
                     return checkUserMethod(c, p, call, field, base, name, &explicit, args, iface,
                                            false, selfType, expected)
                 }
+            }
+            if c.types.kind(selfType) == .Dyn {   // a method called through the vtable
+                let iface = declaringInterface(c, p, c.types.get(selfType).data, name)
+                if iface != 0 && !dynCallable(c, p, methodDef(c, p, iface,
+                                                              methodIndex(c, p, iface, name))) {
+                    c.error("E0339", field.span, "`{c.text(name)}` cannot be called on "
+                            + "`{c.typeName(selfType)}`: it takes `self` by value, is generic "
+                            + "or mentions `Self`")
+                    return skipArgs(c, p, args)
+                }
+                if iface != 0 {
+                    return checkUserMethod(c, p, call, field, base, name, &explicit, args, iface,
+                                           false, selfType, expected)
+                }
+                return noMethod(c, p, field, name, args, selfType)
             }
             if c.types.kind(selfType) == .Adt {
                 let id = c.types.get(selfType).data

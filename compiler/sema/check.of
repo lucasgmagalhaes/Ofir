@@ -332,6 +332,9 @@ pub struct Checker {
     /** The values converted from `List<T>` to `&[T]` (`list.asSlice()`), by module:
      * `NodeId` to the element type. */
     pub sliceCoercions: List<Map<int, int>>
+    /** The values converted to `&dyn I`, `*dyn I` or `Box<dyn I>`, by module: `NodeId` to
+     * the type before the conversion. */
+    pub dynCoercions: List<Map<int, int>>
     /** What the move analysis found, by module and `NodeId`: `moves.MOVES`, `moves.CONSUMED`. */
     pub moveFlags: List<Map<int, int>>
     /** The std functions checked with the root whose move analysis waits for the lowering. */
@@ -577,7 +580,10 @@ pub struct Checker {
                     self.appendType(out, t.inner, qualified)
                 }
             }
-            .Adt => {
+            .Adt | .Dyn => {
+                if t.kind == .Dyn {
+                    out.push("dyn ")
+                }
                 let module = self.r.defs[t.data].module
                 if qualified && module != 0 {
                     out.push(self.r.moduleNames[module])
@@ -683,6 +689,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     var members: List<List<int>> = []
     var callTypeArgs: List<Map<int, int>> = []
     var sliceCoercions: List<Map<int, int>> = []
+    var dynCoercions: List<Map<int, int>> = []
     var moveFlags: List<Map<int, int>> = []
     var capturesMut: List<Map<int, List<int>>> = []
     for m in 0..p.modules.len() {
@@ -694,6 +701,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         members.push(List.filled(-1, p.modules[m].module.nodeCount))
         callTypeArgs.push(Map.new())
         sliceCoercions.push(Map.new())
+        dynCoercions.push(Map.new())
         moveFlags.push(Map.new())
         capturesMut.push(Map.new())
     }
@@ -707,7 +715,8 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     }
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
                    adjusted,
-                   members, callTypeArgs, sliceCoercions, moveFlags, fnMoves: Map.new(),
+                   members, callTypeArgs, sliceCoercions, dynCoercions, moveFlags,
+                   fnMoves: Map.new(),
                    bodyChecked: Map.new(), movesPending: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,

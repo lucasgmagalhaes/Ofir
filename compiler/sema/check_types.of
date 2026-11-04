@@ -8,6 +8,7 @@ import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
 import sema.check.fnGenericsIn
+import sema.check.interfaceOf
 import sema.check.fnOf
 import sema.check.itemOf
 import sema.check.itemTypeParams
@@ -16,6 +17,7 @@ import sema.check.typeGenerics
 import sema.check_generic.checkBounds
 import sema.check_list.checkMapKey
 import sema.check_ref.checkInstanceStorable
+import sema.interfaces.dynIncompatible
 import sema.program.Program
 import sema.types.ERROR
 import sema.types.FN_BORROWED
@@ -23,6 +25,7 @@ import sema.types.NEVER
 import sema.types.STR
 import sema.types.UNIT
 import syntax.ast.TypeExpr
+import syntax.ast_text.typeText
 
 /**
  * The type `self` and `Self` stand for in the methods of item `index` of
@@ -344,7 +347,7 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
             c.types.fnValueType(types, result, owned)
         }
         .Never => NEVER
-        .Dyn(_) => c.unsupported(t.span, "`dyn` types are")
+        .Dyn(inner) => dynType(c, p, &*inner, t.span)
         .Optional(_) => c.unsupported(t.span, "optional types (`T?`) are")
     }
 }
@@ -383,6 +386,13 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
         if decl.params[i].mode == .Move {   // `f: move fn(A) R` takes an owned function
             ty = ownedFn(c, ty)
         }
+        if c.types.kind(ty) == .Dyn {   // `s: dyn Shape` borrows the value
+            if decl.params[i].mode != .Borrow {
+                ty = c.unsupported(decl.params[i].ty.span, "`mut` and `move` `dyn` parameters are")
+            } else {
+                ty = c.types.ref(ty, false)
+            }
+        }
         params.push(ty)
     }
     let ret = match decl.ret {
@@ -420,4 +430,20 @@ fn ownedFn(c: mut Checker, ty: int) int {
     let args = t.args.clone()
     let ret = t.inner
     return c.types.fnValueType(args, ret, true)
+}
+
+// `dyn I`: E0333 unless `I` names an interface, E0338 unless its methods
+// can be called through a vtable (spec 9.7).
+fn dynType(c: mut Checker, p: Program, inner: &TypeExpr, span: Span) int {
+    let iface = interfaceOf(c, inner)
+    if iface == 0 {
+        c.error("E0333", inner.span, "`{typeText(inner, c.r.names)}` is not an interface")
+        return ERROR
+    }
+    let why = dynIncompatible(c, p, iface)
+    if why.len() > 0 {
+        c.error("E0338", span, "`dyn {typeText(inner, c.r.names)}` is not allowed: {why}")
+        return ERROR
+    }
+    return c.types.dynOf(iface, [])
 }

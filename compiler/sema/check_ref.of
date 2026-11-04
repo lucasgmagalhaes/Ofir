@@ -124,7 +124,10 @@ fn isRefStruct(c: Checker, p: Program, id: int) bool {
  * @param where the place, for the message
  */
 pub fn checkStorable(c: mut Checker, p: Program, ty: int, span: Span, where: str) {
-    if holdsBorrowedFn(c, ty) {
+    if c.types.kind(ty) == .Dyn {
+        c.error("E0355", span, "`{c.typeName(ty)}` has no size known at compile time and "
+                + "cannot be stored in {where}: store a `Box<{c.typeName(ty)}>`")
+    } else if holdsBorrowedFn(c, ty) {
         c.error("E0702", span, "a borrowed function value cannot be stored in {where}: "
                 + "use a `move fn` type")
     } else if holdsRef(c, p, ty) {
@@ -152,6 +155,9 @@ pub fn checkInstanceStorable(c: mut Checker, p: Program, ty: int, span: Span) {
     }
     let args = t.args.clone()
     for i in 0..args.len() {
+        if t.data == c.r.langItems[0] && c.types.kind(args[i]) == .Dyn {
+            continue   // `Box<dyn I>`
+        }
         checkStorable(c, p, args[i], span, "a container or a struct")
     }
 }

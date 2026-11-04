@@ -73,6 +73,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0335 | the type `C` does not satisfy `I`, which it asserts (spec 9.2) | stage 1 |
 | E0336 | cannot infer the type of the closure parameter `x`: write its type (spec 10.1) | stage 1 |
 | E0337 | `x` is captured by a `move` closure: captured values are immutable (spec 10.3) | stage 1 |
+| E0338 | `dyn I` is not allowed: a method of `I` without a body takes `self` by value, is generic or mentions `Self` (spec 9.7) | stage 1 |
+| E0339 | method `m` cannot be called through `dyn I` (spec 9.7) | stage 1 |
 | E0340 | `keyof` needs a struct or tuple type (spec 16) | planned |
 | E0341 | `T` has no field `.k` (spec 16) | planned |
 | E0342 | the fields of these keys have different types (spec 16) | planned |
@@ -83,6 +85,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0352 | `T` is not a member of the union `U` (spec 17) | planned |
 | E0353 | the branches have different types: write the union type expected (spec 17) | planned |
 | E0354 | a type test names a type that does not satisfy the interface of the `dyn` value (spec 9.8) | planned |
+| E0355 | `dyn I` has no size known at compile time: store a `Box<dyn I>` (spec 9.7) | stage 1 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0501 | refutable pattern in `let` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |

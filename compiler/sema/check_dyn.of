@@ -1,0 +1,127 @@
+/**
+ * @module
+ * Conversions to `dyn` types (spec 9.7): a pointer, a box or a borrowed
+ * value whose type satisfies an interface becomes a fat pointer to
+ * `dyn I`, recorded in `Checker.dynCoercions` for the lowering.
+ */
+
+import sema.check.Checker
+import sema.check_box.boxInner
+import sema.interfaces.unsatisfied
+import sema.program.Program
+import syntax.ast.Expr
+
+/**
+ * Converts `e`, of type `found`, to `expected` when `expected` is a
+ * `&dyn I`, `*dyn I` or `Box<dyn I>` that `found` can point to.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the value
+ * @param found its type
+ * @param expected the type expected
+ * @returns whether it was converted (or an error reported)
+ */
+pub fn coerceToDyn(c: mut Checker, p: Program, e: &Expr, found: int, expected: int) bool {
+    let Some(target) = dynTarget(c, found, expected) else {
+        return false
+    }
+    if c.types.kind(target) == .Error {
+        return true
+    }
+    let object = match boxInner(c, expected) {
+        .Some(inner) => inner
+        .None => c.types.get(expected).inner
+    }
+    let why = unsatisfied(c, p, target, c.types.get(object).data)
+    if why.len() > 0 {
+        c.error("E0300", e.span, "mismatched types: expected {c.typeName(expected)}, found "
+                + "{c.typeName(found)}: {why}")
+        return true
+    }
+    c.dynCoercions[c.module()].insert(e.id.0, found)
+    c.setType(e.id.0, expected)
+    return true
+}
+
+// The concrete type that `found` gives to `expected`, if the conversion
+// applies.
+fn dynTarget(c: Checker, found: int, expected: int) Option<int> {
+    if let .Some(inner) = boxInner(c, expected) {
+        if c.types.kind(inner) != .Dyn {
+            return .None
+        }
+        let Some(source) = boxInner(c, found) else {
+            return .None
+        }
+        return dynSource(c, source)
+    }
+    if !c.types.isFat(expected) {
+        return .None
+    }
+    let want = c.types.get(expected)
+    let have = c.types.get(found)
+    if have.kind == want.kind {   // `&T` to `&dyn I`, `*T` to `*dyn I`
+        if want.data == 1 && have.data != 1 {
+            return .None
+        }
+        return dynSource(c, have.inner)
+    }
+    if want.kind == .Ref && want.data == 0 && have.kind != .Ref && have.kind != .Ptr {
+        return dynSource(c, found)   // a value, borrowed
+    }
+    return .None
+}
+
+fn dynSource(c: Checker, ty: int) Option<int> {
+    if c.types.kind(ty) == .Dyn || c.types.kind(ty) == .Never {
+        return .None
+    }
+    return .Some(ty)
+}
+
+/**
+ * Whether a type is `Box<dyn I>`.
+ *
+ * @param c the checker
+ * @param ty the type
+ * @returns true if it is
+ */
+pub fn boxesDyn(c: Checker, ty: int) bool {
+    return match boxInner(c, ty) {
+        .Some(inner) => c.types.kind(inner) == .Dyn
+        .None => false
+    }
+}
+
+/**
+ * Whether `e` is a value borrowed as a `&dyn I` (not a pointer or box
+ * converted).
+ *
+ * @param c the checker
+ * @param e an expression of the current module
+ * @returns true if it is
+ */
+pub fn dynBorrowed(c: Checker, e: &Expr) bool {
+    return match c.dynCoercions[c.module()].get(e.id.0) {
+        .Some(found) => {
+            let kind = c.types.kind(*found)
+            kind != .Ref && kind != .Ptr && boxInner(c, *found).isNone()
+        }
+        .None => false
+    }
+}
+
+/**
+ * The type `e` had before its conversion to a `dyn` type.
+ *
+ * @param c the checker
+ * @param e an expression of the current module
+ * @returns the type, or -1 if it was not converted
+ */
+pub fn dynSourceType(c: Checker, e: &Expr) int {
+    return match c.dynCoercions[c.module()].get(e.id.0) {
+        .Some(found) => *found
+        .None => -1
+    }
+}

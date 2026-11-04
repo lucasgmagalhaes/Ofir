@@ -12,6 +12,8 @@ import sema.check.itemOf
 import sema.check.noGenerics
 import sema.check_box.autoDeref
 import sema.check_closure.checkClosure
+import sema.check_dyn.boxesDyn
+import sema.check_dyn.coerceToDyn
 import sema.check_generic.checkGenericArgs
 import sema.check_generic.equatable
 import sema.check_generic.fnGenerics
@@ -612,9 +614,11 @@ pub fn requireTypeAt(c: mut Checker, span: Span, found: int, expected: int) {
  * @returns the type found (`expected` after a conversion to a slice)
  */
 pub fn coerce(c: mut Checker, p: Program, e: &Expr, expected: int) int {
-    let found = checkExpr(c, p, e, expected)
+    // `Box.new(x)` expected as `Box<dyn I>` infers the type of `x`
+    let hint = if boxesDyn(c, expected) { ERROR } else { expected }
+    let found = checkExpr(c, p, e, hint)
     if !compatible(found, expected) {
-        if coerceToSlice(c, p, e, found, expected) {
+        if coerceToSlice(c, p, e, found, expected) || coerceToDyn(c, p, e, found, expected) {
             return expected
         }
         requireType(c, e, found, expected)

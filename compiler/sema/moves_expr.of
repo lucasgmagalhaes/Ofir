@@ -28,6 +28,7 @@ import sema.check_box.adjustedType
 import sema.check_box.boxInner
 import sema.check_closure.capturedMut
 import sema.check_closure.closureCaptures
+import sema.check_dyn.dynBorrowed
 import sema.check_methods.hasMethod
 import sema.check_methods.primitiveName
 import sema.check_methods.typeNameOf
@@ -129,7 +130,7 @@ pub fn viewType(c: Checker, e: &Expr, depth: int) int {
 }
 
 fn coerced(c: Checker, e: &Expr) bool {
-    return c.sliceCoercions[c.module()].get(e.id.0).isSome()
+    return c.sliceCoercions[c.module()].get(e.id.0).isSome() || dynBorrowed(c, e)
 }
 
 // The field of `a.f`, or -1 for a variant (`Shape.Empty`), a constant

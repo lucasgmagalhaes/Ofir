@@ -43,6 +43,8 @@ pub copy enum TyKind {
     Adt
     /** A type parameter; `data` is its index, `inner` its name (a symbol). */
     Param
+    /** `dyn I`; `data` is the interface's `DefId`, `args` its type arguments. */
+    Dyn
 }
 
 /**
@@ -277,6 +279,28 @@ pub struct TypeTable {
     }
 
     /**
+     * `dyn I`.
+     *
+     * @param iface the interface's `DefId`
+     * @param args its type arguments
+     * @returns the type
+     */
+    pub fn dynOf(mut self, iface: int, args: [int]) int {
+        return self.intern(.Dyn, iface, 0, args)
+    }
+
+    /**
+     * Whether a type is a pointer to a `dyn` value: a fat pointer.
+     *
+     * @param ty a type
+     * @returns true for `&dyn I`, `*dyn I` and their `mut` forms
+     */
+    pub fn isFat(self, ty: int) bool {
+        let t = &self.types[ty]
+        return (t.kind == .Ref || t.kind == .Ptr) && self.types[t.inner].kind == .Dyn
+    }
+
+    /**
      * The type parameter number `index` of a generic declaration: those of
      * a type come first, then those of its method.
      *
@@ -305,7 +329,7 @@ pub struct TypeTable {
             return if data < args.len() { args[data] } else { ty }
         }
         var inner = self.types[ty].inner
-        if kind != .Tuple && kind != .Adt {
+        if kind != .Tuple && kind != .Adt && kind != .Dyn {
             inner = self.subst(inner, args)   // ref, ptr, slice, array, fn
         }
         var items: List<int> = []
@@ -381,6 +405,7 @@ pub fn kindNumber(kind: TyKind) int {
         .Fn => 12
         .Adt => 13
         .Param => 14
+        .Dyn => 15
     }
 }
 

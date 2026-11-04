@@ -97,6 +97,72 @@ pub fn declaringInterface(c: mut Checker, p: Program, iface: int, name: Symbol) 
 }
 
 /**
+ * The methods of an interface, embedded ones included, that can be called
+ * through a `dyn` value, in vtable order.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param iface the interface
+ * @returns their `DefId`s
+ */
+pub fn dynMethods(c: mut Checker, p: Program, iface: int) List<int> {
+    var out: List<int> = []
+    let all = interfaceClosure(c, p, iface)
+    for i in 0..all.len() {
+        let module = c.def(all[i]).module
+        for m in 0..methodCount(p, c.loc(all[i])) {
+            let id = c.r.tables[module].fnDefs[methodAt(p, c.loc(all[i]), m).id.0]
+            if dynCallable(c, p, id) {
+                out.push(id)
+            }
+        }
+    }
+    return out
+}
+
+/**
+ * Whether an interface method can be called through a `dyn` value: it
+ * borrows `self`, has no type parameters and does not mention `Self`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the method's `DefId`
+ * @returns true if it can
+ */
+pub fn dynCallable(c: mut Checker, p: Program, id: int) bool {
+    let m = methodAt(p, c.loc(id), c.def(id).member)
+    if !m.hasSelf || m.selfMode == .Move || m.typeParams.len() > 0 {
+        return false
+    }
+    return !c.types.get(fnSignature(c, p, id)).hasParam
+}
+
+/**
+ * Why an interface cannot be used as `dyn I`: a method without a body that
+ * cannot be called through a vtable (spec 9.7).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param iface the interface
+ * @returns "" or the reason
+ */
+pub fn dynIncompatible(c: mut Checker, p: Program, iface: int) str {
+    let all = interfaceClosure(c, p, iface)
+    for i in 0..all.len() {
+        let module = c.def(all[i]).module
+        for m in 0..methodCount(p, c.loc(all[i])) {
+            let method = methodAt(p, c.loc(all[i]), m)
+            let id = c.r.tables[module].fnDefs[method.id.0]
+            if method.body.isNone() && !dynCallable(c, p, id) {
+                return ("method `{c.text(method.name)}` takes `self` by value, is generic "
+                    + "or mentions `Self`")
+            }
+        }
+    }
+    return ""
+}
+
+/**
  * Whether the interfaces bounding a type parameter include `iface`, or
  * one that embeds it.
  *
@@ -158,6 +224,12 @@ pub fn unsatisfied(c: mut Checker, p: Program, ty: int, iface: int) str {
     let kind = c.types.kind(ty)
     if kind == .Error || kind == .Never {
         return ""
+    }
+    if kind == .Dyn {   // `dyn I` satisfies `I` and the interfaces `I` embeds
+        if contains(&interfaceClosure(c, p, c.types.get(ty).data), iface) {
+            return ""
+        }
+        return "it is not one of its interfaces"
     }
     if kind == .Param {
         if paramHas(c, p, c.types.get(ty).data, iface) {
