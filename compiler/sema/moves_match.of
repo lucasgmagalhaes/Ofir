@@ -81,7 +81,7 @@ pub fn bindsByMove(c: Checker, p: Program, pattern: &Pattern) bool {
 
 // A binding holds the loans of the value (`m.binding`) if it holds a
 // reference, or borrows a non-Copy part of the matched place.
-fn initLocal(m: mut Moves, local: int, s: mut State, borrowed: bool) {
+pub fn initLocal(m: mut Moves, local: int, s: mut State, borrowed: bool) {
     if local >= 0 {
         s.initPart(&Part{local: local, fields: []})   // also the parts moved out before
         m.borrowed[local] = borrowed

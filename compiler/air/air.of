@@ -205,6 +205,11 @@ pub copy enum RvalueKind {
     SizeOf
     /** the function value of the function `flag`, with the environment a (or none) */
     FnValue
+    /**
+     * the function value of the closure `flag` (its `NodeId`) of the function
+     * being compiled, with the environment a (or none)
+     */
+    Closure
 }
 
 /** The float functions of `RvalueKind.FloatFn`. */
@@ -465,6 +470,18 @@ pub struct AirLocal {
     pub byRef: bool
 }
 
+/** What the body of a closure (spec 10.3) adds to its enclosing function's. */
+pub struct ClosureBody {
+    /** The closure's `NodeId`. */
+    pub id: int
+    /** Its parameters, in order: locals of the enclosing function. */
+    pub params: List<int>
+    /** The locals it captures, in order, reached through its environment. */
+    pub captures: List<int>
+    /** A `move` closure: its environment holds the captured values. */
+    pub isMove: bool
+}
+
 /**
  * The body of a function: local 0 is the return value, locals
  * 1..paramCount the parameters. The body of an instance of a generic
@@ -485,6 +502,8 @@ pub struct AirBody {
     pub locals: List<AirLocal>
     /** The blocks; block 0 is the entry. */
     pub blocks: List<AirBlock>
+    /** The closure it is the body of; `def` is then the enclosing function. */
+    pub closure: Option<ClosureBody>
 
     /**
      * Adds a block.

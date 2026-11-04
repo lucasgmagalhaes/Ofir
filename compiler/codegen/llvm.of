@@ -905,7 +905,28 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {t} = insertvalue {FN_LLVM} {code}, ptr {env}, 1\n")
             return Value{ty: ty, text: t}
         }
+        .Closure => {
+            var env = "null"
+            if rv.a.kind != .Unit {
+                env = operand(g, c, p, body, &rv.a).text
+            }
+            let code = nextTemp(g)
+            let name = closureName(c, p, body.def, body.targs, rv.flag)
+            g.out.push("  {code} = insertvalue {FN_LLVM} undef, ptr {name}, 0\n")
+            let t = nextTemp(g)
+            g.out.push("  {t} = insertvalue {FN_LLVM} {code}, ptr {env}, 1\n")
+            return Value{ty: ty, text: t}
+        }
     }
+}
+
+// The function of the closure `id` of a function: it takes the environment first.
+fn closureName(c: mut Checker, p: Program, def: int, targs: int, id: int) str {
+    let name = functionName(c, p, def, targs, false)
+    if isCFunction(c, p, def) {
+        return "@\"{name.slice(1, name.len())}.c{id}\""
+    }
+    return "{name.slice(0, name.len() - 1)}.c{id}\""
 }
 
 // The LLVM type of a function value: the code and the environment.
@@ -1149,14 +1170,26 @@ fn localType(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, i: int) str
 fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     g.temp = 0
     let ret = body.locals[0].ty
-    let cfn = !isGlue(body.def) && isCFunction(c, p, body.def)   // callable from C
+    let closure = body.closure.isSome()
+    let cfn = !closure && !isGlue(body.def) && isCFunction(c, p, body.def)   // callable from C
     let linkage = if body.isMain || cfn { "" } else { "internal fastcc " }
     let retType = if body.isMain { "void".toOwned() } else { llvmType(g, c, p, ret) }
     g.out.push("define {linkage}{retType} ")
-    g.out.push(functionName(c, p, body.def, body.targs, body.isMain))
-    g.out.push("(")
-    var first = true
-    for i in 1..body.paramCount + 1 {
+    var params: List<int> = []
+    if let .Some(info) = body.closure {
+        g.out.push(closureName(c, p, body.def, body.targs, info.id))
+        g.out.push("(ptr %env")
+        params = info.params.clone()
+    } else {
+        g.out.push(functionName(c, p, body.def, body.targs, body.isMain))
+        g.out.push("(")
+        for i in 1..body.paramCount + 1 {
+            params.push(i)
+        }
+    }
+    var first = !closure
+    for k in 0..params.len() {
+        let i = params[k]
         let local = &body.locals[i]
         if local.byRef || hasValue(local.ty) {
             g.out.push("{if first { "" } else { ", " }}{localType(g, c, p, body, i)} %p{i}")
@@ -1170,10 +1203,19 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
             g.out.push("  %l{i} = alloca {localType(g, c, p, body, i)}\n")
         }
     }
-    for i in 1..body.paramCount + 1 {
+    for k in 0..params.len() {
+        let i = params[k]
         let local = &body.locals[i]
         if local.byRef || hasValue(local.ty) {
             g.out.push("  store {localType(g, c, p, body, i)} %p{i}, ptr %l{i}\n")
+        }
+    }
+    if let .Some(info) = body.closure {   // each captured variable, through the environment
+        for j in 0..info.captures.len() {
+            let i = info.captures[j]
+            g.out.push("  %env.{j} = getelementptr inbounds ptr, ptr %env, i64 {j}\n")
+            g.out.push("  %cap.{j} = load ptr, ptr %env.{j}\n")
+            g.out.push("  store ptr %cap.{j}, ptr %l{i}\n")
         }
     }
     g.out.push("  br label %bb0\n")

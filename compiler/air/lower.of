@@ -959,7 +959,7 @@ fn substBody(l: mut Lowerer, c: mut Checker) {
 
 // Substitutes an instance's type arguments into its lowered body, then
 // reaches the functions it calls.
-fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
+pub fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
     if l.body.targs != UNIT && !isGlue(l.body.def) {
         substBody(l, c)
     }
@@ -1035,7 +1035,8 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
     let sig = c.info[id].ty
     var body = AirBody{def: id, targs: inst.targs, name: decl.name, isMain: isMainFn(c, p, id),
                        paramCount: decl.params.len() + if decl.hasSelf { 1 } else { 0 },
-                       locals: [], blocks: []}
+                       locals: [], blocks: [],
+                       closure: .None}
     body.newLocal(c.types.get(sig).inner, .None, decl.span)   // the return value
     let locals: List<Local> = match c.r.tables[module].fnLocals.get(decl.id.0) {
         .Some(list) => list.clone()
@@ -1078,7 +1079,8 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
 
 fn emptyBody() AirBody {
     return AirBody{def: 0, targs: UNIT, name: Symbol(0), isMain: false, paramCount: 0,
-                   locals: [], blocks: []}
+                   locals: [], blocks: [],
+                   closure: .None}
 }
 
 // ---------------------------------------------------------------------------
@@ -1164,7 +1166,8 @@ fn glueBody(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
 fn lowerGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     let ty = c.types.get(targs).args[0]
     l.body = AirBody{def: GLUE_DROP, targs: targs, name: Symbol(0), isMain: false,
-                     paramCount: 1, locals: [], blocks: []}
+                     paramCount: 1, locals: [], blocks: [],
+                     closure: .None}
     l.body.newLocal(UNIT, .None, noSpan())
     l.body.newLocal(c.types.ref(ty, true), .None, noSpan())
     l.fnDef = 0
@@ -1228,7 +1231,8 @@ fn cloneVariants(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
 fn lowerCloneGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     let ty = c.types.get(targs).args[0]
     l.body = AirBody{def: GLUE_CLONE, targs: targs, name: Symbol(0), isMain: false,
-                     paramCount: 1, locals: [], blocks: []}
+                     paramCount: 1, locals: [], blocks: [],
+                     closure: .None}
     l.body.newLocal(ty, .None, noSpan())
     l.body.newLocal(ty, .None, noSpan())
     l.fnDef = 0
@@ -1269,7 +1273,8 @@ fn findTests(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
 // for (`ofir_test_index`).
 fn lowerTestMain(l: mut Lowerer, c: mut Checker, p: Program) {
     l.body = AirBody{def: GLUE_DROP, targs: UNIT, name: Symbol(0), isMain: true, paramCount: 0,
-                     locals: [], blocks: []}
+                     locals: [], blocks: [],
+                     closure: .None}
     l.body.newLocal(UNIT, .None, noSpan())
     l.fnDef = 0
     l.flags = []

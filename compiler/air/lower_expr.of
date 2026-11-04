@@ -40,6 +40,7 @@ import air.lower_pattern.enumEquality
 import air.lower_pattern.lowerMatch
 import air.lower_pattern.lowerPattern
 import air.lower.Lowerer
+import air.lower_closure.lowerClosure
 import air.lower.Place
 import air.lower.Temp
 import air.lower.assignDone
@@ -463,6 +464,7 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
         .Try(inner) => lowerTry(l, c, p, &*inner, ty)
         .Match(_, _) => lowerMatch(l, c, p, e)
         .Index(base, index) => lowerIndex(l, c, p, e, &*base, &*index)
+        .Closure(params, _, body, isMove) => lowerClosure(l, c, p, e, &params, &*body, isMove, ty)
         _ => {
             l.fail("this expression")
             unit()
@@ -997,7 +999,7 @@ fn builtinConst(c: Checker, ty: int, name: Symbol) Operand {
 // ---------------------------------------------------------------------------
 // Structs, tuples, indexing
 
-fn aggregate(l: mut Lowerer, ty: int, items: move List<Operand>) Operand {
+pub fn aggregate(l: mut Lowerer, ty: int, items: move List<Operand>) Operand {
     var rv = rvalue(.Aggregate, .Add, unit(), unit())
     rv.items = items
     return tempValue(l, ty, rv)
@@ -1853,7 +1855,7 @@ fn lowerPrint(l: mut Lowerer, c: mut Checker, p: Program, arg: &Expr, newline: b
 // ---------------------------------------------------------------------------
 // Statements
 
-fn assignOperand(l: mut Lowerer, dest: int, value: move Operand) {
+pub fn assignOperand(l: mut Lowerer, dest: int, value: move Operand) {
     if value.kind != .Unit {
         emitAssign(l, dest, rvUse(value))
     }

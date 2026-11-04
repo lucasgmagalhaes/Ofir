@@ -163,3 +163,33 @@ pub fn noteWrite(c: mut Checker, span: Span, local: int) {
         c.capturesMut[m].insert(closure, written)
     }
 }
+
+/**
+ * The outer locals a closure of the current module captures, in order.
+ *
+ * @param c the checker
+ * @param closure its `NodeId`
+ * @returns the locals
+ */
+pub fn closureCaptures(c: Checker, closure: int) List<int> {
+    return match c.r.tables[c.module()].captures.get(closure) {
+        .Some(list) => list.clone()
+        .None => []
+    }
+}
+
+/**
+ * Whether a closure of the current module modifies a captured local: it
+ * captures it by `&mut`.
+ *
+ * @param c the checker
+ * @param closure its `NodeId`
+ * @param local the local
+ * @returns true if it does
+ */
+pub fn capturedMut(c: Checker, closure: int, local: int) bool {
+    return match c.capturesMut[c.module()].get(closure) {
+        .Some(list) => contains(list, local)
+        .None => false
+    }
+}

@@ -26,9 +26,12 @@ import sema.check.Checker
 import sema.check.fnOf
 import sema.check_box.adjustedType
 import sema.check_box.boxInner
+import sema.check_closure.capturedMut
+import sema.check_closure.closureCaptures
 import sema.check_methods.hasMethod
 import sema.check_methods.primitiveName
 import sema.check_methods.typeNameOf
+import sema.check_ref.holdsBorrowedFn
 import sema.check_ref.holdsRef
 import sema.def.Res
 import sema.enums.enumVariants
@@ -46,6 +49,7 @@ import sema.moves.localName
 import sema.moves.markFlag
 import sema.moves.moveError
 import sema.moves.movesBlock
+import sema.moves_match.initLocal
 import sema.moves_match.movesIf
 import sema.moves_match.movesMatch
 import sema.program.Program
@@ -57,6 +61,8 @@ import syntax.ast.ExprKind
 import syntax.ast.FieldInit
 import syntax.ast.FnDecl
 import syntax.ast.Mode
+import syntax.ast.Param
+import std.mem
 
 /** What else than fields a place goes through, which forbids moving out of it. */
 pub copy enum Via {
@@ -212,7 +218,8 @@ pub fn movesNode(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut Stat
     let mark = m.carry.len()
     movesView(m, c, p, e, derefCount(c, e), s, use)
     // A computed value that holds no reference borrows nothing: `r.len()`.
-    if m.carry.len() > mark && !isPlaceView(c, e) && !holdsRef(c, p, c.typeOf(e.id.0)) {
+    if m.carry.len() > mark && !isPlaceView(c, e) && !holdsRef(c, p, c.typeOf(e.id.0)) &&
+       !holdsBorrowedFn(c, c.typeOf(e.id.0)) {
         dropCarry(m, mark)
     }
 }
@@ -773,6 +780,51 @@ fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: U
         .If(_, _, _, _) => movesIf(m, c, p, e, s, use)
         .Match(_, _) => movesMatch(m, c, p, e, s, use)
         .Block(block) | .Unsafe(block) => movesBlock(m, c, p, &block, s, use)
+        .Closure(params, _, body, isMove) => closure(m, c, p, e, &params, &*body, isMove, s)
         _ => {}   // literals, names of types and functions, constants
+    }
+}
+
+// A closure (spec 10.3): a `move` closure moves or copies what it captures,
+// another borrows it, `&mut` if it modifies it, until its last use. Its
+// body is analyzed apart, the captured variables borrowed there.
+fn closure(m: mut Moves, c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
+           body: &Expr, isMove: bool, s: mut State) {
+    let captured = closureCaptures(c, e.id.0)
+    var saved: List<bool> = []
+    for i in 0..captured.len() {
+        saved.push(m.borrowed[captured[i]])
+        m.borrowed[captured[i]] = true
+    }
+    let carry = mem.replace(m.carry, [])
+    let loops = mem.replace(m.loops, [])
+    var inner = s.dup()
+    for i in 0..params.len() {
+        initLocal(m, c.localAt(params[i].id.0), inner, true)
+    }
+    movesNode(m, c, p, body, inner, .Move)
+    m.carry = carry
+    m.loops = loops
+    for i in 0..captured.len() {
+        m.borrowed[captured[i]] = saved[i]
+    }
+    for i in 0..captured.len() {
+        let local = captured[i]
+        let place = Place{local: true, part: Part{local: local, fields: []}, via: .Nothing}
+        usePlace(m, c, &place, s, e.span)
+        if isMove {
+            let copied = m.copyLocal[local]
+            access(s, &place.part, if copied { Access.Read } else { Access.Move }, e.span)
+            if !copied {
+                movePlace(m, c, &place, s, e.span)
+            }
+        } else {
+            let mutable = capturedMut(c, e.id.0, local)
+            access(s, &place.part, if mutable { Access.BorrowMut } else { Access.Borrow },
+                   e.span)
+            if !s.dead {
+                lend(m, &place.part, mutable, e.span)
+            }
+        }
     }
 }
