@@ -185,7 +185,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 |---|------|:----:|-----------|
 | 5.1 | Returning borrows and `ref struct` (spec 5.6) | M | **done**: `List.iter()` written in Ofir |
 | 5.2 | Generic bounds and `where` clauses | M | **done**: the built-in `Eq`, `Ord`, `Hash` and `Clone` until interfaces (5.3); `tests/run/generics/*` pass; E0332-E0334 tested |
-| 5.3 | Interfaces: declaration, structural satisfaction, assertions, default methods, embedding | L | `tests/run/interfaces/*` pass |
+| 5.3 | Interfaces: declaration, structural satisfaction, assertions, default methods, embedding | L | **done**: static dispatch per instance; generic interfaces wait (E0901); `tests/run/interfaces/*` pass; E0332, E0333 and E0335 tested |
 | 5.4 | `dyn`: vtables, fat pointers, type switches, unsized types, `Any` and `typeName` (ADR 0024) | M | `examples/interfaces.of` runs |
 | 5.5 | Built-in interfaces derived automatically (`Eq`, `Ord`, `Hash`, `Clone`, `Debug`); `From` in `?` | M | `==` on structs, structs as map keys |
 | 5.6 | Rewrite `List`, `Map`, `Option`, `Result`, `Box` as generic Ofir code in `std/` | L | built-in special cases removed from the compiler |

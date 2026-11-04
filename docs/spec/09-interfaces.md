@@ -72,6 +72,11 @@ interface Shape {
 }
 ```
 
+A type gets a default method where it is used through a bound, and, as a
+method of its own, from the interfaces it asserts (`struct Circle: Shape`)
+and those they embed. Satisfying an interface without asserting it does not
+add its default methods to the type.
+
 ## 9.4 Embedding
 
 An interface can include other interfaces:
@@ -102,6 +107,8 @@ interface From<T> {
     fn from(value: move T) Self
 }
 ```
+
+Stage 1 does not support generic interfaces yet (E0901).
 
 ## 9.6 Static dispatch
 
