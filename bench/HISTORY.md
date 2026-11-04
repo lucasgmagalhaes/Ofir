@@ -117,3 +117,21 @@ for C. Written with `wrappingAdd` and `wrappingSub`, the same program
 takes 32.6 ms, as fast as C. Allocation (`binary_trees`, one `malloc`
 per box on both sides) and floating point with bounds-checked list
 indexing (`nbody`) are within 5% of C.
+
+## Generated code against C, Rust and Go (roadmap 5.15)
+
+PR #13, commit `47e2e34`, GitHub Actions `ubuntu-24.04` runner
+(`Linux-7.0.0-1017-azure-x86_64-with-glibc2.39`): one warmup and median of
+three timed runs. The three programs' outputs agreed across all four languages
+before and during timing.
+Toolchains: Ofir 0.1.0 (stage 0), clang 17.0.6, rustc 1.99.1, Go 1.24.13.
+Wall times include process startup; ratios are relative to C in this run.
+
+| Program | Ofir (ms) | C (ms) | Rust (ms) | Go (ms) | Ofir / C |
+|---------|----------:|-------:|----------:|--------:|---------:|
+| `binary_trees` | 1,510.249 | 2,000.586 | 1,396.399 | 2,850.029 | 0.755 |
+| `fib` | 33.140 | 19.215 | 19.188 | 35.185 | 1.725 |
+| `nbody` | 219.814 | 226.128 | 226.372 | 318.723 | 0.972 |
+
+This is a CI snapshot, not a release measurement. At each release, append
+results from a fixed machine with the toolchain versions and run count.
