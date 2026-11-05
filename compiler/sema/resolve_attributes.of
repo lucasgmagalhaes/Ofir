@@ -3,11 +3,14 @@
  * Attribute checks (spec 12.1; stage 0:
  * bootstrap/src/sema/resolve_attributes.c): known names, where each one
  * applies, its arguments, and those this compiler does not implement yet;
- * `@allow` silences warnings inside its declaration.
+ * `@allow` silences warnings inside its declaration; uses of a `@deprecated`
+ * one are warnings (W0006).
  */
 
 import base.span.Span
+import sema.def.DefKind
 import sema.resolve.Resolver
+import sema.resolve.findAttribute
 import syntax.ast.Attribute
 import syntax.ast.Expr
 import syntax.ast.ExprKind
@@ -64,9 +67,10 @@ fn ruleArgs(rule: int) int {
     return args[rule]
 }
 
-// The attributes this compiler implements: `@inline`, `@cold`, `@test`, `@lang`, `@allow`.
+// The attributes this compiler implements: `@inline`, `@cold`, `@test`, `@lang`,
+// `@deprecated`, `@allow`.
 fn ruleSupported(rule: int) bool {
-    return rule < 4 || rule == 12
+    return rule < 4 || rule == 9 || rule == 12
 }
 
 fn ruleUsage(rule: int) str {
@@ -202,6 +206,8 @@ fn checkList(r: mut Resolver, attributes: &List<Attribute>, target: int, span: S
                             "invalid arguments for `@{name}`: write {ruleUsage(rule)}")
                 } else if !ruleSupported(rule) {
                     r.error("E0901", a.span, "the attribute `@{name}` is not supported yet")
+                } else if name == "deprecated" {
+                    r.diags.allow("W0006", span)   // a deprecated declaration may use others
                 } else if name == "allow" {
                     let codes = allowedCodes(allowCategory(r, a))
                     for k in 0..codes.len() {
@@ -254,6 +260,54 @@ pub fn checkAttributes(r: mut Resolver, item: &Item) {
         ItemKind.Interface(_, _, methods) => {
             checkList(r, &item.attributes, ON_INTERFACE, item.span)
             checkFns(r, &methods, ON_METHOD)
+        }
+    }
+}
+
+// The message of `@deprecated("message")`, "" without one; `None` if the
+// list has no `@deprecated`.
+fn deprecation(r: Resolver, attributes: &List<Attribute>) Option<str> {
+    let Option.Some(at) = findAttribute(r, *attributes, "deprecated") else {
+        return Option.None
+    }
+    if attributes[at].args.len() == 0 {
+        return Option.Some("")
+    }
+    return match attributes[at].args[0].kind {
+        ExprKind.Str(value) => Option.Some(value.sliceFrom(0))
+        _ => Option.Some("")
+    }
+}
+
+// The deprecation of a member of an item: a method or a function of an
+// extern block; of the item itself when `member` is negative.
+fn memberDeprecation(r: Resolver, item: &Item, member: int) Option<str> {
+    if member < 0 {
+        return deprecation(r, &item.attributes)
+    }
+    return match item.kind {
+        ItemKind.Extern(_, fns) => deprecation(r, &fns[member].attributes)
+        ItemKind.Struct(_, _, _, _, _, methods) => deprecation(r, &methods[member].attributes)
+        ItemKind.Enum(_, _, _, methods) => deprecation(r, &methods[member].attributes)
+        ItemKind.Interface(_, _, methods) => deprecation(r, &methods[member].attributes)
+        _ => Option.None
+    }
+}
+
+/**
+ * Records which of the declarations of an item are `@deprecated`.
+ *
+ * @param r the resolver
+ * @param item the declaration
+ * @param first the first def it declared
+ */
+pub fn recordDeprecated(r: mut Resolver, item: &Item, first: int) {
+    for d in first..r.defs.len() {
+        if r.defs[d].kind == DefKind.Variant {
+            continue
+        }
+        if let Option.Some(message) = memberDeprecation(r, item, r.defs[d].member) {
+            r.deprecated.insert(d, message.toOwned())
         }
     }
 }

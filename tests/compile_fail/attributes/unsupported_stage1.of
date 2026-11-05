@@ -1,5 +1,5 @@
 // requires: stage1
-// Attributes that stage 1 checks but does not implement yet (roadmap 5.11b, 5.11c).
+// Attributes that stage 1 checks but does not implement yet (roadmap 5.11c).
 
 @repr(C)   // error[E0901]: the attribute `@repr` is not supported yet
 struct Header {
@@ -11,7 +11,7 @@ struct Block {
     x: int
 }
 
-@deprecated("use g")   // error[E0901]: the attribute `@deprecated` is not supported yet
+@export("f")   // error[E0901]: the attribute `@export` is not supported yet
 fn f() {
 }
 

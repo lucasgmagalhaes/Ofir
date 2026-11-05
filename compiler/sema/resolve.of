@@ -19,6 +19,7 @@ import sema.def.Local
 import sema.def.Res
 import sema.program.Program
 import sema.resolve_attributes.checkAttributes
+import sema.resolve_attributes.recordDeprecated
 import sema.resolve_body.resolveExpr
 import sema.resolve_body.resolveFn
 import sema.resolve_import.importPrelude
@@ -98,6 +99,8 @@ pub struct Resolver {
     pub locals: List<Local>
     /** The name of the struct or enum whose methods are resolved. */
     pub owner: Option<Symbol>
+    /** The `@deprecated` declarations, by def id: their message, or "". */
+    pub deprecated: Map<int, str>
     /** `self` */
     pub selfName: Symbol
     /** `@test` functions are compiled: `ofir test`. */
@@ -295,8 +298,8 @@ fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
     return Resolver{defs, scope, tables, langItems: List.filled(0, 7),
                     lang: List.filled(0, PRIMITIVE_TYPES), names, diags, map,
                     trace: Trace.new(trace), moduleNames, current: 0, moduleName: "", locals: [],
-                    owner: Option.None, selfName, testing: false, imports: [],
-                    closureBases: [], closureCaptures: []}
+                    owner: Option.None, deprecated: Map.new(), selfName, testing: false,
+                    imports: [], closureBases: [], closureCaptures: []}
 }
 
 fn noDef() Def {
@@ -618,7 +621,9 @@ fn resolvePass(r: mut Resolver, program: Program, pass: int) {
             continue
         }
         if pass == 0 {
+            let first = r.defs.len()
             collectItem(r, item, i)
+            recordDeprecated(r, item, first)
         } else if pass == 1 {
             if let ItemKind.Import(path, alias) = item.kind {
                 resolveImport(r, program, &path, alias, item.span)
