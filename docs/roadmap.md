@@ -202,7 +202,8 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.11e | `@export`, `@link` | S | **done** (stage 1): `@export("name")` names the C symbol of an `extern "C" fn` (a C identifier; E0808 on other functions) and E0813 rejects a symbol defined twice; `@link("name")` passes `-lname` to clang once per library; `tests/run/ffi/export_link.of` and `tests/codegen/export.of` pass |
 | 5.12a | Default parameter values and named arguments | M | **done** (stage 1): defaults evaluated at each call that omits them, in the callee's module, after the written arguments; named arguments on functions, methods and `dyn` calls; defaults of generic-typed parameters wait (E0901); `tests/run/calls/*` pass; E0302, E0306, E0308, E0358 and E0359 tested |
 | 5.12b | Diagnostics as JSON: `--message-format=json` | S | **done** (stage 1): one object per line with severity, code, message and the span's file, line, column, end line and end column (`docs/design/toolchain.md`); driver errors without a location; unit tests in `compiler/diag/index_test.of` |
-| 5.12c | Diagnostics: notes and help messages | M | the diagnostics that have a fix to suggest show it |
+| 5.12c | Diagnostics: notes and help messages | M | **done** (both stages): `= note:` and `= help:` lines after the excerpt, a `notes` array in JSON, left out of the short format (`docs/design/toolchain.md`); E0600 and E0304 suggest their fix |
+| 5.12e | Diagnostics: "did you mean" for unknown names, methods and fields (E0200, E0301, E0316) | S | a close name in scope is suggested as a help line |
 | 5.12d | `ofir explain` and an explanation file for every registry code | M | every error code has `docs/errors/EXXXX.md` |
 | 5.13 | Debug info (DWARF) | M | stepping through code in `lldb` works |
 | 5.14 | Optimization: `noalias`/`readonly` (stage 1 only), niche layouts, field reordering, AIR check elimination | M | benchmarks within 10% of C |
