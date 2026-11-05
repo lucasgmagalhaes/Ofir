@@ -59,7 +59,17 @@ fn cLen(s: str) uint {
   floats, `bool`, raw pointers, `@repr(C)` structs and function pointers
   declared `extern "C" fn`.
 - The program links against the C library by default. Other libraries are
-  linked with `@link("name")` on the `extern` block.
+  linked with `@link("name")` on the `extern` block: the linker gets
+  `-lname`, once per library, in the order the blocks are declared.
+  `name` is a library name: letters, digits, `_`, `.`, `+` and `-`, not
+  starting with `-` (E0809).
+
+```ofir
+@link("m")
+extern "C" {
+    fn cbrt(x: f64) f64
+}
+```
 
 ## 11.4 Exporting functions to C
 
@@ -69,6 +79,13 @@ extern "C" fn add(a: i32, b: i32) i32 {
     return a + b
 }
 ```
+
+- An `extern "C" fn` with a body is a C symbol named after the function;
+  `@export("name")` names the symbol `name` instead, a C identifier
+  (E0809). Ofir code still calls the function by its own name.
+- `@export` applies only to an `extern "C" fn` with a body (E0808).
+- A program defines each C symbol once: two `extern "C"` functions with the
+  same symbol are an error (E0813).
 
 ## 11.5 Mutable globals
 

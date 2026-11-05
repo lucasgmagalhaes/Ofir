@@ -19,6 +19,7 @@ import diag.Format
 import driver.cfg.CfgTarget
 import driver.modules.Front
 import driver.modules.loadProgram
+import sema.c_symbols.linkLibraries
 import sema.check.Checker
 import sema.check.checkProgram
 import sema.interface_params.desugarInterfaceParams
@@ -279,7 +280,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     if opts.emit == "llvm" {
         return true
     }
-    let linked = link(&opts, ll, exe.clone())
+    let linked = link(&opts, ll, exe.clone(), linkLibraries(c.r, program))
     let _ = fs.removeFile(ll)
     if linked {
         pipeline.exe = exe
@@ -367,9 +368,10 @@ fn runtimeLibrary() Option<str> {
     return Option.None
 }
 
-// clang compiles the module and links it with the runtime. The module has
-// no target triple: clang uses its default target.
-fn link(opts: &Options, ll: str, exe: str) bool {
+// clang compiles the module and links it with the runtime and the
+// `@link` libraries. The module has no target triple: clang uses its
+// default target.
+fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
     let Option.Some(runtime) = runtimeLibrary() else {
         eprintln("error[E0902]: cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)")
         return false
@@ -381,8 +383,13 @@ fn link(opts: &Options, ll: str, exe: str) bool {
         }
     }
     let level = if opts.release { "-O2" } else { "-O0" }
-    var args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime,
-                "-lm".toOwned(), "-o".toOwned(), exe.toOwned()]
+    var args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime]
+    for i in 0..libraries.len() {
+        args.push("-l{libraries[i]}")
+    }
+    args.push("-lm".toOwned())
+    args.push("-o".toOwned())
+    args.push(exe.toOwned())
     // MinGW, not MSVC; the main thread gets the 8 MiB stack Linux gives it.
     if onWindows() {
         args.push("--target=x86_64-w64-windows-gnu".toOwned())

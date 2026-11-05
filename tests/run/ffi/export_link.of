@@ -1,0 +1,25 @@
+// requires: stage1
+// `@link` links a library; `@export` names the C symbol of a function,
+// which Ofir code still calls by its own name (spec 11.3, 11.4).
+
+@link("m")
+extern "C" {
+    fn sqrt(x: f64) f64
+}
+
+@link("m")
+extern "C" {
+    fn floor(x: f64) f64
+}
+
+@export("ofir_test_add")
+extern "C" fn add(a: i32, b: i32) i32 {
+    return a + b
+}
+
+fn main() {
+    unsafe {
+        println("{sqrt(16.0)} {floor(2.5)}")
+    }
+    println("{add(40, 2)}")
+}
