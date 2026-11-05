@@ -34,6 +34,7 @@ changed by writing a new record that supersedes the old one.
 | [0026](0026-manifest-jsonc.md) | The manifest is `ofir.json`, JSON with comments | Accepted |
 | [0027](0027-lightweight-tasks.md) | Concurrency through lightweight tasks, without `async`/`await` | Accepted |
 | [0028](0028-qualified-variants.md) | Variants are always named through their enum | Accepted |
+| [0029](0029-interface-parameters.md) | An interface as a parameter type is an anonymous type parameter | Accepted |
 
 ## Template
 

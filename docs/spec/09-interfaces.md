@@ -125,6 +125,33 @@ fn totalArea<S: Shape>(shapes: [S]) float {
 }
 ```
 
+### Interfaces as parameter types
+
+An interface written as the type of a parameter, or as part of it, is an
+anonymous type parameter bound by that interface (ADR 0029). These two
+functions are the same:
+
+```ofir
+fn totalArea(shapes: [Shape]) float { ... }
+fn totalArea<S: Shape>(shapes: [S]) float { ... }
+```
+
+- It is allowed anywhere in the type of a parameter of a function or a
+  method (`s: Shape`, `s: mut Shape`, `items: List<Shape>`), and nowhere
+  else: not in return types, fields, `let`, type arguments, `fn(...)`
+  types or closure parameters (E0356).
+- Each occurrence is a type parameter of its own:
+  `fn f(a: Shape, b: Shape)` accepts a `Circle` and a `Square`. Values that must share a
+  type, or a type used again (in the return type, a `where` clause), need
+  a named type parameter.
+- One interface per position: several bounds need a named parameter,
+  `<S: Shape + Display>`.
+- The anonymous parameters come after the named ones and are always
+  inferred: type arguments written at a call give only the named ones.
+
+`s: Shape` is static and `s: dyn Shape` dynamic; only `dyn` holds values
+of different types together (`List<Box<dyn Shape>>`).
+
 ## 9.7 Dynamic dispatch with `dyn`
 
 `dyn Interface` is a type whose concrete type is known only at runtime.
