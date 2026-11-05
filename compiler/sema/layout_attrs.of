@@ -64,7 +64,7 @@ fn packable(c: Checker, p: Program, ty: int) bool {
 }
 
 /**
- * Checks the layout attributes of a struct (E0808, E0811, E0901).
+ * Checks the layout attributes of a struct (E0808, E0811).
  *
  * @param c the checker
  * @param p the program
@@ -74,11 +74,9 @@ pub fn checkStructAttrs(c: mut Checker, p: Program, id: int) {
     let item = itemOf(p, c.loc(id))
     let align = findAttribute(c.r, item.attributes.clone(), "align")
     if let Option.Some(at) = align {
-        let span = item.attributes[at].span
         if isPacked(c, p, id) {
+            let span = item.attributes[at].span
             c.error("E0808", span, "`@align` does not apply to a `@packed` struct".toOwned())
-        } else if alignAttr(c, p, id) > 16 {
-            c.unsupported(span, "alignments above 16 are")
         }
     }
     if !isPacked(c, p, id) || c.info[id].fields.isNone() {
