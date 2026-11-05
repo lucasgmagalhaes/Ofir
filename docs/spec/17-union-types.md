@@ -10,7 +10,7 @@ type LoadError = IoError | ParseError
 fn load(path: str) Result<Config, LoadError> {
     let text = fs.readFile(path)?      // Result<str, IoError>: IoError widens
     let config = Config.parse(text)?   // Result<Config, ParseError>
-    return .Ok(config)
+    return Result.Ok(config)
 }
 ```
 

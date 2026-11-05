@@ -25,8 +25,9 @@ enum Option<T> {
 }
 ```
 
-`Ok`, `Err`, `Some` and `None` are in scope everywhere without a prefix,
-in expressions and in patterns (`Some(x)`, `None`). They are declared in
+`Option` and `Result` are in scope everywhere; like any variant, theirs are
+named through the enum, in expressions and in patterns (`Option.Some(x)`,
+`Option.None`, `Result.Ok(v)`, `Result.Err(e)`). They are declared in
 `std/core/option.of` and `result.of`, marked `@lang("option")` and
 `@lang("result")`.
 
@@ -34,9 +35,9 @@ in expressions and in patterns (`Some(x)`, `None`). They are declared in
 fn parsePort(s: str) Result<u16, str> {
     let n = parseInt(s)?
     if n < 1 || n > 65535 {
-        return Err("port out of range: {n}")
+        return Result.Err("port out of range: {n}")
     }
-    return Ok(n as u16)
+    return Result.Ok(n as u16)
 }
 ```
 
@@ -44,9 +45,9 @@ fn parsePort(s: str) Result<u16, str> {
 
 `expr?` unwraps a `Result` or `Option`:
 
-- on `Ok(v)` / `Some(v)`, the expression evaluates to `v`;
-- on `Err(e)` / `None`, the enclosing function returns immediately with
-  `Err(e)` / `None`.
+- on `Result.Ok(v)` / `Option.Some(v)`, the expression evaluates to `v`;
+- on `Result.Err(e)` / `Option.None`, the enclosing function returns
+  immediately with `Result.Err(e)` / `Option.None`.
 
 The function's return type must be compatible: `?` on a `Result<T, E>`
 requires the function to return `Result<U, E>`, and `?` on an `Option<T>`

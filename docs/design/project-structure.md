@@ -280,8 +280,8 @@ std/
 │   ├── slice.of              `@lang("slice")`: Slice<T>, the type `&[T]`
 │   ├── map.of                `@lang("map")`: Map<K, V>, ordered by insertion
 │   ├── hash.of               the deterministic hash functions of Map keys
-│   ├── option.of             `@lang("option")`: Option<T>, with Some and None in scope
-│   ├── result.of             `@lang("result")`: Result<T, E>, with Ok and Err in scope
+│   ├── option.of             `@lang("option")`: Option<T>, in scope everywhere
+│   ├── result.of             `@lang("result")`: Result<T, E>, in scope everywhere
 │   ├── interfaces.of         Eq, Ord, Hash, Clone, Display, Debug, Iterator, ...
 │   └── panic.of
 ├── mem/                      std.mem: replace and swap; take, UnsafeCell, Cell [planned]

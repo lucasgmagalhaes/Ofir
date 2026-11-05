@@ -80,9 +80,9 @@ recognizes the method by its name and signature, until interfaces
 
 ```ofir
 let area = match shape {
-    .Circle(r) => 3.14159 * r * r
-    .Rect(w, h) => w * h
-    .Empty => 0.0
+    Shape.Circle(r) => 3.14159 * r * r
+    Shape.Rect(w, h) => w * h
+    Shape.Empty => 0.0
 }
 
 match code {
@@ -95,12 +95,12 @@ match code {
 
 - Arms are separated by newlines. An arm's body is an expression or a block.
 - Patterns: literals, ranges (`a..=b`), `_`, bindings (`x`), enum variants
-  with sub-patterns (`.Some(x)`), struct patterns (`Point{x, y: 0}`) and
+  with sub-patterns (`Option.Some(x)`), struct patterns (`Point{x, y: 0}`) and
   alternatives (`p | q`).
-- A guard may follow a pattern: `.Some(n) if n > 0 => ...`
+- A guard may follow a pattern: `Option.Some(n) if n > 0 => ...`
 - `match` **must be exhaustive**; a missing case is a compile error that
-  shows a value no arm matches (`Err(.TooLarge)`). An arm that the arms
-  before it already cover is a warning (W0004).
+  shows a value no arm matches (`Result.Err(SizeError.TooLarge)`). An arm
+  that the arms before it already cover is a warning (W0004).
 - Matching an owned value moves its fields into the bindings.
 - Matching a place the function does not own (a borrowed parameter, a field
   or element of one) borrows the matched parts instead; Copy parts are
@@ -111,7 +111,7 @@ match code {
 `if let` is a shorthand for a `match` with one interesting arm:
 
 ```ofir
-if let .Some(user) = findUser(id) {
+if let Option.Some(user) = findUser(id) {
     println("{user.name}")
 } else {
     println("not found")
@@ -124,13 +124,13 @@ runs the `else` block, which must leave the block (`return`, `break`,
 
 ```ofir
 fn greet(id: UserId) Result<str, str> {
-    let .Some(user) = findUser(id) else {
-        return Err("user {id.0} not found")
+    let Option.Some(user) = findUser(id) else {
+        return Result.Err("user {id.0} not found")
     }
-    let .Admin(level) = user.role else {
-        return Ok("hello, {user.name}")
+    let Role.Admin(level) = user.role else {
+        return Result.Ok("hello, {user.name}")
     }
-    return Ok("welcome back, admin level {level}")
+    return Result.Ok("welcome back, admin level {level}")
 }
 ```
 

@@ -196,7 +196,6 @@ Primary       = Literal
               | "(" [ Expr "," [ Expr { "," Expr } [ "," ] ] ] ")"   (* tuple *)
               | ArrayLit
               | StructLit
-              | "." identifier [ "(" [ Args ] ")" ]   (* enum variant shorthand *)
               | IfExpr
               | MatchExpr
               | Closure
@@ -238,7 +237,6 @@ PatternAtom   = "_"
               | [ "mut" ] identifier                    (* binding *)
               | Literal
               | [ "-" ] Literal ( ".." | "..=" ) [ "-" ] Literal
-              | "." identifier [ "(" PatternList ")" ]  (* variant shorthand *)
               | TypePath "." identifier [ "(" PatternList ")" ]
               | TypePath "{" FieldPat { "," FieldPat } [ "," ".." ] "}"
               | TypePath "(" PatternList ")"                (* tuple struct *)
