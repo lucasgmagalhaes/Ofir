@@ -5,6 +5,7 @@
 
 extern "C" {
     fn ofir_alloc(size: int) *mut u8
+    fn ofir_alloc_aligned(size: int, align: int) *mut u8
     fn ofir_free(p: *mut u8)
 }
 
@@ -90,7 +91,13 @@ pub struct Box<T> {
      * @panics when the system is out of memory
      */
     pub fn new(value: move T) Box<T> {
-        let ptr = unsafe { ofir_alloc(sizeOf<T>()) as *mut T }
+        let ptr = unsafe {
+            if alignOf<T>() > 16 {   // above malloc's alignment (spec 13.7)
+                ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
+            } else {
+                ofir_alloc(sizeOf<T>()) as *mut T
+            }
+        }
         unsafe {
             *ptr = value
         }
