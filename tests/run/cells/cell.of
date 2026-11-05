@@ -1,0 +1,88 @@
+// requires: stage1 (bounds, roadmap 5.2)
+// Interior mutability (spec 5.8): `Cell` and `UnsafeCell` change through a
+// shared borrow; types holding them are passed by address.
+
+import std.mem.cell.Cell
+import std.mem.cell.UnsafeCell
+
+struct Counter {
+    name: str
+    hits: Cell<int>
+
+    fn hit(self) {
+        self.hits.set(self.hits.get() + 1)
+    }
+}
+
+enum Slot {
+    Empty
+    Full(Cell<int>)
+}
+
+fn bump(c: &Cell<int>) {
+    c.set(c.get() + 1)
+}
+
+fn bumpTwice(c: Cell<int>) {
+    bump(&c)
+    c.set(c.get() + 1)
+}
+
+fn fill(slot: Slot) {
+    if let Slot.Full(c) = slot {
+        c.set(c.get() * 10)
+    }
+}
+
+fn drain(slot: Slot) int {
+    return match slot {
+        Slot.Full(c) => c.replace(0)
+        Slot.Empty => -1
+    }
+}
+
+fn pair(cells: (Cell<bool>, int)) {
+    cells.0.set(!cells.0.get())
+}
+
+fn main() {
+    let c = Cell.new(1)
+    bump(&c)
+    bumpTwice(c)
+    println("{c.get()}")
+    let old = c.replace(7)
+    println("{old} {c.get()}")
+
+    let counter = Counter{name: "visits", hits: Cell.new(0)}
+    counter.hit()
+    counter.hit()
+    println("{counter.name}: {counter.hits.get()}")
+
+    let slot = Slot.Full(Cell.new(4))
+    fill(slot)
+    fill(slot)
+    if let Slot.Full(n) = slot {
+        println("{n.get()}")
+    }
+
+    let full = Slot.Full(Cell.new(400))
+    println("{drain(full)} {drain(full)} {drain(Slot.Empty)}")
+
+    let cells = [Cell.new(1), Cell.new(2)]
+    for cell in cells {
+        cell.set(cell.get() + 10)
+    }
+    let r = &cells[1]
+    r.set(r.get() + 1000)
+    println("{cells[0].get()} {cells[1].get()}")
+
+    let both = (Cell.new(false), 3)
+    pair(both)
+    println("{both.0.get()} {both.1}")
+
+    let raw = UnsafeCell.new(5)
+    unsafe {
+        *raw.get() = *raw.get() + 1
+    }
+    println("{raw.intoInner()} {c.intoInner()}")
+}

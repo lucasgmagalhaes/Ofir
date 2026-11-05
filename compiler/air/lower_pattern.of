@@ -20,6 +20,8 @@ import air.air.rvalue
 import air.air.terminator
 import air.lower.Lowerer
 import air.lower.Place
+import air.lower.bindPlace
+import air.lower.bindsAddress
 import air.lower.concreteType
 import air.lower.dropScopeEnter
 import air.lower.dropScopeLeave
@@ -40,6 +42,7 @@ import air.lower.toLocal
 import air.lower_expr.lowerBinaryOp
 import air.lower_expr.lowerBlock
 import air.lower_expr.lowerExpr
+import air.lower_expr.lowerPlace
 import air.lower_expr.lowerTail
 import air.lower_expr.ownBindings
 import air.lower_expr.typeIsValue
@@ -65,6 +68,7 @@ import sema.types.UNIT
 import syntax.ast.Arg
 import syntax.ast.Expr
 import syntax.ast.ExprKind
+import syntax.ast.MatchArm
 import syntax.ast.Op
 import syntax.ast.Pattern
 import syntax.ast.PatternKind
@@ -184,12 +188,12 @@ fn orPattern(l: mut Lowerer, c: mut Checker, p: Program, alternatives: &List<Pat
     switchTo(l, ok)
 }
 
-fn bind(l: mut Lowerer, c: Checker, local: int, place: &Place, ty: int) {
+fn bind(l: mut Lowerer, c: mut Checker, local: int, place: &Place, ty: int) {
     if local < 0 {
         l.fail("this pattern")
         return
     }
-    emitStore(l, &localPlace(local + 1), placeOperand(place, OperandKind.Copy, ty))
+    bindPlace(l, c, local + 1, place, ty)
 }
 
 /**
@@ -393,6 +397,17 @@ fn armValue(l: mut Lowerer, c: mut Checker, p: Program, body: &Expr, asValue: bo
     }
 }
 
+// Whether an arm binds a local that holds an address: the scrutinee, a
+// borrowed place, is then matched where it is.
+fn matchesInPlace(l: Lowerer, c: Checker, arms: &List<MatchArm>) bool {
+    for i in 0..arms.len() {
+        if bindsAddress(l, c, &arms[i].pattern) {
+            return true
+        }
+    }
+    return false
+}
+
 /**
  * `match value { arms }`.
  *
@@ -408,7 +423,12 @@ pub fn lowerMatch(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand 
     let dest = if asValue { newTemp(l, ty) } else { 0 }
     match e.kind {
         ExprKind.Match(scrutinee, arms) => {
-            let place = localPlace(toLocal(l, lowerExpr(l, c, p, &*scrutinee)))
+            let inPlace = matchesInPlace(l, c, &arms)
+            let place = if inPlace {
+                lowerPlace(l, c, p, &*scrutinee)
+            } else {
+                localPlace(toLocal(l, lowerExpr(l, c, p, &*scrutinee)))
+            }
             let owned = ownsBox(c, &*scrutinee)
             let boxType = c.typeOf(scrutinee.id.0)
             let join = l.body.newBlock()

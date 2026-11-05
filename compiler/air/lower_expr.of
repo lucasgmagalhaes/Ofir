@@ -54,6 +54,8 @@ import air.lower.Place
 import air.lower.Temp
 import air.lower.assignDone
 import air.lower.assignPart
+import air.lower.bindPlace
+import air.lower.bindsAddress
 import air.lower.byAddress
 import air.lower.concreteType
 import air.lower.dropBeforeAssign
@@ -1534,7 +1536,11 @@ fn lowerForList(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &
     } else {
         let elem = c.types.get(ty).args[0]
         let target = if two { first + 1 } else { first }
-        emitAssign(l, target, rvUse(placeOperand(&current, OperandKind.Copy, elem)))
+        if l.body.locals[target].byRef {   // a value with interior mutability
+            bindPlace(l, c, target, &current, elem)
+        } else {
+            emitAssign(l, target, rvUse(placeOperand(&current, OperandKind.Copy, elem)))
+        }
         if two {
             emitAssign(l, first, rvUse(opCopy(counter, I64)))
         }
@@ -1667,7 +1673,17 @@ fn lowerIf(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     let dest = if hasValue { newTemp(l, ty) } else { 0 }
     match e.kind {
         ExprKind.If(letPattern, condBox, then, otherwise) => {
-            let cond = if letPattern.isSome() { lowerExpr(l, c, p, &*condBox) } else {
+            let inPlace = match letPattern {
+                Option.Some(pattern) => bindsAddress(l, c, &pattern)
+                Option.None => false
+            }
+            var scrutinee = localPlace(0)
+            let cond = if inPlace {
+                scrutinee = lowerPlace(l, c, p, &*condBox)
+                opUnit(UNIT)
+            } else if letPattern.isSome() {
+                lowerExpr(l, c, p, &*condBox)
+            } else {
                 lowerCondition(l, c, p, &*condBox)
             }
             let thenBlock = l.body.newBlock()
@@ -1678,7 +1694,7 @@ fn lowerIf(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
             let boxType = c.typeOf(condBox.id.0)
             match letPattern {
                 Option.Some(pattern) => {   // the pattern's tests jump to `else` on a mismatch
-                    place = localPlace(toLocal(l, cond))
+                    place = if inPlace { scrutinee.clone() } else { localPlace(toLocal(l, cond)) }
                     lowerPattern(l, c, p, &pattern, &place, other)
                     emitGoto(l, thenBlock)
                 }

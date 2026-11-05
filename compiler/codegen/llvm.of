@@ -1339,6 +1339,8 @@ fn statement(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt
     var ty = body.locals[s.dest].ty
     if s.destPath.fields.len() > 0 || s.destPath.deref {   // a field or `*p`: the operand's type
         ty = s.value.a.ty
+    } else if body.locals[s.dest].byRef {   // a binding given an address
+        ty = s.value.a.ty
     }
     let v = rvalue(g, c, p, body, &s.value, ty)
     storeAt(g, c, p, body, s.dest, &s.destPath, &v)

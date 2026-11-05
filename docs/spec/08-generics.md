@@ -38,6 +38,7 @@ built-in interfaces:
 | `Ord` | `<`, `<=`, `>`, `>=`, `list.sort()` | integers, floats, `str` |
 | `Hash` | with `Eq`, `Map<T, V>` keys | integers, `bool`, `str`, tuples of these |
 | `Clone` | `.clone()` | every type that can be cloned (chapter 5.2) |
+| `Copy` | implicit copies of values of `T` | Copy types (chapter 2.9) |
 
 A type parameter satisfies a bound it declares. A bound that names no
 interface is an error (E0333), and so is a bound on a type that is not a

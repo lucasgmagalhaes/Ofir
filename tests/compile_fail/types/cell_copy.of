@@ -1,0 +1,12 @@
+// requires: stage1
+import std.mem.cell.Cell
+struct Pair {
+    a: int
+}
+copy struct Point {
+    x: int
+}
+fn main() {
+    let _ok = Cell.new(Point{x: 1})
+    let _bad = Cell.new(Pair{a: 1}) // error[E0332]: the type `Pair` does not satisfy the bound `Copy` of `T`
+}

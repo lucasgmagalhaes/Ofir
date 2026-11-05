@@ -291,7 +291,7 @@ fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
                                 fnDefs: List.filled(0, count), fnLocals: Map.new(),
                                 captures: Map.new()})
     }
-    return Resolver{defs, scope, tables, langItems: List.filled(0, 6),
+    return Resolver{defs, scope, tables, langItems: List.filled(0, 7),
                     lang: List.filled(0, PRIMITIVE_TYPES), names, diags, map,
                     trace: Trace.new(trace), moduleNames, current: 0, moduleName: "", locals: [],
                     owner: Option.None, selfName, testing: false, imports: [],
@@ -410,7 +410,7 @@ fn inStd(r: Resolver) bool {
 // The `@lang` types of std that the compiler knows by name (spec 2.6), in
 // the order of `Resolver.langItems`.
 fn langItemIndex(name: str) int {
-    let items = ["box", "list", "option", "result", "slice", "map"]
+    let items = ["box", "list", "option", "result", "slice", "map", "unsafe_cell"]
     for i in 0..items.len() {
         if items[i] == name {
             return i

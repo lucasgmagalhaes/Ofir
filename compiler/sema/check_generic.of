@@ -10,6 +10,7 @@
  */
 
 import base.span.Span
+import sema.check.BOUND_CLONE
 import sema.check.BOUND_EQ
 import sema.check.BOUND_HASH
 import sema.check.BOUND_ORD
@@ -32,6 +33,7 @@ import sema.interfaces.interfaceText
 import sema.interfaces.paramBoundArgs
 import sema.interfaces.unsatisfied
 import sema.program.Program
+import sema.structs.isCopy
 import sema.types.ERROR
 import sema.types.NEVER
 import sema.types.TyKind
@@ -452,8 +454,10 @@ pub fn satisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
         orderable(c, p, ty)
     } else if bit == BOUND_HASH {
         hashable(c, p, ty)
-    } else {
+    } else if bit == BOUND_CLONE {
         isCloneable(c, p, ty)
+    } else {
+        isCopy(c, p, ty)
     }
 }
 
@@ -464,8 +468,10 @@ fn boundName(bit: int) str {
         "Ord"
     } else if bit == BOUND_HASH {
         "Hash"
-    } else {
+    } else if bit == BOUND_CLONE {
         "Clone"
+    } else {
+        "Copy"
     }
 }
 
@@ -487,7 +493,7 @@ pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<in
             return
         }
         let bits = params.bounds[i]
-        for b in 0..4 {
+        for b in 0..5 {
             let bit = 1 << b
             if bits & bit == 0 || satisfies(c, p, args[i], bit) {
                 continue
