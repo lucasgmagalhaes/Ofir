@@ -76,7 +76,7 @@ pub struct Diagnostics {
      * @param message what went wrong
      */
     pub fn error(mut self, code: str, span: Span, message: move str) {
-        self.add(.Error, code, span, message)
+        self.add(Severity.Error, code, span, message)
     }
 
     /**
@@ -87,7 +87,8 @@ pub struct Diagnostics {
      * @param message what is suspicious
      */
     pub fn warning(mut self, code: str, span: Span, message: move str) {
-        self.add(if self.denyWarnings { .Error } else { .Warning }, code, span, message)
+        self.add(if self.denyWarnings { Severity.Error } else { Severity.Warning }, code, span,
+                 message)
     }
 
     /**
@@ -133,7 +134,7 @@ pub struct Diagnostics {
             if k > 0 && same(d, &self.items[order[k - 1]]) {
                 continue
             }
-            if format == .Short {
+            if format == Format.Short {
                 out.push(shortLine(d, map))
             } else {
                 out.push(excerpt(d, map))
@@ -143,7 +144,7 @@ pub struct Diagnostics {
     }
 
     fn add(mut self, severity: Severity, code: str, span: Span, message: move str) {
-        if severity == .Error {
+        if severity == Severity.Error {
             self.errors += 1
         }
         self.items.push(Diagnostic{severity, code: code.toOwned(), span, message})
@@ -184,7 +185,7 @@ fn same(a: &Diagnostic, b: &Diagnostic) bool {
 }
 
 fn severityName(s: Severity) str {
-    return if s == .Error { "error" } else { "warning" }
+    return if s == Severity.Error { "error" } else { "warning" }
 }
 
 fn shortLine(d: &Diagnostic, map: SourceMap) str {

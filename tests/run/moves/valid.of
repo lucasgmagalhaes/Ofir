@@ -46,7 +46,7 @@ fn main() {
     rename(label)
     println(label)
 
-    let options = [Some(1), None]
+    let options = [Option.Some(1), Option.None]
     for o in options {
         print("{o ?? 0} ")
     }
@@ -60,7 +60,7 @@ fn main() {
     mem.swap(x, y)
     println("{first} {names[0]} {x} {y}")
 
-    var maybe = Some("token".toOwned())
+    var maybe = Option.Some("token".toOwned())
     let taken = maybe.take()
     println("{taken.isSome()} {maybe.isNone()}")
 }

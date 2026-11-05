@@ -14,11 +14,14 @@ import sema.expr_check.requireTypeAt
 import sema.program.Program
 import sema.types.ERROR
 import sema.types.FN_OWNED
+import sema.types.TyKind
 import sema.types.UNIT
 import syntax.ast.Expr
 import syntax.ast.ExprKind
+import syntax.ast.Mode
 import syntax.ast.Param
 import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
 
 /**
  * Checks a closure: each parameter's type comes from its annotation or
@@ -36,12 +39,12 @@ import syntax.ast.TypeExpr
  */
 pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
                     ret: &Option<TypeExpr>, body: &Expr, isMove: bool, expected: int) int {
-    let hinted = c.types.kind(expected) == .Fn && c.types.get(expected).data != 0 &&
+    let hinted = c.types.kind(expected) == TyKind.Fn && c.types.get(expected).data != 0 &&
                  c.types.get(expected).args.len() == params.len()
     var types: List<int> = []
     for i in 0..params.len() {
         let param = &params[i]
-        if param.mode != .Borrow {
+        if param.mode != Mode.Borrow {
             c.unsupported(param.ty.span, "`mut` and `move` closure parameters are")
         }
         let hint = if hinted { c.types.get(expected).args[i] } else { ERROR }
@@ -64,7 +67,7 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
         types.push(ty)
     }
     var result = ERROR
-    if let .Some(t) = *ret {
+    if let Option.Some(t) = *ret {
         result = resolveType(c, p, &t)
     } else if hinted {
         result = c.types.get(expected).inner
@@ -79,7 +82,7 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
         coerce(c, p, body, result)
     } else {
         match body.kind {
-            .Block(block) => {
+            ExprKind.Block(block) => {
                 c.ret = UNIT
                 checkBlock(c, p, &block, ERROR, false)
                 c.setType(body.id.0, UNIT)
@@ -95,7 +98,7 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
     c.closureMoves.pop()
     c.loops = savedLoops
     c.ret = savedRet
-    let owned = isMove || (captureCount(c, e.id.0) == 0 && c.types.kind(expected) == .Fn &&
+    let owned = isMove || (captureCount(c, e.id.0) == 0 && c.types.kind(expected) == TyKind.Fn &&
                            c.types.get(expected).data == FN_OWNED)
     return c.types.fnValueType(types, result, owned)
 }
@@ -103,22 +106,22 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
 // A parameter without a written type has an empty path (the parser's mark).
 fn written(t: &TypeExpr) bool {
     return match t.kind {
-        .Path(segments, _) => segments.len() > 0
+        TypeKind.Path(segments, _) => segments.len() > 0
         _ => true
     }
 }
 
 fn captureCount(c: Checker, closure: int) int {
     return match c.r.tables[c.module()].captures.get(closure) {
-        .Some(list) => list.len()
-        .None => 0
+        Option.Some(list) => list.len()
+        Option.None => 0
     }
 }
 
 fn captures(c: Checker, closure: int, local: int) bool {
     return match c.r.tables[c.module()].captures.get(closure) {
-        .Some(list) => contains(list, local)
-        .None => false
+        Option.Some(list) => contains(list, local)
+        Option.None => false
     }
 }
 
@@ -154,8 +157,8 @@ pub fn noteWrite(c: mut Checker, span: Span, local: int) {
         }
         let m = c.module()
         var written: List<int> = match c.capturesMut[m].get(closure) {
-            .Some(list) => list.clone()
-            .None => []
+            Option.Some(list) => list.clone()
+            Option.None => []
         }
         if !contains(&written, local) {
             written.push(local)
@@ -173,8 +176,8 @@ pub fn noteWrite(c: mut Checker, span: Span, local: int) {
  */
 pub fn closureCaptures(c: Checker, closure: int) List<int> {
     return match c.r.tables[c.module()].captures.get(closure) {
-        .Some(list) => list.clone()
-        .None => []
+        Option.Some(list) => list.clone()
+        Option.None => []
     }
 }
 
@@ -189,7 +192,7 @@ pub fn closureCaptures(c: Checker, closure: int) List<int> {
  */
 pub fn capturedMut(c: Checker, closure: int, local: int) bool {
     return match c.capturesMut[c.module()].get(closure) {
-        .Some(list) => contains(list, local)
-        .None => false
+        Option.Some(list) => contains(list, local)
+        Option.None => false
     }
 }

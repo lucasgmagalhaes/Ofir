@@ -28,7 +28,7 @@ fn main() {
     let ps = [P{name: "a", tags: ["x"]}, P{name: "b", tags: ["y", "z"]}]
     println("{longest(&ps)}")
     var it = ps.iter()
-    if let Some(p) = it.next() {
+    if let Option.Some(p) = it.next() {
         println(p.name)
     }
     for p in it {

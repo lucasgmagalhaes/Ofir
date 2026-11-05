@@ -6,10 +6,10 @@ struct Countdown {
 
     fn next(mut self) Option<str> {
         if self.n == 0 {
-            return .None
+            return Option.None
         }
         self.n -= 1
-        return .Some("item{self.n}")
+        return Option.Some("item{self.n}")
     }
 }
 

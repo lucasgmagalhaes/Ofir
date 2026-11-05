@@ -153,9 +153,17 @@ static TypeId build(Checker *c, VariantUse use, TypeHints hints) {
     return check_args(c, &call, &sig);
 }
 
-// `Some(x)`, `None`, `Ok(v)`, `Err(e)`: the variants the prelude names.
+// E0326: a variant named without its enum (ADR 0028).
+void unqualified_variant(Checker *c, Span span, DefId id, Symbol name) {
+    check_error(c, "E0326", span, "a variant is named through its enum: write `" SV_FMT "."
+                SV_FMT "`", SV_ARG(name_of(c, sema_def(c->sema, id)->name)),
+                SV_ARG(name_of(c, name)));
+}
+
+// `Some(x)`, `None`, `Ok(v)`, `Err(e)`: E0326, then checked as if qualified.
 TypeId check_prelude_variant(Checker *c, Expr *e, const Def *def, const ArgList *args,
                              TypeId expected) {
+    unqualified_variant(c, e->span, (DefId){def->target}, def->name);
     VariantUse use = {e, args, (DefId){def->target}, def->variant};
     return build(c, use, (TypeHints){type_id(TID_ERROR), expected});
 }
@@ -166,16 +174,17 @@ static TypeId no_variant(Checker *c, Span span, Symbol name, TypeId type) {
     return type_id(TID_ERROR);
 }
 
-// `.Circle(1.0)`: the enum comes from the expected type.
+// `.Circle(1.0)`: E0326; when the expected type gives the enum, checked as
+// if qualified.
 TypeId check_variant_shorthand(Checker *c, Expr *e, TypeId expected) {
     DefId id;
     EnumInfo *info = enum_of(c, expected, &id);
     if (!info) {
-        check_error(c, "E0320", e->span, "cannot tell which enum `." SV_FMT "` belongs to: "
-                    "write `Enum." SV_FMT "`", SV_ARG(name_of(c, e->as.variant.name)),
-                    SV_ARG(name_of(c, e->as.variant.name)));
+        check_error(c, "E0326", e->span, "a variant is named through its enum: write `Enum."
+                    SV_FMT "`", SV_ARG(name_of(c, e->as.variant.name)));
         return type_id(TID_ERROR);
     }
+    unqualified_variant(c, e->span, id, e->as.variant.name);
     int64_t index = variant_index(info, e->as.variant.name);
     if (index < 0) {
         return no_variant(c, e->span, e->as.variant.name, expected);

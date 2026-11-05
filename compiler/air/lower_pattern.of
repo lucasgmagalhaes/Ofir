@@ -7,6 +7,9 @@
  */
 
 import air.air.Operand
+import air.air.OperandKind
+import air.air.RvalueKind
+import air.air.TermKind
 import air.air.VARIANT_STEP
 import air.air.branch
 import air.air.opCopy
@@ -37,6 +40,7 @@ import air.lower_expr.ownBindings
 import air.lower_expr.typeIsValue
 import diag.noSpan
 import sema.check.Checker
+import sema.def.DefKind
 import sema.enums.enumVariants
 import sema.enums.variantsOf
 import sema.program.Program
@@ -44,11 +48,14 @@ import sema.structs.fieldsOf
 import sema.structs.structFields
 import sema.types.BOOL
 import sema.types.I32
+import sema.types.TyKind
 import sema.types.UNIT
 import syntax.ast.Arg
 import syntax.ast.Expr
+import syntax.ast.ExprKind
 import syntax.ast.Op
 import syntax.ast.Pattern
+import syntax.ast.PatternKind
 
 /**
  * A place one step further: a field, or a variant's payload.
@@ -64,7 +71,7 @@ pub fn placeChild(place: &Place, step: int) Place {
 }
 
 fn tagOf(place: &Place) Operand {
-    return placeOperand(&placeChild(place, 0), .Copy, I32)
+    return placeOperand(&placeChild(place, 0), OperandKind.Copy, I32)
 }
 
 fn discriminant(c: mut Checker, p: Program, ty: int, index: int) Operand {
@@ -135,7 +142,7 @@ pub fn enumEquality(l: mut Lowerer, op: Op, a: move Operand, b: move Operand) Op
     let pa = localPlace(toLocal(l, a))
     let pb = localPlace(toLocal(l, b))
     let dest = newTemp(l, BOOL)
-    emitAssign(l, dest, rvalue(.Binary, op, tagOf(&pa), tagOf(&pb)))
+    emitAssign(l, dest, rvalue(RvalueKind.Binary, op, tagOf(&pa), tagOf(&pb)))
     return opCopy(dest, BOOL)
 }
 
@@ -170,7 +177,7 @@ fn bind(l: mut Lowerer, c: Checker, local: int, place: &Place, ty: int) {
         l.fail("this pattern")
         return
     }
-    emitStore(l, &localPlace(local + 1), placeOperand(place, .Copy, ty))
+    emitStore(l, &localPlace(local + 1), placeOperand(place, OperandKind.Copy, ty))
 }
 
 /**
@@ -189,37 +196,37 @@ pub fn lowerPattern(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Patter
                     place: &Place, fail: int) {
     let ty = c.typeOf(pattern.id.0)
     match pattern.kind {
-        .Wildcard => {}
-        .Binding(_, _) => {
+        PatternKind.Wildcard => {}
+        PatternKind.Binding(_, _) => {
             if c.localAt(pattern.id.0) < 0 && isEnum(c, ty) {   // `None`: a unit variant
                 variantTest(l, c, p, pattern, place, ty, &[], fail)
             } else {
                 bind(l, c, c.localAt(pattern.id.0), place, ty)
             }
         }
-        .Literal(value) => {
+        PatternKind.Literal(value) => {
             let v = lowerExpr(l, c, p, &*value)
-            let eq = compare(l, c, p, .Eq, ty, placeOperand(place, .Copy, ty), v)
+            let eq = compare(l, c, p, Op.Eq, ty, placeOperand(place, OperandKind.Copy, ty), v)
             test(l, eq, fail)
         }
-        .Range(lo, hi, inclusive) => {
+        PatternKind.Range(lo, hi, inclusive) => {
             let low = lowerExpr(l, c, p, &*lo)
-            let ge = compare(l, c, p, .Ge, ty, placeOperand(place, .Copy, ty), low)
+            let ge = compare(l, c, p, Op.Ge, ty, placeOperand(place, OperandKind.Copy, ty), low)
             test(l, ge, fail)
             let high = lowerExpr(l, c, p, &*hi)
             let op = if inclusive { Op.Le } else { Op.Lt }
-            let below = compare(l, c, p, op, ty, placeOperand(place, .Copy, ty), high)
+            let below = compare(l, c, p, op, ty, placeOperand(place, OperandKind.Copy, ty), high)
             test(l, below, fail)
         }
-        .Tuple(items) => lowerPatterns(l, c, p, &items, place, fail)
-        .TupleStruct(_, args) => {
+        PatternKind.Tuple(items) => lowerPatterns(l, c, p, &items, place, fail)
+        PatternKind.TupleStruct(_, args) => {
             if isEnum(c, ty) {   // `Some(x)`
                 variantTest(l, c, p, pattern, place, ty, &args, fail)
             } else {
                 lowerPatterns(l, c, p, &args, place, fail)
             }
         }
-        .Struct(_, fields, _) => {
+        PatternKind.Struct(_, fields, _) => {
             let id = c.types.get(ty).data
             structFields(c, p, id)
             let names = fieldsOf(c, id).names.clone()
@@ -230,19 +237,20 @@ pub fn lowerPattern(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Patter
                 }
                 let at = placeChild(place, index)
                 match fields[i].pattern {
-                    .Some(inner) => lowerPattern(l, c, p, &inner, &at, fail)
-                    .None => bind(l, c, c.localAt(fields[i].id.0), &at, c.typeOf(fields[i].id.0))
+                    Option.Some(inner) => lowerPattern(l, c, p, &inner, &at, fail)
+                    Option.None => bind(l, c, c.localAt(fields[i].id.0), &at,
+                                        c.typeOf(fields[i].id.0))
                 }
             }
         }
-        .Variant(_, _, args, _) => variantTest(l, c, p, pattern, place, ty, &args, fail)
-        .Or(alternatives) => orPattern(l, c, p, &alternatives, place, fail)
+        PatternKind.Variant(_, _, args, _) => variantTest(l, c, p, pattern, place, ty, &args, fail)
+        PatternKind.Or(alternatives) => orPattern(l, c, p, &alternatives, place, fail)
     }
 }
 
 fn isEnum(c: Checker, ty: int) bool {
     let t = c.types.get(ty)
-    return t.kind == .Adt && c.def(t.data).kind == .Enum
+    return t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Enum
 }
 
 /**
@@ -259,14 +267,14 @@ fn isEnum(c: Checker, ty: int) bool {
 pub fn isVariant(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: int,
                  index: int) Operand {
     let tag = tagOf(place)
-    return compare(l, c, p, .Eq, I32, tag, discriminant(c, p, ty, index))
+    return compare(l, c, p, Op.Eq, I32, tag, discriminant(c, p, ty, index))
 }
 
 fn variantTest(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, place: &Place,
                ty: int, args: &List<Pattern>, fail: int) {
     let index = c.members[c.module()][pattern.id.0]
     let tag = tagOf(place)
-    let is = compare(l, c, p, .Eq, I32, tag, discriminant(c, p, ty, index))
+    let is = compare(l, c, p, Op.Eq, I32, tag, discriminant(c, p, ty, index))
     test(l, is, fail)
     let payload = placeChild(place, VARIANT_STEP + index)
     lowerPatterns(l, c, p, args, &payload, fail)
@@ -282,7 +290,7 @@ fn lowerPatterns(l: mut Lowerer, c: mut Checker, p: Program, list: &List<Pattern
 
 fn armValue(l: mut Lowerer, c: mut Checker, p: Program, body: &Expr, asValue: bool) Operand {
     return match body.kind {
-        .Block(block) | .Unsafe(block) => lowerBlock(l, c, p, &block, asValue)
+        ExprKind.Block(block) | ExprKind.Unsafe(block) => lowerBlock(l, c, p, &block, asValue)
         _ => lowerTail(l, c, p, body)
     }
 }
@@ -301,13 +309,13 @@ pub fn lowerMatch(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand 
     let asValue = typeIsValue(ty)
     let dest = if asValue { newTemp(l, ty) } else { 0 }
     match e.kind {
-        .Match(scrutinee, arms) => {
+        ExprKind.Match(scrutinee, arms) => {
             let place = localPlace(toLocal(l, lowerExpr(l, c, p, &*scrutinee)))
             let join = l.body.newBlock()
             for i in 0..arms.len() {
                 let next = l.body.newBlock()
                 lowerPattern(l, c, p, &arms[i].pattern, &place, next)
-                if let .Some(guard) = arms[i].guard {
+                if let Option.Some(guard) = arms[i].guard {
                     tempScopeEnter(l)
                     let value = lowerExpr(l, c, p, &guard)
                     let gty = value.ty
@@ -318,14 +326,14 @@ pub fn lowerMatch(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand 
                 dropScopeEnter(l)   // the arm's bindings own what they took
                 ownBindings(l, c, p, &arms[i].pattern)
                 let value = armValue(l, c, p, &arms[i].body, asValue)
-                if asValue && value.kind != .Unit {
+                if asValue && value.kind != OperandKind.Unit {
                     emitStore(l, &localPlace(dest), value)
                 }
                 dropScopeLeave(l, c, p)
                 emitGoto(l, join)
                 switchTo(l, next)
             }
-            terminate(l, terminator(.Unreachable))   // the match is exhaustive
+            terminate(l, terminator(TermKind.Unreachable))   // the match is exhaustive
             switchTo(l, join)
         }
         _ => {}

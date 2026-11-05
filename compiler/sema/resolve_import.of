@@ -9,12 +9,14 @@
 import base.intern.Symbol
 import base.span.Span
 import sema.def.Def
+import sema.def.DefKind
 import sema.def.Res
 import sema.program.Program
 import sema.resolve.ImportUse
 import sema.resolve.Resolver
 import sema.trace.traceUse
 import syntax.ast.Expr
+import syntax.ast.ExprKind
 
 // The dotted name of the first `count` segments of `path`.
 fn dotted(r: Resolver, path: &List<Symbol>, count: int) str {
@@ -70,7 +72,7 @@ pub fn moduleMember(r: mut Resolver, index: int, name: Symbol, span: Span) int {
 fn sameTarget(r: Resolver, a: int, b: int) bool {
     let x = r.def(a)
     let y = r.def(b)
-    return a == b || (x.kind == .Module && y.kind == .Module && x.target == y.target)
+    return a == b || (x.kind == DefKind.Module && y.kind == DefKind.Module && x.target == y.target)
 }
 
 fn bind(r: mut Resolver, name: Symbol, id: int, span: Span) {
@@ -99,13 +101,13 @@ pub fn resolveImport(r: mut Resolver, program: Program, path: &List<Symbol>,
     let name = alias ?? path[path.len() - 1]
     r.imports.push(ImportUse{module: r.current, name, span, used: false})
     bindImport(r, path, name, span)
-    traceUse(r, "import", name, span, .Def(r.scope.module(name)))
+    traceUse(r, "import", name, span, Res.Def(r.scope.module(name)))
 }
 
 fn bindImport(r: mut Resolver, path: &List<Symbol>, name: Symbol, span: Span) {
     let module = findModule(r, path, path.len())
     if module >= 0 {   // a module
-        var def = Def{kind: .Module, name, span, isPub: false, inPrelude: false, lang: false,
+        var def = Def{kind: DefKind.Module, name, span, isPub: false, inPrelude: false, lang: false,
                       module: r.current, item: -1, member: -1, target: module, primitive: -1}
         let id = r.addDef(def)
         bind(r, name, id, span)
@@ -132,19 +134,19 @@ fn bindImport(r: mut Resolver, path: &List<Symbol>, name: Symbol, span: Span) {
  */
 pub fn resolveQualified(r: mut Resolver, e: &Expr, base: &Expr, name: Symbol) {
     let isName = match base.kind {
-        .Ident(_) => true
-        .Field(_, _, _) => true   // `a.b.c` where `a.b` was a module member
+        ExprKind.Ident(_) => true
+        ExprKind.Field(_, _, _) => true   // `a.b.c` where `a.b` was a module member
         _ => false
     }
     let target = match r.tables[r.current].res[base.id.0] {
-        .Def(id) => id
+        Res.Def(id) => id
         _ => 0
     }
-    if !isName || target == 0 || r.def(target).kind != .Module {
+    if !isName || target == 0 || r.def(target).kind != DefKind.Module {
         return
     }
     let member = moduleMember(r, r.def(target).target, name, e.span)
-    let res: Res = if member != 0 { .Def(member) } else { .Error }
+    let res: Res = if member != 0 { Res.Def(member) } else { Res.Error }
     r.setRes(e.id.0, res)
     traceUse(r, "member", name, e.span, res)
 }

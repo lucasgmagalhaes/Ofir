@@ -59,20 +59,20 @@ pub fn fromUtf8(bytes: move List<u8>) Result<str, Utf8Error> {
     var out = str.withCapacity(bytes.len())
     var i = 0
     for i < bytes.len() {
-        let .Some(decoded) = decode(bytes, i) else {
-            return .Err(Utf8Error{offset: i})
+        let Option.Some(decoded) = decode(bytes, i) else {
+            return Result.Err(Utf8Error{offset: i})
         }
         out.pushChar(decoded.0)
         i += decoded.1
     }
-    return .Ok(out)
+    return Result.Ok(out)
 }
 
 // The scalar value of the UTF-8 sequence at `i` and its length, or None.
 fn decode(b: List<u8>, i: int) Option<(u32, int)> {
     let first = b[i] as u32
     if first < 0x80 {
-        return .Some((first, 1))
+        return Option.Some((first, 1))
     }
     let n = if first >= 0xC2 && first <= 0xDF {
         2
@@ -84,22 +84,22 @@ fn decode(b: List<u8>, i: int) Option<(u32, int)> {
         0
     }
     if n == 0 || i + n > b.len() {
-        return .None
+        return Option.None
     }
     let mask: u32 = 0x7F
     var c = first & (mask >> n as u32)
     for k in 1..n {
         let next = b[i + k] as u32
         if next & 0xC0 != 0x80 {
-            return .None
+            return Option.None
         }
         c = (c << 6) | (next & 0x3F)
     }
     let min: u32 = if n == 2 { 0x80 } else if n == 3 { 0x800 } else { 0x10000 }
     if c < min || c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF) {
-        return .None
+        return Option.None
     }
-    return .Some((c, n))
+    return Option.Some((c, n))
 }
 
 /**

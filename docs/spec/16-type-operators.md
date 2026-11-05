@@ -66,7 +66,7 @@ type Pick<T, K: keyof T> = { [P in K]: T[P] }
 type Omit<T, K: keyof T> = { [P in keyof T - K]: T[P] }
 type Record<K, V> = { [P in K]: V }
 
-let patch = Partial<Point>{x: .Some(3.0)}         // y defaults to .None
+let patch = Partial<Point>{x: Option.Some(3.0)}   // y defaults to Option.None
 let only: Pick<Point, .x> = Pick<Point, .x>{x: 1.0}
 let limits = Record<.min | .max, int>{min: 0, max: 10}
 ```
@@ -74,7 +74,7 @@ let limits = Record<.min | .max, int>{min: 0, max: 10}
 - `[K in Keys]: F` gives each key `K` a field of type `F`, where `F` may
   use `K` (`T[K]`).
 - `[K in Keys]?: F` makes each field an `F?` (`Option<F>`) with the default
-  `.None`, so a literal may leave it out.
+  `Option.None`, so a literal may leave it out.
 - `[K in Keys if Cond]: F` keeps the keys for which the conditional type
   `Cond` (16.5) is `true`: `{ [K in keyof T if T[K] is int]: T[K] }` keeps
   the integer fields.
@@ -109,7 +109,7 @@ compile-time loops over keys (chapter 15):
 fn merge<T>(base: T, patch: Partial<T>) T {
     var out = base
     comptime for key in keyof T {
-        if let .Some(value) = patch[key] {
+        if let Option.Some(value) = patch[key] {
             out[key] = value
         }
     }
@@ -126,7 +126,7 @@ fn merge<T>(base: T, patch: Partial<T>) T {
 
 | Alias | Meaning |
 |-------|---------|
-| `Partial<T>` | every field of `T` optional, defaulting to `.None` |
+| `Partial<T>` | every field of `T` optional, defaulting to `Option.None` |
 | `Required<T>` | every `Option` field of `T` unwrapped |
 | `Pick<T, K: keyof T>` | the fields `K` of `T` |
 | `Omit<T, K: keyof T>` | the fields of `T` but `K` |

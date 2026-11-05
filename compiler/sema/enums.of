@@ -14,12 +14,15 @@ import sema.check_ref.checkStorable
 import sema.check_types.ownerType
 import sema.check_types.resolveType
 import sema.const_eval.constEval
+import sema.def.DefKind
 import sema.expr_check.coerce
 import sema.program.Program
 import sema.structs.checkNotRecursive
 import sema.structs.isCopy
 import sema.types.ERROR
 import sema.types.I64
+import sema.types.TyKind
+import syntax.ast.ItemKind
 import syntax.ast.Variant
 
 /**
@@ -49,7 +52,7 @@ pub struct EnumInfo {
 // Whether an enum is `copy`, and its number of variants.
 fn declaredFlags(p: Program, at: Loc) (bool, int) {
     return match itemOf(p, at).kind {
-        .Enum(isCopy, _, variants, _) => (isCopy, variants.len())
+        ItemKind.Enum(isCopy, _, variants, _) => (isCopy, variants.len())
         _ => (false, 0)
     }
 }
@@ -57,7 +60,7 @@ fn declaredFlags(p: Program, at: Loc) (bool, int) {
 // Variant `i` as written.
 fn variantDeclAt(p: Program, at: Loc, i: int) &Variant {
     return match itemOf(p, at).kind {
-        .Enum(_, _, variants, _) => &variants[i]
+        ItemKind.Enum(_, _, variants, _) => &variants[i]
         _ => {
             panic("variantDeclAt: not an enum")
         }
@@ -78,10 +81,10 @@ fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int,
                     + "not `{c.typeName(ty)}`")
         }
     }
-    if let .Some(value) = decl.discriminant {
+    if let Option.Some(value) = decl.discriminant {
         let ty = coerce(c, p, &value, I64)
         if ty != ERROR {
-            if let .Some(found) = constEval(c, p, &value) {
+            if let Option.Some(found) = constEval(c, p, &value) {
                 v.discriminant = found.signed()
             }
         }
@@ -142,7 +145,7 @@ pub fn enumVariants(c: mut Checker, p: Program, id: int) bool {
     c.selfType = savedSelf
     c.enter(saved)
     checkDiscriminants(c, p, c.loc(id), &info)
-    c.info[id].variants = .Some(Box.new(info))
+    c.info[id].variants = Option.Some(Box.new(info))
     return true
 }
 
@@ -156,8 +159,8 @@ pub fn enumVariants(c: mut Checker, p: Program, id: int) bool {
  */
 pub fn variantsOf(c: Checker, id: int) &EnumInfo {
     return match c.info[id].variants {
-        .Some(info) => &*info
-        .None => {
+        Option.Some(info) => &*info
+        Option.None => {
             panic("variantsOf: not computed")
         }
     }
@@ -188,14 +191,14 @@ pub fn variantIndex(info: &EnumInfo, name: Symbol) int {
  * @returns its `DefId`, when it is an enum whose variants are known
  */
 pub fn enumOf(c: mut Checker, p: Program, ty: int) Option<int> {
-    if c.types.kind(ty) != .Adt {
-        return .None
+    if c.types.kind(ty) != TyKind.Adt {
+        return Option.None
     }
     let id = c.types.get(ty).data
-    if c.def(id).kind != .Enum || !enumVariants(c, p, id) {
-        return .None
+    if c.def(id).kind != DefKind.Enum || !enumVariants(c, p, id) {
+        return Option.None
     }
-    return .Some(id)
+    return Option.Some(id)
 }
 
 /**

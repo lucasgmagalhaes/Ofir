@@ -52,7 +52,7 @@ pub copy enum Ordering {
      * @returns true for `Less`
      */
     pub fn isLt(self) bool {
-        return self == .Less
+        return self == Ordering.Less
     }
 
     /**
@@ -61,7 +61,7 @@ pub copy enum Ordering {
      * @returns true for `Equal`
      */
     pub fn isEq(self) bool {
-        return self == .Equal
+        return self == Ordering.Equal
     }
 
     /**
@@ -70,7 +70,7 @@ pub copy enum Ordering {
      * @returns true for `Greater`
      */
     pub fn isGt(self) bool {
-        return self == .Greater
+        return self == Ordering.Greater
     }
 
     /**
@@ -80,9 +80,9 @@ pub copy enum Ordering {
      */
     pub fn reverse(self) Ordering {
         return match self {
-            .Less => .Greater
-            .Equal => .Equal
-            .Greater => .Less
+            Ordering.Less => Ordering.Greater
+            Ordering.Equal => Ordering.Equal
+            Ordering.Greater => Ordering.Less
         }
     }
 
@@ -98,7 +98,7 @@ pub copy enum Ordering {
      * ```
      */
     pub fn then(self, other: Ordering) Ordering {
-        return if self == .Equal { other } else { self }
+        return if self == Ordering.Equal { other } else { self }
     }
 }
 

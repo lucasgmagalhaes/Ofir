@@ -8,15 +8,17 @@
 
 import sema.check.Checker
 import sema.check.skippedTest
+import sema.const_eval.ConstKind
 import sema.const_eval.ConstValue
 import sema.program.Program
 import syntax.ast.FnDecl
 import syntax.ast.Item
+import syntax.ast.ItemKind
 import syntax.token_print.formatG
 
 fn valueText(c: Checker, v: &ConstValue) str {
     return match v.kind {
-        .Int => {
+        ConstKind.Int => {
             let kind = c.types.get(v.ty).data
             if kind <= 3 {
                 let widths = [8, 16, 32, 64]
@@ -30,9 +32,9 @@ fn valueText(c: Checker, v: &ConstValue) str {
                 "{v.bits}"
             }
         }
-        .Float => formatG(v.f)
-        .Bool => if v.b { "true" } else { "false" }
-        .Str => "\"{v.s}\""
+        ConstKind.Float => formatG(v.f)
+        ConstKind.Bool => if v.b { "true" } else { "false" }
+        ConstKind.Str => "\"{v.s}\""
     }
 }
 
@@ -43,10 +45,10 @@ fn fnLines(c: Checker, out: mut str, owner: str, decl: &FnDecl) {
         out.push(c.typeName(c.info[id].ty))
     }
     out.push("\n")
-    let Some(types) = c.localTypesOf[0].get(decl.id.0) else {
+    let Option.Some(types) = c.localTypesOf[0].get(decl.id.0) else {
         return
     }
-    let Some(locals) = c.r.tables[0].fnLocals.get(decl.id.0) else {
+    let Option.Some(locals) = c.r.tables[0].fnLocals.get(decl.id.0) else {
         return
     }
     for i in 0..locals.len() {
@@ -67,7 +69,7 @@ fn structLine(c: Checker, out: mut str, index: int, item: &Item) {
     out.push("struct {c.text(item.name)} \{")
     let id = c.itemDefs[0][index]
     if id != 0 {
-        if let .Some(info) = c.info[id].fields {
+        if let Option.Some(info) = c.info[id].fields {
             for i in 0..info.types.len() {
                 out.push(if i > 0 { ", " } else { " " })
                 if !info.isTuple {
@@ -84,7 +86,7 @@ fn enumLine(c: Checker, out: mut str, index: int, item: &Item) {
     out.push("enum {c.text(item.name)} \{")
     let id = c.itemDefs[0][index]
     if id != 0 {
-        if let .Some(info) = c.info[id].variants {
+        if let Option.Some(info) = c.info[id].variants {
             for v in 0..info.variants.len() {
                 let variant = &info.variants[v]
                 out.push("{if v > 0 { ", " } else { " " }}{c.text(variant.name)}")
@@ -105,7 +107,7 @@ fn constLine(c: Checker, out: mut str, index: int, item: &Item, isConst: bool) {
     let id = c.itemDefs[0][index]
     if id != 0 && c.info[id].typed {
         out.push(c.typeName(c.info[id].ty))
-        if let .Some(value) = c.info[id].value {
+        if let Option.Some(value) = c.info[id].value {
             out.push(" = {valueText(c, &value)}")
         }
     }
@@ -129,23 +131,23 @@ pub fn traceTypes(c: mut Checker, p: Program) str {
             continue
         }
         match item.kind {
-            .Fn(decl) => fnLines(c, out, "", &*decl)
-            .Extern(_, fns) => {
+            ItemKind.Fn(decl) => fnLines(c, out, "", &*decl)
+            ItemKind.Extern(_, fns) => {
                 for f in 0..fns.len() {
                     fnLines(c, out, "extern", &fns[f])
                 }
             }
-            .Struct(_, _, _, _, _, methods) => {
+            ItemKind.Struct(_, _, _, _, _, methods) => {
                 structLine(c, out, i, item)
                 methodLines(c, p, out, item, &methods)
             }
-            .Enum(_, _, _, methods) => {
+            ItemKind.Enum(_, _, _, methods) => {
                 enumLine(c, out, i, item)
                 methodLines(c, p, out, item, &methods)
             }
-            .Const(_, _) => constLine(c, out, i, item, true)
-            .Global(_, _) => constLine(c, out, i, item, false)
-            .TypeAlias(_, _) | .Import(_, _) | .Interface(_, _, _) => {}
+            ItemKind.Const(_, _) => constLine(c, out, i, item, true)
+            ItemKind.Global(_, _) => constLine(c, out, i, item, false)
+            ItemKind.TypeAlias(_, _) | ItemKind.Import(_, _) | ItemKind.Interface(_, _, _) => {}
         }
     }
     return out

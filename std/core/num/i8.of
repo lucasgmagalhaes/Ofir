@@ -85,7 +85,7 @@ pub copy struct i8 {
     pub fn checkedAdd(self, other: i8) Option<i8> {
         let sum = self.wrappingAdd(other)
         let overflow = (self >= 0) == (other >= 0) && (sum >= 0) != (self >= 0)
-        return if overflow { .None } else { .Some(sum) }
+        return if overflow { Option.None } else { Option.Some(sum) }
     }
 
     /**
@@ -97,7 +97,7 @@ pub copy struct i8 {
     pub fn checkedSub(self, other: i8) Option<i8> {
         let difference = self.wrappingSub(other)
         let overflow = (self >= 0) != (other >= 0) && (difference >= 0) != (self >= 0)
-        return if overflow { .None } else { .Some(difference) }
+        return if overflow { Option.None } else { Option.Some(difference) }
     }
 
     /**
@@ -108,13 +108,13 @@ pub copy struct i8 {
      */
     pub fn checkedMul(self, other: i8) Option<i8> {
         if self == 0 || other == 0 {
-            return .Some(0)
+            return Option.Some(0)
         }
         if (self == -1 && other == i8.MIN) || (other == -1 && self == i8.MIN) {
-            return .None
+            return Option.None
         }
         let product = self.wrappingMul(other)
-        return if product / other != self { .None } else { .Some(product) }
+        return if product / other != self { Option.None } else { Option.Some(product) }
     }
 
     /**
@@ -125,9 +125,9 @@ pub copy struct i8 {
      */
     pub fn checkedDiv(self, other: i8) Option<i8> {
         if other == 0 || (self == i8.MIN && other == -1) {
-            return .None
+            return Option.None
         }
-        return .Some(self / other)
+        return Option.Some(self / other)
     }
 
 
@@ -146,29 +146,29 @@ pub copy struct i8 {
         let negative = text.len() > 0 && text[0] == b'-'
         let start = if negative || (text.len() > 0 && text[0] == b'+') { 1 } else { 0 }
         if start == text.len() {
-            return .Err(ParseError{})
+            return Result.Err(ParseError{})
         }
         var value: i8 = 0
         for i in start..text.len() {
             let c = text[i]
             if c < b'0' || c > b'9' {
-                return .Err(ParseError{})
+                return Result.Err(ParseError{})
             }
             let digit = (c - b'0') as i8
-            let .Some(shifted) = value.checkedMul(10) else {
-                return .Err(ParseError{})
+            let Option.Some(shifted) = value.checkedMul(10) else {
+                return Result.Err(ParseError{})
             }
             let next = if negative {
                 shifted.checkedSub(digit)
             } else {
                 shifted.checkedAdd(digit)
             }
-            let .Some(updated) = next else {
-                return .Err(ParseError{})
+            let Option.Some(updated) = next else {
+                return Result.Err(ParseError{})
             }
             value = updated
         }
-        return .Ok(value)
+        return Result.Ok(value)
     }
 
     /**

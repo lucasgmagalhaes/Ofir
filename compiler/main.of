@@ -75,7 +75,7 @@ struct Options {
 }
 
 fn parseOptions(args: &List<str>) Option<Options> {
-    var opts = Options{command: args[1].clone(), input: "", output: .None, emit: "",
+    var opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
                        stopAfter: "", release: false, deny: false, short: false}
     var hasInput = false
     var i = 2
@@ -83,7 +83,7 @@ fn parseOptions(args: &List<str>) Option<Options> {
         let arg = args[i].clone()
         if arg.startsWith("-") {
             if arg == "-o" && i + 1 < args.len() {
-                opts.output = .Some(args[i + 1].clone())
+                opts.output = Option.Some(args[i + 1].clone())
                 i += 1
             } else if arg.startsWith("--emit=") && knownEmit(arg.sliceFrom(7)) {
                 opts.emit = arg.sliceFrom(7).toOwned()
@@ -99,7 +99,7 @@ fn parseOptions(args: &List<str>) Option<Options> {
                 opts.stopAfter = arg.sliceFrom(13).toOwned()
             } else if arg != "--time-passes" {
                 eprintln("error: unknown option `{arg}`")
-                return .None
+                return Option.None
             }
         } else if !hasInput {
             // The driver splits paths at `/`.
@@ -107,15 +107,15 @@ fn parseOptions(args: &List<str>) Option<Options> {
             hasInput = true
         } else {
             eprintln("error: unexpected argument `{arg}`")
-            return .None
+            return Option.None
         }
         i += 1
     }
     if !hasInput {
         eprintln("error: `{opts.command}` needs an input file")
-        return .None
+        return Option.None
     }
-    return .Some(opts)
+    return Option.Some(opts)
 }
 
 fn knownEmit(what: str) bool {
@@ -147,7 +147,7 @@ fn main() {
         printUsage()
         os.exit(2)
     }
-    let Some(opts) = parseOptions(&args) else {
+    let Option.Some(opts) = parseOptions(&args) else {
         os.exit(2)
     }
     os.exit(build(opts))
@@ -187,7 +187,7 @@ fn build(given: move Options) int {
     var pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
     var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
     front.diags.denyWarnings = opts.deny
-    let Some(file) = front.load(opts.input) else {
+    let Option.Some(file) = front.load(opts.input) else {
         eprintln("error[E0900]: cannot read `{opts.input}`")
         return 1
     }
@@ -287,7 +287,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
 // `test` a file in the temporary directory named after the input's path,
 // so that parallel runs do not share it.
 fn outputPath(opts: &Options) str {
-    if let .Some(output) = opts.output {
+    if let Option.Some(output) = opts.output {
         return output.clone()
     }
     let input = opts.input.clone()
@@ -305,8 +305,8 @@ fn outputPath(opts: &Options) str {
         return base
     }
     let full = match fs.canonicalize(input) {
-        .Ok(path) => path
-        .Err(_) => input.clone()
+        Result.Ok(path) => path
+        Result.Err(_) => input.clone()
     }
     var name = ""
     for i in 0..full.len() {
@@ -321,8 +321,8 @@ fn outputPath(opts: &Options) str {
 // Windows sets `OS` to `Windows_NT` in every process.
 fn onWindows() bool {
     return match os.env("OS") {
-        .Some(name) => name == "Windows_NT"
-        .None => false
+        Option.Some(name) => name == "Windows_NT"
+        Option.None => false
     }
 }
 
@@ -330,7 +330,7 @@ fn onWindows() bool {
 fn tempDir() str {
     let names = ["TMPDIR", "TEMP"]
     for i in 0..names.len() {
-        if let .Some(dir) = os.env(names[i]) {
+        if let Option.Some(dir) = os.env(names[i]) {
             if dir.len() > 0 {
                 return dir.replace("\\", "/")
             }
@@ -341,11 +341,11 @@ fn tempDir() str {
 
 // The runtime library: `OFIR_RUNTIME`, or next to the compiler.
 fn runtimeLibrary() Option<str> {
-    if let .Some(path) = os.env("OFIR_RUNTIME") {
-        return .Some(path)
+    if let Option.Some(path) = os.env("OFIR_RUNTIME") {
+        return Option.Some(path)
     }
-    let Ok(exe) = os.executablePath() else {
-        return .None
+    let Result.Ok(exe) = os.executablePath() else {
+        return Option.None
     }
     var slash = -1
     for i in 0..exe.len() {
@@ -357,21 +357,21 @@ fn runtimeLibrary() Option<str> {
     let places = ["{dir}/../libofir_rt.a", "{dir}/../lib/ofir/libofir_rt.a"]
     for i in 0..places.len() {
         if fs.exists(places[i]) {
-            return .Some(places[i].clone())
+            return Option.Some(places[i].clone())
         }
     }
-    return .None
+    return Option.None
 }
 
 // clang compiles the module and links it with the runtime. The module has
 // no target triple: clang uses its default target.
 fn link(opts: &Options, ll: str, exe: str) bool {
-    let Some(runtime) = runtimeLibrary() else {
+    let Option.Some(runtime) = runtimeLibrary() else {
         eprintln("error[E0902]: cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)")
         return false
     }
     var clang = "clang".toOwned()
-    if let .Some(name) = os.env("OFIR_CLANG") {
+    if let Option.Some(name) = os.env("OFIR_CLANG") {
         if name.len() > 0 {
             clang = name
         }
@@ -385,12 +385,12 @@ fn link(opts: &Options, ll: str, exe: str) bool {
         args.push("-Wl,--stack,8388608".toOwned())
     }
     let ok = match os.run(clang, args) {
-        .Ok(out) => {
+        Result.Ok(out) => {
             print(out.stdout)
             eprint(out.stderr)
             out.status == 0
         }
-        .Err(_) => {
+        Result.Err(_) => {
             eprintln("error[E0902]: cannot run `{clang}`")
             false
         }
@@ -404,13 +404,13 @@ fn link(opts: &Options, ll: str, exe: str) bool {
 // Runs a program, its output passed on; returns its exit status.
 fn runProgram(exe: str, args: [str]) int {
     return match os.run(exe, args) {
-        .Ok(out) => {
+        Result.Ok(out) => {
             print(out.stdout)
             eprint(out.stderr)
             let status = if out.status < 0 { 1 } else { out.status }
             status
         }
-        .Err(_) => {
+        Result.Err(_) => {
             eprintln("error[E0902]: cannot run `{exe}`")
             1
         }

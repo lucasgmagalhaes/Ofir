@@ -38,8 +38,8 @@ enum Tree<K: Ord, V> {
 
 fn holds<K: Ord, V>(t: Tree<K, V>, key: K) bool {
     return match t {
-        .Leaf => false
-        .Node(k, _) => !(k < key) && !(key < k)
+        Tree.Leaf => false
+        Tree.Node(k, _) => !(k < key) && !(key < k)
     }
 }
 
@@ -61,7 +61,7 @@ fn main() {
     println("{p.a}{p.b}")
     let s = Stack{items: ["a", "b"]}
     println("{s.contains("b")} {s.contains("z")} {s.top()}")
-    let t: Tree<int, str> = .Node(3, "three")
+    let t: Tree<int, str> = Tree.Node(3, "three")
     println("{holds(t, 3)} {holds(t, 4)}")
     var a: Map<str, int> = Map.new()
     a.insert("one", 1)

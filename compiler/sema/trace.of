@@ -8,6 +8,7 @@
 
 import base.intern.Symbol
 import base.span.Span
+import sema.def.DefKind
 import sema.def.Res
 import sema.def.kindName
 import sema.resolve.Resolver
@@ -79,10 +80,10 @@ pub fn traceUse(r: mut Resolver, what: str, name: Symbol, span: Span, res: Res) 
 // `local 3`, `fn std.core.str.len`, `module std.fs`, `primitive int`, `error`.
 fn resText(r: Resolver, res: Res) str {
     let id = match res {
-        .Local(local) => {
+        Res.Local(local) => {
             return "local {local}"
         }
-        .Def(id) => id
+        Res.Def(id) => id
         _ => 0
     }
     if id == 0 {
@@ -90,7 +91,7 @@ fn resText(r: Resolver, res: Res) str {
     }
     let def = r.def(id)
     let kind = kindName(def.kind)
-    if def.kind == .Module {
+    if def.kind == DefKind.Module {
         return "{kind} {r.programName(def.target)}"
     }
     if def.inPrelude {

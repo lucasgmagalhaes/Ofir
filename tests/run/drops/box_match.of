@@ -15,17 +15,17 @@ struct E {
 }
 
 fn show(otherwise: &Option<Box<E>>) {
-    if let .Some(e) = *otherwise {
+    if let Option.Some(e) = *otherwise {
         match e.kind {
-            .Blk(block) => println("block {block.stmts.len()}")
+            Kind.Blk(block) => println("block {block.stmts.len()}")
             _ => println("other")
         }
     }
 }
 
 fn main() {
-    let inner = E{kind: .Blk(Block{stmts: ["a".toOwned()]})}
-    let o: Option<Box<E>> = .Some(Box.new(inner))
+    let inner = E{kind: Kind.Blk(Block{stmts: ["a".toOwned()]})}
+    let o: Option<Box<E>> = Option.Some(Box.new(inner))
     show(&o)
     show(&o)
 }

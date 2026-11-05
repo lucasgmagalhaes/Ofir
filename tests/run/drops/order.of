@@ -55,6 +55,6 @@ fn main() {
     println("took {taken.name}")
     let _ = make("ignored")
     println("after ignored")
-    let _maybe = Some(make("inside"))
+    let _maybe = Option.Some(make("inside"))
     println("end {n}")
 }

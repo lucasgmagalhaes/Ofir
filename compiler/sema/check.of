@@ -43,6 +43,7 @@ import sema.structs.checkStructLayouts
 import sema.structs.structFields
 import sema.types.ERROR
 import sema.types.NEVER
+import sema.types.TyKind
 import sema.types.TypeTable
 import sema.types.UNIT
 import syntax.ast.FnDecl
@@ -50,6 +51,7 @@ import syntax.ast.Item
 import syntax.ast.ItemKind
 import syntax.ast.Mode
 import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
 import syntax.ast.WherePred
 import syntax.ast_text.typeText
 import std.mem
@@ -122,7 +124,7 @@ pub const BOUND_CLONE: int = 8
  */
 pub fn boundBit(c: Checker, t: &TypeExpr) int {
     let name = match t.kind {
-        .Path(segments, args) => if segments.len() == 1 && args.len() == 0 {
+        TypeKind.Path(segments, args) => if segments.len() == 1 && args.len() == 0 {
             segments[0]
         } else {
             return 0
@@ -155,7 +157,7 @@ pub fn boundBit(c: Checker, t: &TypeExpr) int {
  */
 pub fn boundedParam(t: &TypeExpr, owner: &List<Symbol>, fnParams: &List<Symbol>) int {
     let name = match t.kind {
-        .Path(segments, args) => if segments.len() == 1 && args.len() == 0 {
+        TypeKind.Path(segments, args) => if segments.len() == 1 && args.len() == 0 {
             segments[0]
         } else {
             return -1
@@ -187,7 +189,7 @@ pub fn boundedParam(t: &TypeExpr, owner: &List<Symbol>, fnParams: &List<Symbol>)
  */
 pub fn interfaceOf(c: Checker, t: &TypeExpr) int {
     return match t.kind {
-        .Path(segments, args) => if args.len() == 0 {
+        TypeKind.Path(segments, args) => if args.len() == 0 {
             interfaceAt(c, &segments)
         } else {
             0
@@ -198,7 +200,7 @@ pub fn interfaceOf(c: Checker, t: &TypeExpr) int {
 
 fn interfaceAt(c: Checker, segments: &List<Symbol>) int {
     var id = c.r.scope.module(segments[0])
-    if segments.len() == 2 && id != 0 && c.def(id).kind == .Module {
+    if segments.len() == 2 && id != 0 && c.def(id).kind == DefKind.Module {
         let target = c.def(id).target
         id = c.r.scope.moduleIn(target, segments[1])
         if id != 0 && c.def(id).module != target {   // an import of that module
@@ -207,7 +209,7 @@ fn interfaceAt(c: Checker, segments: &List<Symbol>) int {
     } else if segments.len() != 1 {
         return 0
     }
-    return if id != 0 && c.def(id).kind == .Interface { id } else { 0 }
+    return if id != 0 && c.def(id).kind == DefKind.Interface { id } else { 0 }
 }
 
 // Empty interface lists, one per type parameter.
@@ -247,7 +249,7 @@ pub fn interfaceDef(c: Checker, item: &Item) int {
     for id in 1..c.r.defs.len() {
         let def = &c.r.defs[id]
         let sameSpan = def.span.file.0 == item.span.file.0 && def.span.start == item.span.start
-        if def.kind == .Interface && sameSpan {
+        if def.kind == DefKind.Interface && sameSpan {
             return id
         }
     }
@@ -269,7 +271,7 @@ pub fn typeGenerics(c: Checker, item: &Item) Generics {
     let none: List<Symbol> = []
     addBounds(c, &item.bounds, &owner, &none, bounds, ifaces)
     let isInterface = match item.kind {
-        .Interface(_, _, _) => true
+        ItemKind.Interface(_, _, _) => true
         _ => false
     }
     if isInterface {   // `Self` satisfies the interface it is declared in
@@ -546,32 +548,32 @@ pub struct Checker {
     fn appendType(self, out: mut str, ty: int, qualified: bool) {
         let t = self.types.get(ty)
         match t.kind {
-            .Error => out.push("\{error\}")
-            .Unit => out.push("()")
-            .Never => out.push("!")
-            .Bool => out.push("bool")
-            .Int => out.push(intName(t.data))
-            .Float => out.push(if t.data == 64 { "float" } else { "f32" })
-            .Str => out.push("str")
-            .Ref | .Ptr => {
-                out.push(if t.kind == .Ref { "&" } else { "*" })
+            TyKind.Error => out.push("\{error\}")
+            TyKind.Unit => out.push("()")
+            TyKind.Never => out.push("!")
+            TyKind.Bool => out.push("bool")
+            TyKind.Int => out.push(intName(t.data))
+            TyKind.Float => out.push(if t.data == 64 { "float" } else { "f32" })
+            TyKind.Str => out.push("str")
+            TyKind.Ref | TyKind.Ptr => {
+                out.push(if t.kind == TyKind.Ref { "&" } else { "*" })
                 out.push(if t.data != 0 { "mut " } else { "" })
                 self.appendType(out, t.inner, qualified)
             }
-            .Slice | .Array => {
+            TyKind.Slice | TyKind.Array => {
                 out.push("[")
                 self.appendType(out, t.inner, qualified)
-                if t.kind == .Array {
+                if t.kind == TyKind.Array {
                     out.push("; {t.data}")
                 }
                 out.push("]")
             }
-            .Tuple => {
+            TyKind.Tuple => {
                 out.push("(")
                 self.appendList(out, &t.args, qualified)
                 out.push(if t.args.len() == 1 { ",)" } else { ")" })
             }
-            .Fn => {
+            TyKind.Fn => {
                 out.push("fn(")
                 self.appendList(out, &t.args, qualified)
                 out.push(")")
@@ -580,8 +582,8 @@ pub struct Checker {
                     self.appendType(out, t.inner, qualified)
                 }
             }
-            .Adt | .Dyn => {
-                if t.kind == .Dyn {
+            TyKind.Adt | TyKind.Dyn => {
+                if t.kind == TyKind.Dyn {
                     out.push("dyn ")
                 }
                 let module = self.r.defs[t.data].module
@@ -596,7 +598,7 @@ pub struct Checker {
                     out.push(">")
                 }
             }
-            .Param => out.push(self.text(Symbol(t.inner)))
+            TyKind.Param => out.push(self.text(Symbol(t.inner)))
         }
     }
 }
@@ -638,9 +640,9 @@ pub fn itemOf(p: Program, def: Loc) &Item {
  */
 pub fn itemTypeParams(item: &Item) List<Symbol> {
     return match item.kind {
-        .Struct(_, _, _, typeParams, _, _) => typeParams.clone()
-        .Enum(_, typeParams, _, _) => typeParams.clone()
-        .Interface(typeParams, _, _) => typeParams.clone()   // `Self` first
+        ItemKind.Struct(_, _, _, typeParams, _, _) => typeParams.clone()
+        ItemKind.Enum(_, typeParams, _, _) => typeParams.clone()
+        ItemKind.Interface(typeParams, _, _) => typeParams.clone()   // `Self` first
         _ => []
     }
 }
@@ -656,11 +658,11 @@ pub fn itemTypeParams(item: &Item) List<Symbol> {
 pub fn fnOf(p: Program, def: Loc) &FnDecl {
     let item = &p.modules[def.module].module.items[def.item]
     return match item.kind {
-        .Fn(decl) => &*decl
-        .Struct(_, _, _, _, _, methods) => &methods[def.member]
-        .Enum(_, _, _, methods) => &methods[def.member]
-        .Extern(_, fns) => &fns[def.member]
-        .Interface(_, _, methods) => &methods[def.member]
+        ItemKind.Fn(decl) => &*decl
+        ItemKind.Struct(_, _, _, _, _, methods) => &methods[def.member]
+        ItemKind.Enum(_, _, _, methods) => &methods[def.member]
+        ItemKind.Extern(_, fns) => &fns[def.member]
+        ItemKind.Interface(_, _, methods) => &methods[def.member]
         _ => {
             panic("fnOf: not a function")
         }
@@ -668,8 +670,9 @@ pub fn fnOf(p: Program, def: Loc) &FnDecl {
 }
 
 fn emptyInfo() DefInfo {
-    return DefInfo{ty: ERROR, typed: false, checking: false, fields: .None, variants: .None,
-                   value: .None, returnsBorrow: false, borrowSource: -1, sourceByRef: false}
+    return DefInfo{ty: ERROR, typed: false, checking: false, fields: Option.None,
+                   variants: Option.None,
+                   value: Option.None, returnsBorrow: false, borrowSource: -1, sourceByRef: false}
 }
 
 /**
@@ -708,7 +711,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     for id in 0..r.defs.len() {
         info.push(emptyInfo())
         let def = &r.defs[id]
-        let named = def.kind != .Module && def.kind != .Variant && def.member < 0
+        let named = def.kind != DefKind.Module && def.kind != DefKind.Variant && def.member < 0
         if id > 0 && named && def.item >= 0 && itemDefs[def.module][def.item] == 0 {
             itemDefs[def.module][def.item] = id
         }
@@ -774,7 +777,8 @@ pub fn checkLate(c: mut Checker, p: Program, id: int) {
     if member >= 0 {
         let item = itemOf(p, c.loc(id))
         let isType = match item.kind {
-            .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) | .Interface(_, _, _) => true
+            ItemKind.Struct(_, _, _, _, _, _) | ItemKind.Enum(_, _, _, _) |
+            ItemKind.Interface(_, _, _) => true
             _ => false
         }
         if isType {
@@ -795,12 +799,12 @@ fn lateMoves(c: mut Checker, p: Program, id: int) {
     let module = c.def(id).module
     let previous = c.enter(module)
     c.locals = match c.r.tables[module].fnLocals.get(decl.id.0) {
-        .Some(list) => list.clone()
-        .None => []
+        Option.Some(list) => list.clone()
+        Option.None => []
     }
     c.localTypes = match c.localTypesOf[module].get(decl.id.0) {
-        .Some(list) => list.clone()
-        .None => []
+        Option.Some(list) => list.clone()
+        Option.None => []
     }
     c.fnNode = decl.id.0
     c.fnDef = id
@@ -816,8 +820,8 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
     let sig = fnSignature(c, p, id)
     let locals = c.r.tables[c.module()].fnLocals.get(decl.id.0)
     c.locals = match locals {
-        .Some(list) => list.clone()
-        .None => []
+        Option.Some(list) => list.clone()
+        Option.None => []
     }
     c.localTypes = List.filled(ERROR, c.locals.len())
     c.ret = c.types.get(sig).inner
@@ -840,7 +844,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
     c.unsafeDepth = if decl.isUnsafe { 1 } else { 0 }
     let errors = c.r.diags.errorCount()
     var found = UNIT
-    if let .Some(body) = decl.body {
+    if let Option.Some(body) = decl.body {
         found = checkBlock(c, p, &body, ERROR, false)
     }
     c.unsafeDepth = 0
@@ -931,7 +935,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
     let item = &p.modules[c.module()].module.items[index]
     let id = c.itemDefs[c.module()][index]
     match item.kind {
-        .Fn(decl) => {
+        ItemKind.Fn(decl) => {
             let def = c.r.tables[c.module()].fnDefs[decl.id.0]
             if def == 0 {
                 return
@@ -941,8 +945,8 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
             }
             checkFn(c, p, def, ERROR)
         }
-        .Extern(abi, fns) => checkExtern(c, p, item, abi, &fns)
-        .Struct(_, _, _, _, _, methods) => {
+        ItemKind.Extern(abi, fns) => checkExtern(c, p, item, abi, &fns)
+        ItemKind.Struct(_, _, _, _, _, methods) => {
             checkTypeBounds(c, item)
             if id != 0 {
                 structFields(c, p, id)
@@ -951,7 +955,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
             checkMethods(c, p, index, &methods)
             checkAsserts(c, p, index)
         }
-        .Enum(_, _, _, methods) => {
+        ItemKind.Enum(_, _, _, methods) => {
             checkTypeBounds(c, item)
             if id != 0 {
                 enumVariants(c, p, id)
@@ -960,13 +964,13 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
             checkMethods(c, p, index, &methods)
             checkAsserts(c, p, index)
         }
-        .Const(_, _) | .Global(_, _) => {
+        ItemKind.Const(_, _) | ItemKind.Global(_, _) => {
             if id != 0 {
                 checkConst(c, p, id)
             }
         }
-        .Interface(_, _, methods) => checkInterface(c, p, index, &methods)
-        .TypeAlias(_, _) | .Import(_, _) => {}
+        ItemKind.Interface(_, _, methods) => checkInterface(c, p, index, &methods)
+        ItemKind.TypeAlias(_, _) | ItemKind.Import(_, _) => {}
     }
 }
 
@@ -979,7 +983,7 @@ fn checkInterface(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>
         return
     }
     match item.kind {
-        .Interface(_, embeds, _) => notInterfaces(c, &embeds)
+        ItemKind.Interface(_, embeds, _) => notInterfaces(c, &embeds)
         _ => {}
     }
     checkMethods(c, p, index, methods)
@@ -1027,7 +1031,7 @@ fn checkAsserts(c: mut Checker, p: Program, index: int) {
  */
 pub fn skippedTest(c: Checker, p: Program, item: &Item) bool {
     let isFn = match item.kind {
-        .Fn(_) => true
+        ItemKind.Fn(_) => true
         _ => false
     }
     if !isFn || findAttribute(c.r, item.attributes, "test").isNone() {

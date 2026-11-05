@@ -189,9 +189,9 @@ pub struct List<T> {
      */
     pub fn get(self, i: int) Option<&T> {
         if i < 0 || i >= self.len {
-            return None
+            return Option.None
         }
-        return Some(unsafe { &*self.ptr.add(i) })
+        return Option.Some(unsafe { &*self.ptr.add(i) })
     }
 
     /**
@@ -210,9 +210,9 @@ pub struct List<T> {
      */
     pub fn getMut(mut self, i: int) Option<&mut T> {
         if i < 0 || i >= self.len {
-            return None
+            return Option.None
         }
-        return Some(unsafe { &mut *self.ptr.add(i) })
+        return Option.Some(unsafe { &mut *self.ptr.add(i) })
     }
 
     /**
@@ -301,10 +301,10 @@ pub struct List<T> {
      */
     pub fn pop(mut self) Option<T> {
         if self.len == 0 {
-            return None
+            return Option.None
         }
         self.len -= 1
-        return Some(unsafe { *self.ptr.add(self.len) })
+        return Option.Some(unsafe { *self.ptr.add(self.len) })
     }
 
     /**

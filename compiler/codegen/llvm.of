@@ -19,9 +19,13 @@ import air.air.FloatFn
 import air.air.GLUE_CLONE
 import air.air.GLUE_DROP
 import air.air.Operand
+import air.air.OperandKind
 import air.air.PanicKind
 import air.air.Rvalue
 import air.air.RuntimeFn
+import air.air.RvalueKind
+import air.air.StmtKind
+import air.air.TermKind
 import air.air.Terminator
 import air.air.VARIANT_STEP
 import air.air.isGlue
@@ -37,6 +41,7 @@ import sema.check.fnOf
 import sema.check.itemOf
 import sema.check.itemTypeParams
 import sema.check_box.boxInner
+import sema.def.DefKind
 import sema.interfaces.dynMethods
 import sema.enums.enumVariants
 import sema.enums.variantsOf
@@ -48,6 +53,7 @@ import sema.structs.variantFieldType
 import sema.types.ERROR
 import sema.types.I32
 import sema.types.NEVER
+import sema.types.TyKind
 import sema.types.UNIT
 import syntax.ast.ItemKind
 import syntax.ast.Op
@@ -184,15 +190,16 @@ pub fn llvmType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
     let kind = t.kind
     let data = t.data
     return match kind {
-        .Adt => adtType(g, c, p, ty)
-        .Param => panic("llvmType: a type parameter survived monomorphization")
-        .Tuple => tupleType(g, c, p, ty)
-        .Ref | .Ptr => if c.types.isFat(ty) { FN_LLVM.toOwned() } else { "ptr".toOwned() }
-        .Bool => "i1".toOwned()
-        .Int => "i{intBits(data)}"
-        .Float => if data == 32 { "float".toOwned() } else { "double".toOwned() }
-        .Str => "%ofir.str".toOwned()
-        .Fn => FN_LLVM.toOwned()   // the code and the environment
+        TyKind.Adt => adtType(g, c, p, ty)
+        TyKind.Param => panic("llvmType: a type parameter survived monomorphization")
+        TyKind.Tuple => tupleType(g, c, p, ty)
+        TyKind.Ref |
+        TyKind.Ptr => if c.types.isFat(ty) { FN_LLVM.toOwned() } else { "ptr".toOwned() }
+        TyKind.Bool => "i1".toOwned()
+        TyKind.Int => "i{intBits(data)}"
+        TyKind.Float => if data == 32 { "float".toOwned() } else { "double".toOwned() }
+        TyKind.Str => "%ofir.str".toOwned()
+        TyKind.Fn => FN_LLVM.toOwned()   // the code and the environment
         _ => "void".toOwned()   // (), ! and the types the checker rejects
     }
 }
@@ -257,18 +264,18 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
     let kind = t.kind
     let data = t.data
     return match kind {
-        .Bool => Layout{size: 1, align: 1}
-        .Int => Layout{size: intBits(data) / 8, align: intBits(data) / 8}
-        .Float => Layout{size: data / 8, align: data / 8}
-        .Str => Layout{size: 24, align: 8}
-        .Ref | .Ptr => Layout{size: if c.types.isFat(ty) { 16 } else { 8 }, align: 8}
-        .Fn => Layout{size: 16, align: 8}   // the code and the environment
-        .Tuple => {
+        TyKind.Bool => Layout{size: 1, align: 1}
+        TyKind.Int => Layout{size: intBits(data) / 8, align: intBits(data) / 8}
+        TyKind.Float => Layout{size: data / 8, align: data / 8}
+        TyKind.Str => Layout{size: 24, align: 8}
+        TyKind.Ref | TyKind.Ptr => Layout{size: if c.types.isFat(ty) { 16 } else { 8 }, align: 8}
+        TyKind.Fn => Layout{size: 16, align: 8}   // the code and the environment
+        TyKind.Tuple => {
             let args = c.types.get(ty).args.clone()
             fieldsLayout(g, c, p, &args)
         }
-        .Adt => {
-            if c.def(data).kind == .Struct {
+        TyKind.Adt => {
+            if c.def(data).kind == DefKind.Struct {
                 let types = fieldTypes(c, p, ty, -1)
                 fieldsLayout(g, c, p, &types)
             } else {
@@ -348,13 +355,13 @@ fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
 }
 
 fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
-    if let .Some(known) = g.adtTypes.get(ty) {
+    if let Option.Some(known) = g.adtTypes.get(ty) {
         return known.clone()
     }
     let id = c.types.get(ty).data
     let name = nameType(c, ty, "")
     g.adtTypes.insert(ty, name.clone())
-    if c.def(id).kind == .Enum {
+    if c.def(id).kind == DefKind.Enum {
         defineEnum(g, c, p, ty, name.clone())
         return name
     }
@@ -390,7 +397,7 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
     }
     var current = body.locals[local].ty
     let pointer = c.types.get(current)
-    if path.deref && (pointer.kind == .Ptr || pointer.kind == .Ref) {   // `*p`, `*r`
+    if path.deref && (pointer.kind == TyKind.Ptr || pointer.kind == TyKind.Ref) {   // `*p`, `*r`
         current = pointer.inner
     }
     var variant = false
@@ -412,10 +419,10 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
         g.out.push("  {next} = getelementptr inbounds {container}, ptr {base}, i32 0, "
                    + "i32 {entry}\n")
         let t = c.types.get(current)
-        let isEnum = t.kind == .Adt && c.def(t.data).kind == .Enum
+        let isEnum = t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Enum
         if variant {
             current = variantFieldType(c, p, current, index, entry)
-        } else if t.kind == .Tuple {
+        } else if t.kind == TyKind.Tuple {
             current = t.args[entry]
         } else if isEnum {
             current = I32
@@ -433,11 +440,11 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
 
 fn isCFunction(c: Checker, p: Program, id: int) bool {
     let def = c.def(id)
-    if def.kind != .Fn || def.item < 0 {
+    if def.kind != DefKind.Fn || def.item < 0 {
         return false
     }
     let isExtern = match itemOf(p, c.loc(id)).kind {
-        .Extern(_, _) => true
+        ItemKind.Extern(_, _) => true
         _ => false
     }
     return isExtern || fnOf(p, c.loc(id)).abi.len() > 0
@@ -465,7 +472,8 @@ fn functionName(c: mut Checker, p: Program, id: int, targs: int, isMain: bool) s
     if def.member >= 0 {
         let item = itemOf(p, c.loc(id))
         let isType = match item.kind {
-            .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) | .Interface(_, _, _) => true
+            ItemKind.Struct(_, _, _, _, _, _) | ItemKind.Enum(_, _, _, _) |
+            ItemKind.Interface(_, _, _) => true
             _ => false
         }
         if isType {   // a method: qualified by its type, `ofir.Point.norm`
@@ -539,7 +547,7 @@ fn floatText(value: float, isF32: bool) str {
 fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) Value {
     let ty = llvmType(g, c, p, o.ty)
     return match o.kind {
-        .Copy => {
+        OperandKind.Copy => {
             if ty == "void" {
                 Value{ty: ty, text: ""}   // a local of type (): nothing to load
             } else {
@@ -549,36 +557,38 @@ fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) 
                 Value{ty: ty, text: t}
             }
         }
-        .Addr => Value{ty: "ptr".toOwned(), text: placeAddress(g, c, p, body, o.local, &o.path)}
-        .Int => Value{ty: ty, text: intText(o.bits, intBits(c.types.get(o.ty).data))}
-        .Float => Value{ty: ty, text: floatText(o.float, c.types.get(o.ty).data == 32)}
-        .Bool => Value{ty: ty, text: if o.truth { "true".toOwned() } else { "false".toOwned() }}
-        .Str => {
+        OperandKind.Addr => Value{ty: "ptr".toOwned(), text: placeAddress(g, c, p, body, o.local,
+                                                                          &o.path)}
+        OperandKind.Int => Value{ty: ty, text: intText(o.bits, intBits(c.types.get(o.ty).data))}
+        OperandKind.Float => Value{ty: ty, text: floatText(o.float, c.types.get(o.ty).data == 32)}
+        OperandKind.Bool => Value{ty: ty,
+                                  text: if o.truth { "true".toOwned() } else { "false".toOwned() }}
+        OperandKind.Str => {
             let n = stringGlobal(g, o.text)
             Value{ty: ty, text: "\{ ptr @.str.{n}, i64 {o.text.len()}, i64 0 \}"}
         }
-        .Unit => Value{ty: "void".toOwned(), text: ""}
+        OperandKind.Unit => Value{ty: "void".toOwned(), text: ""}
     }
 }
 
 fn intOp(op: Op, signed: bool) str {
     let name = match op {
-        .Add => "add"
-        .Sub => "sub"
-        .Mul => "mul"
-        .Div => if signed { "sdiv" } else { "udiv" }
-        .Rem => if signed { "srem" } else { "urem" }
-        .And => "and"
-        .Or => "or"
-        .Xor => "xor"
-        .Shl => "shl"
-        .Shr => if signed { "ashr" } else { "lshr" }
-        .Eq => "icmp eq"
-        .Ne => "icmp ne"
-        .Lt => if signed { "icmp slt" } else { "icmp ult" }
-        .Le => if signed { "icmp sle" } else { "icmp ule" }
-        .Gt => if signed { "icmp sgt" } else { "icmp ugt" }
-        .Ge => if signed { "icmp sge" } else { "icmp uge" }
+        Op.Add => "add"
+        Op.Sub => "sub"
+        Op.Mul => "mul"
+        Op.Div => if signed { "sdiv" } else { "udiv" }
+        Op.Rem => if signed { "srem" } else { "urem" }
+        Op.And => "and"
+        Op.Or => "or"
+        Op.Xor => "xor"
+        Op.Shl => "shl"
+        Op.Shr => if signed { "ashr" } else { "lshr" }
+        Op.Eq => "icmp eq"
+        Op.Ne => "icmp ne"
+        Op.Lt => if signed { "icmp slt" } else { "icmp ult" }
+        Op.Le => if signed { "icmp sle" } else { "icmp ule" }
+        Op.Gt => if signed { "icmp sgt" } else { "icmp ugt" }
+        Op.Ge => if signed { "icmp sge" } else { "icmp uge" }
         _ => "add"
     }
     return name.toOwned()
@@ -586,17 +596,17 @@ fn intOp(op: Op, signed: bool) str {
 
 fn floatOp(op: Op) str {
     let name = match op {
-        .Add => "fadd"
-        .Sub => "fsub"
-        .Mul => "fmul"
-        .Div => "fdiv"
-        .Rem => "frem"
-        .Eq => "fcmp oeq"
-        .Ne => "fcmp une"   // NaN != NaN is true
-        .Lt => "fcmp olt"
-        .Le => "fcmp ole"
-        .Gt => "fcmp ogt"
-        .Ge => "fcmp oge"
+        Op.Add => "fadd"
+        Op.Sub => "fsub"
+        Op.Mul => "fmul"
+        Op.Div => "fdiv"
+        Op.Rem => "frem"
+        Op.Eq => "fcmp oeq"
+        Op.Ne => "fcmp une"   // NaN != NaN is true
+        Op.Lt => "fcmp olt"
+        Op.Le => "fcmp ole"
+        Op.Gt => "fcmp ogt"
+        Op.Ge => "fcmp oge"
         _ => "fadd"
     }
     return name.toOwned()
@@ -604,26 +614,26 @@ fn floatOp(op: Op) str {
 
 fn isSigned(c: Checker, ty: int) bool {
     let t = c.types.get(ty)
-    return t.kind == .Int && t.data <= 3
+    return t.kind == TyKind.Int && t.data <= 3
 }
 
 // The cast instruction from one type to another, or "" for none.
 fn castOp(c: Checker, from: int, to: int) str {
     let f = c.types.get(from)
     let t = c.types.get(to)
-    let fromPtr = f.kind == .Ptr || f.kind == .Ref
-    let toPtr = t.kind == .Ptr || t.kind == .Ref
+    let fromPtr = f.kind == TyKind.Ptr || f.kind == TyKind.Ref
+    let toPtr = t.kind == TyKind.Ptr || t.kind == TyKind.Ref
     if fromPtr || toPtr {   // a reference is a pointer
         let op = if fromPtr == toPtr { "" } else if fromPtr { "ptrtoint" } else { "inttoptr" }
         return op.toOwned()
     }
-    if f.kind == .Float && t.kind == .Float {
+    if f.kind == TyKind.Float && t.kind == TyKind.Float {
         return if f.data < t.data { "fpext".toOwned() } else { "fptrunc".toOwned() }
     }
-    if f.kind == .Float {
+    if f.kind == TyKind.Float {
         return if isSigned(c, to) { "fptosi".toOwned() } else { "fptoui".toOwned() }
     }
-    if t.kind == .Float {
+    if t.kind == TyKind.Float {
         return if isSigned(c, from) { "sitofp".toOwned() } else { "uitofp".toOwned() }
     }
     let fromBits = intBits(f.data)
@@ -702,7 +712,7 @@ fn castFails(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue
     let a = operand(g, c, p, body, &rv.a)
     let from = rv.a.ty
     let to = rv.to
-    if c.types.kind(from) == .Float {   // the value must be in [min, max + 1)
+    if c.types.kind(from) == TyKind.Float {   // the value must be in [min, max + 1)
         let t = intBits(c.types.get(to).data)
         let signed = c.types.get(to).data <= 3
         var power = 1.0
@@ -763,29 +773,29 @@ fn saturate(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue)
 
 fn floatFnName(f: FloatFn) str {
     let name = match f {
-        .Sqrt => "sqrt"
-        .Fabs => "fabs"
-        .Floor => "floor"
-        .Ceil => "ceil"
-        .Minnum => "minnum"
-        .Maxnum => "maxnum"
+        FloatFn.Sqrt => "sqrt"
+        FloatFn.Fabs => "fabs"
+        FloatFn.Floor => "floor"
+        FloatFn.Ceil => "ceil"
+        FloatFn.Minnum => "minnum"
+        FloatFn.Maxnum => "maxnum"
     }
     return name.toOwned()
 }
 
 fn floatFnIndex(f: FloatFn) int {
     return match f {
-        .Sqrt => 0
-        .Fabs => 1
-        .Floor => 2
-        .Ceil => 3
-        .Minnum => 4
-        .Maxnum => 5
+        FloatFn.Sqrt => 0
+        FloatFn.Fabs => 1
+        FloatFn.Floor => 2
+        FloatFn.Ceil => 3
+        FloatFn.Minnum => 4
+        FloatFn.Maxnum => 5
     }
 }
 
 fn floatFn(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue) Value {
-    let binary = rv.floatFn == .Minnum || rv.floatFn == .Maxnum
+    let binary = rv.floatFn == FloatFn.Minnum || rv.floatFn == FloatFn.Maxnum
     let a = operand(g, c, p, body, &rv.a)
     let b = if binary { operand(g, c, p, body, &rv.b) } else { a.clone() }   // loads first
     let isF64 = a.ty == "double"
@@ -804,24 +814,24 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
           destType: int) Value {
     let ty = llvmType(g, c, p, destType)
     match rv.kind {
-        .Use => {
+        RvalueKind.Use => {
             let v = operand(g, c, p, body, &rv.a)
             return Value{ty: ty, text: v.text}
         }
-        .Binary => {
+        RvalueKind.Binary => {
             let a = operand(g, c, p, body, &rv.a)
             let b = operand(g, c, p, body, &rv.b)
-            let float = c.types.kind(rv.a.ty) == .Float
+            let float = c.types.kind(rv.a.ty) == TyKind.Float
             let op = if float { floatOp(rv.op) } else { intOp(rv.op, isSigned(c, rv.a.ty)) }
             let t = nextTemp(g)
             g.out.push("  {t} = {op} {a.ty} {a.text}, {b.text}\n")
             return Value{ty: ty, text: t}
         }
-        .Checked => {
+        RvalueKind.Checked => {
             let a = operand(g, c, p, body, &rv.a)
             let b = operand(g, c, p, body, &rv.b)
             let signed = isSigned(c, rv.a.ty)
-            let op = if rv.op == .Add { 0 } else if rv.op == .Sub { 1 } else { 2 }
+            let op = if rv.op == Op.Add { 0 } else if rv.op == Op.Sub { 1 } else { 2 }
             let width = c.types.get(rv.a.ty).data % 4
             g.overflowUsed[(if signed { 12 } else { 0 }) + op * 4 + width] = true
             let ops = ["add", "sub", "mul"]
@@ -836,30 +846,30 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  store i1 {flag}, ptr %l{rv.flag}\n")
             return Value{ty: ty, text: result}
         }
-        .Unary => {
+        RvalueKind.Unary => {
             let a = operand(g, c, p, body, &rv.a)
             let t = nextTemp(g)
-            if rv.op == .Neg {
+            if rv.op == Op.Neg {
                 g.out.push("  {t} = fneg {a.ty} {a.text}\n")
             } else {
                 g.out.push("  {t} = xor {a.ty} {a.text}, -1\n")   // also i1
             }
             return Value{ty: ty, text: t}
         }
-        .Cast => {
+        RvalueKind.Cast => {
             let a = operand(g, c, p, body, &rv.a)
             let v = castValue(g, c, p, rv.a.ty, rv.to, a)
             return Value{ty: ty, text: v.text}
         }
-        .CastFails => {
+        RvalueKind.CastFails => {
             let v = castFails(g, c, p, body, rv)
             return Value{ty: ty, text: v.text}
         }
-        .Saturate => {
+        RvalueKind.Saturate => {
             let v = saturate(g, c, p, body, rv)
             return Value{ty: ty, text: v.text}
         }
-        .PtrAdd => {
+        RvalueKind.PtrAdd => {
             let a = operand(g, c, p, body, &rv.a)
             let n = operand(g, c, p, body, &rv.b)
             let elem = llvmType(g, c, p, c.types.get(rv.a.ty).inner)
@@ -867,7 +877,7 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {t} = getelementptr {elem}, ptr {a.text}, i64 {n.text}\n")
             return Value{ty: ty, text: t}
         }
-        .Aggregate => {   // insertvalue of each field into poison
+        RvalueKind.Aggregate => {   // insertvalue of each field into poison
             var current = "poison".toOwned()
             for i in 0..rv.items.len() {
                 let field = operand(g, c, p, body, &rv.items[i])
@@ -880,7 +890,7 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             }
             return Value{ty: ty, text: current}
         }
-        .SizeOf => {   // the address of element 1 from null is the size
+        RvalueKind.SizeOf => {   // the address of element 1 from null is the size
             let end = nextTemp(g)
             let t = fieldType(g, c, p, rv.to)
             g.out.push("  {end} = getelementptr {t}, ptr null, i32 1\n")
@@ -888,13 +898,13 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {result} = ptrtoint ptr {end} to i64\n")
             return Value{ty: ty, text: result}
         }
-        .StrLen => {
+        RvalueKind.StrLen => {
             let s = operand(g, c, p, body, &rv.a)
             let t = nextTemp(g)
             g.out.push("  {t} = extractvalue %ofir.str {s.text}, 1\n")
             return Value{ty: ty, text: t}
         }
-        .StrByte => {
+        RvalueKind.StrByte => {
             let s = operand(g, c, p, body, &rv.a)
             let i = operand(g, c, p, body, &rv.b)
             let ptr = nextTemp(g)
@@ -905,17 +915,17 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {t} = load i8, ptr {at}\n")
             return Value{ty: ty, text: t}
         }
-        .FloatFn => {
+        RvalueKind.FloatFn => {
             let v = floatFn(g, c, p, body, rv)
             return Value{ty: ty, text: v.text}
         }
-        .FnValue => {
+        RvalueKind.FnValue => {
             for g.fnValues.len() <= rv.flag {
                 g.fnValues.push(false)
             }
             g.fnValues[rv.flag] = true
             var env = "null"
-            if rv.a.kind != .Unit {
+            if rv.a.kind != OperandKind.Unit {
                 env = operand(g, c, p, body, &rv.a).text
             }
             let code = nextTemp(g)
@@ -925,7 +935,7 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {t} = insertvalue {FN_LLVM} {code}, ptr {env}, 1\n")
             return Value{ty: ty, text: t}
         }
-        .Unsize => {
+        RvalueKind.Unsize => {
             let thin = operand(g, c, p, body, &rv.a)
             let iface = c.types.get(dynObject(c, rv.to)).data
             let vt = vtable(g, rv.b.ty, iface, rv.flag == 1)
@@ -946,7 +956,7 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {t} = insertvalue {ty} undef, {FN_LLVM} {fat}, 0\n")
             return Value{ty: ty, text: t}
         }
-        .DynFn => {
+        RvalueKind.DynFn => {
             let fat = operand(g, c, p, body, &rv.a)
             let data = nextTemp(g)
             g.out.push("  {data} = extractvalue {FN_LLVM} {fat.text}, 0\n")
@@ -962,9 +972,10 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {t} = insertvalue {FN_LLVM} {half}, ptr {data}, 1\n")
             return Value{ty: ty, text: t}
         }
-        .Closure => {
+        RvalueKind.Closure => {
             var env = "null"
-            if rv.a.kind != .Unit && c.types.kind(rv.a.ty) == .Tuple {   // `move`: on the heap
+            if rv.a.kind != OperandKind.Unit &&
+               c.types.kind(rv.a.ty) == TyKind.Tuple {   // `move`: on the heap
                 let values = operand(g, c, p, body, &rv.a)
                 let envType = "\{ ptr, {values.ty} \}"
                 let size = nextTemp(g)
@@ -979,7 +990,7 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
                 g.out.push("i32 0, i32 1\n")
                 g.out.push("  store {values.ty} {values.text}, ptr {field}\n")
                 g.heap = true
-            } else if rv.a.kind != .Unit {
+            } else if rv.a.kind != OperandKind.Unit {
                 env = operand(g, c, p, body, &rv.a).text
             }
             let code = nextTemp(g)
@@ -1079,7 +1090,7 @@ fn thunks(g: mut Gen, c: mut Checker, p: Program) {
 // The number of the vtable of a concrete type for an interface.
 fn vtable(g: mut Gen, ty: int, iface: int, drops: bool) int {
     let key = ty * 4294967296 + iface
-    if let .Some(found) = g.vtIds.get(key) {
+    if let Option.Some(found) = g.vtIds.get(key) {
         return *found
     }
     let id = g.vtTypes.len()
@@ -1197,9 +1208,9 @@ fn runtimeCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirSt
         args.push(operand(g, c, p, body, &s.args[i]))
     }
     let ret = match s.rt {
-        .StrEq => "i1"
-        .StrCmp => "i32"
-        .TestIndex => "i64"
+        RuntimeFn.StrEq => "i1"
+        RuntimeFn.StrCmp => "i32"
+        RuntimeFn.TestIndex => "i64"
         _ => "void"
     }
     var result = ""
@@ -1273,7 +1284,7 @@ fn userCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt)
 }
 
 fn statement(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt) {
-    if s.kind == .Call {
+    if s.kind == StmtKind.Call {
         if s.runtime {
             runtimeCall(g, c, p, body, s)
         } else {
@@ -1291,12 +1302,12 @@ fn statement(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt
 
 fn panicFn(kind: PanicKind) str {
     let name = match kind {
-        .Overflow => "ofir_panic_overflow"
-        .DivZero => "ofir_panic_div_zero"
-        .Shift => "ofir_panic_shift"
-        .Cast => "ofir_panic_cast"
-        .Bounds => "ofir_panic_bounds"
-        .Assert => "ofir_panic_assert"
+        PanicKind.Overflow => "ofir_panic_overflow"
+        PanicKind.DivZero => "ofir_panic_div_zero"
+        PanicKind.Shift => "ofir_panic_shift"
+        PanicKind.Cast => "ofir_panic_cast"
+        PanicKind.Bounds => "ofir_panic_bounds"
+        PanicKind.Assert => "ofir_panic_assert"
     }
     return name.toOwned()
 }
@@ -1304,17 +1315,17 @@ fn panicFn(kind: PanicKind) str {
 fn terminator(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, t: &Terminator,
               index: int) {
     match t.kind {
-        .Goto => g.out.push("  br label %bb{t.target}\n")
-        .Branch => {
+        TermKind.Goto => g.out.push("  br label %bb{t.target}\n")
+        TermKind.Branch => {
             let cond = operand(g, c, p, body, &t.cond)
             g.out.push("  br i1 {cond.text}, label %bb{t.target}, label %bb{t.other}\n")
         }
-        .Assert => {   // the failing branch calls the panic function with the location
+        TermKind.Assert => {   // the failing branch calls the panic function with the location
             let cond = operand(g, c, p, body, &t.cond)
             let loc = locationGlobal(g, c, t.span)
             g.out.push("  br i1 {cond.text}, label %panic{index}, label %bb{t.target}\n")
             g.out.push("panic{index}:\n")
-            if t.panic == .Bounds {   // the message shows the index and the length
+            if t.panic == PanicKind.Bounds {   // the message shows the index and the length
                 let i = operand(g, c, p, body, &t.index)
                 let len = operand(g, c, p, body, &t.len)
                 g.out.push("  call void @ofir_panic_bounds(i64 {i.text}, i64 {len.text}, "
@@ -1324,13 +1335,13 @@ fn terminator(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, t: &Termin
             }
             g.out.push("  unreachable\n")
         }
-        .Panic => {
+        TermKind.Panic => {
             let msg = operand(g, c, p, body, &t.cond)
             let loc = locationGlobal(g, c, t.span)
             g.out.push("  call void @ofir_panic_str(ptr {msg.text}, ptr @.loc.{loc})\n")
             g.out.push("  unreachable\n")
         }
-        .Return => {
+        TermKind.Return => {
             let ret = body.locals[0].ty
             if hasValue(ret) {
                 let v = operand(g, c, p, body, &opCopy(0, ret))
@@ -1339,7 +1350,7 @@ fn terminator(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, t: &Termin
                 g.out.push("  ret void\n")
             }
         }
-        .Unreachable | .None => g.out.push("  unreachable\n")
+        TermKind.Unreachable | TermKind.None => g.out.push("  unreachable\n")
     }
 }
 
@@ -1371,7 +1382,7 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     let retType = if body.isMain { "void".toOwned() } else { llvmType(g, c, p, ret) }
     g.out.push("define {linkage}{retType} ")
     var params: List<int> = []
-    if let .Some(info) = body.closure {
+    if let Option.Some(info) = body.closure {
         let name = closureName(c, p, body.def, body.targs, info.id)
         if info.drop {
             g.out.push(dropName(name))
@@ -1410,7 +1421,7 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
             g.out.push("  store {localType(g, c, p, body, i)} %p{i}, ptr %l{i}\n")
         }
     }
-    if let .Some(info) = body.closure {   // each captured variable, through the environment
+    if let Option.Some(info) = body.closure {   // each captured variable, through the environment
         var envType = ""
         if info.env != 0 {
             envType = "\{ ptr, {llvmType(g, c, p, info.env)} \}"
@@ -1431,12 +1442,13 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
             g.out.push("  store ptr %cap.{j}, ptr %l{i}\n")
         }
     }
+    // drop glue of a function value
     if body.def == GLUE_DROP && !body.isMain &&
-       c.types.kind(c.types.get(body.targs).args[0]) == .Fn {   // drop glue of a function value
+       c.types.kind(c.types.get(body.targs).args[0]) == TyKind.Fn {
         dropFnEnv(g)
     }
     if body.def == GLUE_DROP && !body.isMain &&
-       c.types.kind(c.types.get(body.targs).args[0]) == .Dyn {
+       c.types.kind(c.types.get(body.targs).args[0]) == TyKind.Dyn {
         dropDyn(g)
     }
     g.out.push("  br label %bb0\n")
@@ -1494,8 +1506,8 @@ fn begin(g: mut Gen, c: mut Checker, p: Program) {
     // LLVM needs a type's size when a function allocates it.
     for i in 1..c.r.defs.len() {
         let def = c.def(i)
-        let known = (def.kind == .Struct && c.info[i].fields.isSome() && !def.lang) ||
-                    (def.kind == .Enum && c.info[i].variants.isSome())
+        let known = (def.kind == DefKind.Struct && c.info[i].fields.isSome() && !def.lang) ||
+                    (def.kind == DefKind.Enum && c.info[i].variants.isSome())
         if known && itemTypeParams(itemOf(p, c.loc(i))).len() == 0 {
             let ty = c.types.adt(i, [])
             let _ = adtType(g, c, p, ty)

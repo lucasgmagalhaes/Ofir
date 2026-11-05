@@ -40,7 +40,7 @@ which take the target type as a type argument:
 |--------|----------|------------------------|
 | `x.wrappingCast<T>()` | keeps the low bits (two's complement) | `44` |
 | `x.saturatingCast<T>()` | clamps to the target range | `255` |
-| `x.checkedCast<T>()` | returns `Option<T>` | `None` |
+| `x.checkedCast<T>()` | returns `Option<T>` | `Option.None` |
 
 ### Arithmetic
 
@@ -134,8 +134,8 @@ through the prelude. User-defined generics are described in chapter 8.
 |------|-------------|
 | `List<T>` | owned, growable, contiguous array |
 | `Map<K, V>` | owned hash map that iterates in insertion order |
-| `Option<T>` | `Some(T)` or `None` |
-| `Result<T, E>` | `Ok(T)` or `Err(E)` |
+| `Option<T>` | `Option.Some(T)` or `Option.None` |
+| `Result<T, E>` | `Result.Ok(T)` or `Result.Err(E)` |
 | `Box<T>` | owned heap allocation (needed for recursive types) |
 
 ```ofir
@@ -299,8 +299,8 @@ which makes code like this valid:
 
 ```ofir
 let n = match input {
-    .Some(v) => v
-    .None => panic("missing input")
+    Option.Some(v) => v
+    Option.None => panic("missing input")
 }
 ```
 

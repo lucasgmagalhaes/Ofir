@@ -25,6 +25,7 @@ import sema.program.Program
 import sema.types.ERROR
 import syntax.ast.Arg
 import syntax.ast.Expr
+import syntax.ast.ExprKind
 
 // Checks the payload of variant `index` of enum `id`, built at `at`.
 fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: int, index: int,
@@ -63,7 +64,21 @@ fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: in
 }
 
 /**
- * `Some(x)`, `None`, `Ok(v)`, `Err(e)`: the variants the prelude names.
+ * E0326: a variant named without its enum (ADR 0028).
+ *
+ * @param c the checker
+ * @param span where the variant is named
+ * @param id the enum's `DefId`
+ * @param name the variant
+ */
+pub fn unqualifiedVariant(c: mut Checker, span: Span, id: int, name: Symbol) {
+    let text = c.text(name).toOwned()
+    c.error("E0326", span, "a variant is named through its enum: write "
+            + "`{c.text(c.def(id).name)}.{text}`")
+}
+
+/**
+ * `Some(x)`, `None`, `Ok(v)`, `Err(e)`: E0326, then checked as if qualified.
  *
  * @param c the checker
  * @param p the program
@@ -77,6 +92,7 @@ pub fn checkPreludeVariant(c: mut Checker, p: Program, e: &Expr, def: int,
                            args: Option<&List<Arg>>, expected: int) int {
     let id = c.def(def).target
     let index = c.def(def).member
+    unqualifiedVariant(c, e.span, id, c.def(def).name)
     c.setMember(e.id.0, index)
     return build(c, p, e, args, id, index, ERROR, expected)
 }
@@ -87,7 +103,8 @@ fn noVariant(c: mut Checker, span: Span, name: Symbol, ty: int) int {
 }
 
 /**
- * `.Circle(1.0)`: the enum comes from the expected type.
+ * `.Circle(1.0)`: E0326; when the expected type gives the enum, checked as if
+ * qualified.
  *
  * @param c the checker
  * @param p the program
@@ -97,21 +114,21 @@ fn noVariant(c: mut Checker, span: Span, name: Symbol, ty: int) int {
  */
 pub fn checkVariantShorthand(c: mut Checker, p: Program, e: &Expr, expected: int) int {
     match e.kind {
-        .Variant(name, args, hasArgs) => {
-            let Some(id) = enumOf(c, p, expected) else {
-                let text = c.text(name).toOwned()
-                c.error("E0320", e.span, "cannot tell which enum `.{text}` belongs to: write "
-                        + "`Enum.{text}`")
+        ExprKind.Variant(name, args, hasArgs) => {
+            let Option.Some(id) = enumOf(c, p, expected) else {
+                c.error("E0326", e.span, "a variant is named through its enum: write "
+                        + "`Enum.{c.text(name)}`")
                 return ERROR
             }
+            unqualifiedVariant(c, e.span, id, name)
             let index = variantIndex(variantsOf(c, id), name)
             if index < 0 {
                 return noVariant(c, e.span, name, expected)
             }
             c.setMember(e.id.0, index)
-            var given: Option<&List<Arg>> = .None
+            var given: Option<&List<Arg>> = Option.None
             if hasArgs {
-                given = .Some(&args)
+                given = Option.Some(&args)
             }
             return build(c, p, e, given, id, index, expected, expected)
         }
@@ -140,8 +157,8 @@ pub fn checkQualifiedVariant(c: mut Checker, p: Program, e: &Expr, field: &Expr,
                              selfType: int, expected: int) Option<int> {
     let index = if enumVariants(c, p, id) { variantIndex(variantsOf(c, id), name) } else { -1 }
     if index < 0 {
-        return .None
+        return Option.None
     }
     c.setMember(field.id.0, index)
-    return .Some(build(c, p, e, args, id, index, selfType, expected))
+    return Option.Some(build(c, p, e, args, id, index, selfType, expected))
 }

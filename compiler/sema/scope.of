@@ -117,7 +117,7 @@ pub struct Scope {
     pub fn leave(mut self) {
         let mark = self.marks.pop() ?? 0
         for self.saved.len() > mark {
-            if let .Some(s) = self.saved.pop() {
+            if let Option.Some(s) = self.saved.pop() {
                 self.local[s.name.0] = s.previous
             }
         }
@@ -141,7 +141,7 @@ pub struct Scope {
      */
     pub fn localOf(self, name: Symbol) Option<int> {
         let bound = if name.0 < self.symbolCount { self.local[name.0] } else { 0 }
-        return if bound == 0 { .None } else { .Some(bound - 1) }
+        return if bound == 0 { Option.None } else { Option.Some(bound - 1) }
     }
 
     /**
@@ -151,7 +151,7 @@ pub struct Scope {
      * @returns true if it is
      */
     pub fn inCurrentBlock(self, name: Symbol) bool {
-        if let .Some(id) = self.localOf(name) {
+        if let Option.Some(id) = self.localOf(name) {
             return self.depth[id] == self.marks.len()
         }
         return false

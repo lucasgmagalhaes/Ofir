@@ -11,6 +11,8 @@
 import air.air.AirBody
 import air.air.ClosureBody
 import air.air.Operand
+import air.air.OperandKind
+import air.air.RvalueKind
 import air.air.TermKind
 import air.air.opCopy
 import air.air.opUnit
@@ -38,6 +40,7 @@ import sema.structs.isCopy
 import sema.types.UNIT
 import std.mem
 import syntax.ast.Expr
+import syntax.ast.Op
 import syntax.ast.Param
 
 /**
@@ -57,12 +60,12 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
                     body: &Expr, isMove: bool, ty: int) Operand {
     let module = c.def(l.fnDef).module
     let captured: List<int> = match c.r.tables[module].captures.get(e.id.0) {
-        .Some(list) => list.clone()
-        .None => []
+        Option.Some(list) => list.clone()
+        Option.None => []
     }
     let written: List<int> = match c.capturesMut[module].get(e.id.0) {
-        .Some(list) => list.clone()
-        .None => []
+        Option.Some(list) => list.clone()
+        Option.None => []
     }
     var captures: List<int> = []   // AIR locals
     for i in 0..captured.len() {
@@ -82,7 +85,7 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
     if isMove && envType != 0 {
         lowerEnvDrop(l, c, p, e, envType)
     }
-    var rv = rvalue(.Closure, .Add, opUnit(UNIT), opUnit(UNIT))
+    var rv = rvalue(RvalueKind.Closure, Op.Add, opUnit(UNIT), opUnit(UNIT))
     rv.flag = e.id.0
     if envType != 0 {
         var items: List<Operand> = []
@@ -91,9 +94,9 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
             // A local passed by address holds the address of the value.
             let place = Place{local, fields: [], deref: l.body.locals[local].byRef}
             if !isMove {
-                items.push(placeOperand(&place, .Addr, types[i]))
+                items.push(placeOperand(&place, OperandKind.Addr, types[i]))
             } else {
-                items.push(placeOperand(&place, .Copy, types[i]))
+                items.push(placeOperand(&place, OperandKind.Copy, types[i]))
                 if !isCopy(c, p, types[i]) {   // moved into the closure
                     let path: List<int> = []
                     noteMoved(l, local, &path)
@@ -102,7 +105,7 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
         }
         let env = aggregate(l, envType, items)
         rv.a = if isMove { env } else {
-            placeOperand(&localPlace(env.local), .Addr, c.types.ptr(envType, false))
+            placeOperand(&localPlace(env.local), OperandKind.Addr, c.types.ptr(envType, false))
         }
     }
     return opCopy(emitTemp(l, ty, rv), ty)
@@ -115,9 +118,9 @@ fn lowerEnvDrop(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, envType: i
                            drop: true}
     var drop = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
                        isMain: false, paramCount: 0, locals: [], blocks: [],
-                       closure: .Some(info)}
-    drop.newLocal(UNIT, .None, e.span)
-    drop.newLocal(c.types.ref(envType, true), .None, e.span)   // the captured values
+                       closure: Option.Some(info)}
+    drop.newLocal(UNIT, Option.None, e.span)
+    drop.newLocal(c.types.ref(envType, true), Option.None, e.span)   // the captured values
     let outer = mem.replace(l.body, drop)
     let block = l.block
     l.block = l.body.newBlock()
@@ -135,8 +138,8 @@ fn lowerBody(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List
              body: &Expr, captures: List<int>, isMove: bool, env: int, ty: int) {
     let decl = fnOf(p, c.loc(l.fnDef))
     let count = match c.r.tables[c.def(l.fnDef).module].fnLocals.get(decl.id.0) {
-        .Some(list) => list.len()
-        .None => 0
+        Option.Some(list) => list.len()
+        Option.None => 0
     }
     var paramLocals: List<int> = []
     for i in 0..params.len() {
@@ -146,8 +149,8 @@ fn lowerBody(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List
                            env: if isMove { env } else { 0 }, drop: false}
     var closure = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
                           isMain: false, paramCount: 0, locals: [], blocks: [],
-                          closure: .Some(info)}
-    closure.newLocal(c.types.get(ty).inner, .None, e.span)   // the return value
+                          closure: Option.Some(info)}
+    closure.newLocal(c.types.get(ty).inner, Option.None, e.span)   // the return value
     for i in 1..count + 1 {
         let local = &l.body.locals[i]
         closure.newLocal(local.ty, local.name, local.span)

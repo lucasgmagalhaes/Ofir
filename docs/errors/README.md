@@ -62,9 +62,10 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0317 | a `copy struct` can only have fields of Copy types | stage 0 |
 | E0318 | a type cannot contain itself by value | stage 0 |
 | E0319 | invalid or duplicate enum discriminant | stage 0 |
-| E0320 | no variant `V` in enum `E`, or the enum of `.V` is unknown | stage 0 |
+| E0320 | no variant `V` in enum `E` | stage 0 |
 | E0321 | this operation needs a value of a Copy type | stage 0 |
 | E0322 | type `T` cannot be cloned: a part of it has `drop` but no `clone` | stage 0 |
+| E0326 | a variant is named through its enum: write `E.V` (ADR 0028) | stage 0 |
 | E0330 | cannot infer the type parameter `T`: write the type arguments | stage 0 |
 | E0331 | instantiating `f` nests types more than 64 levels deep | stage 0 |
 | E0332 | the type `X` does not satisfy the bound `B` of `T` | stage 1 |

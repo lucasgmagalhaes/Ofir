@@ -8,37 +8,37 @@ enum ParseError {
 
 fn digit(b: u8) Result<int, ParseError> {
     if b < 48 || b > 57 {
-        return Err(.BadDigit(b))
+        return Result.Err(ParseError.BadDigit(b))
     }
-    return Ok((b - 48) as int)
+    return Result.Ok((b - 48) as int)
 }
 
 fn parse(s: str) Result<int, ParseError> {
     if s.isEmpty() {
-        return Err(.Empty)
+        return Result.Err(ParseError.Empty)
     }
     var n = 0
     for i in 0..s.len() {
         n = n * 10 + digit(s[i])?
         if n > 65535 {
-            return Err(ParseError.TooLarge)
+            return Result.Err(ParseError.TooLarge)
         }
     }
-    return Ok(n)
+    return Result.Ok(n)
 }
 
 fn port(s: str) Result<u16, ParseError> {
     let n = parse(s)?
-    return Ok(n as u16)
+    return Result.Ok(n as u16)
 }
 
 fn show(r: Result<u16, ParseError>) str {
     return match r {
-        Ok(p) => "port {p}"
-        Err(e) => match e {
-            .Empty => "empty"
-            .BadDigit(b) => "bad digit {b}"
-            .TooLarge => "too large"
+        Result.Ok(p) => "port {p}"
+        Result.Err(e) => match e {
+            ParseError.Empty => "empty"
+            ParseError.BadDigit(b) => "bad digit {b}"
+            ParseError.TooLarge => "too large"
         }
     }
 }
@@ -48,8 +48,8 @@ fn main() {
     println("{parse("12").isOk()} {parse("x").isErr()} {parse("7").unwrap()}")
     println("{parse("x").unwrapOr(0)} {parse("42").ok().unwrapOr(0)} {parse("x").err().isSome()}")
     let _ = parse("ignored")
-    let unit: Result<(), str> = Ok(())
-    if let Ok(()) = unit {
+    let unit: Result<(), str> = Result.Ok(())
+    if let Result.Ok(()) = unit {
         println("ok")
     }
 }

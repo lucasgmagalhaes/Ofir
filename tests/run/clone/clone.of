@@ -14,8 +14,8 @@ enum Tree {
 
 fn sum(t: Tree) int {
     return match t {
-        .Leaf(n) => n
-        .Node(a, b) => sum(*a) + sum(*b)
+        Tree.Leaf(n) => n
+        Tree.Node(a, b) => sum(*a) + sum(*b)
     }
 }
 
@@ -60,7 +60,7 @@ fn main() {
     older.insert("alan".toOwned(), 41)
     println("maps {ages.len()} {older.len()}")
 
-    let maybe: Option<str> = .Some("hi".toOwned())
+    let maybe: Option<str> = Option.Some("hi".toOwned())
     let pair = (maybe.clone(), [1, 2, 3].clone())
     println("{pair.0 ?? "none"} {pair.1.len()}")
 

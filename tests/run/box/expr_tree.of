@@ -14,29 +14,29 @@ fn num(n: int) Box<Expr> {
 
 fn eval(e: Expr) int {
     return match e {
-        .Number(n) => n
-        .Neg(inner) => -eval(*inner)
-        .Add(a, b) => eval(*a) + eval(*b)
-        .Mul(a, b) => eval(*a) * eval(*b)
+        Expr.Number(n) => n
+        Expr.Neg(inner) => -eval(*inner)
+        Expr.Add(a, b) => eval(*a) + eval(*b)
+        Expr.Mul(a, b) => eval(*a) * eval(*b)
     }
 }
 
 fn show(e: Expr) str {
     return match e {
-        .Number(n) => "{n}"
-        .Neg(inner) => "-{show(*inner)}"
-        .Add(a, b) => "({show(*a)} + {show(*b)})"
-        .Mul(a, b) => "{show(*a)} * {show(*b)}"
+        Expr.Number(n) => "{n}"
+        Expr.Neg(inner) => "-{show(*inner)}"
+        Expr.Add(a, b) => "({show(*a)} + {show(*b)})"
+        Expr.Mul(a, b) => "{show(*a)} * {show(*b)}"
     }
 }
 
 // Counts the nodes, with the boxes moved out of the tree.
 fn size(e: move Expr) int {
     return match e {
-        .Number(_) => 1
-        .Neg(inner) => 1 + size(inner.unbox())
-        .Add(a, b) => 1 + size(a.unbox()) + size(b.unbox())
-        .Mul(a, b) => 1 + size(a.unbox()) + size(b.unbox())
+        Expr.Number(_) => 1
+        Expr.Neg(inner) => 1 + size(inner.unbox())
+        Expr.Add(a, b) => 1 + size(a.unbox()) + size(b.unbox())
+        Expr.Mul(a, b) => 1 + size(a.unbox()) + size(b.unbox())
     }
 }
 

@@ -34,7 +34,7 @@ extern "C" {
 pub fn read(path: str) Result<List<u8>, IoError> {
     var out = Buffer.new()
     io.check(unsafe { ofir_read_file(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
-    return .Ok(unsafe { out.intoList() })
+    return Result.Ok(unsafe { out.intoList() })
 }
 
 /**
@@ -52,7 +52,7 @@ pub fn read(path: str) Result<List<u8>, IoError> {
 pub fn readToString(path: str) Result<str, IoError> {
     var out = Buffer.new()
     io.check(unsafe { ofir_read_file(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
-    return .Ok(unsafe { out.intoStr() })
+    return Result.Ok(unsafe { out.intoStr() })
 }
 
 /**
@@ -113,7 +113,7 @@ pub fn exists(path: str) bool {
 pub fn canonicalize(path: str) Result<str, IoError> {
     var out = Buffer.new()
     io.check(unsafe { ofir_canonicalize(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
-    return .Ok(unsafe { out.intoStr() })
+    return Result.Ok(unsafe { out.intoStr() })
 }
 
 /**
@@ -171,5 +171,5 @@ pub fn readDir(path: str) Result<List<DirEntry>, IoError> {
             entries.push(DirEntry{name: name.toOwned(), path: "{path}/{name}"})
         }
     }
-    return .Ok(entries)
+    return Result.Ok(entries)
 }

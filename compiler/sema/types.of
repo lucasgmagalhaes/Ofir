@@ -114,16 +114,16 @@ pub struct TypeTable {
      */
     pub fn new() TypeTable {
         var table = TypeTable{types: [], slots: List.filled(0, 256)}
-        table.intern(.Error, 0, 0, [])
-        table.intern(.Unit, 0, 0, [])
-        table.intern(.Never, 0, 0, [])
-        table.intern(.Bool, 0, 0, [])
+        table.intern(TyKind.Error, 0, 0, [])
+        table.intern(TyKind.Unit, 0, 0, [])
+        table.intern(TyKind.Never, 0, 0, [])
+        table.intern(TyKind.Bool, 0, 0, [])
         for k in 0..8 {
-            table.intern(.Int, k, 0, [])
+            table.intern(TyKind.Int, k, 0, [])
         }
-        table.intern(.Float, 32, 0, [])
-        table.intern(.Float, 64, 0, [])
-        table.intern(.Str, 0, 0, [])
+        table.intern(TyKind.Float, 32, 0, [])
+        table.intern(TyKind.Float, 64, 0, [])
+        table.intern(TyKind.Str, 0, 0, [])
         assert(table.types.len() == BUILTIN_COUNT)
         return table
     }
@@ -168,7 +168,7 @@ pub struct TypeTable {
      * @returns its id
      */
     pub fn intern(mut self, kind: TyKind, data: int, inner: int, args: [int]) int {
-        if kind == .Ref && data == 0 && inner == STR {
+        if kind == TyKind.Ref && data == 0 && inner == STR {
             return STR
         }
         if (self.types.len() + 1) * 2 > self.slots.len() {
@@ -183,9 +183,10 @@ pub struct TypeTable {
             }
             i = (i + 1) & mask
         }
-        let nested = kind == .Ref || kind == .Ptr || kind == .Slice || kind == .Array ||
-                     kind == .Fn
-        var hasParam = kind == .Param || (nested && self.types[inner].hasParam)
+        let nested = kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
+                     kind == TyKind.Array ||
+                     kind == TyKind.Fn
+        var hasParam = kind == TyKind.Param || (nested && self.types[inner].hasParam)
         var copied: List<int> = []
         for a in 0..args.len() {
             hasParam = hasParam || self.types[args[a]].hasParam
@@ -218,7 +219,7 @@ pub struct TypeTable {
      * @returns the reference type
      */
     pub fn ref(mut self, inner: int, mutable: bool) int {
-        return self.intern(.Ref, if mutable { 1 } else { 0 }, inner, [])
+        return self.intern(TyKind.Ref, if mutable { 1 } else { 0 }, inner, [])
     }
 
     /**
@@ -229,7 +230,7 @@ pub struct TypeTable {
      * @returns the pointer type
      */
     pub fn ptr(mut self, inner: int, mutable: bool) int {
-        return self.intern(.Ptr, if mutable { 1 } else { 0 }, inner, [])
+        return self.intern(TyKind.Ptr, if mutable { 1 } else { 0 }, inner, [])
     }
 
     /**
@@ -239,7 +240,7 @@ pub struct TypeTable {
      * @returns the tuple type
      */
     pub fn tuple(mut self, elems: [int]) int {
-        return if elems.len() == 0 { UNIT } else { self.intern(.Tuple, 0, 0, elems) }
+        return if elems.len() == 0 { UNIT } else { self.intern(TyKind.Tuple, 0, 0, elems) }
     }
 
     /**
@@ -250,7 +251,7 @@ pub struct TypeTable {
      * @returns the function type
      */
     pub fn fnType(mut self, params: [int], ret: int) int {
-        return self.intern(.Fn, 0, ret, params)
+        return self.intern(TyKind.Fn, 0, ret, params)
     }
 
     /**
@@ -264,7 +265,7 @@ pub struct TypeTable {
      * @returns the type
      */
     pub fn fnValueType(mut self, params: [int], ret: int, owned: bool) int {
-        return self.intern(.Fn, if owned { FN_OWNED } else { FN_BORROWED }, ret, params)
+        return self.intern(TyKind.Fn, if owned { FN_OWNED } else { FN_BORROWED }, ret, params)
     }
 
     /**
@@ -275,7 +276,7 @@ pub struct TypeTable {
      * @returns the type
      */
     pub fn adt(mut self, def: int, args: [int]) int {
-        return self.intern(.Adt, def, 0, args)
+        return self.intern(TyKind.Adt, def, 0, args)
     }
 
     /**
@@ -286,7 +287,7 @@ pub struct TypeTable {
      * @returns the type
      */
     pub fn dynOf(mut self, iface: int, args: [int]) int {
-        return self.intern(.Dyn, iface, 0, args)
+        return self.intern(TyKind.Dyn, iface, 0, args)
     }
 
     /**
@@ -297,7 +298,8 @@ pub struct TypeTable {
      */
     pub fn isFat(self, ty: int) bool {
         let t = &self.types[ty]
-        return (t.kind == .Ref || t.kind == .Ptr) && self.types[t.inner].kind == .Dyn
+        return (t.kind == TyKind.Ref || t.kind == TyKind.Ptr) &&
+               self.types[t.inner].kind == TyKind.Dyn
     }
 
     /**
@@ -309,7 +311,7 @@ pub struct TypeTable {
      * @returns the type
      */
     pub fn param(mut self, index: int, name: int) int {
-        return self.intern(.Param, index, name, [])
+        return self.intern(TyKind.Param, index, name, [])
     }
 
     /**
@@ -325,11 +327,11 @@ pub struct TypeTable {
         }
         let kind = self.types[ty].kind
         let data = self.types[ty].data
-        if kind == .Param {
+        if kind == TyKind.Param {
             return if data < args.len() { args[data] } else { ty }
         }
         var inner = self.types[ty].inner
-        if kind != .Tuple && kind != .Adt && kind != .Dyn {
+        if kind != TyKind.Tuple && kind != TyKind.Adt && kind != TyKind.Dyn {
             inner = self.subst(inner, args)   // ref, ptr, slice, array, fn
         }
         var items: List<int> = []
@@ -348,8 +350,9 @@ pub struct TypeTable {
      */
     pub fn depth(self, ty: int) int {
         let t = &self.types[ty]
-        let nested = t.kind == .Ref || t.kind == .Ptr || t.kind == .Slice || t.kind == .Array ||
-                     t.kind == .Fn
+        let nested = t.kind == TyKind.Ref || t.kind == TyKind.Ptr || t.kind == TyKind.Slice ||
+                     t.kind == TyKind.Array ||
+                     t.kind == TyKind.Fn
         var deepest = if nested { self.depth(t.inner) } else { 0 }
         for i in 0..t.args.len() {
             let d = self.depth(t.args[i])
@@ -367,7 +370,7 @@ pub struct TypeTable {
      * @returns true for `i8` to `u64`
      */
     pub fn isInteger(self, ty: int) bool {
-        return self.types[ty].kind == .Int
+        return self.types[ty].kind == TyKind.Int
     }
 
     /**
@@ -378,7 +381,7 @@ pub struct TypeTable {
      */
     pub fn isNumeric(self, ty: int) bool {
         let kind = self.types[ty].kind
-        return kind == .Int || kind == .Float
+        return kind == TyKind.Int || kind == TyKind.Float
     }
 }
 
@@ -390,22 +393,22 @@ pub struct TypeTable {
  */
 pub fn kindNumber(kind: TyKind) int {
     return match kind {
-        .Error => 0
-        .Unit => 1
-        .Never => 2
-        .Bool => 3
-        .Int => 4
-        .Float => 5
-        .Str => 6
-        .Ref => 7
-        .Ptr => 8
-        .Slice => 9
-        .Array => 10
-        .Tuple => 11
-        .Fn => 12
-        .Adt => 13
-        .Param => 14
-        .Dyn => 15
+        TyKind.Error => 0
+        TyKind.Unit => 1
+        TyKind.Never => 2
+        TyKind.Bool => 3
+        TyKind.Int => 4
+        TyKind.Float => 5
+        TyKind.Str => 6
+        TyKind.Ref => 7
+        TyKind.Ptr => 8
+        TyKind.Slice => 9
+        TyKind.Array => 10
+        TyKind.Tuple => 11
+        TyKind.Fn => 12
+        TyKind.Adt => 13
+        TyKind.Param => 14
+        TyKind.Dyn => 15
     }
 }
 

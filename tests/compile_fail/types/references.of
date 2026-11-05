@@ -29,8 +29,8 @@ enum Wrapped {
 // function; the elements it points to outlive it.
 fn inside(w: &Wrapped) &List<int> {
     return match *w {
-        .One(list) => &list      // error[E0702]: cannot return a reference to `list`, which ends with the function
-        .Two(list) => {
+        Wrapped.One(list) => &list      // error[E0702]: cannot return a reference to `list`, which ends with the function
+        Wrapped.Two(list) => {
             &list                // error[E0702]: cannot return a reference to `list`, which ends with the function
         }
     }
@@ -38,8 +38,8 @@ fn inside(w: &Wrapped) &List<int> {
 
 fn element(w: &Wrapped) &int {
     return match *w {
-        .One(list) => &list[0]
-        .Two(list) => &list[1]
+        Wrapped.One(list) => &list[0]
+        Wrapped.Two(list) => &list[1]
     }
 }
 

@@ -60,9 +60,9 @@ pub fn env(name: str) Option<str> {
     var len = 0
     let ptr = unsafe { ofir_env(name.asPtr(), name.len(), &mut len as *mut int) }
     if unsafe { ptr as u64 } == 0 {
-        return .None
+        return Option.None
     }
-    return .Some(unsafe { str.fromRaw(ptr, len) })
+    return Option.Some(unsafe { str.fromRaw(ptr, len) })
 }
 
 /**
@@ -122,7 +122,7 @@ pub fn run(program: str, args: [str]) Result<Output, IoError> {
     io.check(unsafe {
         ofir_run(packed.asPtr(), packed.len(), args.len() + 1, &mut captured as *mut Captured)
     })?
-    return .Ok(Output{status: captured.status, stdout: unsafe { captured.out.intoStr() },
+    return Result.Ok(Output{status: captured.status, stdout: unsafe { captured.out.intoStr() },
                       stderr: unsafe { captured.err.intoStr() }})
 }
 
@@ -134,7 +134,7 @@ pub fn run(program: str, args: [str]) Result<Output, IoError> {
 pub fn currentDir() Result<str, IoError> {
     var out = Buffer.new()
     io.check(unsafe { ofir_current_dir(&mut out as *mut Buffer) })?
-    return .Ok(unsafe { out.intoStr() })
+    return Result.Ok(unsafe { out.intoStr() })
 }
 
 /**
@@ -145,5 +145,5 @@ pub fn currentDir() Result<str, IoError> {
 pub fn executablePath() Result<str, IoError> {
     var out = Buffer.new()
     io.check(unsafe { ofir_executable_path(&mut out as *mut Buffer) })?
-    return .Ok(unsafe { out.intoStr() })
+    return Result.Ok(unsafe { out.intoStr() })
 }

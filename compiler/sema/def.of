@@ -44,17 +44,17 @@ pub copy enum DefKind {
  */
 pub fn kindName(kind: DefKind) str {
     return match kind {
-        .Fn => "fn"
-        .Builtin => "builtin"
-        .Primitive => "primitive"
-        .Struct => "struct"
-        .Enum => "enum"
-        .Const => "const"
-        .Global => "global"
-        .TypeAlias => "alias"
-        .Module => "module"
-        .Variant => "variant"
-        .Interface => "interface"
+        DefKind.Fn => "fn"
+        DefKind.Builtin => "builtin"
+        DefKind.Primitive => "primitive"
+        DefKind.Struct => "struct"
+        DefKind.Enum => "enum"
+        DefKind.Const => "const"
+        DefKind.Global => "global"
+        DefKind.TypeAlias => "alias"
+        DefKind.Module => "module"
+        DefKind.Variant => "variant"
+        DefKind.Interface => "interface"
     }
 }
 

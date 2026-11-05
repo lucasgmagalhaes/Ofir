@@ -6,6 +6,7 @@
 
 import syntax.ast.Block
 import syntax.ast.Expr
+import syntax.ast.ExprKind
 import syntax.ast.MatchArm
 import syntax.ast.Pattern
 import syntax.ast.Stmt
@@ -15,6 +16,7 @@ import syntax.parse_exprs.parseExprNoStruct
 import syntax.parse_patterns.parsePattern
 import syntax.parse_stmts.parseStmt
 import syntax.parser.Parser
+import syntax.token.TokenKind
 
 /**
  * A block: `{ statements }`.
@@ -24,14 +26,14 @@ import syntax.parser.Parser
  */
 pub fn parseBlock(p: mut Parser) Block {
     let start = p.here()
-    if !p.expect(.LBrace, "`\{` to start a block") {
+    if !p.expect(TokenKind.LBrace, "`\{` to start a block") {
         return Block{span: start, stmts: []}
     }
     let saved = p.noStructLiteral
     p.noStructLiteral = false
     var stmts: List<Stmt> = []
     p.skipNewlines()
-    for !p.at(.RBrace) && !p.at(.Eof) {
+    for !p.at(TokenKind.RBrace) && !p.at(TokenKind.Eof) {
         stmts.push(parseStmt(p))
         if p.recovering {
             p.synchronize()
@@ -39,7 +41,7 @@ pub fn parseBlock(p: mut Parser) Block {
             p.expectTerminator()
         }
     }
-    p.expect(.RBrace, "`\}` to close the block")
+    p.expect(TokenKind.RBrace, "`\}` to close the block")
     p.noStructLiteral = saved
     return Block{span: p.spanSince(start), stmts}
 }
@@ -47,33 +49,33 @@ pub fn parseBlock(p: mut Parser) Block {
 // `if cond { } else if ... else { }` and `if let pattern = value { }`.
 fn ifExpr(p: mut Parser) Expr {
     let start = p.advance()
-    var letPattern: Option<Pattern> = .None
-    if p.accept(.Let) {
-        letPattern = .Some(parsePattern(p))
-        p.expect(.Eq, "`=` after the pattern")
+    var letPattern: Option<Pattern> = Option.None
+    if p.accept(TokenKind.Let) {
+        letPattern = Option.Some(parsePattern(p))
+        p.expect(TokenKind.Eq, "`=` after the pattern")
     }
     let cond = parseExprNoStruct(p)
     let then = parseBlock(p)
-    var otherwise: Option<Box<Expr>> = .None
-    if p.accept(.Else) {
+    var otherwise: Option<Box<Expr>> = Option.None
+    if p.accept(TokenKind.Else) {
         let elseStart = p.here()
-        if p.at(.If) {
-            otherwise = .Some(Box.new(ifExpr(p)))
+        if p.at(TokenKind.If) {
+            otherwise = Option.Some(Box.new(ifExpr(p)))
         } else {
             let block = parseBlock(p)
-            otherwise = .Some(Box.new(newExpr(p, .Block(block), elseStart)))
+            otherwise = Option.Some(Box.new(newExpr(p, ExprKind.Block(block), elseStart)))
         }
     }
-    return newExpr(p, .If(letPattern, Box.new(cond), then, otherwise), start)
+    return newExpr(p, ExprKind.If(letPattern, Box.new(cond), then, otherwise), start)
 }
 
 fn matchArm(p: mut Parser) MatchArm {
     let pattern = parsePattern(p)
-    var guard: Option<Expr> = .None
-    if p.accept(.If) {
-        guard = .Some(parseExprNoStruct(p))
+    var guard: Option<Expr> = Option.None
+    if p.accept(TokenKind.If) {
+        guard = Option.Some(parseExprNoStruct(p))
     }
-    p.expect(.FatArrow, "`=>` after the pattern")
+    p.expect(TokenKind.FatArrow, "`=>` after the pattern")
     p.skipNewlines()
     return MatchArm{pattern, guard, body: parseExpr(p)}
 }
@@ -82,9 +84,9 @@ fn matchExpr(p: mut Parser) Expr {
     let start = p.advance()
     let scrutinee = parseExprNoStruct(p)
     var arms: List<MatchArm> = []
-    if p.expect(.LBrace, "`\{` after the matched value") {
+    if p.expect(TokenKind.LBrace, "`\{` after the matched value") {
         p.skipNewlines()
-        for !p.at(.RBrace) && !p.at(.Eof) {
+        for !p.at(TokenKind.RBrace) && !p.at(TokenKind.Eof) {
             arms.push(matchArm(p))
             if p.recovering {
                 p.synchronize()
@@ -92,14 +94,14 @@ fn matchExpr(p: mut Parser) Expr {
             }
             let separated = p.acceptSeparator()
             p.skipNewlines()
-            if !separated && !p.at(.RBrace) {
+            if !separated && !p.at(TokenKind.RBrace) {
                 p.unexpected("a new line or `,` after the match arm")
                 p.synchronize()
             }
         }
-        p.expect(.RBrace, "`\}` to close the match")
+        p.expect(TokenKind.RBrace, "`\}` to close the match")
     }
-    return newExpr(p, .Match(Box.new(scrutinee), arms), start)
+    return newExpr(p, ExprKind.Match(Box.new(scrutinee), arms), start)
 }
 
 /**
@@ -111,16 +113,16 @@ fn matchExpr(p: mut Parser) Expr {
 pub fn parseControl(p: mut Parser) Expr {
     let start = p.here()
     return match p.peek() {
-        .If => ifExpr(p)
-        .Match => matchExpr(p)
-        .Unsafe => {
+        TokenKind.If => ifExpr(p)
+        TokenKind.Match => matchExpr(p)
+        TokenKind.Unsafe => {
             p.advance()
             let block = parseBlock(p)
-            newExpr(p, .Unsafe(block), start)
+            newExpr(p, ExprKind.Unsafe(block), start)
         }
         _ => {
             let block = parseBlock(p)
-            newExpr(p, .Block(block), start)
+            newExpr(p, ExprKind.Block(block), start)
         }
     }
 }

@@ -27,7 +27,7 @@ pub fn area(c: Circle) float {
 
 pub fn describe(k: Kind) str {
     return match k {
-        .Round => "round"
-        .Angular => "angular"
+        Kind.Round => "round"
+        Kind.Angular => "angular"
     }
 }

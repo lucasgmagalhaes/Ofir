@@ -69,16 +69,16 @@ pub struct StrSplit {
             return self.nextWord()
         }
         if self.done {
-            return .None
+            return Option.None
         }
-        let .Some(i) = self.rest.find(self.sep) else {
+        let Option.Some(i) = self.rest.find(self.sep) else {
             self.done = true
-            return .Some(self.cut(self.rest.len()))
+            return Option.Some(self.cut(self.rest.len()))
         }
         let part = self.cut(i)
         self.rest = self.rest.sliceFrom(self.sep.len())
         self.done = self.lines && self.rest.len() == 0
-        return .Some(part)
+        return Option.Some(part)
     }
 
     // The first `n` bytes of the rest, which keeps the bytes after them.
@@ -104,9 +104,9 @@ pub struct StrSplit {
         let word = self.rest.slice(lo, hi)
         self.rest = self.rest.sliceFrom(hi)
         if lo == hi {
-            return .None
+            return Option.None
         }
-        return .Some(word)
+        return Option.Some(word)
     }
 }
 
@@ -134,10 +134,10 @@ pub struct StrBytes {
      */
     pub fn next(mut self) Option<u8> {
         if self.at >= self.text.len() {
-            return .None
+            return Option.None
         }
         self.at += 1
-        return .Some(self.text[self.at - 1])
+        return Option.Some(self.text[self.at - 1])
     }
 }
 

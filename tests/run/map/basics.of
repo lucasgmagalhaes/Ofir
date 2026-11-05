@@ -21,7 +21,7 @@ fn main() {
     println("{ages.remove("ana") ?? -1} {ages.remove("zed") ?? -1} {ages.contains("ana")}")
     ages.insert("ana", 32)
     println(show(ages))
-    if let Some(age) = ages.getMut("cy") {
+    if let Option.Some(age) = ages.getMut("cy") {
         *age += 1
     }
     println("{*ages.get("cy").unwrap()}")

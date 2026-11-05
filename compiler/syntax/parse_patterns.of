@@ -11,6 +11,7 @@ import syntax.ast.PatternKind
 import syntax.parse_primary.atLiteral
 import syntax.parse_primary.parseLiteral
 import syntax.parser.Parser
+import syntax.token.TokenKind
 
 fn newPattern(p: mut Parser, kind: move PatternKind, start: Span) Pattern {
     return Pattern{id: p.newId(), kind, span: p.spanSince(start)}
@@ -19,29 +20,29 @@ fn newPattern(p: mut Parser, kind: move PatternKind, start: Span) Pattern {
 // `(p, q)` after the `(`; also the arguments of variants and tuple structs.
 fn patternList(p: mut Parser) List<Pattern> {
     var items: List<Pattern> = []
-    for !p.at(.RParen) && !p.at(.Eof) {
+    for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
         items.push(parsePattern(p))
-        if !p.accept(.Comma) {
+        if !p.accept(TokenKind.Comma) {
             break
         }
     }
-    p.expect(.RParen, "`)` to close the patterns")
+    p.expect(TokenKind.RParen, "`)` to close the patterns")
     return items
 }
 
 // A literal, optionally followed by `..` or `..=` and a second literal.
 fn literalOrRange(p: mut Parser, start: Span) Pattern {
     let lo = Box.new(parseLiteral(p))
-    if !p.at(.DotDot) && !p.at(.DotDotEq) {
-        return newPattern(p, .Literal(lo), start)
+    if !p.at(TokenKind.DotDot) && !p.at(TokenKind.DotDotEq) {
+        return newPattern(p, PatternKind.Literal(lo), start)
     }
-    let inclusive = p.peek() == .DotDotEq
+    let inclusive = p.peek() == TokenKind.DotDotEq
     p.advance()
     if !atLiteral(p) {
         p.unexpected("a literal to end the range")
     }
     let hi = Box.new(parseLiteral(p))
-    return newPattern(p, .Range(lo, hi, inclusive), start)
+    return newPattern(p, PatternKind.Range(lo, hi, inclusive), start)
 }
 
 // `.Name` or `.Name(p, q)`; the `.` is next.
@@ -49,88 +50,88 @@ fn variantShorthand(p: mut Parser, start: Span) Pattern {
     p.advance()
     let name = p.expectName("a variant name after `.`") ?? Symbol(0)
     var args: List<Pattern> = []
-    let hasArgs = p.accept(.LParen)
+    let hasArgs = p.accept(TokenKind.LParen)
     if hasArgs {
         args = patternList(p)
     }
-    return newPattern(p, .Variant([], name, args, hasArgs), start)
+    return newPattern(p, PatternKind.Variant([], name, args, hasArgs), start)
 }
 
 // `Point{x, y: 0, ..}` after the `{`.
 fn structPattern(p: mut Parser, path: move List<Symbol>, start: Span) Pattern {
     var fields: List<FieldPattern> = []
     p.skipNewlines()
-    for p.at(.Ident) {
+    for p.at(TokenKind.Ident) {
         let name = p.takeName()
-        var pattern: Option<Pattern> = .None
-        if p.accept(.Colon) {
-            pattern = .Some(parsePattern(p))
+        var pattern: Option<Pattern> = Option.None
+        if p.accept(TokenKind.Colon) {
+            pattern = Option.Some(parsePattern(p))
         }
         fields.push(FieldPattern{id: p.newId(), name, pattern})
         p.skipNewlines()
-        if !p.accept(.Comma) {
+        if !p.accept(TokenKind.Comma) {
             break
         }
         p.skipNewlines()
     }
-    let rest = p.accept(.DotDot)
+    let rest = p.accept(TokenKind.DotDot)
     p.skipNewlines()
-    p.expect(.RBrace, "`\}` to close the struct pattern")
-    return newPattern(p, .Struct(path, fields, rest), start)
+    p.expect(TokenKind.RBrace, "`\}` to close the struct pattern")
+    return newPattern(p, PatternKind.Struct(path, fields, rest), start)
 }
 
 // A pattern starting with a name: a binding, `Enum.Variant(...)`,
 // `TupleStruct(...)` or `Struct{...}`.
 fn named(p: mut Parser, start: Span) Pattern {
     var path = [p.takeName()]
-    for p.at(.Dot) && p.peekAt(1) == .Ident {
+    for p.at(TokenKind.Dot) && p.peekAt(1) == TokenKind.Ident {
         p.advance()
         path.push(p.takeName())
     }
-    if p.accept(.LBrace) {
+    if p.accept(TokenKind.LBrace) {
         return structPattern(p, path, start)
     }
-    if path.len() == 1 && p.accept(.LParen) {
+    if path.len() == 1 && p.accept(TokenKind.LParen) {
         let args = patternList(p)
-        return newPattern(p, .TupleStruct(path, args), start)
+        return newPattern(p, PatternKind.TupleStruct(path, args), start)
     }
     if path.len() > 1 {
         let name = path.pop() ?? Symbol(0)
-        let hasArgs = p.accept(.LParen)
+        let hasArgs = p.accept(TokenKind.LParen)
         var args: List<Pattern> = []
         if hasArgs {
             args = patternList(p)
         }
-        return newPattern(p, .Variant(path, name, args, hasArgs), start)
+        return newPattern(p, PatternKind.Variant(path, name, args, hasArgs), start)
     }
     let name = path[0]
     let wildcard = p.words.wildcard.isSome() && (p.words.wildcard ?? Symbol(0)).0 == name.0
     if wildcard {
-        return newPattern(p, .Wildcard, start)
+        return newPattern(p, PatternKind.Wildcard, start)
     }
-    return newPattern(p, .Binding(name, false), start)
+    return newPattern(p, PatternKind.Binding(name, false), start)
 }
 
 fn atom(p: mut Parser) Pattern {
     let start = p.here()
     return match p.peek() {
-        .Ident => named(p, start)
-        .Dot => variantShorthand(p, start)
-        .Mut => {
+        TokenKind.Ident => named(p, start)
+        TokenKind.Dot => variantShorthand(p, start)
+        TokenKind.Mut => {
             p.advance()
             let name = p.expectName("a name after `mut`") ?? Symbol(0)
-            newPattern(p, .Binding(name, true), start)
+            newPattern(p, PatternKind.Binding(name, true), start)
         }
-        .LParen => {
+        TokenKind.LParen => {
             p.advance()
             let items = patternList(p)
-            newPattern(p, .Tuple(items), start)
+            newPattern(p, PatternKind.Tuple(items), start)
         }
         _ => if atLiteral(p) {
             literalOrRange(p, start)
         } else {
             p.unexpected("a pattern")
-            newPattern(p, .Wildcard, start)
+            newPattern(p, PatternKind.Wildcard, start)
         }
     }
 }
@@ -144,13 +145,13 @@ fn atom(p: mut Parser) Pattern {
 pub fn parsePattern(p: mut Parser) Pattern {
     let start = p.here()
     let first = atom(p)
-    if !p.at(.Pipe) {
+    if !p.at(TokenKind.Pipe) {
         return first
     }
     var alternatives = [first]
-    for p.accept(.Pipe) {
+    for p.accept(TokenKind.Pipe) {
         p.skipNewlines()
         alternatives.push(atom(p))
     }
-    return newPattern(p, .Or(alternatives), start)
+    return newPattern(p, PatternKind.Or(alternatives), start)
 }

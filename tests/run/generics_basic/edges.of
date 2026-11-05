@@ -35,15 +35,15 @@ enum Outcome<T, E> {
 
 fn check(n: int) Outcome<(), str> {
     if n < 0 {
-        return .Err("negative")
+        return Outcome.Err("negative")
     }
-    return .Ok(())
+    return Outcome.Ok(())
 }
 
 fn report(o: move Outcome<(), str>) str {
     return match o {
-        .Ok(()) => "ok"
-        .Err(message) => message
+        Outcome.Ok(()) => "ok"
+        Outcome.Err(message) => message
     }
 }
 

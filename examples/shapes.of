@@ -5,18 +5,18 @@ copy enum Shape {
 
     fn area(self) float {
         return match self {
-            .Circle(r) => 3.14159 * r * r
-            .Rect(w, h) => w * h
-            .Empty => 0.0
+            Shape.Circle(r) => 3.14159 * r * r
+            Shape.Rect(w, h) => w * h
+            Shape.Empty => 0.0
         }
     }
 }
 
 fn main() {
     let shapes: List<Shape> = [
-        .Circle(1.0),
-        .Rect(2.0, 3.0),
-        .Empty,
+        Shape.Circle(1.0),
+        Shape.Rect(2.0, 3.0),
+        Shape.Empty,
     ]
 
     var total = 0.0

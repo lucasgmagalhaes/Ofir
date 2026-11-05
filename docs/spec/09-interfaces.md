@@ -222,8 +222,8 @@ fn describe(v: dyn Any) str {
 
 fn takeConfig(value: move Box<dyn Any>) Option<Config> {
     return match value {
-        c: Config => .Some(c)   // moved out of the box
-        _ => .None              // the box is dropped with its value
+        c: Config => Option.Some(c)   // moved out of the box
+        _ => Option.None              // the box is dropped with its value
     }
 }
 ```

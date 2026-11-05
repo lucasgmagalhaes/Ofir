@@ -19,40 +19,46 @@ fn expectKinds(src: str, expected: [TokenKind]) {
 @test
 fn genericsCloseWithSingleGtTokens() {
     expectKinds("var b: List<List<u8>>", [
-        .Var, .Ident, .Colon, .Ident, .Lt, .Ident, .Lt, .Ident, .Gt, .Gt, .Eof,
+        TokenKind.Var, TokenKind.Ident, TokenKind.Colon, TokenKind.Ident, TokenKind.Lt,
+        TokenKind.Ident, TokenKind.Lt, TokenKind.Ident, TokenKind.Gt, TokenKind.Gt, TokenKind.Eof,
     ])
 }
 
 @test
 fn newlinesAreTokensExceptInParentheses() {
     expectKinds("f(a,\nb)\nx", [
-        .Ident, .LParen, .Ident, .Comma, .Ident, .RParen, .Newline, .Ident, .Eof,
+        TokenKind.Ident, TokenKind.LParen, TokenKind.Ident, TokenKind.Comma, TokenKind.Ident,
+        TokenKind.RParen, TokenKind.Newline, TokenKind.Ident, TokenKind.Eof,
     ])
 }
 
 @test
 fn newlinesCountInsideABlockNestedInParentheses() {
     expectKinds("f(fn() \{\na\n\})", [
-        .Ident, .LParen, .Fn, .LParen, .RParen, .LBrace, .Newline,
-        .Ident, .Newline, .RBrace, .RParen, .Eof,
+        TokenKind.Ident, TokenKind.LParen, TokenKind.Fn, TokenKind.LParen, TokenKind.RParen,
+        TokenKind.LBrace, TokenKind.Newline,
+        TokenKind.Ident, TokenKind.Newline, TokenKind.RBrace, TokenKind.RParen, TokenKind.Eof,
     ])
 }
 
 @test
 fn interpolationSplitsStrings() {
     expectKinds("\"a \{x\} b \{f(y)\} c\"", [
-        .StrStart, .Ident, .StrMid, .Ident, .LParen, .Ident, .RParen, .StrEnd, .Eof,
+        TokenKind.StrStart, TokenKind.Ident, TokenKind.StrMid, TokenKind.Ident, TokenKind.LParen,
+        TokenKind.Ident, TokenKind.RParen, TokenKind.StrEnd, TokenKind.Eof,
     ])
 }
 
 @test
 fn rangesAreNotFloats() {
     expectKinds("0..10 1.5 x.0", [
-        .Int, .DotDot, .Int, .Float, .Ident, .Dot, .Int, .Eof,
+        TokenKind.Int, TokenKind.DotDot, TokenKind.Int, TokenKind.Float, TokenKind.Ident,
+        TokenKind.Dot, TokenKind.Int, TokenKind.Eof,
     ])
 }
 
 @test
 fn contextualKeywordsAreIdentifiers() {
-    expectKinds("type move ref where", [.Ident, .Ident, .Ident, .Ident, .Eof])
+    expectKinds("type move ref where", [TokenKind.Ident, TokenKind.Ident, TokenKind.Ident,
+                                        TokenKind.Ident, TokenKind.Eof])
 }

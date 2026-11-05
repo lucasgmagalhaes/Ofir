@@ -16,6 +16,7 @@ import sema.check_place.requireMutable
 import sema.check_ref.checkReturnedRef
 import sema.check_types.compatible
 import sema.check_types.resolveType
+import sema.def.DefKind
 import sema.def.Res
 import sema.exhaustive.checkExhaustive
 import sema.expr_check.checkBinary
@@ -43,10 +44,10 @@ fn unitUnlessNever(ty: int) int {
 
 fn letStmt(c: mut Checker, p: Program, s: &Stmt) int {
     match s.kind {
-        .Let(pattern, annotation, value, otherwise) => {
+        StmtKind.Let(pattern, annotation, value, otherwise) => {
             var ty = ERROR
             var found = ERROR
-            if let .Some(t) = annotation {
+            if let Option.Some(t) = annotation {
                 ty = resolveType(c, p, &t)
                 found = coerce(c, p, &value, ty)
             } else {
@@ -54,7 +55,8 @@ fn letStmt(c: mut Checker, p: Program, s: &Stmt) int {
                 ty = found
             }
             checkPattern(c, p, &pattern, ty)
-            if let .Some(block) = otherwise {   // `let pattern = value else { ... }` (spec 4.6)
+            // `let pattern = value else { ... }` (spec 4.6)
+            if let Option.Some(block) = otherwise {
                 if checkBlock(c, p, &block, ERROR, false) != NEVER {
                     c.error("E0307", block.span, "the `else` block of `let ... else` must not fall "
                             + "through: end it with `return`, `break`, `continue` or a panic")
@@ -74,13 +76,13 @@ fn letStmt(c: mut Checker, p: Program, s: &Stmt) int {
 
 fn varStmt(c: mut Checker, p: Program, s: &Stmt) int {
     match s.kind {
-        .Var(_, annotation, value) => {
+        StmtKind.Var(_, annotation, value) => {
             var ty = ERROR
-            if let .Some(t) = annotation {
+            if let Option.Some(t) = annotation {
                 ty = resolveType(c, p, &t)
             }
             var found = ERROR
-            if let .Some(init) = value {
+            if let Option.Some(init) = value {
                 found = if annotation.isSome() { coerce(c, p, &init, ty) } else {
                     checkExpr(c, p, &init, ERROR)
                 }
@@ -99,12 +101,12 @@ fn varStmt(c: mut Checker, p: Program, s: &Stmt) int {
 
 // The left side of `=` must be a mutable place (spec 4.2).
 fn checkPlace(c: mut Checker, p: Program, target: &Expr) {
-    let Some(root) = placeRoot(c, target) else {
+    let Option.Some(root) = placeRoot(c, target) else {
         c.unsupported(target.span, "assigning to elements is")
         return
     }
     let isUnary = match root.0.kind {
-        .Unary(_, _) => true
+        ExprKind.Unary(_, _) => true
         _ => false
     }
     if root.0.id.0 != target.id.0 || root.1 > 0 || isUnary {   // a field or `*p`
@@ -112,15 +114,15 @@ fn checkPlace(c: mut Checker, p: Program, target: &Expr) {
         return
     }
     match nameRes(c, target) {
-        .Local(id) => {
+        Res.Local(id) => {
             if !c.locals[id].mutable {
                 c.error("E0304", target.span, "cannot assign twice to immutable variable "
                         + "`{c.text(c.locals[id].name)}`")
             }
             noteWrite(c, target.span, id)
         }
-        .Def(id) => {
-            if c.def(id).kind != .Global {
+        Res.Def(id) => {
+            if c.def(id).kind != DefKind.Global {
                 c.error("E0304", target.span, "cannot assign to `{c.text(c.def(id).name)}`")
             }
         }
@@ -131,7 +133,7 @@ fn checkPlace(c: mut Checker, p: Program, target: &Expr) {
 fn assignStmt(c: mut Checker, p: Program, s: &Stmt, op: Op, target: &Expr, value: &Expr) int {
     let ty = checkExpr(c, p, target, ERROR)
     checkPlace(c, p, target)
-    if op == .Assign {
+    if op == Op.Assign {
         coerce(c, p, value, ty)
         return UNIT
     }
@@ -153,7 +155,7 @@ fn loopBody(c: mut Checker, p: Program, body: &Block, infinite: bool) int {
 
 fn forIn(c: mut Checker, p: Program, s: &Stmt, iterable: &Expr, two: bool, body: &Block) int {
     match iterable.kind {   // a list, a map or an iterator
-        .Range(lo, hi, _) => {
+        ExprKind.Range(lo, hi, _) => {
             if two {
                 c.error("E0300", iterable.span,
                         "a range gives one variable: `for i in a..b`".toOwned())
@@ -164,20 +166,20 @@ fn forIn(c: mut Checker, p: Program, s: &Stmt, iterable: &Expr, two: bool, body:
                 return UNIT
             }
             let low = match lo {
-                .Some(l) => &*l
-                .None => iterable
+                Option.Some(l) => &*l
+                Option.None => iterable
             }
             let high = match hi {
-                .Some(h) => &*h
-                .None => iterable
+                Option.Some(h) => &*h
+                Option.None => iterable
             }
             // A literal bound takes the type of the other one: `for i in 0..n` with `n: u8`.
             let lowInt = match low.kind {
-                .Int(_) => true
+                ExprKind.Int(_) => true
                 _ => false
             }
             let highInt = match high.kind {
-                .Int(_) => true
+                ExprKind.Int(_) => true
                 _ => false
             }
             let swap = lowInt && !highInt
@@ -205,18 +207,18 @@ fn forIn(c: mut Checker, p: Program, s: &Stmt, iterable: &Expr, two: bool, body:
 
 fn forStmt(c: mut Checker, p: Program, s: &Stmt) int {
     match s.kind {
-        .For(kind, _, _, second, expr, body) => {
+        StmtKind.For(kind, _, _, second, expr, body) => {
             return match kind {
-                .Infinite => loopBody(c, p, &body, true)
-                .Cond => {
-                    if let .Some(cond) = expr {
+                ForKind.Infinite => loopBody(c, p, &body, true)
+                ForKind.Cond => {
+                    if let Option.Some(cond) = expr {
                         coerce(c, p, &cond, BOOL)
                     }
                     loopBody(c, p, &body, false)
                 }
-                .In => match expr {
-                    .Some(iterable) => forIn(c, p, s, &iterable, second.isSome(), &body)
-                    .None => UNIT
+                ForKind.In => match expr {
+                    Option.Some(iterable) => forIn(c, p, s, &iterable, second.isSome(), &body)
+                    Option.None => UNIT
                 }
             }
         }
@@ -227,7 +229,7 @@ fn forStmt(c: mut Checker, p: Program, s: &Stmt) int {
 }
 
 fn returnStmt(c: mut Checker, p: Program, s: &Stmt, value: &Option<Expr>) int {
-    if let .Some(v) = *value {
+    if let Option.Some(v) = *value {
         coerce(c, p, &v, c.ret)
         checkReturnedRef(c, p, c.fnDef, &v)
     } else if !compatible(UNIT, c.ret) {
@@ -250,10 +252,10 @@ fn jumpStmt(c: mut Checker, s: &Stmt, isBreak: bool) int {
 // An `if`, `match` or block used as a statement: its branches are not values.
 fn exprStmt(c: mut Checker, p: Program, e: &Expr) int {
     let ty = match e.kind {
-        .Match(_, _) => checkMatch(c, p, e, ERROR, false)
-        .If(_, _, _, _) => checkIf(c, p, e, ERROR, false)
-        .Unsafe(block) => checkUnsafeBlock(c, p, &block, ERROR, false)
-        .Block(block) => checkBlock(c, p, &block, ERROR, false)
+        ExprKind.Match(_, _) => checkMatch(c, p, e, ERROR, false)
+        ExprKind.If(_, _, _, _) => checkIf(c, p, e, ERROR, false)
+        ExprKind.Unsafe(block) => checkUnsafeBlock(c, p, &block, ERROR, false)
+        ExprKind.Block(block) => checkBlock(c, p, &block, ERROR, false)
         _ => {
             let found = checkExpr(c, p, e, ERROR)
             checkUnusedResult(c, e)
@@ -266,14 +268,14 @@ fn exprStmt(c: mut Checker, p: Program, e: &Expr) int {
 
 fn checkStmt(c: mut Checker, p: Program, s: &Stmt) int {
     return match s.kind {
-        .Let(_, _, _, _) => letStmt(c, p, s)
-        .Var(_, _, _) => varStmt(c, p, s)
-        .Assign(op, target, value) => assignStmt(c, p, s, op, &target, &value)
-        .For(_, _, _, _, _, _) => forStmt(c, p, s)
-        .Return(value) => returnStmt(c, p, s, &value)
-        .Break => jumpStmt(c, s, true)
-        .Continue => jumpStmt(c, s, false)
-        .ExprStmt(expr) => exprStmt(c, p, &expr)
+        StmtKind.Let(_, _, _, _) => letStmt(c, p, s)
+        StmtKind.Var(_, _, _) => varStmt(c, p, s)
+        StmtKind.Assign(op, target, value) => assignStmt(c, p, s, op, &target, &value)
+        StmtKind.For(_, _, _, _, _, _) => forStmt(c, p, s)
+        StmtKind.Return(value) => returnStmt(c, p, s, &value)
+        StmtKind.Break => jumpStmt(c, s, true)
+        StmtKind.Continue => jumpStmt(c, s, false)
+        StmtKind.ExprStmt(expr) => exprStmt(c, p, &expr)
     }
 }
 
@@ -335,8 +337,8 @@ fn join(c: mut Checker, span: Span, then: int, other: int) int {
  */
 pub fn checkIf(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: bool) int {
     match e.kind {
-        .If(letPattern, cond, then, otherwise) => {
-            if let .Some(pattern) = letPattern {
+        ExprKind.If(letPattern, cond, then, otherwise) => {
+            if let Option.Some(pattern) = letPattern {
                 let ty = checkExpr(c, p, &*cond, ERROR)
                 checkPattern(c, p, &pattern, ty)
             } else {
@@ -347,12 +349,12 @@ pub fn checkIf(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: boo
                 return UNIT   // as a value, `if` without `else` is ()
             }
             let other = match otherwise {
-                .Some(o) => &*o
-                .None => e
+                Option.Some(o) => &*o
+                Option.None => e
             }
             let otherType = match other.kind {
-                .If(_, _, _, _) => checkIf(c, p, other, expected, asValue)
-                .Block(block) => checkBlock(c, p, &block, expected, asValue)
+                ExprKind.If(_, _, _, _) => checkIf(c, p, other, expected, asValue)
+                ExprKind.Block(block) => checkBlock(c, p, &block, expected, asValue)
                 _ => checkExpr(c, p, other, expected)
             }
             c.setType(other.id.0, otherType)
@@ -370,17 +372,17 @@ pub fn checkIf(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: boo
 fn armBody(c: mut Checker, p: Program, body: &Expr, expected: int, asValue: bool) int {
     if !asValue {
         match body.kind {
-            .Unsafe(block) => {
+            ExprKind.Unsafe(block) => {
                 let ty = checkUnsafeBlock(c, p, &block, ERROR, false)
                 c.setType(body.id.0, ty)
                 return unitUnlessNever(ty)
             }
-            .Block(block) => {
+            ExprKind.Block(block) => {
                 let ty = checkBlock(c, p, &block, ERROR, false)
                 c.setType(body.id.0, ty)
                 return unitUnlessNever(ty)
             }
-            .If(_, _, _, _) => {
+            ExprKind.If(_, _, _, _) => {
                 let ty = checkIf(c, p, body, ERROR, false)
                 c.setType(body.id.0, ty)
                 return ty
@@ -405,13 +407,13 @@ fn armBody(c: mut Checker, p: Program, body: &Expr, expected: int, asValue: bool
  */
 pub fn checkMatch(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: bool) int {
     match e.kind {
-        .Match(scrutinee, arms) => {
+        ExprKind.Match(scrutinee, arms) => {
             let ty = checkExpr(c, p, &*scrutinee, ERROR)
             var result = NEVER
             for i in 0..arms.len() {
                 let arm = &arms[i]
                 checkPattern(c, p, &arm.pattern, ty)
-                if let .Some(guard) = arm.guard {
+                if let Option.Some(guard) = arm.guard {
                     coerce(c, p, &guard, BOOL)
                 }
                 let hint = if result == NEVER { expected } else { result }

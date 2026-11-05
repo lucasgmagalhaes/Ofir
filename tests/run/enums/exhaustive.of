@@ -8,10 +8,10 @@ enum Error {
 
 fn describe(r: Result<int, Error>) str {
     return match r {
-        Ok(n) => "ok {n}"
-        Err(.Empty) => "empty"
-        Err(.BadDigit(b)) => "bad {b}"
-        Err(.TooLarge) => "large"
+        Result.Ok(n) => "ok {n}"
+        Result.Err(Error.Empty) => "empty"
+        Result.Err(Error.BadDigit(b)) => "bad {b}"
+        Result.Err(Error.TooLarge) => "large"
     }
 }
 
@@ -26,14 +26,14 @@ fn both(a: bool, b: bool) str {
 
 fn depth(o: Option<Option<int>>) int {
     return match o {
-        Some(Some(n)) => n
-        Some(None) => -1
-        None => -2
+        Option.Some(Option.Some(n)) => n
+        Option.Some(Option.None) => -1
+        Option.None => -2
     }
 }
 
 fn main() {
-    println("{describe(Ok(1))} {describe(Err(.Empty))} {describe(Err(.BadDigit(7)))} {describe(Err(.TooLarge))}")
+    println("{describe(Result.Ok(1))} {describe(Result.Err(Error.Empty))} {describe(Result.Err(Error.BadDigit(7)))} {describe(Result.Err(Error.TooLarge))}")
     println("{both(true, false)} {both(false, true)}")
-    println("{depth(Some(Some(3)))} {depth(Some(None))} {depth(None)}")
+    println("{depth(Option.Some(Option.Some(3)))} {depth(Option.Some(Option.None))} {depth(Option.None)}")
 }

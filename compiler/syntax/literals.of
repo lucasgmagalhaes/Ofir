@@ -10,6 +10,7 @@ import syntax.cursor.isDigit
 import syntax.cursor.isLetter
 import syntax.token.Token
 import syntax.token.TokenKind
+import syntax.token.TokenValue
 
 // ---------------------------------------------------------------------------
 // Numbers
@@ -27,11 +28,11 @@ pub fn scanNumber(cur: mut Cursor, src: str, diags: mut Diagnostics) Token {
     if isLetter(cur.peek(src, 0)) {
         diags.error("E0001", cur.spanAt(cur.pos), "unexpected character after number")
     }
-    let .Some(v) = value else {
+    let Option.Some(v) = value else {
         diags.error("E0005", cur.spanFrom(start), "integer literal is too large")
-        return cur.tokenWith(.Int, start, .Int(0))
+        return cur.tokenWith(TokenKind.Int, start, TokenValue.Int(0))
     }
-    return cur.tokenWith(.Int, start, .Int(v))
+    return cur.tokenWith(TokenKind.Int, start, TokenValue.Int(v))
 }
 
 fn numberBase(cur: Cursor, src: str) int {
@@ -45,7 +46,7 @@ fn numberBase(cur: Cursor, src: str) int {
 
 // Reads digits of `base` and `_` separators; `None` if the value overflows.
 fn scanDigits(cur: mut Cursor, src: str, base: int) Option<u64> {
-    var value: Option<u64> = .Some(0)
+    var value: Option<u64> = Option.Some(0)
     for !cur.atEnd(src) {
         let c = src[cur.pos]
         let digit = digitValue(c)
@@ -90,11 +91,11 @@ fn floatRest(cur: mut Cursor, src: str, start: int, diags: mut Diagnostics) Toke
         skipDigits(cur, src)
     }
     let text = src[start..cur.pos].replace("_", "")
-    let .Ok(v) = float.parse(text) else {
+    let Result.Ok(v) = float.parse(text) else {
         diags.error("E0005", cur.spanFrom(start), "invalid float literal")
-        return cur.tokenWith(.Float, start, .Float(0.0))
+        return cur.tokenWith(TokenKind.Float, start, TokenValue.Float(0.0))
     }
-    return cur.tokenWith(.Float, start, .Float(v))
+    return cur.tokenWith(TokenKind.Float, start, TokenValue.Float(v))
 }
 
 fn skipDigits(cur: mut Cursor, src: str) {
@@ -123,17 +124,18 @@ pub fn scanStringPart(
         let c = cur.peek(src, 0)
         if cur.atEnd(src) || c == b'\n' {
             diags.error("E0002", cur.spanFrom(start), "unterminated string literal")
-            return cur.tokenWith(if opening { .Str } else { .StrEnd }, start, .Str(text))
+            return cur.tokenWith(if opening { TokenKind.Str } else { TokenKind.StrEnd }, start,
+                                 TokenValue.Str(text))
         }
         if c == b'"' || c == b'{' {
             cur.pos += 1
             let kind: TokenKind = match (c == b'"', opening) {
-                (true, true) => .Str
-                (true, false) => .StrEnd
-                (false, true) => .StrStart
-                (false, false) => .StrMid
+                (true, true) => TokenKind.Str
+                (true, false) => TokenKind.StrEnd
+                (false, true) => TokenKind.StrStart
+                (false, false) => TokenKind.StrMid
             }
-            return cur.tokenWith(kind, start, .Str(text))
+            return cur.tokenWith(kind, start, TokenValue.Str(text))
         }
         stringPiece(cur, src, text, diags)
     }
@@ -261,9 +263,9 @@ pub fn scanByteLiteral(cur: mut Cursor, src: str, diags: mut Diagnostics) Token 
     if value < 0 || !cur.eat(src, b'\'') {
         diags.error("E0004", cur.spanFrom(start), "invalid byte literal")
         skipToQuote(cur, src)
-        return cur.tokenWith(.Byte, start, .Byte(0))
+        return cur.tokenWith(TokenKind.Byte, start, TokenValue.Byte(0))
     }
-    return cur.tokenWith(.Byte, start, .Byte(value as u8))
+    return cur.tokenWith(TokenKind.Byte, start, TokenValue.Byte(value as u8))
 }
 
 fn byteEscape(cur: mut Cursor, src: str) int {

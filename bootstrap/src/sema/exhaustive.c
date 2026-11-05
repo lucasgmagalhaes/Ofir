@@ -203,9 +203,12 @@ static const char *ctor_text(Ctx *x, TypeId type, uint32_t ctor, const char **fi
         strbuf_append_cstr(&text, ctor ? "true" : "false");
     } else if (ty->kind == TY_ADT) {
         const Def *def = sema_def(x->c->sema, (DefId){ty->data});
-        bool prelude = ty->data == x->c->sema->option.id || ty->data == x->c->sema->result.id;
-        Symbol name = def->kind == DEF_ENUM ? def->variants->variants[ctor].name : def->name;
-        strbuf_append_cstr(&text, def->kind == DEF_ENUM && !prelude ? "." : "");
+        Symbol name = def->name;
+        if (def->kind == DEF_ENUM) {   // `Shape.Empty` (ADR 0028)
+            strbuf_append(&text, symbol_name(&x->c->sema->session->names, name));
+            strbuf_append_cstr(&text, ".");
+            name = def->variants->variants[ctor].name;
+        }
         strbuf_append(&text, symbol_name(&x->c->sema->session->names, name));
         bool named = def->kind == DEF_STRUCT && !def->fields->is_tuple;
         if (named) {

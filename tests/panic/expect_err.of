@@ -1,6 +1,6 @@
 // panic: no config file
 fn load() Result<str, int> {
-    return Err(2)
+    return Result.Err(2)
 }
 
 fn main() {

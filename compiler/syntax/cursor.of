@@ -58,7 +58,7 @@ pub struct Cursor {
     }
 
     pub fn token(self, kind: TokenKind, start: int) Token {
-        return Token{kind, span: self.spanFrom(start), value: .None}
+        return Token{kind, span: self.spanFrom(start), value: TokenValue.None}
     }
 
     pub fn tokenWith(self, kind: TokenKind, start: int, value: move TokenValue) Token {

@@ -17,7 +17,7 @@ fn main() {
     let nested: Pair<Pair<int>> = (a, (3, 4))
     let flipped: Flipped<str, int> = (5, "five")
     let lists: Nested<int> = ([1, 2], [3])
-    let maybe: Maybe<int> = Some(7)
+    let maybe: Maybe<int> = Option.Some(7)
     var table: Table<int> = Map.new()
     table.insert("answer", 42)
     let text: View<str> = "view"

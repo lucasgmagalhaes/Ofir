@@ -2,8 +2,8 @@
 
 @test
 fn unwrapOrGivesTheValueOrTheFallback() {
-    let some: Option<int> = .Some(3)
-    let none: Option<int> = .None
+    let some: Option<int> = Option.Some(3)
+    let none: Option<int> = Option.None
     assert(some.unwrapOr(0) == 3)
     assert(none.unwrapOr(7) == 7)
     assert(some.isSome() && none.isNone())
@@ -11,7 +11,7 @@ fn unwrapOrGivesTheValueOrTheFallback() {
 
 @test
 fn takeLeavesNone() {
-    var name: Option<str> = .Some("ada".toOwned())
+    var name: Option<str> = Option.Some("ada".toOwned())
     let taken = name.take()
     assert(name.isNone())
     assert((taken ?? "") == "ada")

@@ -228,6 +228,7 @@ EnumInfo *enum_variants(Checker *c, DefId id);   // NULL while it is being compu
 EnumInfo *enum_of(Checker *c, TypeId type, DefId *id);
 int64_t variant_index(const EnumInfo *info, Symbol name);
 TypeId check_variant_shorthand(Checker *c, Expr *e, TypeId expected);
+void unqualified_variant(Checker *c, Span span, DefId id, Symbol name);   // E0326
 bool check_qualified_variant(Checker *c, Expr *e, DefId id, TypeHints hints, TypeId *out);
 // `Some(x)` (`args` set) or `None` (`args` NULL), named by `def`, a DEF_VARIANT.
 TypeId check_prelude_variant(Checker *c, Expr *e, const Def *def, const ArgList *args,

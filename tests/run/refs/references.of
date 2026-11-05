@@ -66,11 +66,11 @@ fn main() {
     println(longest(team))
 
     var xs = [10, 20, 30]
-    if let Some(first) = xs.get(0) {
+    if let Option.Some(first) = xs.get(0) {
         println("first {first}")
     }
     println("{xs.get(5).isNone()} {*xs.last().unwrap()}")
-    if let Some(slot) = xs.getMut(1) {
+    if let Option.Some(slot) = xs.getMut(1) {
         *slot = 21
     }
     println("{xs[1]}")

@@ -10,6 +10,7 @@ import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
 import sema.check_types.moduleType
+import sema.def.DefKind
 import sema.def.Res
 import sema.enums.enumOf
 import sema.enums.variantIndex
@@ -21,7 +22,9 @@ import sema.structs.structFieldType
 import sema.structs.structFields
 import sema.structs.variantFieldType
 import sema.types.ERROR
+import sema.types.TyKind
 import sema.types.UNIT
+import sema.variant_exprs.unqualifiedVariant
 import syntax.ast.Pattern
 import syntax.ast.PatternKind
 
@@ -47,7 +50,7 @@ fn pathDef(c: mut Checker, path: &List<Symbol>, span: Span) int {
     if path.len() == 2 {   // `module.Type`
         let module = c.r.scope.module(path[0])
         c.r.noteImportUse(path[0])
-        if module != 0 && c.def(module).kind == .Module {
+        if module != 0 && c.def(module).kind == DefKind.Module {
             return moduleType(c, c.def(module).target, path[1], span)
         }
     }
@@ -64,7 +67,7 @@ fn pathDef(c: mut Checker, path: &List<Symbol>, span: Span) int {
 }
 
 fn sameAdt(c: Checker, ty: int, id: int) bool {
-    return ty != ERROR && c.types.kind(ty) == .Adt && c.types.get(ty).data == id
+    return ty != ERROR && c.types.kind(ty) == TyKind.Adt && c.types.get(ty).data == id
 }
 
 fn fieldTypes(c: mut Checker, p: Program, ty: int, v: int, count: int) List<int> {
@@ -88,7 +91,7 @@ fn variantPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>
             return
         }
     }
-    let Some(id) = found else {
+    let Option.Some(id) = found else {
         mismatch(c, pat.span, "an enum variant", ty)
         return
     }
@@ -98,6 +101,9 @@ fn variantPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>
         return
     }
     c.setMember(pat.id.0, index)
+    if path.len() == 0 {   // `.Some(x)` or a bare `Some(x)`
+        unqualifiedVariant(c, pat.span, id, name)
+    }
     let count = variantsOf(c, id).variants[index].types.len()
     if hasArgs || count > 0 {
         checkList(c, p, args, &fieldTypes(c, p, ty, index, count), pat.span)
@@ -109,13 +115,13 @@ fn structPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>,
     if id == 0 {
         return
     }
-    let isStruct = c.def(id).kind == .Struct && structFields(c, p, id)
+    let isStruct = c.def(id).kind == DefKind.Struct && structFields(c, p, id)
     if !isStruct || fieldsOf(c, id).isTuple || !sameAdt(c, ty, id) {
         mismatch(c, pat.span, "a struct", ty)
         return
     }
     match pat.kind {
-        .Struct(_, fields, rest) => {
+        PatternKind.Struct(_, fields, rest) => {
             let names = fieldsOf(c, id).names.clone()
             var listed = 0
             for i in 0..fields.len() {
@@ -130,7 +136,7 @@ fn structPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>,
                 }
                 listed += 1
                 let fieldType = structFieldType(c, p, ty, index)
-                if let .Some(inner) = fields[i].pattern {
+                if let Option.Some(inner) = fields[i].pattern {
                     checkPattern(c, p, &inner, fieldType)
                 } else {
                     shorthand(c, fields[i].id.0, fieldType)
@@ -162,11 +168,11 @@ fn tupleStructPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Sym
     if id == 0 {
         return
     }
-    if c.def(id).kind == .Enum {   // `Shape(...)` is not a variant
+    if c.def(id).kind == DefKind.Enum {   // `Shape(...)` is not a variant
         mismatch(c, pat.span, "a tuple struct", ty)
         return
     }
-    let isStruct = c.def(id).kind == .Struct && structFields(c, p, id)
+    let isStruct = c.def(id).kind == DefKind.Struct && structFields(c, p, id)
     if !isStruct || !fieldsOf(c, id).isTuple || !sameAdt(c, ty, id) {
         mismatch(c, pat.span, "a tuple struct", ty)
         return
@@ -191,28 +197,30 @@ pub fn checkPattern(c: mut Checker, p: Program, pat: &Pattern, ty: int) {
         let path: List<Symbol> = []
         let name = c.def(variant).name
         match pat.kind {
-            .TupleStruct(_, args) => variantPattern(c, p, pat, &path, name, &args, true, ty)
+            PatternKind.TupleStruct(_, args) => variantPattern(c, p, pat, &path, name, &args, true,
+                                                               ty)
             _ => variantPattern(c, p, pat, &path, name, &none, false, ty)
         }
         return
     }
     match pat.kind {
-        .Wildcard => {}
-        .Binding(_, _) => {
+        PatternKind.Wildcard => {}
+        PatternKind.Binding(_, _) => {
             let local = c.localAt(pat.id.0)
             if local >= 0 {
                 c.localTypes[local] = ty
             }
         }
-        .Literal(value) => {
+        PatternKind.Literal(value) => {
             let kind = c.types.kind(ty)
-            if kind != .Int && kind != .Bool && kind != .Str && kind != .Error {
+            if kind != TyKind.Int && kind != TyKind.Bool && kind != TyKind.Str &&
+               kind != TyKind.Error {
                 mismatch(c, pat.span, "a literal", ty)
             } else {
                 coerce(c, p, &*value, ty)
             }
         }
-        .Range(lo, hi, _) => {
+        PatternKind.Range(lo, hi, _) => {
             if !c.types.isInteger(ty) {
                 mismatch(c, pat.span, "a range", ty)
             } else {
@@ -220,20 +228,20 @@ pub fn checkPattern(c: mut Checker, p: Program, pat: &Pattern, ty: int) {
                 coerce(c, p, &*hi, ty)
             }
         }
-        .Variant(path, name, args, hasArgs) => {
+        PatternKind.Variant(path, name, args, hasArgs) => {
             variantPattern(c, p, pat, &path, name, &args, hasArgs, ty)
         }
-        .Struct(path, _, _) => structPattern(c, p, pat, &path, ty)
-        .TupleStruct(path, args) => tupleStructPattern(c, p, pat, &path, &args, ty)
-        .Tuple(items) => {
-            if c.types.kind(ty) == .Tuple || (ty == UNIT && items.len() == 0) {   // `()`
+        PatternKind.Struct(path, _, _) => structPattern(c, p, pat, &path, ty)
+        PatternKind.TupleStruct(path, args) => tupleStructPattern(c, p, pat, &path, &args, ty)
+        PatternKind.Tuple(items) => {
+            if c.types.kind(ty) == TyKind.Tuple || (ty == UNIT && items.len() == 0) {   // `()`
                 let types = c.types.get(ty).args.clone()
                 checkList(c, p, &items, &types, pat.span)
             } else {
                 mismatch(c, pat.span, "a tuple", ty)
             }
         }
-        .Or(alternatives) => {
+        PatternKind.Or(alternatives) => {
             for i in 0..alternatives.len() {
                 checkPattern(c, p, &alternatives[i], ty)
             }
@@ -262,12 +270,12 @@ pub fn irrefutable(c: Checker, pat: &Pattern) bool {
         return false   // a prelude variant
     }
     return match pat.kind {
-        .Wildcard | .Binding(_, _) => true
-        .Tuple(items) => allIrrefutable(c, &items)
-        .TupleStruct(_, args) => allIrrefutable(c, &args)
-        .Struct(_, fields, _) => {
+        PatternKind.Wildcard | PatternKind.Binding(_, _) => true
+        PatternKind.Tuple(items) => allIrrefutable(c, &items)
+        PatternKind.TupleStruct(_, args) => allIrrefutable(c, &args)
+        PatternKind.Struct(_, fields, _) => {
             for i in 0..fields.len() {
-                if let .Some(inner) = fields[i].pattern {
+                if let Option.Some(inner) = fields[i].pattern {
                     if !irrefutable(c, &inner) {
                         return false
                     }

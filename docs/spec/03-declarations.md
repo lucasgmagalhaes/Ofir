@@ -173,8 +173,8 @@ let t = Token.Number(42)
 let p = Token.Plus
 ```
 
-When the expected type is known, the enum name can be omitted:
-`let t: Token = .Plus`.
+A variant is always named through its enum, in expressions and in
+patterns: `Token.Plus`, never `.Plus` or a bare `Plus` (E0326).
 
 ## 3.6 Methods
 
@@ -235,8 +235,8 @@ enum Shape {
 
     fn area(self) float {
         return match self {
-            .Circle(r) => 3.14159 * r * r
-            .Rect(w, h) => w * h
+            Shape.Circle(r) => 3.14159 * r * r
+            Shape.Rect(w, h) => w * h
         }
     }
 }

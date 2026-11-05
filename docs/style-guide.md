@@ -95,8 +95,8 @@ Spec 1.4 defines the conventions (`camelCase`, `PascalCase`,
 ```ofir
 fn load(path: str) Result<Config, IoError> {
     let text = fs.readToString(path)?
-    let .Some(first) = text.lines().first() else {
-        return Ok(Config{})
+    let Option.Some(first) = text.lines().first() else {
+        return Result.Ok(Config{})
     }
     return parseConfig(first)
 }

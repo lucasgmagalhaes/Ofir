@@ -79,7 +79,7 @@ pub copy struct u32 {
      */
     pub fn checkedAdd(self, other: u32) Option<u32> {
         let sum = self.wrappingAdd(other)
-        return if sum < self { .None } else { .Some(sum) }
+        return if sum < self { Option.None } else { Option.Some(sum) }
     }
 
     /**
@@ -89,7 +89,7 @@ pub copy struct u32 {
      * @returns `Some(self - other)`, or `None` when `other > self`
      */
     pub fn checkedSub(self, other: u32) Option<u32> {
-        return if other > self { .None } else { .Some(self.wrappingSub(other)) }
+        return if other > self { Option.None } else { Option.Some(self.wrappingSub(other)) }
     }
 
     /**
@@ -100,7 +100,7 @@ pub copy struct u32 {
      */
     pub fn checkedMul(self, other: u32) Option<u32> {
         let product = self.wrappingMul(other)
-        return if self != 0 && product / self != other { .None } else { .Some(product) }
+        return if self != 0 && product / self != other { Option.None } else { Option.Some(product) }
     }
 
     /**
@@ -110,7 +110,7 @@ pub copy struct u32 {
      * @returns `Some(self / other)`, or `None` when `other` is 0
      */
     pub fn checkedDiv(self, other: u32) Option<u32> {
-        return if other == 0 { .None } else { .Some(self / other) }
+        return if other == 0 { Option.None } else { Option.Some(self / other) }
     }
 
 
@@ -129,29 +129,29 @@ pub copy struct u32 {
         let negative = text.len() > 0 && text[0] == b'-'
         let start = if negative || (text.len() > 0 && text[0] == b'+') { 1 } else { 0 }
         if start == text.len() || negative {
-            return .Err(ParseError{})
+            return Result.Err(ParseError{})
         }
         var value: u32 = 0
         for i in start..text.len() {
             let c = text[i]
             if c < b'0' || c > b'9' {
-                return .Err(ParseError{})
+                return Result.Err(ParseError{})
             }
             let digit = (c - b'0') as u32
-            let .Some(shifted) = value.checkedMul(10) else {
-                return .Err(ParseError{})
+            let Option.Some(shifted) = value.checkedMul(10) else {
+                return Result.Err(ParseError{})
             }
             let next = if negative {
                 shifted.checkedSub(digit)
             } else {
                 shifted.checkedAdd(digit)
             }
-            let .Some(updated) = next else {
-                return .Err(ParseError{})
+            let Option.Some(updated) = next else {
+                return Result.Err(ParseError{})
             }
             value = updated
         }
-        return .Ok(value)
+        return Result.Ok(value)
     }
 
     /**

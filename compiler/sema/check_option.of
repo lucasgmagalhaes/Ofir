@@ -11,11 +11,12 @@ import sema.expr_check.requireType
 import sema.check_types.compatible
 import sema.program.Program
 import sema.types.ERROR
+import sema.types.TyKind
 import syntax.ast.Expr
 
 fn instanceOf(c: Checker, ty: int, id: int, count: int) bool {
     let t = c.types.get(ty)
-    return id != 0 && t.kind == .Adt && t.data == id && t.args.len() == count
+    return id != 0 && t.kind == TyKind.Adt && t.data == id && t.args.len() == count
 }
 
 /**
@@ -27,9 +28,9 @@ fn instanceOf(c: Checker, ty: int, id: int, count: int) bool {
  */
 pub fn optionInner(c: Checker, ty: int) Option<int> {
     if !instanceOf(c, ty, c.r.langItems[2], 1) {
-        return .None
+        return Option.None
     }
-    return .Some(c.types.get(ty).args[0])
+    return Option.Some(c.types.get(ty).args[0])
 }
 
 /**
@@ -41,14 +42,14 @@ pub fn optionInner(c: Checker, ty: int) Option<int> {
  */
 pub fn resultParts(c: Checker, ty: int) Option<(int, int)> {
     if !instanceOf(c, ty, c.r.langItems[3], 2) {
-        return .None
+        return Option.None
     }
-    return .Some((c.types.get(ty).args[0], c.types.get(ty).args[1]))
+    return Option.Some((c.types.get(ty).args[0], c.types.get(ty).args[1]))
 }
 
 // `?` on a Result: the function returns a Result with the same error type.
 fn tryResult(c: mut Checker, e: &Expr, error: int) {
-    let Some(parts) = resultParts(c, c.ret) else {
+    let Option.Some(parts) = resultParts(c, c.ret) else {
         if c.ret != ERROR {
             c.error("E0300", e.span, "`?` on a Result needs the function to return a Result, "
                     + "not `{c.typeName(c.ret)}`")
@@ -72,14 +73,14 @@ fn tryResult(c: mut Checker, e: &Expr, error: int) {
  */
 pub fn checkTry(c: mut Checker, p: Program, e: &Expr, inner: &Expr) int {
     let ty = checkExpr(c, p, inner, ERROR)
-    if let .Some(value) = optionInner(c, ty) {
+    if let Option.Some(value) = optionInner(c, ty) {
         if optionInner(c, c.ret).isNone() && c.ret != ERROR {
             c.error("E0300", e.span, "`?` on an Option needs the function to return an Option, "
                     + "not `{c.typeName(c.ret)}`")
         }
         return value
     }
-    if let .Some(parts) = resultParts(c, ty) {
+    if let Option.Some(parts) = resultParts(c, ty) {
         tryResult(c, e, parts.1)
         return parts.0
     }
@@ -107,7 +108,7 @@ pub fn checkCoalesce(c: mut Checker, p: Program, lhs: &Expr, rhs: &Expr, expecte
     }
     let wanted = if optionInner(c, expected).isSome() { expected } else { hint }
     let ty = checkExpr(c, p, lhs, wanted)
-    let Some(value) = optionInner(c, ty) else {
+    let Option.Some(value) = optionInner(c, ty) else {
         if ty != ERROR {
             c.error("E0313", lhs.span, "`??` needs an Option on its left, not `{c.typeName(ty)}`")
         }

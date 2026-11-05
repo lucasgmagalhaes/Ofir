@@ -17,12 +17,14 @@
 
 import base.span.Span
 import sema.check.Checker
+import sema.def.DefKind
 import sema.moves.Moves
 import sema.moves.Part
 import sema.moves.State
 import sema.moves.localName
 import sema.moves.moveError
 import sema.structs.fieldsOf
+import sema.types.TyKind
 
 /** A borrow of a part of a local. */
 pub struct Loan {
@@ -286,7 +288,7 @@ pub fn lend(m: mut Moves, part: &Part, mutable: bool, span: Span) {
 }
 
 fn conflicts(loan: &Loan, kind: Access) bool {
-    return loan.mutable || !(kind == .Read || kind == .Borrow)
+    return loan.mutable || !(kind == Access.Read || kind == Access.Borrow)
 }
 
 /**
@@ -350,7 +352,7 @@ fn reportConflict(m: Moves, c: mut Checker, conflict: &Conflict, by: str) {
     let place = placeText(c, &conflict.part)
     let span = conflict.span
     match conflict.access {
-        .BorrowMut => {
+        Access.BorrowMut => {
             if conflict.loan.mutable {
                 moveError(m, c, "E0700", span, "cannot borrow `{place}` as mutable more than "
                           + "once: it is also borrowed by {by}")
@@ -359,15 +361,15 @@ fn reportConflict(m: Moves, c: mut Checker, conflict: &Conflict, by: str) {
                           + "is also borrowed as shared by {by}")
             }
         }
-        .Write => {
+        Access.Write => {
             moveError(m, c, "E0704", span, "cannot assign to `{place}` while it is borrowed by "
                       + "{by}")
         }
-        .Move => {
+        Access.Move => {
             moveError(m, c, "E0705", span, "cannot move out of `{place}` while it is borrowed "
                       + "by {by}")
         }
-        .Drop => {
+        Access.Drop => {
             moveError(m, c, "E0706", conflict.loan.span, "`{place}` does not live long enough: "
                       + "it is dropped at the end of its block while still borrowed by {by}")
         }
@@ -391,7 +393,7 @@ fn reportConflict(m: Moves, c: mut Checker, conflict: &Conflict, by: str) {
 pub fn endScope(m: Moves, c: mut Checker, s: mut State, base: int, span: Span) {
     for i in base..m.scope.len() {
         let local = m.scope[i]
-        access(s, &Part{local, fields: []}, .Drop, span)
+        access(s, &Part{local, fields: []}, Access.Drop, span)
         killHolder(s, local)
     }
 }
@@ -452,13 +454,13 @@ pub fn placeText(c: mut Checker, part: &Part) str {
         var next = -1
         if ty >= 0 {
             let kind = c.types.kind(ty)
-            if kind == .Tuple {
+            if kind == TyKind.Tuple {
                 if field < c.types.get(ty).args.len() {
                     next = c.types.get(ty).args[field]
                 }
-            } else if kind == .Adt {
+            } else if kind == TyKind.Adt {
                 let def = c.types.get(ty).data
-                if c.def(def).kind == .Struct && c.info[def].fields.isSome() {
+                if c.def(def).kind == DefKind.Struct && c.info[def].fields.isSome() {
                     let info = fieldsOf(c, def)
                     if field < info.types.len() {
                         if !info.isTuple {

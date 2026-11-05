@@ -5,9 +5,9 @@ enum Shape {
 
     fn area(self) float {
         return match self {
-            .Circle(r) => 3.14159 * r * r
-            .Rect(w, h) => w * h
-            .Empty => 0.0
+            Shape.Circle(r) => 3.14159 * r * r
+            Shape.Rect(w, h) => w * h
+            Shape.Empty => 0.0
         }
     }
 }
@@ -32,17 +32,17 @@ fn main() {
     println("{shapes.0.area()} {shapes.1.area()} {shapes.2.area()}")
     let (_, b, _) = shapes
     println("{b.area()}")
-    let c: Color = .Green
-    println("{c == .Green} {c != Color.Red}")
+    let c: Color = Color.Green
+    println("{c == Color.Green} {c != Color.Red}")
     for n in -1..12 {
         print("{describe(n)} ")
     }
     println("")
-    let s: Shape = .Rect(1.0, 1.0)
+    let s: Shape = Shape.Rect(1.0, 1.0)
     match s {
-        .Circle(r) => println("circle {r}")
-        .Rect(w, h) if w == h => println("square {w}")
-        .Rect(_, _) => println("rect")
+        Shape.Circle(r) => println("circle {r}")
+        Shape.Rect(w, h) if w == h => println("square {w}")
+        Shape.Rect(_, _) => println("rect")
         _ => println("other")
     }
 }

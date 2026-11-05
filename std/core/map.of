@@ -116,10 +116,10 @@ pub struct Map<K, V> {
         let slot = self.slotOf(key)
         if slot >= 0 {
             let at = self.slots[slot]
-            return Some(mem.replace(self.entries[at].value, value))
+            return Option.Some(mem.replace(self.entries[at].value, value))
         }
         self.add(key, value)
-        return None
+        return Option.None
     }
 
     /**
@@ -132,9 +132,9 @@ pub struct Map<K, V> {
     pub fn get(self, key: K) Option<&V> {
         let slot = self.slotOf(key)
         if slot < 0 {
-            return None
+            return Option.None
         }
-        return Some(&self.entries[self.slots[slot]].value)
+        return Option.Some(&self.entries[self.slots[slot]].value)
     }
 
     /**
@@ -153,9 +153,9 @@ pub struct Map<K, V> {
     pub fn getMut(mut self, key: K) Option<&mut V> {
         let slot = self.slotOf(key)
         if slot < 0 {
-            return None
+            return Option.None
         }
-        return Some(&mut self.entries[self.slots[slot]].value)
+        return Option.Some(&mut self.entries[self.slots[slot]].value)
     }
 
     /**
@@ -193,7 +193,7 @@ pub struct Map<K, V> {
     pub fn remove(mut self, key: K) Option<V> {
         let slot = self.slotOf(key)
         if slot < 0 {
-            return None
+            return Option.None
         }
         let at = self.slots[slot]
         self.slots[slot] = GONE
@@ -204,7 +204,7 @@ pub struct Map<K, V> {
             }
         }
         let entry = self.entries.remove(at)
-        return Some(entry.value)
+        return Option.Some(entry.value)
     }
 
     /**

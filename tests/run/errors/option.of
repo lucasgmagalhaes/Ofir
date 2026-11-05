@@ -3,18 +3,18 @@
 fn find(values: List<int>, wanted: int) Option<int> {
     for i in 0..values.len() {
         if values[i] == wanted {
-            return Some(i)
+            return Option.Some(i)
         }
     }
-    return None
+    return Option.None
 }
 
 fn describe(o: Option<int>) str {
     return match o {
-        Some(0) => "zero"
-        Some(n) if n < 0 => "negative"
-        Some(n) => "some {n}"
-        None => "none"
+        Option.Some(0) => "zero"
+        Option.Some(n) if n < 0 => "negative"
+        Option.Some(n) => "some {n}"
+        Option.None => "none"
     }
 }
 
@@ -22,12 +22,12 @@ fn describe(o: Option<int>) str {
 fn sumOfPositions(values: List<int>, a: int, b: int) Option<int> {
     let i = find(values, a)?
     let j = find(values, b)?
-    return Some(i + j)
+    return Option.Some(i + j)
 }
 
 fn main() {
     let xs = [10, 20, 30]
-    println("{describe(find(xs, 30))} {describe(find(xs, 99))} {describe(Some(-4))}")
+    println("{describe(find(xs, 30))} {describe(find(xs, 99))} {describe(Option.Some(-4))}")
     println("{find(xs, 20).isSome()} {find(xs, 5).isNone()}")
     println("{find(xs, 10).unwrap()} {find(xs, 7).unwrapOr(-1)} {find(xs, 30).expect("present")}")
     println("{sumOfPositions(xs, 20, 30).unwrapOr(-1)} {sumOfPositions(xs, 20, 31).unwrapOr(-1)}")
@@ -37,14 +37,14 @@ fn main() {
     let fallback: Option<int> = find(xs, 1) ?? find(xs, 2)
     println("{port} {chained} {fallback.isNone()}")
 
-    var slot = Some("token")
+    var slot = Option.Some("token")
     let taken = slot.take()
     println("{taken.unwrap()} {slot.isNone()}")
 
-    if let Some(i) = find(xs, 20) {
+    if let Option.Some(i) = find(xs, 20) {
         println("found at {i}")
     }
-    let Some(first) = find(xs, 10) else {
+    let Option.Some(first) = find(xs, 10) else {
         return
     }
     println("first {first}")
@@ -52,15 +52,15 @@ fn main() {
     var stack = [1, 2, 3]
     var total = 0
     for {
-        let Some(top) = stack.pop() else {
+        let Option.Some(top) = stack.pop() else {
             break
         }
         total += top
     }
     println("{total} {stack.len()}")
 
-    let words: Option<str> = None
+    let words: Option<str> = Option.None
     println(words ?? "empty")
-    let r: Result<int, str> = Some(5).okOr("missing")
+    let r: Result<int, str> = Option.Some(5).okOr("missing")
     println("{r.unwrap()}")
 }

@@ -61,8 +61,9 @@ pub struct IoError {
     pub fn fromErrno(code: i32) IoError {
         var len = 0
         let text = unsafe { ofir_error_message(code, &mut len as *mut int) }
-        let kinds = [IoErrorKind.NotFound, .PermissionDenied, .AlreadyExists, .InvalidInput,
-                     .UnexpectedEof, .Interrupted, .Other]
+        let kinds = [IoErrorKind.NotFound, IoErrorKind.PermissionDenied, IoErrorKind.AlreadyExists,
+                     IoErrorKind.InvalidInput,
+                     IoErrorKind.UnexpectedEof, IoErrorKind.Interrupted, IoErrorKind.Other]
         let kind = kinds[unsafe { ofir_error_kind(code) } as int]
         return IoError{kind, message: unsafe { str.fromRaw(text, len) }}
     }
@@ -129,9 +130,9 @@ pub struct Buffer {
  */
 pub fn check(code: i32) Result<(), IoError> {
     if code == 0 {
-        return .Ok(())
+        return Result.Ok(())
     }
-    return .Err(IoError.fromErrno(code))
+    return Result.Err(IoError.fromErrno(code))
 }
 
 /**
@@ -160,7 +161,7 @@ pub struct Stdin {
         check(unsafe { ofir_read_line(&mut out as *mut Buffer) })?
         let n = out.len
         buf.push(unsafe { out.intoStr() })
-        return .Ok(n)
+        return Result.Ok(n)
     }
 
     /**
@@ -171,7 +172,7 @@ pub struct Stdin {
     pub fn readToString(mut self) Result<str, IoError> {
         var out = Buffer.new()
         check(unsafe { ofir_read_stdin(&mut out as *mut Buffer) })?
-        return .Ok(unsafe { out.intoStr() })
+        return Result.Ok(unsafe { out.intoStr() })
     }
 }
 
@@ -193,5 +194,5 @@ pub fn flush() Result<(), IoError> {
     unsafe {
         ofir_stdout_flush()
     }
-    return .Ok(())
+    return Result.Ok(())
 }

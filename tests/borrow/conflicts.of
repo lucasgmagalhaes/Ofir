@@ -114,11 +114,11 @@ fn copiedReference() {
 
 fn matchBinding(pair: mut Pair) {
     match pair.a.first() {
-        .Some(x) => {
+        Option.Some(x) => {
             pair.a.clear()      // error[E0701]: cannot borrow `pair.a` as mutable because it is also borrowed as shared by `x`
             println("{*x}")
         }
-        .None => {}
+        Option.None => {}
     }
 }
 

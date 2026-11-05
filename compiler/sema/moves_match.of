@@ -22,6 +22,7 @@ import sema.moves.Use
 import sema.moves.deadState
 import sema.moves.markFlag
 import sema.moves.movesBlock
+import sema.moves_expr.Via
 import sema.moves_expr.isPlace
 import sema.moves_expr.movesNode
 import sema.moves_expr.placeOfNode
@@ -29,9 +30,11 @@ import sema.moves_expr.usePlace
 import sema.program.Program
 import sema.structs.isCopy
 import syntax.ast.Expr
+import syntax.ast.ExprKind
 import syntax.ast.FieldPattern
 import syntax.ast.Pattern
 import std.mem
+import syntax.ast.PatternKind
 
 fn anyByMove(c: Checker, p: Program, list: &List<Pattern>) bool {
     for i in 0..list.len() {
@@ -45,8 +48,8 @@ fn anyByMove(c: Checker, p: Program, list: &List<Pattern>) bool {
 // The shorthand field `Point{x}` of a pattern binds `x`, if it is a local.
 fn fieldBindsByMove(c: Checker, p: Program, field: &FieldPattern) bool {
     return match field.pattern {
-        .Some(pattern) => bindsByMove(c, p, &pattern)
-        .None => c.localAt(field.id.0) >= 0 && !isCopy(c, p, c.typeOf(field.id.0))
+        Option.Some(pattern) => bindsByMove(c, p, &pattern)
+        Option.None => c.localAt(field.id.0) >= 0 && !isCopy(c, p, c.typeOf(field.id.0))
     }
 }
 
@@ -61,13 +64,13 @@ fn fieldBindsByMove(c: Checker, p: Program, field: &FieldPattern) bool {
  */
 pub fn bindsByMove(c: Checker, p: Program, pattern: &Pattern) bool {
     return match pattern.kind {
-        .Binding(_, _) => c.localAt(pattern.id.0) >= 0 &&
+        PatternKind.Binding(_, _) => c.localAt(pattern.id.0) >= 0 &&
                           !isCopy(c, p, c.typeOf(pattern.id.0))
-        .Variant(_, _, args, _) => anyByMove(c, p, &args)
-        .Tuple(items) => anyByMove(c, p, &items)
-        .TupleStruct(_, args) => anyByMove(c, p, &args)
-        .Or(alternatives) => anyByMove(c, p, &alternatives)
-        .Struct(_, fields, _) => {
+        PatternKind.Variant(_, _, args, _) => anyByMove(c, p, &args)
+        PatternKind.Tuple(items) => anyByMove(c, p, &items)
+        PatternKind.TupleStruct(_, args) => anyByMove(c, p, &args)
+        PatternKind.Or(alternatives) => anyByMove(c, p, &alternatives)
+        PatternKind.Struct(_, fields, _) => {
             for i in 0..fields.len() {
                 if fieldBindsByMove(c, p, &fields[i]) {
                     return true
@@ -107,21 +110,21 @@ fn listLocals(c: Checker, list: &List<Pattern>, out: mut List<int>) {
  */
 pub fn patternLocals(c: Checker, pattern: &Pattern, out: mut List<int>) {
     match pattern.kind {
-        .Binding(_, _) => {
+        PatternKind.Binding(_, _) => {
             let local = c.localAt(pattern.id.0)
             if local >= 0 {
                 out.push(local)
             }
         }
-        .Variant(_, _, args, _) => listLocals(c, &args, out)
-        .Tuple(items) => listLocals(c, &items, out)
-        .TupleStruct(_, args) => listLocals(c, &args, out)
-        .Or(alternatives) => listLocals(c, &alternatives, out)
-        .Struct(_, fields, _) => {
+        PatternKind.Variant(_, _, args, _) => listLocals(c, &args, out)
+        PatternKind.Tuple(items) => listLocals(c, &items, out)
+        PatternKind.TupleStruct(_, args) => listLocals(c, &args, out)
+        PatternKind.Or(alternatives) => listLocals(c, &alternatives, out)
+        PatternKind.Struct(_, fields, _) => {
             for i in 0..fields.len() {
                 match fields[i].pattern {
-                    .Some(inner) => patternLocals(c, &inner, out)
-                    .None => {
+                    Option.Some(inner) => patternLocals(c, &inner, out)
+                    Option.None => {
                         let local = c.localAt(fields[i].id.0)
                         if local >= 0 {
                             out.push(local)
@@ -152,16 +155,16 @@ fn initList(m: mut Moves, c: Checker, list: &List<Pattern>, s: mut State, borrow
  */
 pub fn patternInit(m: mut Moves, c: Checker, pattern: &Pattern, s: mut State, borrowed: bool) {
     match pattern.kind {
-        .Binding(_, _) => initLocal(m, c.localAt(pattern.id.0), s, borrowed)
-        .Variant(_, _, args, _) => initList(m, c, &args, s, borrowed)
-        .Tuple(items) => initList(m, c, &items, s, borrowed)
-        .TupleStruct(_, args) => initList(m, c, &args, s, borrowed)
-        .Or(alternatives) => initList(m, c, &alternatives, s, borrowed)
-        .Struct(_, fields, _) => {
+        PatternKind.Binding(_, _) => initLocal(m, c.localAt(pattern.id.0), s, borrowed)
+        PatternKind.Variant(_, _, args, _) => initList(m, c, &args, s, borrowed)
+        PatternKind.Tuple(items) => initList(m, c, &items, s, borrowed)
+        PatternKind.TupleStruct(_, args) => initList(m, c, &args, s, borrowed)
+        PatternKind.Or(alternatives) => initList(m, c, &alternatives, s, borrowed)
+        PatternKind.Struct(_, fields, _) => {
             for i in 0..fields.len() {
                 match fields[i].pattern {
-                    .Some(inner) => patternInit(m, c, &inner, s, borrowed)
-                    .None => initLocal(m, c.localAt(fields[i].id.0), s, borrowed)
+                    Option.Some(inner) => patternInit(m, c, &inner, s, borrowed)
+                    Option.None => initLocal(m, c.localAt(fields[i].id.0), s, borrowed)
                 }
             }
         }
@@ -184,7 +187,7 @@ fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
     }
     let place = placeOfNode(m, c, p, e, s)
     usePlace(m, c, &place, s, e.span)
-    let owned = place.local && place.via == .Nothing && !m.borrowed[place.part.local]
+    let owned = place.local && place.via == Via.Nothing && !m.borrowed[place.part.local]
     let moves = byMove && owned
     if place.local {
         access(s, &place.part, if moves { Access.Move } else { Access.Read }, e.span)
@@ -195,7 +198,7 @@ fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
     }
     var loans = carriedSince(m, mark)
     dropCarry(m, mark)
-    let borrows = !owned && place.via != .Raw
+    let borrows = !owned && place.via != Via.Raw
     if borrows && place.local {
         loans.push(Loan{holder: -1, part: place.part.clone(), mutable: false, span: e.span})
     }
@@ -215,21 +218,21 @@ fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
  */
 pub fn movesIf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
     match e.kind {
-        .If(letPattern, cond, then, otherwise) => {
+        ExprKind.If(letPattern, cond, then, otherwise) => {
             var borrowed = false
             match letPattern {
-                .Some(pattern) => {
+                Option.Some(pattern) => {
                     borrowed = scrutinee(m, c, p, &*cond, s, bindsByMove(c, p, &pattern))
                 }
-                .None => movesNode(m, c, p, &*cond, s, .Read)
+                Option.None => movesNode(m, c, p, &*cond, s, Use.Read)
             }
             var other = s.dup()
-            if let .Some(pattern) = letPattern {
+            if let Option.Some(pattern) = letPattern {
                 patternInit(m, c, &pattern, s, borrowed)
             }
             m.binding = []
             movesBlock(m, c, p, &then, s, use)
-            if let .Some(branch) = otherwise {
+            if let Option.Some(branch) = otherwise {
                 movesNode(m, c, p, &*branch, other, use)
             }
             s.join(&other)
@@ -250,7 +253,7 @@ pub fn movesIf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
  */
 pub fn movesMatch(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
     match e.kind {
-        .Match(value, arms) => {
+        ExprKind.Match(value, arms) => {
             var byMove = false
             for i in 0..arms.len() {
                 byMove = byMove || bindsByMove(c, p, &arms[i].pattern)
@@ -263,8 +266,8 @@ pub fn movesMatch(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut Sta
                 m.binding = loans.clone()
                 patternInit(m, c, &arms[i].pattern, a, borrowed)
                 m.binding = []
-                if let .Some(guard) = arms[i].guard {
-                    movesNode(m, c, p, &guard, a, .Read)
+                if let Option.Some(guard) = arms[i].guard {
+                    movesNode(m, c, p, &guard, a, Use.Read)
                 }
                 movesNode(m, c, p, &arms[i].body, a, use)
                 result.join(&a)

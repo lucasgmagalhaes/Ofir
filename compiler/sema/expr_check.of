@@ -41,6 +41,7 @@ import sema.check_unsafe.isUnsafeFn
 import sema.check_unsafe.pointerCast
 import sema.check_unsafe.requireUnsafe
 import sema.const_eval.constEval
+import sema.def.DefKind
 import sema.def.Res
 import sema.enums.enumOf
 import sema.enums.variantsOf
@@ -56,6 +57,7 @@ import sema.types.FN_OWNED
 import sema.types.I64
 import sema.types.NEVER
 import sema.types.STR
+import sema.types.TyKind
 import sema.types.U8
 import sema.types.UNIT
 import sema.types.kindNumber
@@ -65,6 +67,8 @@ import syntax.ast.Arg
 import syntax.ast.Block
 import syntax.ast.Expr
 import syntax.ast.ExprKind
+import syntax.ast.ItemKind
+import syntax.ast.Mode
 import syntax.ast.Op
 import syntax.ast.TypeExpr
 
@@ -78,8 +82,9 @@ import syntax.ast.TypeExpr
  */
 pub fn nameRes(c: Checker, e: &Expr) Res {
     return match e.kind {
-        .Ident(_) | .SelfValue | .SelfType | .Generic(_, _) | .Field(_, _, _) => c.res(e.id.0)
-        _ => .None
+        ExprKind.Ident(_) | ExprKind.SelfValue | ExprKind.SelfType | ExprKind.Generic(_, _) |
+        ExprKind.Field(_, _, _) => c.res(e.id.0)
+        _ => Res.None
     }
 }
 
@@ -92,8 +97,8 @@ pub fn nameRes(c: Checker, e: &Expr) Res {
  */
 pub fn isModuleMember(c: Checker, e: &Expr) bool {
     return match e.kind {
-        .Field(_, _, _) => match c.res(e.id.0) {
-            .None => false
+        ExprKind.Field(_, _, _) => match c.res(e.id.0) {
+            Res.None => false
             _ => true
         }
         _ => false
@@ -116,8 +121,8 @@ fn intFits(c: Checker, ty: int, value: u64, negative: bool) bool {
 // An integer literal takes the expected integer or float type, else `int`.
 fn intLiteral(c: mut Checker, e: &Expr, value: u64, expected: int, negative: bool) int {
     let kind = c.types.kind(expected)
-    let ty = if kind == .Int || kind == .Float { expected } else { I64 }
-    if c.types.kind(ty) == .Int && !intFits(c, ty, value, negative) {
+    let ty = if kind == TyKind.Int || kind == TyKind.Float { expected } else { I64 }
+    if c.types.kind(ty) == TyKind.Int && !intFits(c, ty, value, negative) {
         c.error("E0312", e.span, "integer literal out of range for `{c.typeName(ty)}`")
     }
     return ty
@@ -128,8 +133,9 @@ fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>) int {
         let found = checkExpr(c, p, &parts[i], ERROR)
         let ty = autoDeref(c, p, &parts[i], found)   // `"{r}"` shows `*r`
         let kind = c.types.kind(ty)
-        let printable = kind == .Int || kind == .Float || kind == .Bool || kind == .Str ||
-                        kind == .Error
+        let printable = kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool ||
+                        kind == TyKind.Str ||
+                        kind == TyKind.Error
         if !printable {
             c.error("E0314", parts[i].span, "a value of type `{c.typeName(ty)}` cannot be "
                     + "interpolated into a string")
@@ -155,14 +161,14 @@ fn fnValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
         return c.unsupported(span, "unsafe functions as values are")
     }
     for i in 0..decl.params.len() {
-        if decl.params[i].mode != .Borrow {
+        if decl.params[i].mode != Mode.Borrow {
             return c.unsupported(span, "functions with `mut` or `move` parameters as values are")
         }
     }
     let sig = fnSignature(c, p, id)
     let params = c.types.get(sig).args.clone()
     let ret = c.types.get(sig).inner
-    if c.types.kind(ret) == .Ref {
+    if c.types.kind(ret) == TyKind.Ref {
         return c.unsupported(span, "functions returning a borrow as values are")
     }
     let value = c.types.fnValueType(params.clone(), ret, false)
@@ -172,9 +178,9 @@ fn fnValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
 
 fn defValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
     return match c.def(id).kind {
-        .Const | .Global => checkConst(c, p, id)
-        .Fn => fnValue(c, p, id, span, expected)
-        .Builtin => c.unsupported(span, "function values are")
+        DefKind.Const | DefKind.Global => checkConst(c, p, id)
+        DefKind.Fn => fnValue(c, p, id, span, expected)
+        DefKind.Builtin => c.unsupported(span, "function values are")
         _ => {
             c.error("E0310", span, "expected a value, found type `{c.text(c.def(id).name)}`")
             ERROR
@@ -193,18 +199,18 @@ fn defValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int 
  */
 pub fn checkName(c: mut Checker, p: Program, res: Res, span: Span) int {
     return match res {
-        .Local(id) => c.localTypes[id]
-        .Def(id) => defValue(c, p, id, span, ERROR)
+        Res.Local(id) => c.localTypes[id]
+        Res.Def(id) => defValue(c, p, id, span, ERROR)
         _ => ERROR
     }
 }
 
 fn nameValue(c: mut Checker, p: Program, e: &Expr, expected: int) int {
     return match nameRes(c, e) {
-        .Local(id) => c.localTypes[id]
-        .Def(id) => {
-            if c.def(id).kind == .Variant {   // `None`
-                return checkPreludeVariant(c, p, e, id, .None, expected)
+        Res.Local(id) => c.localTypes[id]
+        Res.Def(id) => {
+            if c.def(id).kind == DefKind.Variant {   // `None`
+                return checkPreludeVariant(c, p, e, id, Option.None, expected)
             }
             defValue(c, p, id, e.span, expected)
         }
@@ -217,9 +223,9 @@ fn nameValue(c: mut Checker, p: Program, e: &Expr, expected: int) int {
 
 fn isLiteral(e: &Expr) bool {
     return match e.kind {
-        .Int(_) | .Float(_) => true
-        .Unary(op, operand) => op == .Neg && match operand.kind {
-            .Int(_) | .Float(_) => true
+        ExprKind.Int(_) | ExprKind.Float(_) => true
+        ExprKind.Unary(op, operand) => op == Op.Neg && match operand.kind {
+            ExprKind.Int(_) | ExprKind.Float(_) => true
             _ => false
         }
         _ => false
@@ -232,15 +238,15 @@ fn operatorError(c: mut Checker, span: Span, ty: int) int {
 }
 
 fn unary(c: mut Checker, p: Program, e: &Expr, op: Op, operand: &Expr, expected: int) int {
-    if op == .Deref {
+    if op == Op.Deref {
         return checkDeref(c, p, e, operand)
     }
-    if op == .Ref || op == .RefMut {
-        return checkRef(c, p, e, operand, op == .RefMut, expected)
+    if op == Op.Ref || op == Op.RefMut {
+        return checkRef(c, p, e, operand, op == Op.RefMut, expected)
     }
     var ty = ERROR
     if let ExprKind.Int(value) = operand.kind {
-        if op == .Neg {
+        if op == Op.Neg {
             ty = intLiteral(c, operand, value, expected, true)
             c.setType(operand.id.0, ty)
         } else {
@@ -250,30 +256,30 @@ fn unary(c: mut Checker, p: Program, e: &Expr, op: Op, operand: &Expr, expected:
         ty = checkExpr(c, p, operand, expected)
     }
     let t = c.types.get(ty)
-    let ok = if op == .Neg {
-        t.kind == .Float || (t.kind == .Int && t.data <= 3)
+    let ok = if op == Op.Neg {
+        t.kind == TyKind.Float || (t.kind == TyKind.Int && t.data <= 3)
     } else {
-        t.kind == .Bool || t.kind == .Int
+        t.kind == TyKind.Bool || t.kind == TyKind.Int
     }
-    return if ok || t.kind == .Error { ty } else { operatorError(c, e.span, ty) }
+    return if ok || t.kind == TyKind.Error { ty } else { operatorError(c, e.span, ty) }
 }
 
 // Which operand types an operator accepts.
 fn operandOk(c: Checker, ty: int, op: Op) bool {
     let kind = c.types.kind(ty)
     return match op {
-        .Add => kind == .Int || kind == .Float || kind == .Str
-        .Sub | .Mul | .Div | .Rem => kind == .Int || kind == .Float
-        .And | .Or | .Xor | .Shl | .Shr => kind == .Int
-        .Eq | .Ne => kindNumber(kind) <= 6 || kind == .Ptr
-        .Lt | .Le | .Gt | .Ge => orderable(c, ty)
-        .LogicalAnd | .LogicalOr => kind == .Bool
+        Op.Add => kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Str
+        Op.Sub | Op.Mul | Op.Div | Op.Rem => kind == TyKind.Int || kind == TyKind.Float
+        Op.And | Op.Or | Op.Xor | Op.Shl | Op.Shr => kind == TyKind.Int
+        Op.Eq | Op.Ne => kindNumber(kind) <= 6 || kind == TyKind.Ptr
+        Op.Lt | Op.Le | Op.Gt | Op.Ge => orderable(c, ty)
+        Op.LogicalAnd | Op.LogicalOr => kind == TyKind.Bool
         _ => false
     }
 }
 
 fn isComparison(op: Op) bool {
-    return op == .Eq || op == .Ne || op == .Lt || op == .Le || op == .Gt || op == .Ge
+    return op == Op.Eq || op == Op.Ne || op == Op.Lt || op == Op.Le || op == Op.Gt || op == Op.Ge
 }
 
 /**
@@ -291,23 +297,23 @@ fn isComparison(op: Op) bool {
  */
 pub fn checkBinary(c: mut Checker, p: Program, span: Span, op: Op, lhs: &Expr, rhs: &Expr,
                    expected: int) int {
-    if op == .Coalesce {
+    if op == Op.Coalesce {
         return checkCoalesce(c, p, lhs, rhs, expected)
     }
     let compares = isComparison(op)
-    let hint = if compares || op == .LogicalAnd || op == .LogicalOr { ERROR } else { expected }
+    let hint = if compares || op == Op.LogicalAnd || op == Op.LogicalOr { ERROR } else { expected }
     let swap = isLiteral(lhs) && !isLiteral(rhs)
     let first = if swap { rhs } else { lhs }
     let second = if swap { lhs } else { rhs }
     let ty = checkExpr(c, p, first, hint)
     coerce(c, p, second, ty)
     var fieldless = false
-    if op == .Eq || op == .Ne {
-        if let .Some(id) = enumOf(c, p, ty) {
+    if op == Op.Eq || op == Op.Ne {
+        if let Option.Some(id) = enumOf(c, p, ty) {
             fieldless = !variantsOf(c, id).hasPayload   // enums without payloads compare tags
         }
     }
-    let generic = c.types.get(ty).hasParam && (op == .Eq || op == .Ne) && equatable(c, p, ty)
+    let generic = c.types.get(ty).hasParam && (op == Op.Eq || op == Op.Ne) && equatable(c, p, ty)
     if !fieldless && !generic && !operandOk(c, ty, op) && ty != ERROR {
         return operatorError(c, span, ty)
     }
@@ -423,7 +429,7 @@ fn noTypes() List<TypeExpr> {
 fn call(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<Arg>,
         expected: int) int {
     let isField = match callee.kind {
-        .Field(_, _, _) => !isModuleMember(c, callee)
+        ExprKind.Field(_, _, _) => !isModuleMember(c, callee)
         _ => false
     }
     if isField {
@@ -431,29 +437,29 @@ fn call(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<Arg>,
     }
     let Res.Def(id) = nameRes(c, callee) else {
         let ty = checkExpr(c, p, callee, ERROR)
-        if c.types.kind(ty) == .Fn {
+        if c.types.kind(ty) == TyKind.Fn {
             return checkArgsOf(c, p, e.span, args, ty)
         }
         return notAFunction(c, p, callee, args, ty)
     }
     let none = noTypes()
     let explicit = match callee.kind {
-        .Generic(_, list) => &list
+        ExprKind.Generic(_, list) => &list
         _ => &none
     }
     let kind = c.def(id).kind
-    if kind == .Builtin && explicit.len() == 0 {
+    if kind == DefKind.Builtin && explicit.len() == 0 {
         return builtinCall(c, p, e.span, args, c.def(id).primitive)
     }
-    if kind == .Struct {
+    if kind == DefKind.Struct {
         c.setType(callee.id.0, UNIT)
         return checkConstructor(c, p, e, id, explicit, args, expected)
     }
-    if kind == .Variant && explicit.len() == 0 {   // `Some(x)`
+    if kind == DefKind.Variant && explicit.len() == 0 {   // `Some(x)`
         c.setType(callee.id.0, UNIT)
-        return checkPreludeVariant(c, p, e, id, .Some(args), expected)
+        return checkPreludeVariant(c, p, e, id, Option.Some(args), expected)
     }
-    if kind == .Fn {
+    if kind == DefKind.Fn {
         c.setType(callee.id.0, fnSignature(c, p, id))
         return checkFnCall(c, p, e, callee, args, id, explicit, expected)
     }
@@ -467,7 +473,7 @@ fn call(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<Arg>,
 // `(a, b)`: each element takes the matching element of the expected type.
 fn tuple(c: mut Checker, p: Program, elems: &List<Expr>, expected: int) int {
     let hint = c.types.get(expected)
-    let hinted = hint.kind == .Tuple && hint.args.len() == elems.len()
+    let hinted = hint.kind == TyKind.Tuple && hint.args.len() == elems.len()
     let hints = hint.args.clone()
     var types: List<int> = []
     for i in 0..elems.len() {
@@ -481,41 +487,41 @@ fn synthesize(c: mut Checker, p: Program, e: &Expr, expected: int) int {
         return nameValue(c, p, e, expected)
     }
     return match e.kind {
-        .Int(value) => intLiteral(c, e, value, expected, false)
-        .Float(_) => if c.types.kind(expected) == .Float { expected } else { F64 }
-        .Byte(_) => U8
-        .Bool(_) => BOOL
-        .Str(_) => STR
-        .Interp(parts) => interpolation(c, p, &parts)
-        .Ident(_) | .SelfValue => nameValue(c, p, e, expected)
-        .Unary(op, operand) => unary(c, p, e, op, &*operand, expected)
-        .Binary(op, lhs, rhs) => checkBinary(c, p, e.span, op, &*lhs, &*rhs, expected)
-        .Cast(value, to) => cast(c, p, e, &*value, &to)
-        .Call(callee, args) => call(c, p, e, &*callee, &args, expected)
-        .If(_, _, _, _) => checkIf(c, p, e, expected, true)
-        .Block(block) => checkBlock(c, p, &block, expected, true)
-        .Unsafe(block) => checkUnsafeBlock(c, p, &block, expected, true)
-        .Tuple(elems) => tuple(c, p, &elems, expected)
-        .SelfType => match c.res(e.id.0) {   // `Self` as a value: the type's name
-            .Def(id) => defValue(c, p, id, e.span, ERROR)
+        ExprKind.Int(value) => intLiteral(c, e, value, expected, false)
+        ExprKind.Float(_) => if c.types.kind(expected) == TyKind.Float { expected } else { F64 }
+        ExprKind.Byte(_) => U8
+        ExprKind.Bool(_) => BOOL
+        ExprKind.Str(_) => STR
+        ExprKind.Interp(parts) => interpolation(c, p, &parts)
+        ExprKind.Ident(_) | ExprKind.SelfValue => nameValue(c, p, e, expected)
+        ExprKind.Unary(op, operand) => unary(c, p, e, op, &*operand, expected)
+        ExprKind.Binary(op, lhs, rhs) => checkBinary(c, p, e.span, op, &*lhs, &*rhs, expected)
+        ExprKind.Cast(value, to) => cast(c, p, e, &*value, &to)
+        ExprKind.Call(callee, args) => call(c, p, e, &*callee, &args, expected)
+        ExprKind.If(_, _, _, _) => checkIf(c, p, e, expected, true)
+        ExprKind.Block(block) => checkBlock(c, p, &block, expected, true)
+        ExprKind.Unsafe(block) => checkUnsafeBlock(c, p, &block, expected, true)
+        ExprKind.Tuple(elems) => tuple(c, p, &elems, expected)
+        ExprKind.SelfType => match c.res(e.id.0) {   // `Self` as a value: the type's name
+            Res.Def(id) => defValue(c, p, id, e.span, ERROR)
             _ => ERROR
         }
-        .Generic(name, _) => {
+        ExprKind.Generic(name, _) => {
             c.error("E0310", e.span, "expected a value, found `{c.text(name)}` with type "
                     + "arguments")
             ERROR
         }
-        .Range(_, _, _) => c.unsupported(e.span, "ranges outside of `for` are")
-        .Index(base, index) => checkIndex(c, p, e, &*base, &*index)
-        .Field(base, name, _) => checkField(c, p, e, &*base, name, expected)
-        .TupleField(base, index) => checkTupleField(c, p, e, &*base, index as int)
-        .Try(inner) => checkTry(c, p, e, &*inner)
-        .Struct(_, _, _) => checkStructLiteral(c, p, e, expected)
-        .Array(elems) => checkListLiteral(c, p, e, &elems, expected)
-        .Repeat(value, count) => checkListRepeat(c, p, e, &*value, &*count, expected)
-        .Variant(_, _, _) => checkVariantShorthand(c, p, e, expected)
-        .Match(_, _) => checkMatch(c, p, e, expected, true)
-        .Closure(params, ret, body, isMove) => checkClosure(c, p, e, &params, &ret, &*body,
+        ExprKind.Range(_, _, _) => c.unsupported(e.span, "ranges outside of `for` are")
+        ExprKind.Index(base, index) => checkIndex(c, p, e, &*base, &*index)
+        ExprKind.Field(base, name, _) => checkField(c, p, e, &*base, name, expected)
+        ExprKind.TupleField(base, index) => checkTupleField(c, p, e, &*base, index as int)
+        ExprKind.Try(inner) => checkTry(c, p, e, &*inner)
+        ExprKind.Struct(_, _, _) => checkStructLiteral(c, p, e, expected)
+        ExprKind.Array(elems) => checkListLiteral(c, p, e, &elems, expected)
+        ExprKind.Repeat(value, count) => checkListRepeat(c, p, e, &*value, &*count, expected)
+        ExprKind.Variant(_, _, _) => checkVariantShorthand(c, p, e, expected)
+        ExprKind.Match(_, _) => checkMatch(c, p, e, expected, true)
+        ExprKind.Closure(params, ret, body, isMove) => checkClosure(c, p, e, &params, &ret, &*body,
                                                             isMove, expected)
     }
 }
@@ -557,11 +563,12 @@ pub fn checkExpr(c: mut Checker, p: Program, e: &Expr, expected: int) int {
 fn weakensPointer(c: Checker, found: int, expected: int) bool {
     let f = c.types.get(found)
     let x = c.types.get(expected)
-    if f.kind == .Fn && x.kind == .Fn {   // `move fn(A) R` lends itself as `fn(A) R`
+    if f.kind == TyKind.Fn && x.kind == TyKind.Fn {   // `move fn(A) R` lends itself as `fn(A) R`
         return f.data == FN_OWNED && x.data == FN_BORROWED && sameTypes(&f.args, &x.args) &&
                f.inner == x.inner
     }
-    return f.kind == .Ptr && x.kind == .Ptr && f.data != 0 && x.data == 0 && f.inner == x.inner
+    return f.kind == TyKind.Ptr && x.kind == TyKind.Ptr && f.data != 0 && x.data == 0 &&
+           f.inner == x.inner
 }
 
 fn sameTypes(a: &List<int>, b: &List<int>) bool {
@@ -647,11 +654,11 @@ pub fn checkConst(c: mut Checker, p: Program, id: int) int {
     let saved = c.enter(c.def(id).module)
     let outer = c.enterGenerics(noGenerics())
     let item = itemOf(p, c.loc(id))
-    let isConst = c.def(id).kind == .Const
+    let isConst = c.def(id).kind == DefKind.Const
     match item.kind {
-        .Const(annotation, value) | .Global(annotation, value) => {
+        ItemKind.Const(annotation, value) | ItemKind.Global(annotation, value) => {
             var ty = ERROR
-            if let .Some(t) = annotation {
+            if let Option.Some(t) = annotation {
                 ty = resolveType(c, p, &t)
                 coerce(c, p, &value, ty)
             } else {

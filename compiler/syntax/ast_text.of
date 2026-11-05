@@ -7,10 +7,14 @@
 import base.intern.Interner
 import base.intern.Symbol
 import syntax.ast.Expr
+import syntax.ast.ExprKind
 import syntax.ast.FieldPattern
 import syntax.ast.Mode
+import syntax.ast.Op
 import syntax.ast.Pattern
+import syntax.ast.PatternKind
 import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
 import syntax.token_print.formatG
 
 /**
@@ -50,9 +54,9 @@ fn typeListText(types: List<TypeExpr>, names: Interner) str {
  */
 pub fn modeText(mode: Mode) str {
     return match mode {
-        .Mut => "mut "
-        .Move => "move "
-        .Borrow => ""
+        Mode.Mut => "mut "
+        Mode.Move => "move "
+        Mode.Borrow => ""
     }
 }
 
@@ -65,21 +69,25 @@ pub fn modeText(mode: Mode) str {
  */
 pub fn typeText(t: &TypeExpr, names: Interner) str {
     return match t.kind {
-        .Path(segments, args) => if args.len() > 0 {
+        TypeKind.Path(segments, args) => if args.len() > 0 {
             "{symbolsText(segments, names)}<{typeListText(args, names)}>"
         } else {
             symbolsText(segments, names)
         }
-        .SelfType => "Self".toOwned()
-        .Ref(mutable, inner) => "&{if mutable { "mut " } else { "" }}{typeText(&*inner, names)}"
-        .Ptr(mutable, inner) => "*{if mutable { "mut " } else { "" }}{typeText(&*inner, names)}"
-        .Slice(elem) => "[{typeText(&*elem, names)}]"
-        .Array(elem, len) => "[{typeText(&*elem, names)}; {literalText(&*len, names)}]"
-        .Tuple(items) => "({typeListText(items, names)}{if items.len() == 1 { ",)" } else { ")" }}"
-        .Fn(params, modes, ret, owned) => fnTypeText(params, modes, ret, owned, names)
-        .Dyn(inner) => "dyn {typeText(&*inner, names)}"
-        .Optional(inner) => "{typeText(&*inner, names)}?"
-        .Never => "!".toOwned()
+        TypeKind.SelfType => "Self".toOwned()
+        TypeKind.Ref(mutable,
+                     inner) => "&{if mutable { "mut " } else { "" }}{typeText(&*inner, names)}"
+        TypeKind.Ptr(mutable,
+                     inner) => "*{if mutable { "mut " } else { "" }}{typeText(&*inner, names)}"
+        TypeKind.Slice(elem) => "[{typeText(&*elem, names)}]"
+        TypeKind.Array(elem, len) => "[{typeText(&*elem, names)}; {literalText(&*len, names)}]"
+        TypeKind.Tuple(items) => {
+            "({typeListText(items, names)}{if items.len() == 1 { ",)" } else { ")" }}"
+        }
+        TypeKind.Fn(params, modes, ret, owned) => fnTypeText(params, modes, ret, owned, names)
+        TypeKind.Dyn(inner) => "dyn {typeText(&*inner, names)}"
+        TypeKind.Optional(inner) => "{typeText(&*inner, names)}?"
+        TypeKind.Never => "!".toOwned()
     }
 }
 
@@ -94,7 +102,7 @@ fn fnTypeText(params: List<TypeExpr>, modes: List<Mode>, ret: Option<Box<TypeExp
         out.push(typeText(&params[i], names))
     }
     out.push(")")
-    if let .Some(r) = ret {
+    if let Option.Some(r) = ret {
         out.push(" ")
         out.push(typeText(&*r, names))
     }
@@ -164,13 +172,13 @@ fn floatText(value: float) str {
  */
 pub fn literalText(e: &Expr, names: Interner) str {
     return match e.kind {
-        .Int(v) => "{v}"
-        .Float(v) => floatText(v)
-        .Byte(v) => "b{v}"
-        .Bool(v) => if v { "true".toOwned() } else { "false".toOwned() }
-        .Str(text) => escapedText(text)
-        .Ident(name) => names.name(name).toOwned()
-        .Unary(op, operand) => if op == .Neg {
+        ExprKind.Int(v) => "{v}"
+        ExprKind.Float(v) => floatText(v)
+        ExprKind.Byte(v) => "b{v}"
+        ExprKind.Bool(v) => if v { "true".toOwned() } else { "false".toOwned() }
+        ExprKind.Str(text) => escapedText(text)
+        ExprKind.Ident(name) => names.name(name).toOwned()
+        ExprKind.Unary(op, operand) => if op == Op.Neg {
             "-" + literalText(&*operand, names)
         } else {
             "<expr>".toOwned()
@@ -199,19 +207,23 @@ fn patternListText(list: List<Pattern>, names: Interner) str {
  */
 pub fn patternText(p: &Pattern, names: Interner) str {
     return match p.kind {
-        .Wildcard => "_".toOwned()
-        .Binding(name, mutable) => "{if mutable { "mut " } else { "" }}{names.name(name)}"
-        .Literal(value) => literalText(&*value, names)
-        .Range(lo, hi, inclusive) => {
+        PatternKind.Wildcard => "_".toOwned()
+        PatternKind.Binding(name,
+                            mutable) => "{if mutable { "mut " } else { "" }}{names.name(name)}"
+        PatternKind.Literal(value) => literalText(&*value, names)
+        PatternKind.Range(lo, hi, inclusive) => {
             let dots = if inclusive { "..=" } else { ".." }
             literalText(&*lo, names) + dots + literalText(&*hi, names)
         }
-        .Variant(path, name, args, hasArgs) => "{symbolsText(path, names)}.{names.name(name)}" +
+        PatternKind.Variant(path, name, args,
+                            hasArgs) => "{symbolsText(path, names)}.{names.name(name)}" +
             (if hasArgs { "({patternListText(args, names)})" } else { "".toOwned() })
-        .Tuple(items) => "({patternListText(items, names)})"
-        .Struct(path, fields, rest) => structPatternText(path, fields, rest, names)
-        .TupleStruct(path, args) => "{symbolsText(path, names)}({patternListText(args, names)})"
-        .Or(alternatives) => orText(alternatives, names)
+        PatternKind.Tuple(items) => "({patternListText(items, names)})"
+        PatternKind.Struct(path, fields, rest) => structPatternText(path, fields, rest, names)
+        PatternKind.TupleStruct(path, args) => {
+            "{symbolsText(path, names)}({patternListText(args, names)})"
+        }
+        PatternKind.Or(alternatives) => orText(alternatives, names)
     }
 }
 
@@ -235,7 +247,7 @@ fn structPatternText(path: List<Symbol>, fields: List<FieldPattern>, rest: bool,
             out.push(", ")
         }
         out.push(names.name(fields[i].name))
-        if let .Some(pattern) = fields[i].pattern {
+        if let Option.Some(pattern) = fields[i].pattern {
             out.push(": ")
             out.push(patternText(&pattern, names))
         }
