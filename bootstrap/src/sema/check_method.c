@@ -3,6 +3,7 @@
 
 #include "sema/builtins.h"
 #include "sema/check_internal.h"
+#include "sema/suggest.h"
 
 static StrView name_of(Checker *c, Symbol name) {
     return symbol_name(&c->sema->session->names, name);
@@ -194,6 +195,10 @@ static TypeId no_method(Checker *c, Expr *call, TypeId self) {
     if (self.id != TID_ERROR) {
         check_error(c, "E0301", field->span, "no method `" SV_FMT "` on type `%s`",
                     SV_ARG(name_of(c, field->as.field.name)), type_name(c, self));
+        const Def *lang = lang_def(c->sema, self);
+        if (lang && lang->item) {
+            suggest_method(c->sema, lang->item, field->as.field.name);
+        }
     }
     for (uint32_t i = 0; i < call->as.call.args.len; i++) {
         check_expr(c, call->as.call.args.items[i].value, NO_TYPE);
