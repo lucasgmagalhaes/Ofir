@@ -1194,10 +1194,13 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
     // passed by address (spec 5.3, 5.6).
     if decl.hasSelf && byAddress(c, p, id, -1) {
         body.locals[1].byRef = true
+        body.locals[1].exclusive = decl.selfMode == Mode.Mut
     }
     for i in 0..decl.params.len() {
         if byAddress(c, p, id, i) {
-            body.locals[c.localAt(decl.params[i].id.0) + 1].byRef = true
+            let local = c.localAt(decl.params[i].id.0) + 1
+            body.locals[local].byRef = true
+            body.locals[local].exclusive = decl.params[i].mode == Mode.Mut
         }
     }
     l.body = body
