@@ -1,0 +1,33 @@
+// requires: stage1
+// The defaults of parameters (spec 3.3): trailing (E0358), and constant
+// expressions, `[]` or associated calls without arguments (E0359).
+
+const LIMIT: int = 8
+
+fn gap(a: int = 1, b: int) int {   // error[E0358]: the parameter `b` needs a default: it follows one with a default
+    return a + b
+}
+
+fn early(a: int, b: int = a) int {   // error[E0359]: a default value must be a constant expression, `[]` or a call to an associated function without arguments
+    return a + b
+}
+
+fn computed(n: int = LIMIT.max(2)) int {   // error[E0359]: a default value must be a constant expression, `[]` or a call to an associated function without arguments
+    return n
+}
+
+fn typed(n: int = "eight") int {   // error[E0300]: mismatched types: expected int, found str
+    return n
+}
+
+fn generic<T>(xs: List<T> = []) int {   // error[E0901]: defaults of parameters whose type has type parameters are not supported yet
+    return xs.len()
+}
+
+fn fine(n: int = -LIMIT * 2, xs: List<int> = [], m: Map<str, int> = Map.new()) int {
+    return n + xs.len() + m.len()
+}
+
+fn main() {
+    println("{gap(1, 2)} {early(1)} {computed()} {typed()} {generic<int>()} {fine()}")
+}

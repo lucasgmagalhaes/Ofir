@@ -198,7 +198,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.11a | Attributes checked in both stages (E0807-E0810: name, target, arguments, duplicates); `@inline`, `@inline(never)` and `@cold` become LLVM function attributes | S | **done**: `tests/compile_fail/attributes/*` and `tests/codegen/hints.of` pass in both stages; the other attributes report E0901 |
 | 5.11b | `@deprecated` (W0006) and `@allow(category)` | S | **done** (stage 1): W0006 on uses of deprecated functions, methods, types, constants and globals (not fields); `@allow(unused\|unreachable\|deprecated\|naming)` silences warnings inside its declaration; `tests/compile_fail/attributes/{deprecated,allow}.of` pass; stage 0 accepts both and ignores them |
 | 5.11c | `@repr(C)`, `@packed`, `@align(N)`, `@export`, `@link`, `@cfg` | M | tests pass |
-| 5.12a | Default parameter values and named arguments | M | `tests/run/calls/*` pass |
+| 5.12a | Default parameter values and named arguments | M | **done** (stage 1): defaults evaluated at each call that omits them, in the callee's module, after the written arguments; named arguments on functions, methods and `dyn` calls; defaults of generic-typed parameters wait (E0901); `tests/run/calls/*` pass; E0302, E0306, E0308, E0358 and E0359 tested |
 | 5.12 | Diagnostics: notes and help messages, `ofir explain`, JSON output; an explanation file for every registry code | M | every error code has `docs/errors/EXXXX.md` |
 | 5.13 | Debug info (DWARF) | M | stepping through code in `lldb` works |
 | 5.14 | Optimization: `noalias`/`readonly` (stage 1 only), niche layouts, field reordering, AIR check elimination | M | benchmarks within 10% of C |

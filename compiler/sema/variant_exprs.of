@@ -54,7 +54,7 @@ fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: in
         }
         let used = if args.isSome() && count > 0 { given } else { &none }
         return checkGenericArgs(c, p, at.id.0, at.span, used, &params, selfType, inf,
-                                expected)
+                                expected, 0)
     }
     let ty = c.types.adt(id, [])
     if args.isNone() || count == 0 {

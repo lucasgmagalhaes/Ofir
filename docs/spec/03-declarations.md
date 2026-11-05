@@ -82,9 +82,11 @@ connect("example.com", timeout: 5, verbose: true)
 - Once a parameter has a default, all following parameters must have one.
 - A default value is a constant expression (chapter 3.2), an empty
   collection literal (`[]`), or a call to an associated function without
-  arguments (`Map.new()`). It is evaluated at each call that omits it.
+  arguments (`Map.new()`). It is evaluated at each call that omits it,
+  after the arguments written, which are evaluated in the order written.
 - Named arguments use the parameter's name and may come in any order, but
   only after all positional arguments; each parameter is given at most once.
+  A parameter without a default must be given, positionally or by name.
 - Parameter names are therefore part of a function's public API: renaming a
   `pub` function's parameter is a breaking change.
 - A function value (`fn(A, B) R`, chapter 10) has no defaults and no names:

@@ -22,6 +22,7 @@ import sema.borrows.dropCarry
 import sema.borrows.killHolder
 import sema.borrows.lend
 import sema.borrows.useHolder
+import sema.call_args.argParam
 import sema.check.Checker
 import sema.check.fnOf
 import sema.check_box.adjustedType
@@ -555,7 +556,7 @@ fn argument(m: mut Moves, c: mut Checker, p: Program, arg: &Expr, use: Use, para
 
 // The parameter a function returns a borrow from (spec 5.6): -1 for
 // `self`, -2 for none.
-fn borrowSource(c: Checker, p: Program, decl: &FnDecl, args: &List<Arg>) int {
+fn borrowSource(c: Checker, p: Program, decl: &FnDecl, callId: int, args: &List<Arg>) int {
     if decl.hasSelf && decl.selfMode != Mode.Move {
         return -1
     }
@@ -564,12 +565,13 @@ fn borrowSource(c: Checker, p: Program, decl: &FnDecl, args: &List<Arg>) int {
     }
     var source = -2
     var count = 0
-    for i in 0..decl.params.len() {
-        if i < args.len() {
+    for i in 0..args.len() {
+        let slot = argParam(c, callId, i)
+        if slot >= 0 && slot < decl.params.len() {
             let ty = viewType(c, &args[i].value, -1)
-            let mode = decl.params[i].mode
+            let mode = decl.params[slot].mode
             if holdsRef(c, p, ty) || (mode == Mode.Borrow && !isCopy(c, p, ty)) {
-                source = i
+                source = slot
                 count += 1
             }
         }
@@ -588,8 +590,11 @@ fn fnCall(m: mut Moves, c: mut Checker, p: Program, e: &Expr, id: int, receiver:
         argument(m, c, p, receiver, modeUse(decl.selfMode), -1, s, places)
     }
     for i in 0..args.len() {
-        let use = if i < decl.params.len() { modeUse(decl.params[i].mode) } else { Use.Read }
-        argument(m, c, p, &args[i].value, use, i, s, places)
+        let slot = argParam(c, e.id.0, i)
+        let known = slot >= 0 && slot < decl.params.len()
+        let use = if known { modeUse(decl.params[slot].mode) } else { Use.Read }
+        let param = if known { slot } else { decl.params.len() + i }   // never a source
+        argument(m, c, p, &args[i].value, use, param, s, places)
     }
     if s.dead {
         return
@@ -614,7 +619,7 @@ fn fnCall(m: mut Moves, c: mut Checker, p: Program, e: &Expr, id: int, receiver:
     if !holdsRef(c, p, c.typeOf(e.id.0)) {
         return
     }
-    let source = borrowSource(c, p, decl, args)
+    let source = borrowSource(c, p, decl, e.id.0, args)
     for i in 0..places.len() {
         if places[i].param == source && places[i].direct && source > -2 {
             lend(m, &places[i].part, places[i].mutable, places[i].span)

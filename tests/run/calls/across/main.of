@@ -1,0 +1,13 @@
+// requires: stage1
+// The defaults of another module's function are checked and evaluated in
+// that module (spec 3.3).
+
+import greet.greet
+
+const GREETING: str = "bye"
+
+fn main() {
+    println(greet("ana"))
+    println(greet("bo", times: 1))
+    println(greet("cy", greeting: GREETING, times: 1))
+}

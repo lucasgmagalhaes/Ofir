@@ -11,6 +11,7 @@
 import base.intern.Symbol
 import base.span.Span
 import sema.check.BOUND_CLONE
+import sema.call_args.argParam
 import sema.check.Checker
 import sema.check.Loc
 import sema.check.fnOf
@@ -34,7 +35,7 @@ import sema.check_unsafe.requireUnsafe
 import sema.def.DefKind
 import sema.def.Res
 import sema.expr_check.checkArgs
-import sema.expr_check.checkArgsOf
+import sema.expr_check.checkCallArgs
 import sema.expr_check.checkExpr
 import sema.expr_check.coerce
 import sema.expr_check.nameRes
@@ -207,10 +208,11 @@ fn namedInstance(c: mut Checker, p: Program, id: int, list: &List<TypeExpr>, spa
  * @param callee the callee expression
  * @param args the arguments
  */
-pub fn checkMutArgs(c: mut Checker, p: Program, id: int, callee: &Expr, args: &List<Arg>) {
+pub fn checkMutArgs(c: mut Checker, p: Program, id: int, callId: int, args: &List<Arg>) {
     let decl = fnOf(p, c.loc(id))
-    for i in 0..decl.params.len() {
-        if i < args.len() && decl.params[i].mode == Mode.Mut {
+    for i in 0..args.len() {
+        let slot = argParam(c, callId, i)
+        if slot >= 0 && slot < decl.params.len() && decl.params[slot].mode == Mode.Mut {
             requireMutable(c, p, &args[i].value)
         }
     }
@@ -231,7 +233,7 @@ fn methodArgs(c: mut Checker, p: Program, call: &Expr, field: &Expr, explicit: &
         if explicit.len() > 0 {
             c.error("E0302", field.span, "`{c.text(c.def(id).name)}` takes no type arguments")
         }
-        return checkArgsOf(c, p, call.span, args, sig)
+        return checkCallArgs(c, p, call, args, id)
     }
     let ownerCount = generics.owner.len()
     var inf = inferNew(generics)
@@ -257,7 +259,8 @@ fn methodArgs(c: mut Checker, p: Program, call: &Expr, field: &Expr, explicit: &
     }
     let params = c.types.get(sig).args.clone()
     let ret = c.types.get(sig).inner
-    return checkGenericArgs(c, p, call.id.0, call.span, args, &params, ret, inf, expected)
+    return checkGenericArgs(c, p, call.id.0, call.span, args, &params, ret, inf, expected,
+                            id)
 }
 
 /**
@@ -317,7 +320,7 @@ pub fn checkUserMethod(c: mut Checker, p: Program, call: &Expr, field: &Expr, ba
     let id = methodDef(c, p, owner, index)
     c.setMember(field.id.0, id)
     let ret = methodArgs(c, p, call, field, explicit, args, id, selfType, expected)
-    checkMutArgs(c, p, id, field, args)
+    checkMutArgs(c, p, id, call.id.0, args)
     if !viaType && isClone {
         checkStdClone(c, p, field, owner, decl.hasSelf, selfType)
     }

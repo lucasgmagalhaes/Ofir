@@ -10,6 +10,7 @@
  */
 
 import base.span.Span
+import sema.call_args.arrangeArgs
 import sema.check.BOUND_CLONE
 import sema.check.BOUND_DEBUG
 import sema.check.BOUND_EQ
@@ -303,6 +304,27 @@ pub fn inferFinish(c: mut Checker, inf: mut Infer, span: Span) {
     }
 }
 
+// The parameter each argument gives: by name and with defaults for a
+// function (`callee` its `DefId`), by position for a constructor (0).
+fn genericSlots(c: mut Checker, p: Program, callId: int, span: Span, args: &List<Arg>,
+                count: int, callee: int) List<int> {
+    if callee != 0 {
+        return arrangeArgs(c, p, callId, span, args, callee)
+    }
+    if args.len() != count {
+        c.error("E0302", span, "wrong number of arguments: expected {count}, found {args.len()}")
+    }
+    var slots: List<int> = []
+    for i in 0..args.len() {
+        if args[i].name.isSome() {
+            c.error("E0306", args[i].value.span, "this callee has no named parameters: pass "
+                    + "the argument by position")
+        }
+        slots.push(if i < count { i } else { -1 })
+    }
+    return slots
+}
+
 /**
  * Checks the arguments of a generic callee: binds its parameters from the
  * expected type and the arguments, then checks the arguments against the
@@ -317,22 +339,18 @@ pub fn inferFinish(c: mut Checker, inf: mut Infer, span: Span) {
  * @param ret its result type
  * @param inf the inference
  * @param expected the type the context expects
+ * @param callee the function's `DefId`, 0 for a constructor
  * @returns the result type
  */
 pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, args: &List<Arg>,
-                        params: &List<int>, ret: int, inf: mut Infer, expected: int) int {
-    if args.len() != params.len() {
-        c.error("E0302", span, "wrong number of arguments: expected {params.len()}, "
-                + "found {args.len()}")
-    }
+                        params: &List<int>, ret: int, inf: mut Infer, expected: int,
+                        callee: int) int {
+    let slots = genericSlots(c, p, callId, span, args, params.len(), callee)
     inferFrom(c, inf, ret, expected)
     for i in 0..args.len() {
         let arg = &args[i].value
-        if args[i].name.isSome() {
-            c.unsupported(arg.span, "named arguments are")
-        }
-        let param = if i < params.len() { params[i] } else { ERROR }
-        let hint = if i < params.len() { inferHint(c, &inf, param) } else { ERROR }
+        let param = if slots[i] >= 0 { params[slots[i]] } else { ERROR }
+        let hint = if slots[i] >= 0 { inferHint(c, &inf, param) } else { ERROR }
         let found = checkExpr(c, p, arg, hint)
         inferFrom(c, inf, param, found)
     }
@@ -340,8 +358,8 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
     inferFinish(c, inf, span)
     checkBoundArgs(c, p, &inf, span)
     for i in 0..args.len() {
-        if i < params.len() {
-            let wanted = inferApply(c, &inf, params[i])
+        if slots[i] >= 0 {
+            let wanted = inferApply(c, &inf, params[slots[i]])
             let found = c.typeOf(args[i].value.id.0)
             if !coerceToSlice(c, p, &args[i].value, found, wanted) {
                 requireType(c, &args[i].value, found, wanted)
