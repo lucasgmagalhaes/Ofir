@@ -6,6 +6,7 @@
 // declaration, so later phases never see module names.
 
 #include "sema/resolve_internal.h"
+#include "sema/suggest.h"
 
 #include <string.h>
 
@@ -42,6 +43,7 @@ DefId module_member(Resolver *r, uint32_t index, Symbol name, Span span) {
     if (!def || def->in_prelude || def->module != index) {   // no re-exports
         resolve_error(r, "E0200", span, "cannot find `" SV_FMT "` in module `" SV_FMT "`",
                       SV_ARG(resolver_name(r, name)), SV_ARG(module_name(r, index)));
+        suggest_member(r->sema, index, name);
         return (DefId){0};
     }
     if (!def->is_pub) {
