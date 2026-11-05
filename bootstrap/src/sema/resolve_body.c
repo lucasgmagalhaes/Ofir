@@ -6,6 +6,7 @@
 // arm opens a nested one.
 
 #include "sema/resolve_internal.h"
+#include "sema/suggest.h"
 
 #include <string.h>
 
@@ -49,6 +50,7 @@ static Res find(Resolver *r, Symbol name, Span span) {
     }
     resolve_error(r, "E0200", span, "cannot find `" SV_FMT "` in this scope",
                   SV_ARG(resolver_name(r, name)));
+    suggest_name(r->sema, name, SUGGEST_VALUE);
     return (Res){RES_ERROR, 0};
 }
 

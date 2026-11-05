@@ -2,6 +2,7 @@
 // and the arguments of `mut` parameters.
 
 #include "sema/check_internal.h"
+#include "sema/suggest.h"
 
 static StrView name_of(Checker *c, Symbol name) {
     return symbol_name(&c->sema->session->names, name);
@@ -123,6 +124,7 @@ TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type, Typ
         TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = owner.id});
         check_error(c, "E0301", field->span, "no method `" SV_FMT "` on type `%s`",
                     SV_ARG(name_of(c, name)), type_name(c, type));
+        suggest_method(c->sema, sema_def(c->sema, owner)->item, name);
         return skip_args(c, call);
     }
     if (via_type && fn->has_self) {
