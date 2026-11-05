@@ -1,0 +1,80 @@
+// requires: stage1 (Debug and {x:?}, roadmap 5.5)
+struct Point {
+    x: int
+    y: int
+}
+
+struct Meters(int)
+
+struct Empty {}
+
+enum Shape {
+    Circle(f64)
+    Rect(w: int, h: int)
+    Dot
+}
+
+struct Secret {
+    code: int
+
+    fn debug(self, out: mut str) {
+        out = out + "Secret(***)"
+}
+    }
+
+fn show<T: Debug>(value: T) {
+    println("generic {value:?}")
+}
+
+fn main() {
+    let n = 42
+    let s = "a\"b\n\tc"
+    println("{n:?} {s:?} {true:?} {1.5:?}")
+    let p = Point{x: 1, y: 2}
+    println("{p:?}")
+    let m = Meters(5)
+    println("{m:?}")
+    let e = Empty{}
+    println("{e:?}")
+    let t = (1, "x")
+    let one = (7,)
+    println("{t:?} {one:?}")
+    let a = Shape.Circle(2.5)
+    let b = Shape.Rect(3, 4)
+    let c = Shape.Dot
+    println("{a:?} {b:?} {c:?}")
+    let o: Option<int> = Option.Some(3)
+    println("{o:?}")
+    let k = Secret{code: 7}
+    println("{k:?}")
+    show(p)
+    show("hi")
+    more()
+}
+
+fn more() {
+    let xs = [1, 2, 3]
+    let names = ["a", "b"]
+    let nested = [[1], [], [2, 3]]
+    let bx = Box.new(Point{x: 5, y: 6})
+    let ops: List<Option<int>> = [Option.Some(1), Option.None]
+    let r = &xs
+    println("{xs:?} {names:?} {nested:?} {bx:?} {ops:?} {r:?}")
+    let empty: List<int> = []
+    println("{empty:?} {():?}")
+    let s = "{xs:?}!"
+    println(s)
+    var m: Map<str, List<int>> = Map.new()
+    m.insert("a", [1])
+    m.insert("b", [])
+    println("{m:?}")
+    let leaf = Box.new(Tree.Leaf)
+    let right = Tree.Node(Box.new(Tree.Leaf), 2, Box.new(Tree.Leaf))
+    let tree = Tree.Node(leaf, 1, Box.new(right))
+    println("{tree:?} {"\x01\x7f\r\0\\":?}")
+}
+
+enum Tree {
+    Leaf
+    Node(Box<Tree>, int, Box<Tree>)
+}

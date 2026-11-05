@@ -8,5 +8,4 @@ fn main() {
     let _c = "{s:05}" // error[E0357]: the format specifier `05` does not apply to a value of type `str`
     let _d = "{n:5q}" // error[E0357]: invalid format specifier `5q`
     let _e = "{n:<}" // error[E0357]: invalid format specifier `<`
-    let _f = "{n:?}" // error[E0901]: the debug format `?` is not supported yet
 }

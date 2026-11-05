@@ -21,6 +21,8 @@ extern "intrinsic" {
     // checker restricts `sort`); bounds replace it (roadmap 5.2).
     fn lessThan<T>(a: T, b: T) bool
     fn cloneOf<T>(value: T) T     // what `value.clone()` does for any `T` (roadmap 3.3)
+    // Appends the debug representation of `value` (`{x:?}`, spec 9.9).
+    fn debugOf<T>(value: T, out: mut str)
 }
 
 /**
@@ -393,6 +395,25 @@ pub struct List<T> {
             }
         }
         return out
+    }
+
+    /**
+     * Appends the debug representation of the list, `[1, 2, 3]`: what
+     * `{list:?}` shows (spec 9.9).
+     *
+     * @param out the string written to
+     */
+    pub fn debug(self, out: mut str) {
+        out.push("[")
+        for i in 0..self.len {
+            if i > 0 {
+                out.push(", ")
+            }
+            unsafe {
+                debugOf(*self.ptr.add(i), out)
+            }
+        }
+        out.push("]")
     }
 
     /**

@@ -15,6 +15,8 @@ extern "intrinsic" {
     // type: int, bool, str or tuples of them until bounds (roadmap 5.2).
     fn hashOf<K>(key: K) u64
     fn equals<K>(a: K, b: K) bool
+    // Appends the debug representation of `value` (`{x:?}`, spec 9.9).
+    fn debugOf<T>(value: T, out: mut str)
 }
 
 // A slot of the table: the position of an entry, or one of these.
@@ -76,6 +78,25 @@ pub struct Map<K, V> {
      */
     pub fn len(self) int {
         return self.entries.len()
+    }
+
+    /**
+     * Appends the debug representation of the map, `{1: "a", 2: "b"}` in
+     * insertion order: what `{map:?}` shows (spec 9.9).
+     *
+     * @param out the string written to
+     */
+    pub fn debug(self, out: mut str) {
+        out.push("\{")
+        for i in 0..self.entries.len() {
+            if i > 0 {
+                out.push(", ")
+            }
+            debugOf(self.entries[i].key, out)
+            out.push(": ")
+            debugOf(self.entries[i].value, out)
+        }
+        out.push("\}")
     }
 
     /**

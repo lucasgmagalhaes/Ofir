@@ -127,13 +127,16 @@ pub const BOUND_HASH: int = 4
 pub const BOUND_CLONE: int = 8
 /** `Copy`: the arguments are Copy types (spec 2.9). */
 pub const BOUND_COPY: int = 16
+/** `Debug`: `{x:?}` (spec 9.9). */
+pub const BOUND_DEBUG: int = 32
 
 /**
  * The bit of the built-in interface a bound names, or 0.
  *
  * @param c the checker
  * @param t the bound
- * @returns `BOUND_EQ`, `BOUND_ORD`, `BOUND_HASH`, `BOUND_CLONE`, `BOUND_COPY` or 0
+ * @returns `BOUND_EQ`, `BOUND_ORD`, `BOUND_HASH`, `BOUND_CLONE`, `BOUND_COPY`,
+ *          `BOUND_DEBUG` or 0
  */
 pub fn boundBit(c: Checker, t: &TypeExpr) int {
     let name = match t.kind {
@@ -157,6 +160,8 @@ pub fn boundBit(c: Checker, t: &TypeExpr) int {
         BOUND_CLONE
     } else if text == "Copy" {
         BOUND_COPY
+    } else if text == "Debug" {
+        BOUND_DEBUG
     } else {
         0
     }
