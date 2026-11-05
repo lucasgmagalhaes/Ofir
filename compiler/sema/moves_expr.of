@@ -360,8 +360,11 @@ pub fn usePlace(m: mut Moves, c: mut Checker, place: &Place, s: mut State, span:
         moveError(m, c, "E0601", span, "use of possibly uninitialized variable "
                   + "`{localName(c, local)}`")
     } else if s.movedPart(&place.part) {
-        moveError(m, c, "E0600", span, "use of moved value `{localName(c, local)}`: it was "
-                  + "moved before; clone it, or move a copy")
+        let name = localName(c, local)
+        moveError(m, c, "E0600", span, "use of moved value `{name}`")
+        if m.report {
+            c.r.diags.help("`{name}` was moved before: clone it there if both copies are needed")
+        }
     }
 }
 

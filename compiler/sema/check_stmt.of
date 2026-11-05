@@ -116,8 +116,10 @@ fn checkPlace(c: mut Checker, p: Program, target: &Expr) {
     match nameRes(c, target) {
         Res.Local(id) => {
             if !c.locals[id].mutable {
+                let name = c.text(c.locals[id].name)
                 c.error("E0304", target.span, "cannot assign twice to immutable variable "
-                        + "`{c.text(c.locals[id].name)}`")
+                        + "`{name}`")
+                c.r.diags.help("declare it with `var {name}` to assign to it again")
             }
             noteWrite(c, target.span, id)
         }
