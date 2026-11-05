@@ -1,0 +1,47 @@
+// ADR 0028: a variant is always named through its enum.
+
+enum Shape {
+    Circle(radius: float)
+    Empty
+}
+
+fn shorthand() Shape {
+    return .Empty                 // error[E0326]: a variant is named through its enum: write `Shape.Empty`
+}
+
+fn shorthandCall() Shape {
+    return .Circle(1.0)           // error[E0326]: a variant is named through its enum: write `Shape.Circle`
+}
+
+fn shorthandPattern(s: Shape) int {
+    return match s {
+        .Circle(_) => 1           // error[E0326]: a variant is named through its enum: write `Shape.Circle`
+        Shape.Empty => 0
+    }
+}
+
+fn bareNone() Option<int> {
+    return None                   // error[E0326]: a variant is named through its enum: write `Option.None`
+}
+
+fn bareSome() Option<int> {
+    return Some(1)                // error[E0326]: a variant is named through its enum: write `Option.Some`
+}
+
+fn bareErr() Result<int, str> {
+    return Err("no")              // error[E0326]: a variant is named through its enum: write `Result.Err`
+}
+
+fn barePattern(o: Option<int>) int {
+    return match o {
+        Some(n) => n              // error[E0326]: a variant is named through its enum: write `Option.Some`
+        Option.None => 0
+    }
+}
+
+fn bareLet(r: Result<int, str>) int {
+    if let Ok(n) = r {            // error[E0326]: a variant is named through its enum: write `Result.Ok`
+        return n
+    }
+    return 0
+}

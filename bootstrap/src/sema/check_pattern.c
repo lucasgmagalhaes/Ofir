@@ -86,6 +86,9 @@ static void variant_pattern(Checker *c, Pattern *p, TypeId type) {
         return;
     }
     p->as.variant.index = (uint32_t)index;
+    if (p->as.variant.path.len == 0) {   // `.Some(x)` or a bare `Some(x)`
+        unqualified_variant(c, p->span, id, p->as.variant.name);
+    }
     const VariantInfo *v = &info->variants[index];
     if (p->as.variant.has_args || v->count > 0) {
         check_list(c, p->as.variant.args, field_types(c, type, index, v->count), v->count,

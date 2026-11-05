@@ -10,10 +10,10 @@ struct Point {
 }
 
 fn nested(r: Result<int, Error>) int {
-    return match r {             // error[E0500]: non-exhaustive `match`: `Err(.TooLarge)` is not covered
-        Ok(n) => n
-        Err(.Empty) => 0
-        Err(.BadDigit(_)) => 1
+    return match r {             // error[E0500]: non-exhaustive `match`: `Result.Err(Error.TooLarge)` is not covered
+        Result.Ok(n) => n
+        Result.Err(Error.Empty) => 0
+        Result.Err(Error.BadDigit(_)) => 1
     }
 }
 
@@ -25,9 +25,9 @@ fn pairs(a: bool, b: bool) int {
 }
 
 fn options(o: Option<Option<int>>) int {
-    return match o {             // error[E0500]: non-exhaustive `match`: `Some(None)` is not covered
-        Some(Some(n)) => n
-        None => 0
+    return match o {             // error[E0500]: non-exhaustive `match`: `Option.Some(Option.None)` is not covered
+        Option.Some(Option.Some(n)) => n
+        Option.None => 0
     }
 }
 
@@ -39,9 +39,9 @@ fn fields(p: Point) int {
 }
 
 fn guarded(n: Option<int>) int {
-    return match n {             // error[E0500]: non-exhaustive `match`: `Some(_)` is not covered
-        Some(v) if v > 0 => v
-        None => 0
+    return match n {             // error[E0500]: non-exhaustive `match`: `Option.Some(_)` is not covered
+        Option.Some(v) if v > 0 => v
+        Option.None => 0
     }
 }
 
@@ -54,9 +54,9 @@ fn numbers(n: int) str {
 
 fn unreachable(o: Option<int>) int {
     return match o {
-        Some(n) => n
-        None => 0
-        Some(5) => 5             // warning[W0004]: unreachable `match` arm: the arms before it match every value
+        Option.Some(n) => n
+        Option.None => 0
+        Option.Some(5) => 5             // warning[W0004]: unreachable `match` arm: the arms before it match every value
     }
 }
 

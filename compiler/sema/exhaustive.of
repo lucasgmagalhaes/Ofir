@@ -14,12 +14,15 @@
  */
 
 import sema.check.Checker
+import sema.def.DefKind
+import sema.def.Res
 import sema.enums.variantsOf
 import sema.program.Program
 import sema.structs.fieldsOf
 import sema.structs.structFieldType
 import sema.structs.variantFieldType
 import sema.types.ERROR
+import sema.types.TyKind
 import syntax.ast.Expr
 import syntax.ast.ExprKind
 import syntax.ast.MatchArm
@@ -39,16 +42,16 @@ const OPAQUE: int = -2
 
 fn head(p: &Pat) int {
     return match *p {
-        .Wild => WILD
-        .Opaque => OPAQUE
-        .Ctor(index, _) => index
-        .Or(_) => WILD   // never asked: rows are split first
+        Pat.Wild => WILD
+        Pat.Opaque => OPAQUE
+        Pat.Ctor(index, _) => index
+        Pat.Or(_) => WILD   // never asked: rows are split first
     }
 }
 
 fn fieldOf(p: &Pat, i: int) Pat {
     return match *p {
-        .Ctor(_, fields) => if i < fields.len() { fields[i].clone() } else { Pat.Wild }
+        Pat.Ctor(_, fields) => if i < fields.len() { fields[i].clone() } else { Pat.Wild }
         _ => Pat.Wild
     }
 }
@@ -63,28 +66,28 @@ fn fieldOf(p: &Pat, i: int) Pat {
  */
 fn toPat(c: mut Checker, p: Program, pattern: &Pattern) Pat {
     let isPrelude = match c.res(pattern.id.0) {
-        .Def(_) => true
+        Res.Def(_) => true
         _ => false
     }
     let variant = c.members[c.module()][pattern.id.0]
     return match pattern.kind {
-        .Wildcard => Pat.Wild
-        .Binding(_, _) => if isPrelude { Pat.Ctor(index(variant), []) } else { Pat.Wild }
-        .Variant(_, _, args, _) => Pat.Ctor(index(variant), toPats(c, p, &args))
-        .Tuple(items) => Pat.Ctor(0, toPats(c, p, &items))
-        .TupleStruct(_, args) => {
+        PatternKind.Wildcard => Pat.Wild
+        PatternKind.Binding(_, _) => if isPrelude { Pat.Ctor(index(variant), []) } else { Pat.Wild }
+        PatternKind.Variant(_, _, args, _) => Pat.Ctor(index(variant), toPats(c, p, &args))
+        PatternKind.Tuple(items) => Pat.Ctor(0, toPats(c, p, &items))
+        PatternKind.TupleStruct(_, args) => {
             Pat.Ctor(if isPrelude { index(variant) } else { 0 }, toPats(c, p, &args))
         }
-        .Struct(_, fields, _) => {
+        PatternKind.Struct(_, fields, _) => {
             let ty = c.typeOf(pattern.id.0)
             var out: List<Pat> = []
-            if c.types.kind(ty) == .Adt && c.info[c.types.get(ty).data].fields.isSome() {
+            if c.types.kind(ty) == TyKind.Adt && c.info[c.types.get(ty).data].fields.isSome() {
                 let names = fieldsOf(c, c.types.get(ty).data).names.clone()
                 for i in 0..names.len() {
                     var found = Pat.Wild
                     for f in 0..fields.len() {
                         if fields[f].name.0 == names[i].0 {
-                            if let .Some(inner) = fields[f].pattern {
+                            if let Option.Some(inner) = fields[f].pattern {
                                 found = toPat(c, p, &inner)
                             }
                         }
@@ -94,12 +97,12 @@ fn toPat(c: mut Checker, p: Program, pattern: &Pattern) Pat {
             }
             Pat.Ctor(0, out)
         }
-        .Literal(value) => match value.kind {
-            .Bool(b) => Pat.Ctor(if b { 1 } else { 0 }, [])
+        PatternKind.Literal(value) => match value.kind {
+            ExprKind.Bool(b) => Pat.Ctor(if b { 1 } else { 0 }, [])
             _ => Pat.Opaque
         }
-        .Range(_, _, _) => Pat.Opaque
-        .Or(alternatives) => Pat.Or(toPats(c, p, &alternatives))
+        PatternKind.Range(_, _, _) => Pat.Opaque
+        PatternKind.Or(alternatives) => Pat.Or(toPats(c, p, &alternatives))
     }
 }
 
@@ -122,19 +125,19 @@ fn toPats(c: mut Checker, p: Program, list: &List<Pattern>) List<Pat> {
 // The number of constructors of a type, 0 when there are infinitely many.
 fn ctorCount(c: Checker, ty: int) int {
     let t = c.types.get(ty)
-    if t.kind == .Bool {
+    if t.kind == TyKind.Bool {
         return 2
     }
-    if t.kind == .Tuple || t.kind == .Unit {
+    if t.kind == TyKind.Tuple || t.kind == TyKind.Unit {
         return 1
     }
-    if t.kind != .Adt {
+    if t.kind != TyKind.Adt {
         return 0
     }
-    if c.def(t.data).kind == .Enum {
+    if c.def(t.data).kind == DefKind.Enum {
         return match c.info[t.data].variants {
-            .Some(info) => info.variants.len()
-            .None => 0
+            Option.Some(info) => info.variants.len()
+            Option.None => 0
         }
     }
     return if c.info[t.data].fields.isSome() { 1 } else { 0 }
@@ -142,13 +145,13 @@ fn ctorCount(c: Checker, ty: int) int {
 
 fn arity(c: Checker, ty: int, ctor: int) int {
     let t = c.types.get(ty)
-    if t.kind == .Tuple {
+    if t.kind == TyKind.Tuple {
         return t.args.len()
     }
-    if t.kind != .Adt {
+    if t.kind != TyKind.Adt {
         return 0   // bool, ()
     }
-    if c.def(t.data).kind == .Enum {
+    if c.def(t.data).kind == DefKind.Enum {
         return variantsOf(c, t.data).variants[ctor].types.len()
     }
     return fieldsOf(c, t.data).types.len()
@@ -156,10 +159,10 @@ fn arity(c: Checker, ty: int, ctor: int) int {
 
 fn fieldType(c: mut Checker, p: Program, ty: int, ctor: int, i: int) int {
     let t = c.types.get(ty)
-    if t.kind == .Tuple {
+    if t.kind == TyKind.Tuple {
         return t.args[i]
     }
-    if c.def(t.data).kind == .Enum {
+    if c.def(t.data).kind == DefKind.Enum {
         return variantFieldType(c, p, ty, ctor, i)
     }
     return structFieldType(c, p, ty, i)
@@ -247,25 +250,24 @@ fn ctorText(c: Checker, ty: int, ctor: int, fields: &List<str>, count: int) str 
     let t = c.types.get(ty)
     var text = ""
     var n = count
-    if t.kind == .Bool {
+    if t.kind == TyKind.Bool {
         text.push(if ctor != 0 { "true" } else { "false" })
-    } else if t.kind == .Adt {
-        let isEnum = c.def(t.data).kind == .Enum
-        let prelude = t.data == c.r.langItems[2] || t.data == c.r.langItems[3]
-        let name = if isEnum { variantsOf(c, t.data).variants[ctor].name } else {
-            c.def(t.data).name
-        }
-        if isEnum && !prelude {
+    } else if t.kind == TyKind.Adt {
+        let isEnum = c.def(t.data).kind == DefKind.Enum
+        if isEnum {   // `Shape.Empty` (ADR 0028)
+            text.push(c.text(c.def(t.data).name))
             text.push(".")
+            text.push(c.text(variantsOf(c, t.data).variants[ctor].name))
+        } else {
+            text.push(c.text(c.def(t.data).name))
         }
-        text.push(c.text(name))
         let named = !isEnum && !fieldsOf(c, t.data).isTuple
         if named {
             text.push(if n > 0 { "\{..\}" } else { "\{\}" })
             n = 0
         }
     }
-    if n > 0 || t.kind == .Tuple || t.kind == .Unit {
+    if n > 0 || t.kind == TyKind.Tuple || t.kind == TyKind.Unit {
         text.push("(")
         for i in 0..n {
             if i > 0 {
@@ -289,14 +291,14 @@ fn usefulCtor(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>, ty
     for i in 1..types.len() {
         sub.push(types[i])
     }
-    let Some(w) = useful(c, p, &specialize(m, ctor, n), &specializeRow(q, n), &sub) else {
-        return .None
+    let Option.Some(w) = useful(c, p, &specialize(m, ctor, n), &specializeRow(q, n), &sub) else {
+        return Option.None
     }
     var out: List<str> = [ctorText(c, types[0], ctor, &w, n)]
     for i in n..w.len() {
         out.push(w[i].clone())
     }
-    return .Some(out)
+    return Option.Some(out)
 }
 
 // `q` with a wildcard at its head.
@@ -314,14 +316,14 @@ fn usefulWild(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>,
     }
     if count > 0 && seen == count {   // complete: some constructor must be useful
         for ctor in 0..count {
-            if let .Some(w) = usefulCtor(c, p, m, q, types, ctor) {
-                return .Some(w)
+            if let Option.Some(w) = usefulCtor(c, p, m, q, types, ctor) {
+                return Option.Some(w)
             }
         }
-        return .None
+        return Option.None
     }
-    let Some(w) = useful(c, p, &defaultRows(m), &tail(q, 1), &tailInts(types, 1)) else {
-        return .None
+    let Option.Some(w) = useful(c, p, &defaultRows(m), &tail(q, 1), &tailInts(types, 1)) else {
+        return Option.None
     }
     var first = "_".toOwned()
     if seen > 0 {
@@ -337,38 +339,38 @@ fn usefulWild(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>,
     for i in 0..w.len() {
         out.push(w[i].clone())
     }
-    return .Some(out)
+    return Option.Some(out)
 }
 
 // A witness that `q` is useful after `m`.
 fn useful(c: mut Checker, p: Program, m: &List<List<Pat>>, q: &List<Pat>,
           types: &List<int>) Option<List<str>> {
     if q.len() == 0 {
-        return if m.len() == 0 { .Some([]) } else { .None }
+        return if m.len() == 0 { Option.Some([]) } else { Option.None }
     }
     if let Pat.Or(alternatives) = q[0] {
         for i in 0..alternatives.len() {
             var alt = q.clone()
             alt[0] = alternatives[i].clone()
-            if let .Some(w) = useful(c, p, m, &alt, types) {
-                return .Some(w)
+            if let Option.Some(w) = useful(c, p, m, &alt, types) {
+                return Option.Some(w)
             }
         }
-        return .None
+        return Option.None
     }
     let h = head(&q[0])
     if h == WILD {
         return usefulWild(c, p, m, q, types)
     }
     if h == OPAQUE {   // a literal or range: only the wildcard rows surely cover it
-        let Some(w) = useful(c, p, &defaultRows(m), &tail(q, 1), &tailInts(types, 1)) else {
-            return .None
+        let Option.Some(w) = useful(c, p, &defaultRows(m), &tail(q, 1), &tailInts(types, 1)) else {
+            return Option.None
         }
         var out: List<str> = ["_".toOwned()]
         for i in 0..w.len() {
             out.push(w[i].clone())
         }
-        return .Some(out)
+        return Option.Some(out)
     }
     return usefulCtor(c, p, m, q, types, h)
 }
@@ -401,7 +403,7 @@ pub fn checkExhaustive(c: mut Checker, p: Program, e: &Expr, arms: &List<MatchAr
         }
     }
     let wild: List<Pat> = [Pat.Wild]
-    if let .Some(w) = useful(c, p, &m, &wild, &types) {
+    if let Option.Some(w) = useful(c, p, &m, &wild, &types) {
         c.error("E0500", e.span, "non-exhaustive `match`: `{w[0]}` is not covered")
     }
 }
