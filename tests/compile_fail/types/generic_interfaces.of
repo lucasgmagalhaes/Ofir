@@ -1,0 +1,51 @@
+// requires: stage1
+// Generic interfaces (spec 9.5): wrong arity, type arguments a type does
+// not meet, and what is not supported yet.
+
+interface Source<T> {
+    fn next(mut self) Option<T>
+}
+
+interface Both<T> {
+    Source<T>                   // error[E0901]: embedded generic interfaces are not supported yet
+    fn reset(mut self)
+}
+
+struct Words {
+    items: List<str>
+
+    fn next(mut self) Option<str> {
+        return Option.None
+    }
+}
+
+struct Wrong: Source<str> {     // error[E0335]: the type `Wrong` does not satisfy `Source<str>`: method `next` has a different signature
+    fn next(mut self) Option<int> {
+        return Option.None
+    }
+}
+
+struct Bare: Source {           // error[E0302]: wrong number of type arguments for `Source`: expected 1, found 0
+    fn next(mut self) Option<int> {
+        return Option.None
+    }
+}
+
+fn total<S: Source<int>>(s: mut S) int {
+    return 0
+}
+
+fn count<S, T>(s: mut S) int where S: Source<T> {
+    return 0
+}
+
+fn twice<S: Source<int, str>>(s: S) int {   // error[E0302]: wrong number of type arguments for `Source`: expected 1, found 2
+    return 0
+}
+
+fn main() {
+    var w = Words{items: []}
+    let a = total(w)            // error[E0332]: the type `Words` does not satisfy the bound `Source<int>` of `S`: method `next` has a different signature
+    let b = count(w)
+    let d: dyn Source<str> = w  // error[E0901]: `dyn` of generic interfaces is not supported yet
+}

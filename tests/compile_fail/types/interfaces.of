@@ -6,10 +6,6 @@ interface Shape {
     fn area(self) float
 }
 
-interface Generic<T> {          // error[E0901]: generic interfaces are not supported yet
-    fn get(self) T
-}
-
 interface Both {
     Shape
     Point                       // error[E0333]: `Point` is not an interface

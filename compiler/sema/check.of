@@ -31,6 +31,8 @@ import sema.enums.EnumInfo
 import sema.enums.checkEnumLayouts
 import sema.enums.enumVariants
 import sema.expr_check.checkConst
+import sema.interfaces.interfaceArity
+import sema.interfaces.interfaceText
 import sema.interfaces.unsatisfied
 import sema.moves.FnMoves
 import sema.moves.checkMoves
@@ -93,6 +95,8 @@ pub struct Generics {
     pub bounds: List<int>
     /** The interfaces each parameter is bounded by, as `DefId`s (spec 9.6). */
     pub ifaces: List<List<int>>
+    /** The type arguments of each of those interfaces, as a tuple type (`UNIT` for none). */
+    pub ifaceArgs: List<List<int>>
     /** Actual arguments when expanding an alias; empty for generic declarations. */
     pub aliasArgs: List<int>
 }
@@ -103,7 +107,8 @@ pub struct Generics {
  * @returns the empty generics
  */
 pub fn noGenerics() Generics {
-    return Generics{owner: [], fnParams: [], bounds: [], ifaces: [], aliasArgs: []}
+    return Generics{owner: [], fnParams: [], bounds: [], ifaces: [], ifaceArgs: [],
+                    aliasArgs: []}
 }
 
 /** The built-in interfaces a bound can name until interfaces (roadmap 5.3), as bits. */
@@ -189,11 +194,7 @@ pub fn boundedParam(t: &TypeExpr, owner: &List<Symbol>, fnParams: &List<Symbol>)
  */
 pub fn interfaceOf(c: Checker, t: &TypeExpr) int {
     return match t.kind {
-        TypeKind.Path(segments, args) => if args.len() == 0 {
-            interfaceAt(c, &segments)
-        } else {
-            0
-        }
+        TypeKind.Path(segments, _) => interfaceAt(c, &segments)
         _ => 0
     }
 }
@@ -221,21 +222,61 @@ fn noIfaces(n: int) List<List<int>> {
     return ifaces
 }
 
-fn addBounds(c: Checker, preds: &List<WherePred>, owner: &List<Symbol>,
-             fnParams: &List<Symbol>, bounds: mut List<int>, ifaces: mut List<List<int>>) {
+// The bounds of `preds`, added to `g`, whose parameters are already set.
+fn addBounds(c: mut Checker, p: Program, preds: &List<WherePred>, g: mut Generics) {
     for i in 0..preds.len() {
-        let index = boundedParam(&preds[i].ty, owner, fnParams)
+        let index = boundedParam(&preds[i].ty, &g.owner, &g.fnParams)
         if index < 0 {
             continue   // E0334, reported with the declaration
         }
         for j in 0..preds[i].bounds.len() {
-            bounds[index] = bounds[index] | boundBit(c, &preds[i].bounds[j])
+            g.bounds[index] = g.bounds[index] | boundBit(c, &preds[i].bounds[j])
             let iface = interfaceOf(c, &preds[i].bounds[j])
             if iface != 0 {
-                ifaces[index].push(iface)
+                g.ifaces[index].push(iface)
+                let args = boundArgs(c, p, &preds[i].bounds[j], &g)
+                g.ifaceArgs[index].push(args)
             }
         }
     }
+}
+
+/**
+ * The type arguments of an interface named as a bound, `Iterator<T>`, as a
+ * tuple type, resolved once with the parameters of the declaration.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param t the bound
+ * @param g the declaration's parameters
+ * @returns the tuple, or `UNIT` when it has none
+ */
+pub fn boundArgs(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
+    let list = match t.kind {
+        TypeKind.Path(_, args) => args.clone()
+        _ => {
+            return UNIT
+        }
+    }
+    if list.len() == 0 {
+        return UNIT
+    }
+    let key = (t.span.file.0, t.span.start)
+    if let Option.Some(known) = c.boundArgs.get(key) {
+        return *known
+    }
+    let inner = Generics{owner: g.owner.clone(), fnParams: g.fnParams.clone(), bounds: [],
+                         ifaces: [], ifaceArgs: [], aliasArgs: []}
+    let saved = c.enterGenerics(inner)
+    var types: List<int> = []
+    for i in 0..list.len() {
+        let ty = resolveType(c, p, &list[i])
+        types.push(ty)
+    }
+    c.enterGenerics(saved)
+    let tuple = c.types.tuple(types)
+    c.boundArgs.insert(key, tuple)
+    return tuple
 }
 
 /**
@@ -264,20 +305,47 @@ pub fn interfaceDef(c: Checker, item: &Item) int {
  * @param item the item
  * @returns them
  */
-pub fn typeGenerics(c: Checker, item: &Item) Generics {
+pub fn typeGenerics(c: mut Checker, p: Program, item: &Item) Generics {
     let owner = itemTypeParams(item)
-    var bounds = List.filled(0, owner.len())
-    var ifaces = noIfaces(owner.len())
-    let none: List<Symbol> = []
-    addBounds(c, &item.bounds, &owner, &none, bounds, ifaces)
+    var g = Generics{owner: owner.clone(), fnParams: [], bounds: List.filled(0, owner.len()),
+                     ifaces: noIfaces(owner.len()), ifaceArgs: noIfaces(owner.len()),
+                     aliasArgs: []}
+    addBounds(c, p, &item.bounds, g)
     let isInterface = match item.kind {
         ItemKind.Interface(_, _, _) => true
         _ => false
     }
     if isInterface {   // `Self` satisfies the interface it is declared in
-        ifaces[0].push(interfaceDef(c, item))
+        g.ifaces[0].push(interfaceDef(c, item))
+        g.ifaceArgs[0].push(ownArgs(c, &owner))
     }
-    return Generics{owner, fnParams: [], bounds, ifaces, aliasArgs: []}
+    return g
+}
+
+/**
+ * The type parameters of the struct, enum or interface `id`, with their
+ * bounds, read in its module.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id its `DefId`
+ * @returns them
+ */
+pub fn typeGenericsOf(c: mut Checker, p: Program, id: int) Generics {
+    let saved = c.enter(c.def(id).module)
+    let g = typeGenerics(c, p, itemOf(p, c.loc(id)))
+    c.enter(saved)
+    return g
+}
+
+// The arguments an interface's own parameters stand for inside it: the
+// parameters themselves, after `Self`.
+fn ownArgs(c: mut Checker, owner: &List<Symbol>) int {
+    var params: List<int> = []
+    for i in 1..owner.len() {
+        params.push(c.types.param(i, owner[i].0))
+    }
+    return c.types.tuple(params)
 }
 
 /**
@@ -285,24 +353,27 @@ pub fn typeGenerics(c: Checker, item: &Item) Generics {
  * its own, with their bounds and those of its `where` clause.
  *
  * @param c the checker
+ * @param p the program
  * @param outer the type's parameters
  * @param decl the function
  * @returns them
  */
-pub fn fnGenericsIn(c: Checker, outer: &Generics, decl: &FnDecl) Generics {
-    var bounds = List.filled(0, outer.owner.len() + decl.typeParams.len())
-    var ifaces = noIfaces(outer.owner.len() + decl.typeParams.len())
+pub fn fnGenericsIn(c: mut Checker, p: Program, outer: &Generics, decl: &FnDecl) Generics {
+    let n = outer.owner.len() + decl.typeParams.len()
+    var g = Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(),
+                     bounds: List.filled(0, n), ifaces: noIfaces(n), ifaceArgs: noIfaces(n),
+                     aliasArgs: []}
     for i in 0..outer.owner.len() {
         if i < outer.bounds.len() {
-            bounds[i] = outer.bounds[i]
+            g.bounds[i] = outer.bounds[i]
         }
         if i < outer.ifaces.len() {
-            ifaces[i] = outer.ifaces[i].clone()
+            g.ifaces[i] = outer.ifaces[i].clone()
+            g.ifaceArgs[i] = outer.ifaceArgs[i].clone()
         }
     }
-    addBounds(c, &decl.bounds, &outer.owner, &decl.typeParams, bounds, ifaces)
-    return Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(), bounds,
-                    ifaces, aliasArgs: []}
+    addBounds(c, p, &decl.bounds, g)
+    return g
 }
 
 /**
@@ -372,6 +443,9 @@ pub struct Checker {
     /** Per module, per closure `NodeId`: the captured locals it modifies,
      * captured by `&mut` (spec 10.3). */
     pub capturesMut: List<Map<int, List<int>>>
+    /** The type arguments of the interfaces named as bounds, by the bound's file and
+     * offset: a tuple type (see `boundArgs`). */
+    pub boundArgs: Map<(int, int), int>
 
     /**
      * Reports an error.
@@ -738,7 +812,8 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
                    bodyChecked: Map.new(), movesPending: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
-                   shorthandSpan: noSpan(), closures: [], closureMoves: [], capturesMut}
+                   shorthandSpan: noSpan(), closures: [], closureMoves: [], capturesMut,
+                   boundArgs: Map.new()}
 }
 
 // ---------------------------------------------------------------------------
@@ -755,9 +830,9 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
  */
 pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
     let decl = fnOf(p, c.loc(id))
-    let inner = fnGenericsIn(c, &c.generics, decl)
+    let inner = fnGenericsIn(c, p, &c.generics.clone(), decl)
     let outer = c.enterGenerics(inner)
-    checkDeclBounds(c, &decl.bounds)
+    checkDeclBounds(c, p, &decl.bounds)
     let sig = fnSignature(c, p, id)
     checkBorrowSource(c, p, id, sig, selfType)   // what callers need, now
     c.enterGenerics(outer)
@@ -798,7 +873,7 @@ pub fn checkLate(c: mut Checker, p: Program, id: int) {
         }
         if isType {
             selfType = ownerTypeOf(c, p, module, c.def(id).item)
-            owner = typeGenerics(c, itemOf(p, c.loc(id)))
+            owner = typeGenericsOf(c, p, id)
         }
     }
     let outer = c.enterGenerics(owner)
@@ -830,7 +905,7 @@ fn lateMoves(c: mut Checker, p: Program, id: int) {
 fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
     c.bodyChecked.insert(id, true)
     let decl = fnOf(p, c.loc(id))
-    let inner = fnGenericsIn(c, &c.generics, decl)
+    let inner = fnGenericsIn(c, p, &c.generics.clone(), decl)
     let outer = c.enterGenerics(inner)
     let sig = fnSignature(c, p, id)
     let locals = c.r.tables[c.module()].fnLocals.get(decl.id.0)
@@ -886,7 +961,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
 fn checkMethods(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>) {
     let item = &p.modules[c.module()].module.items[index]
     let selfType = ownerTypeOf(c, p, c.module(), index)
-    let outer = c.enterGenerics(typeGenerics(c, item))
+    let outer = c.enterGenerics(typeGenerics(c, p, item))
     for i in 0..methods.len() {
         let def = c.r.tables[c.module()].fnDefs[methods[i].id.0]
         if def != 0 {
@@ -922,9 +997,10 @@ fn checkExtern(c: mut Checker, p: Program, item: &Item, abi: str, fns: &List<FnD
  * interface (E0333).
  *
  * @param c the checker, with the declaration's parameters in scope
+ * @param p the program
  * @param preds the bounds
  */
-pub fn checkDeclBounds(c: mut Checker, preds: &List<WherePred>) {
+pub fn checkDeclBounds(c: mut Checker, p: Program, preds: &List<WherePred>) {
     for i in 0..preds.len() {
         let pred = &preds[i]
         if boundedParam(&pred.ty, &c.generics.owner, &c.generics.fnParams) < 0 {
@@ -932,17 +1008,19 @@ pub fn checkDeclBounds(c: mut Checker, preds: &List<WherePred>) {
                     + "parameter of this declaration: only type parameters take bounds")
         }
         for j in 0..pred.bounds.len() {
-            if boundBit(c, &pred.bounds[j]) == 0 && interfaceOf(c, &pred.bounds[j]) == 0 {
+            let iface = interfaceOf(c, &pred.bounds[j])
+            if boundBit(c, &pred.bounds[j]) == 0 && iface == 0 {
                 c.error("E0333", pred.bounds[j].span, "`{typeText(&pred.bounds[j], c.r.names)}` "
                         + "is not an interface")
             }
+            checkArity(c, p, &pred.bounds[j], iface)
         }
     }
 }
 
-fn checkTypeBounds(c: mut Checker, item: &Item) {
-    let outer = c.enterGenerics(typeGenerics(c, item))
-    checkDeclBounds(c, &item.bounds)
+fn checkTypeBounds(c: mut Checker, p: Program, item: &Item) {
+    let outer = c.enterGenerics(typeGenerics(c, p, item))
+    checkDeclBounds(c, p, &item.bounds)
     c.enterGenerics(outer)
 }
 
@@ -962,7 +1040,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
         }
         ItemKind.Extern(abi, fns) => checkExtern(c, p, item, abi, &fns)
         ItemKind.Struct(_, _, _, _, _, methods) => {
-            checkTypeBounds(c, item)
+            checkTypeBounds(c, p, item)
             if id != 0 {
                 structFields(c, p, id)
                 checkStructLayouts(c, p, id)
@@ -971,7 +1049,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
             checkAsserts(c, p, index)
         }
         ItemKind.Enum(_, _, _, methods) => {
-            checkTypeBounds(c, item)
+            checkTypeBounds(c, p, item)
             if id != 0 {
                 enumVariants(c, p, id)
                 checkEnumLayouts(c, p, id)
@@ -989,28 +1067,56 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
     }
 }
 
-// An interface: not generic beyond `Self`, embedding only interfaces, with
-// its default methods checked once, generically over `Self`.
+// An interface: embedding only interfaces, with its default methods checked
+// once, generically over `Self` and its parameters.
 fn checkInterface(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>) {
     let item = &p.modules[c.module()].module.items[index]
-    if itemTypeParams(item).len() > 1 {
-        c.unsupported(item.span, "generic interfaces are")
-        return
-    }
     match item.kind {
-        ItemKind.Interface(_, embeds, _) => notInterfaces(c, &embeds)
+        ItemKind.Interface(_, embeds, _) => {
+            notInterfaces(c, p, &embeds)
+            for i in 0..embeds.len() {
+                if typeArgCount(&embeds[i]) > 0 {
+                    c.unsupported(embeds[i].span, "embedded generic interfaces are")
+                }
+            }
+        }
         _ => {}
     }
     checkMethods(c, p, index, methods)
 }
 
-// E0333 for each type named where only interfaces go.
-fn notInterfaces(c: mut Checker, list: &List<TypeExpr>) {
+// E0333 for each type named where only interfaces go, E0302 for each
+// interface given the wrong number of type arguments.
+fn notInterfaces(c: mut Checker, p: Program, list: &List<TypeExpr>) {
     for i in 0..list.len() {
-        if interfaceOf(c, &list[i]) == 0 {
+        let iface = interfaceOf(c, &list[i])
+        if iface == 0 {
             c.error("E0333", list[i].span, "`{typeText(&list[i], c.r.names)}` is not an "
                     + "interface")
         }
+        checkArity(c, p, &list[i], iface)
+    }
+}
+
+// The number of type arguments a path is written with.
+fn typeArgCount(t: &TypeExpr) int {
+    return match t.kind {
+        TypeKind.Path(_, args) => args.len()
+        _ => 0
+    }
+}
+
+// E0302 unless interface `iface`, named by `t`, is given one type argument
+// per parameter.
+fn checkArity(c: mut Checker, p: Program, t: &TypeExpr, iface: int) {
+    if iface == 0 {
+        return
+    }
+    let expected = interfaceArity(c, p, iface)
+    let found = typeArgCount(t)
+    if found != expected {
+        c.error("E0302", t.span, "wrong number of type arguments for "
+                + "`{c.text(c.def(iface).name)}`: expected {expected}, found {found}")
     }
 }
 
@@ -1021,17 +1127,19 @@ fn checkAsserts(c: mut Checker, p: Program, index: int) {
     if item.asserts.len() == 0 || c.itemDefs[c.module()][index] == 0 {
         return
     }
-    notInterfaces(c, &item.asserts)
+    notInterfaces(c, p, &item.asserts)
     let ty = ownerTypeOf(c, p, c.module(), index)
+    let generics = typeGenerics(c, p, item)
     for i in 0..item.asserts.len() {
         let iface = interfaceOf(c, &item.asserts[i])
-        if iface == 0 {
-            continue
+        if iface == 0 || typeArgCount(&item.asserts[i]) != interfaceArity(c, p, iface) {
+            continue   // E0333, E0302
         }
-        let why = unsatisfied(c, p, ty, iface)
+        let args = boundArgs(c, p, &item.asserts[i], &generics)
+        let why = unsatisfied(c, p, ty, iface, args)
         if why.len() > 0 {
             c.error("E0335", item.asserts[i].span, "the type `{c.typeName(ty)}` does not "
-                    + "satisfy `{c.text(c.def(iface).name)}`: {why}")
+                    + "satisfy `{interfaceText(c, iface, args)}`: {why}")
         }
     }
 }

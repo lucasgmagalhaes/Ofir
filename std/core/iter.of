@@ -1,0 +1,35 @@
+/**
+ * @module
+ * `Iterator<T>`: a source of values, one at a time (spec 9.5).
+ *
+ * Stage 0 cannot read interfaces, so this module is not imported by
+ * `std.core`: stage 1 loads it into every program, as part of the prelude.
+ */
+
+// requires: stage1 (generic interfaces, roadmap 5.8; loaded by stage 1 only)
+
+/**
+ * A source of values of type `T`, one at a time.
+ *
+ * `for x in it` works with any type that has `fn next(mut self) Option<T>`;
+ * a type parameter bounded by `Iterator<T>` can be iterated the same way.
+ *
+ * @example
+ * ```ofir
+ * fn total<I: Iterator<int>>(it: mut I) int {
+ *     var sum = 0
+ *     for x in it {
+ *         sum += x
+ *     }
+ *     return sum
+ * }
+ * ```
+ */
+pub interface Iterator<T> {
+    /**
+     * The next value, or `None` once there are no more.
+     *
+     * @returns the value
+     */
+    fn next(mut self) Option<T>
+}

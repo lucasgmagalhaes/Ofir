@@ -220,7 +220,9 @@ pub fn checkMapKey(c: mut Checker, p: Program, ty: int, span: Span) {
 // Iterators: a type with `fn next(mut self) Option<T>` (roadmap 3.7)
 
 fn nextMethod(c: Checker, p: Program, id: int) int {
-    if c.def(id).kind != DefKind.Struct && c.def(id).kind != DefKind.Enum || c.def(id).item < 0 {
+    let kind = c.def(id).kind
+    let typed = kind == DefKind.Struct || kind == DefKind.Enum || kind == DefKind.Interface
+    if !typed || c.def(id).item < 0 {
         return 0
     }
     for i in 0..methodCount(p, c.loc(id)) {
@@ -241,10 +243,44 @@ fn nextMethod(c: Checker, p: Program, id: int) int {
  * @returns T, if `ty` has `fn next(mut self) Option<T>`
  */
 pub fn iteratorItem(c: mut Checker, p: Program, ty: int) Option<int> {
-    if c.types.kind(ty) != TyKind.Adt || c.r.langItems[2] == 0 {
+    if c.r.langItems[2] == 0 {
         return Option.None
     }
-    let next = nextMethod(c, p, c.types.get(ty).data)
+    if c.types.kind(ty) == TyKind.Param {
+        return boundIteratorItem(c, p, ty)
+    }
+    if c.types.kind(ty) != TyKind.Adt {
+        return Option.None
+    }
+    let args = c.types.get(ty).args.clone()
+    return nextItem(c, p, nextMethod(c, p, c.types.get(ty).data), args)
+}
+
+// The item type of a type parameter bounded by an interface with `next`:
+// `T` of `I: Iterator<T>`.
+fn boundIteratorItem(c: mut Checker, p: Program, ty: int) Option<int> {
+    let param = c.types.get(ty).data
+    if param >= c.generics.ifaces.len() {
+        return Option.None
+    }
+    let bounds = c.generics.ifaces[param].clone()
+    for i in 0..bounds.len() {
+        let next = nextMethod(c, p, bounds[i])
+        if next != 0 {
+            var args = [ty]   // `Self`, then the interface's own parameters
+            let given = c.types.get(c.generics.ifaceArgs[param][i]).args.clone()
+            for j in 0..given.len() {
+                args.push(given[j])
+            }
+            return nextItem(c, p, next, args)
+        }
+    }
+    return Option.None
+}
+
+// `T` of the `Option<T>` that method `next` returns, with its owner's
+// parameters replaced by `args`.
+fn nextItem(c: mut Checker, p: Program, next: int, args: List<int>) Option<int> {
     if next == 0 {
         return Option.None
     }
@@ -253,7 +289,6 @@ pub fn iteratorItem(c: mut Checker, p: Program, ty: int) Option<int> {
         return Option.None
     }
     let ret = c.types.get(fnSignature(c, p, next)).inner
-    let args = c.types.get(ty).args.clone()
     let option = c.types.subst(ret, args)
     let t = c.types.get(option)
     if t.kind != TyKind.Adt || t.data != c.r.langItems[2] {

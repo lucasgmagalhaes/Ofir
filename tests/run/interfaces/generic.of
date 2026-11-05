@@ -1,0 +1,112 @@
+// requires: stage1
+// Generic interfaces (spec 9.5): type arguments in bounds and assertions,
+// arguments inferred from the bounded type, `for` over bounded parameters
+// and the prelude's `Iterator<T>`.
+
+interface Source<T> {
+    fn next(mut self) Option<T>
+
+    fn skip(mut self) bool {
+        return self.next().isSome()
+    }
+}
+
+interface Make<T> {
+    fn make(value: move T) Self
+}
+
+struct Countdown: Source<int> {
+    n: int
+
+    fn next(mut self) Option<int> {
+        if self.n == 0 {
+            return Option.None
+        }
+        self.n -= 1
+        return Option.Some(self.n + 1)
+    }
+}
+
+struct Words: Source<str> {
+    items: List<str>
+    at: int
+
+    fn next(mut self) Option<str> {
+        if self.at >= self.items.len() {
+            return Option.None
+        }
+        self.at += 1
+        return Option.Some(self.items[self.at - 1].clone())
+    }
+}
+
+struct Meters: Make<int> {
+    value: int
+
+    fn make(value: move int) Meters {
+        return Meters{value: value * 100}
+    }
+}
+
+fn total<S: Source<int>>(s: mut S) int {
+    var sum = 0
+    var next = s.next()
+    for next.isSome() {
+        sum += next ?? 0
+        next = s.next()
+    }
+    return sum
+}
+
+fn count<S, T>(s: mut S) int where S: Source<T> {
+    var n = 0
+    for s.skip() {
+        n += 1
+    }
+    return n
+}
+
+
+fn joined<S: Source<str>>(s: mut S) str {
+    var out = ""
+    for word in s {
+        out += word
+    }
+    return out
+}
+
+fn sumAll(s: mut Source<int>) int {
+    var sum = 0
+    for x in s {
+        sum += x
+    }
+    return sum
+}
+
+fn main() {
+    var w2 = Words{items: ["x", "y"], at: 0}
+    println(joined(w2))
+    var c2 = Countdown{n: 3}
+    println("{sumAll(c2)}")
+    var c = Countdown{n: 4}
+    println("{total(c)}")
+    var w = Words{items: ["a", "b", "c"], at: 0}
+    println("{count(w)}")
+    let m = Meters.make(3)
+    println("{m.value}")
+    var u = Up{n: 0, max: 4}
+    println("{total(u)}")
+}
+
+struct Up: Iterator<int> {
+    n: int
+    max: int
+
+    fn next(mut self) Option<int> {
+        if self.n >= self.max {
+            return Option.None
+        }
+        self.n += 1
+        return Option.Some(self.n)
+    }
+}

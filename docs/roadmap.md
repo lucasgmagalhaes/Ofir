@@ -192,7 +192,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.5 | Built-in interfaces derived automatically (`Eq`, `Ord`, `Hash`, `Clone`, `Debug`); `From` in `?` | M | `==` on structs, structs as map keys; **partly done**: `Eq`, `Ord`, `Hash` derived in stage 1 (`compiler/sema/derive.of`, `compiler/air/lower_derive.of`: glue `eq`, `hash`, `cmp`), declared `eq`/`cmp` honored, stage 0 rejects them as a stage 0 limit (E0901); `Clone` was done in 3.3; `?` converts the error with the function error type's `fn from(value: move E) Self` (stage 1; `From<T>` itself waits for generic interfaces); pending: `Debug` (needs 5.10) |
 | 5.6 | Rewrite `List`, `Map`, `Option`, `Result`, `Box` as generic Ofir code in `std/` | L | built-in special cases removed from the compiler |
 | 5.7 | Closures: arrow syntax (`x => ...`, `move () => ...`, ADR 0023), `fn` and `move fn` types, captures, stack and heap environments | L | **done**: `mut` and `move` closure parameters wait (E0901); `tests/run/closures/*` pass; E0336, E0337 and the capture borrows tested |
-| 5.8 | Iterator interface and `for` over iterators | M | tests pass |
+| 5.8 | Iterator interface and `for` over iterators | M | **done** (stage 1): generic interfaces (bounds, assertions, inference from the bounded type), `Iterator<T>` in the prelude, `for` over bounded parameters; `dyn` of generic interfaces and embedding them are not supported yet (E0901) |
 | 5.9 | Interior mutability: `UnsafeCell`, `Cell` | S | tests pass |
 | 5.10 | Format specifiers, raw strings, multi-line strings, byte strings | M | tests pass |
 | 5.11 | Attributes: `@inline`, `@cold`, `@repr(C)`, `@cfg`, `@deprecated`, `@export`, `@link`, `@allow` | M | tests pass |

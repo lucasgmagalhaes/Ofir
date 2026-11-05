@@ -17,9 +17,8 @@ import sema.check.Checker
 import sema.check.Generics
 import sema.check.fnGenericsIn
 import sema.check.fnOf
-import sema.check.itemOf
 import sema.check.noGenerics
-import sema.check.typeGenerics
+import sema.check.typeGenericsOf
 import sema.check_list.checkMapKey
 import sema.check_list.coerceToSlice
 import sema.check_list.hashable
@@ -28,6 +27,9 @@ import sema.check_types.resolveType
 import sema.derive.adtSatisfies
 import sema.expr_check.checkExpr
 import sema.expr_check.requireType
+import sema.interfaces.implementedSigs
+import sema.interfaces.interfaceText
+import sema.interfaces.paramBoundArgs
 import sema.interfaces.unsatisfied
 import sema.program.Program
 import sema.types.ERROR
@@ -57,13 +59,16 @@ pub struct Infer {
  * @param id the function's `DefId`
  * @returns them
  */
-pub fn fnGenerics(c: Checker, p: Program, id: int) Generics {
-    let def = c.def(id)
+pub fn fnGenerics(c: mut Checker, p: Program, id: int) Generics {
+    let module = c.def(id).module
     var owner = noGenerics()
-    if def.item >= 0 {
-        owner = typeGenerics(c, itemOf(p, c.loc(id)))
+    if c.def(id).item >= 0 {
+        owner = typeGenericsOf(c, p, id)
     }
-    return fnGenericsIn(c, &owner, fnOf(p, c.loc(id)))
+    let saved = c.enter(module)
+    let g = fnGenericsIn(c, p, &owner, fnOf(p, c.loc(id)))
+    c.enter(saved)
+    return g
 }
 
 /**
@@ -225,6 +230,55 @@ pub fn inferApply(c: mut Checker, inf: &Infer, pattern: int) int {
     return c.types.subst(pattern, inf.args)
 }
 
+// Whether a tuple type has an `ERROR` element.
+fn anyError(c: Checker, tuple: int) bool {
+    let items = &c.types.get(tuple).args
+    for i in 0..items.len() {
+        if items[i] == ERROR {
+            return true
+        }
+    }
+    return false
+}
+
+// The arguments of interface bounds that only the bounded type gives: `T`
+// of `S: Source<T>` from the `next` of the type given for `S`.
+fn inferFromBounds(c: mut Checker, p: Program, inf: mut Infer) {
+    for i in 0..inf.params.ifaces.len() {
+        if i >= inf.args.len() || !inf.known[i] {
+            continue
+        }
+        for k in 0..inf.params.ifaces[i].len() {
+            let pattern = inf.params.ifaceArgs[i][k]
+            let iface = inf.params.ifaces[i][k]
+            if !allKnown(c, &inf, pattern) {
+                let implied = impliedArgs(c, p, inf.args[i], iface)
+                inferFrom(c, inf, pattern, implied)
+            }
+        }
+    }
+}
+
+// The type arguments of `iface` that the methods of `ty` give, as a tuple
+// type, `ERROR` where they give none.
+fn impliedArgs(c: mut Checker, p: Program, ty: int, iface: int) int {
+    if c.types.kind(ty) == TyKind.Param {
+        return paramBoundArgs(c, c.types.get(ty).data, iface)
+    }
+    var own = inferNew(typeGenericsOf(c, p, iface))
+    own.args[0] = ty
+    own.known[0] = true
+    let pairs = implementedSigs(c, p, ty, iface)
+    for j in 0..pairs.len() {
+        inferFrom(c, own, pairs[j].0, pairs[j].1)
+    }
+    var out: List<int> = []
+    for j in 1..own.args.len() {
+        out.push(own.args[j])
+    }
+    return c.types.tuple(out)
+}
+
 /**
  * Reports E0330 for each parameter still unknown.
  *
@@ -279,6 +333,7 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
         let found = checkExpr(c, p, arg, hint)
         inferFrom(c, inf, param, found)
     }
+    inferFromBounds(c, p, inf)
     inferFinish(c, inf, span)
     checkBoundArgs(c, p, &inf, span)
     for i in 0..args.len() {
@@ -442,22 +497,27 @@ pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<in
                     + "bound `{boundName(bit)}` of `{c.paramText(name)}`")
         }
         if i < params.ifaces.len() {
-            checkInterfaceBounds(c, p, params, i, args[i], span)
+            checkInterfaceBounds(c, p, params, i, args, span)
         }
     }
 }
 
 // E0332 for each interface bounding parameter `i` that `arg` does not satisfy.
-fn checkInterfaceBounds(c: mut Checker, p: Program, params: &Generics, i: int, arg: int,
-                        span: Span) {
+fn checkInterfaceBounds(c: mut Checker, p: Program, params: &Generics, i: int,
+                        args: &List<int>, span: Span) {
     let owner = params.owner.len()
+    let arg = args[i]
     let wanted = params.ifaces[i].clone()
     for k in 0..wanted.len() {
-        let why = unsatisfied(c, p, arg, wanted[k])
+        let ifaceArgs = c.types.subst(params.ifaceArgs[i][k], args.clone())
+        if anyError(c, ifaceArgs) {
+            continue   // reported where it was inferred
+        }
+        let why = unsatisfied(c, p, arg, wanted[k], ifaceArgs)
         if why.len() > 0 {
             let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
             c.error("E0332", span, "the type `{c.typeName(arg)}` does not satisfy the bound "
-                    + "`{c.text(c.def(wanted[k]).name)}` of `{c.paramText(name)}`: {why}")
+                    + "`{interfaceText(c, wanted[k], ifaceArgs)}` of `{c.paramText(name)}`: {why}")
         }
     }
 }

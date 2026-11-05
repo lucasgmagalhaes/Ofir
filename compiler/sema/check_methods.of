@@ -44,6 +44,7 @@ import sema.interfaces.declaringInterface
 import sema.interfaces.dynCallable
 import sema.interfaces.isInterfaceMethod
 import sema.interfaces.methodIndex
+import sema.interfaces.paramBoundArgs
 import sema.interfaces.paramMethodOwner
 import sema.program.Program
 import sema.struct_exprs.checkStructField
@@ -238,6 +239,17 @@ fn methodArgs(c: mut Checker, p: Program, call: &Expr, field: &Expr, explicit: &
     if isInterfaceMethod(c, p, id) {   // `Self` is the receiver's type
         inf.args[0] = selfType
         inf.known[0] = true
+        if c.types.kind(selfType) == TyKind.Param {   // and the bound gives the others
+            let iface = c.itemDefs[c.def(id).module][c.def(id).item]
+            let bound = paramBoundArgs(c, c.types.get(selfType).data, iface)
+            let given = c.types.get(bound).args.clone()
+            for i in 0..given.len() {
+                if 1 + i < ownerCount {
+                    inf.args[1 + i] = given[i]
+                    inf.known[1 + i] = true
+                }
+            }
+        }
     } else {
         inferFromSelf(c, inf, selfType, ownerCount)
     }
