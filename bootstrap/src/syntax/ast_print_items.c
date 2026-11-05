@@ -15,6 +15,20 @@ static void symbols(Printer *p, const char *label, SymbolList list, const char *
     fputc('\n', p->out);
 }
 
+static void bounds(Printer *p, WhereList preds) {
+    for (uint32_t i = 0; i < preds.len; i++) {
+        StrBuf buf = {0};
+        type_text(&buf, preds.items[i].type, p->names);
+        strbuf_append_cstr(&buf, ":");
+        for (uint32_t j = 0; j < preds.items[i].bounds.len; j++) {
+            strbuf_append_cstr(&buf, j > 0 ? " + " : " ");
+            type_text(&buf, preds.items[i].bounds.items[j], p->names);
+        }
+        text_line(p, "bound", &buf);
+        strbuf_free(&buf);
+    }
+}
+
 static void attributes(Printer *p, AttributeList attrs) {
     for (uint32_t i = 0; i < attrs.len; i++) {
         const Attribute *a = &attrs.items[i];
@@ -56,6 +70,7 @@ static void fn_decl(Printer *p, const FnDecl *fn) {
     p->depth++;
     attributes(p, fn->attributes);
     symbols(p, "type_params", fn->type_params, ", ");
+    bounds(p, fn->bounds);
     if (fn->has_self) {
         line_start(p);
         fprintf(p->out, "%sself\n", mode_text(fn->self_mode));
@@ -127,6 +142,7 @@ static void type_item(Printer *p, const Item *item, const char *keyword) {
     attributes(p, item->attributes);
     symbols(p, "type_params", is_enum ? item->as.enum_.type_params : item->as.struct_.type_params,
             ", ");
+    bounds(p, item->bounds);
     if (is_enum) {
         variants(p, item);
         methods(p, item->as.enum_.methods);

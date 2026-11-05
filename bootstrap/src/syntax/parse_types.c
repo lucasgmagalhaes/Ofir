@@ -48,11 +48,35 @@ TypeList parse_type_args(Parser *p) {
     return list;
 }
 
-SymbolList parse_type_params(Parser *p) {
+TypeList parse_bounds(Parser *p) {
+    Vec(TypeExpr *) bounds = {0};
+    VEC_PUSH(bounds, parse_type(p));
+    while (accept(p, TOK_PLUS)) {
+        VEC_PUSH(bounds, parse_type(p));
+    }
+    TypeList list;
+    TO_LIST(p, bounds, list);
+    return list;
+}
+
+// Inline bounds go to `preds` as `T: A + B`.
+SymbolList parse_type_params(Parser *p, WhereVec *preds) {
     Vec(Symbol) params = {0};
     if (accept(p, TOK_LT)) {
         while (at(p, TOK_IDENT)) {
-            VEC_PUSH(params, advance(p)->as.symbol);
+            Span start = peek_token(p, 0)->span;
+            Symbol name = advance(p)->as.symbol;
+            VEC_PUSH(params, name);
+            if (at(p, TOK_COLON)) {
+                TypeExpr *t = new_type(p, TYPE_PATH, start);
+                t->as.path.segments.items = NEW(p, Symbol);
+                t->as.path.segments.items[0] = name;
+                t->as.path.segments.len = 1;
+                advance(p);   // :
+                WherePred pred = {.type = t, .bounds = parse_bounds(p)};
+                pred.span = span_since(p, start);
+                VEC_PUSH(*preds, pred);
+            }
             if (!accept(p, TOK_COMMA)) {
                 break;
             }

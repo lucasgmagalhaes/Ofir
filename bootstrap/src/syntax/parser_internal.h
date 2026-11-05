@@ -57,7 +57,9 @@ void *parser_alloc(Parser *p, size_t size);
 TypeExpr *parse_type(Parser *p);
 bool can_start_type(const Parser *p);
 TypeList parse_type_args(Parser *p);                // after `<`, up to and including `>`
-SymbolList parse_type_params(Parser *p);            // optional `<T, U>`
+typedef Vec(WherePred) WhereVec;
+SymbolList parse_type_params(Parser *p, WhereVec *preds);  // optional `<T, U: Eq>`
+TypeList parse_bounds(Parser *p);                   // `Eq + Hash`
 Mode parse_mode(Parser *p);                         // optional `mut` / `move`
 
 // ---- patterns (parse_patterns.c)

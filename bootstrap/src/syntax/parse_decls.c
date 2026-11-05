@@ -47,6 +47,35 @@ static void params(Parser *p, FnDecl *fn) {
     TO_LIST(p, items, fn->params);
 }
 
+// `where T: Eq, U: Ord + Hash` after a signature, on its line or the next
+// ones (spec 8.4).
+static void where_clause(Parser *p, WhereVec *preds) {
+    size_t ahead = 0;
+    while (peek_at(p, ahead) == TOK_NEWLINE) {
+        ahead++;
+    }
+    const Token *t = peek_token(p, ahead);
+    if (t->kind != TOK_IDENT || !symbol_eq(t->as.symbol, p->words.where)) {
+        return;
+    }
+    skip_newlines(p);
+    advance(p);   // where
+    skip_newlines(p);
+    while (can_start_type(p)) {
+        Span start = peek_token(p, 0)->span;
+        WherePred pred = {.type = parse_type(p)};
+        expect(p, TOK_COLON, "`:` and the bounds");
+        pred.bounds = parse_bounds(p);
+        pred.span = span_since(p, start);
+        VEC_PUSH(*preds, pred);
+        if (!accept(p, TOK_COMMA)) {
+            break;
+        }
+        skip_newlines(p);
+    }
+    skip_newlines(p);
+}
+
 // After `fn`. `with_body` is false in `extern` blocks.
 FnDecl *parse_fn(Parser *p, ItemHeader header, bool with_body) {
     FnDecl *fn = NEW(p, FnDecl);
@@ -54,14 +83,14 @@ FnDecl *parse_fn(Parser *p, ItemHeader header, bool with_body) {
     fn->is_pub = header.is_pub;
     const Token *name = expect(p, TOK_IDENT, "a function name");
     fn->name = name ? name->as.symbol : (Symbol){0};
-    fn->type_params = parse_type_params(p);
+    WhereVec bounds = {0};
+    fn->type_params = parse_type_params(p, &bounds);
     params(p, fn);
-    if (!at(p, TOK_LBRACE) && can_start_type(p)) {
+    if (!at(p, TOK_LBRACE) && can_start_type(p) && !at_word(p, p->words.where)) {
         fn->ret = parse_type(p);
     }
-    if (at_word(p, p->words.where)) {
-        syntax_error(p, peek_token(p, 0)->span, "`where` clauses are not supported by stage 0");
-    }
+    where_clause(p, &bounds);
+    TO_LIST(p, bounds, fn->bounds);
     if (with_body) {
         fn->body = parse_block(p);
     }
@@ -163,7 +192,9 @@ static void tuple_struct_body(Parser *p, Item *item) {
 void parse_struct(Parser *p, Item *item) {
     const Token *name = expect(p, TOK_IDENT, "a struct name");
     item->name = name ? name->as.symbol : (Symbol){0};
-    item->as.struct_.type_params = parse_type_params(p);
+    WhereVec bounds = {0};
+    item->as.struct_.type_params = parse_type_params(p, &bounds);
+    TO_LIST(p, bounds, item->bounds);
     if (at(p, TOK_COLON)) {
         syntax_error(p, peek_token(p, 0)->span,
                      "interface assertions are not supported by stage 0");
@@ -210,7 +241,9 @@ static Variant variant(Parser *p) {
 void parse_enum(Parser *p, Item *item) {
     const Token *name = expect(p, TOK_IDENT, "an enum name");
     item->name = name ? name->as.symbol : (Symbol){0};
-    item->as.enum_.type_params = parse_type_params(p);
+    WhereVec bounds = {0};
+    item->as.enum_.type_params = parse_type_params(p, &bounds);
+    TO_LIST(p, bounds, item->bounds);
     Vec(Variant) variants = {0};
     Vec(FnDecl *) methods = {0};
     expect(p, TOK_LBRACE, "`{` and the variants");
