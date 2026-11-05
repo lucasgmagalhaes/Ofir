@@ -35,6 +35,8 @@ import sema.expr_check.checkConst
 import sema.interfaces.interfaceArity
 import sema.interfaces.interfaceText
 import sema.interfaces.unsatisfied
+import sema.layout_attrs.checkEnumAttrs
+import sema.layout_attrs.checkStructAttrs
 import sema.moves.FnMoves
 import sema.moves.checkMoves
 import sema.program.Program
@@ -1099,6 +1101,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
             if id != 0 {
                 structFields(c, p, id)
                 checkStructLayouts(c, p, id)
+                checkStructAttrs(c, p, id)
             }
             checkMethods(c, p, index, &methods)
             checkAsserts(c, p, index)
@@ -1108,6 +1111,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
             if id != 0 {
                 enumVariants(c, p, id)
                 checkEnumLayouts(c, p, id)
+                checkEnumAttrs(c, p, id)
             }
             checkMethods(c, p, index, &methods)
             checkAsserts(c, p, index)

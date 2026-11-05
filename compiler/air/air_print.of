@@ -279,6 +279,7 @@ pub struct AirPrinter {
             RvalueKind.StrLen => self.operands(c, "str_len", &rv.a, Option.None)
             RvalueKind.PtrAdd => self.operands(c, "ptr_add", &rv.a, Option.Some(&rv.b))
             RvalueKind.SizeOf => self.out.push("size_of {c.typeName(rv.to)}")
+            RvalueKind.AlignOf => self.out.push("align_of {c.typeName(rv.to)}")
             RvalueKind.FnValue => self.operands(c, "fn_value {c.text(c.def(rv.flag).name)}", &rv.a,
                                                 Option.None)
             RvalueKind.Closure => self.operands(c, "closure c{rv.flag}", &rv.a, Option.None)

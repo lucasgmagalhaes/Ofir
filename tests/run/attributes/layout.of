@@ -1,0 +1,68 @@
+// requires: stage1
+// `@repr(C)`, `@packed` and `@align(N)` (spec 13.2, 13.3).
+
+@repr(C)
+struct Header {
+    tag: u8
+    len: u32
+}
+
+@packed
+struct Wire {
+    tag: u8
+    len: u32
+    flags: u16
+}
+
+@packed
+struct Frame {
+    kind: u8
+    wire: Wire
+}
+
+@align(16)
+struct Block {
+    a: u8
+}
+
+struct Holder {
+    b: u8
+    block: Block
+}
+
+enum Slot {
+    Empty
+    Full(Block)
+}
+
+@repr(C)
+enum Color {
+    Red
+    Green
+    Blue
+}
+
+fn bump(w: mut Wire) {
+    w.len = w.len + 1
+}
+
+fn main() {
+    var w = Wire{tag: 1, len: 70000, flags: 3}
+    w.len = w.len * 2
+    bump(w)
+    println("{sizeOf<Header>()} {sizeOf<Wire>()} {sizeOf<Frame>()}")
+    println("{w.tag} {w.len} {w.flags}")
+    var f = Frame{kind: 9, wire: w}
+    f.wire.flags = f.wire.flags + 4
+    println("{f.kind} {f.wire.tag} {f.wire.len} {f.wire.flags}")
+    let frames = [f, Frame{kind: 2, wire: Wire{tag: 5, len: 6, flags: 7}}]
+    println("{frames[1].wire.len} {frames[0].wire.flags}")
+    println("{sizeOf<Block>()} {sizeOf<Holder>()} {sizeOf<Slot>()}")
+    let h = Holder{b: 1, block: Block{a: 2}}
+    let s = Slot.Full(Block{a: 3})
+    let inner = match s {
+        Slot.Full(b) => b.a
+        Slot.Empty => 0
+    }
+    println("{h.b} {h.block.a} {inner} {sizeOf<Color>()}")
+}

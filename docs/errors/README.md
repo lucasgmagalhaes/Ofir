@@ -115,6 +115,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0808 | the attribute `@x` does not apply to this declaration | stage 0 |
 | E0809 | invalid arguments for the attribute `@x` | stage 0 |
 | E0810 | the attribute `@x` is written twice | stage 0 |
+| E0811 | a field of a `@packed` struct must be `bool`, a number or a `@packed` struct | stage 1 |
+| E0812 | cannot borrow a field of a `@packed` struct: its address may not be aligned | stage 1 |
 | E0900 | cannot read source file | stage 0 |
 | E0901 | X is not supported yet (a feature this compiler version does not implement) | stage 0 |
 | E0902 | the toolchain failed: clang or the runtime library is missing, or clang reported an error | stage 0 |

@@ -1,0 +1,17 @@
+// requires: stage1
+// `@align(N)` takes a power of two up to 4096 (spec 12.1, 13.2).
+
+@align(4096)
+struct Page {
+    a: u8
+}
+
+@align(8192)   // error[E0809]: invalid arguments for `@align`: write `@align(N)`, N a power of two up to 4096
+struct Huge {
+    a: u8
+}
+
+fn main() {
+    let _p = Page{a: 1}
+    let _h = Huge{a: 2}
+}

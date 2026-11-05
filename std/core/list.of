@@ -10,6 +10,8 @@
 extern "C" {
     fn ofir_alloc(size: int) *mut u8
     fn ofir_realloc(p: *mut u8, size: int) *mut u8
+    fn ofir_alloc_aligned(size: int, align: int) *mut u8
+    fn ofir_realloc_aligned(p: *mut u8, size: int, align: int) *mut u8
     fn ofir_free(p: *mut u8)
     fn memmove(dst: *mut u8, src: *u8, n: u64) *mut u8
 }
@@ -147,7 +149,15 @@ pub struct List<T> {
         if cap < needed {
             cap = needed
         }
-        self.ptr = unsafe { ofir_realloc(self.ptr as *mut u8, cap * sizeOf<T>()) as *mut T }
+        let size = cap * sizeOf<T>()
+        unsafe {
+            let old = self.ptr as *mut u8
+            self.ptr = if alignOf<T>() > 16 {   // above malloc's alignment (spec 13.7)
+                ofir_realloc_aligned(old, size, alignOf<T>()) as *mut T
+            } else {
+                ofir_realloc(old, size) as *mut T
+            }
+        }
         self.cap = cap
     }
 
@@ -488,7 +498,14 @@ pub struct List<T> {
             return
         }
         var src = self.ptr
-        var dst = unsafe { ofir_alloc(self.len * sizeOf<T>()) as *mut T }
+        let size = self.len * sizeOf<T>()
+        var dst = unsafe {
+            if alignOf<T>() > 16 {
+                ofir_alloc_aligned(size, alignOf<T>()) as *mut T
+            } else {
+                ofir_alloc(size) as *mut T
+            }
+        }
         var width = 1
         for width < self.len {
             var lo = 0

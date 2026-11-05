@@ -1,0 +1,38 @@
+// requires: stage1
+// The rules of `@repr(C)`, `@packed` and `@align(N)` (spec 13.2, 13.3).
+
+@packed
+struct Inner {
+    a: u8
+    b: u32
+}
+
+@packed
+struct Bad {
+    name: str   // error[E0811]: a field of a `@packed` struct must be `bool`, a number or a `@packed` struct, not `str`
+    inner: Inner
+}
+
+@packed
+@align(8)   // error[E0808]: `@align` does not apply to a `@packed` struct
+struct Both {
+    a: u8
+}
+
+@repr(C)   // error[E0808]: `@repr(C)` applies only to enums without payloads
+enum Shape {
+    Dot
+    Circle(f64)
+}
+
+fn bump(n: mut u32) {
+    n = n + 1
+}
+
+fn main() {
+    var x = Inner{a: 1, b: 2}
+    let r = &x.b   // error[E0812]: cannot borrow a field of a `@packed` struct: its address may not be aligned
+    bump(x.b)   // error[E0812]: cannot borrow a field of a `@packed` struct: its address may not be aligned
+    let whole = &x
+    println("{r} {whole.a}")
+}

@@ -5,6 +5,7 @@
 
 extern "C" {
     fn ofir_alloc(size: int) *mut u8
+    fn ofir_alloc_aligned(size: int, align: int) *mut u8
     fn ofir_free(p: *mut u8)
 }
 
@@ -32,6 +33,20 @@ extern "intrinsic" {
      * ```
      */
     pub fn sizeOf<T>() int
+
+    /**
+     * The alignment in bytes of a value of type `T` (spec 7.5, chapter 13):
+     * what the address of an allocation for a `T` must be a multiple of.
+     *
+     * @typeParam T the type to measure
+     * @returns a power of two; 1 for `()`
+     * @example
+     * ```ofir
+     * assert(alignOf<i32>() == 4)
+     * assert(alignOf<str>() == 8)
+     * ```
+     */
+    pub fn alignOf<T>() int
 }
 
 /**
@@ -76,7 +91,13 @@ pub struct Box<T> {
      * @panics when the system is out of memory
      */
     pub fn new(value: move T) Box<T> {
-        let ptr = unsafe { ofir_alloc(sizeOf<T>()) as *mut T }
+        let ptr = unsafe {
+            if alignOf<T>() > 16 {   // above malloc's alignment (spec 13.7)
+                ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
+            } else {
+                ofir_alloc(sizeOf<T>()) as *mut T
+            }
+        }
         unsafe {
             *ptr = value
         }

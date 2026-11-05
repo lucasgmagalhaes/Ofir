@@ -35,17 +35,21 @@ static const Intrinsic *find(StrView name) {
     return NULL;
 }
 
-// `sizeOf<T>()`: its type argument is substituted with the instance's.
-static Operand size_of(Lowerer *l, Expr *call) {
+// `sizeOf<T>()` and `alignOf<T>()`: the type argument is substituted with
+// the instance's.
+static Operand size_of(Lowerer *l, Expr *call, RvalueKind kind) {
     TypeId type = type_get(l->types, call->as.call.type_args)->args[0];
-    Rvalue rv = {.kind = RV_SIZE_OF, .to = type};
+    Rvalue rv = {.kind = kind, .to = type};
     return op_copy(emit_temp(l, type_id(TID_INT), rv), type_id(TID_INT));
 }
 
 Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn) {
     StrView name = symbol_name(&l->sema->session->names, fn->name);
     if (sv_eq(name, SV("sizeOf"))) {
-        return size_of(l, call);
+        return size_of(l, call, RV_SIZE_OF);
+    }
+    if (sv_eq(name, SV("alignOf"))) {
+        return size_of(l, call, RV_ALIGN_OF);
     }
     if (sv_eq(name, SV("dropInPlace")) || sv_eq(name, SV("forget"))) {
         return lower_drop_intrinsic(l, call, sv_eq(name, SV("forget")));

@@ -46,7 +46,7 @@ static const AttributeRule RULES[] = {
     {"lang", ON_STRUCT | ON_ENUM, ARGS_STR, true, "`@lang(\"type\")`"},
     {"repr", ON_STRUCT | ON_ENUM, ARGS_REPR, false, "`@repr(C)`"},
     {"packed", ON_STRUCT, ARGS_NONE, false, "`@packed`"},
-    {"align", ON_STRUCT, ARGS_ALIGN, false, "`@align(N)`, N a power of two"},
+    {"align", ON_STRUCT, ARGS_ALIGN, false, "`@align(N)`, N a power of two up to 4096"},
     {"link", ON_EXTERN, ARGS_STR, false, "`@link(\"name\")`"},
     {"export", ON_FN, ARGS_STR, false, "`@export(\"name\")`"},
     {"deprecated", ON_ANY, ARGS_OPT_STR, true,
@@ -88,6 +88,7 @@ static bool args_match(const Resolver *r, ArgsKind kind, const Attribute *a) {
     case ARGS_REPR: return n == 1 && is_ident(r, first, "C");
     case ARGS_ALIGN:
         return n == 1 && first->kind == EXPR_INT && first->as.int_value > 0 &&
+               first->as.int_value <= 4096 &&
                (first->as.int_value & (first->as.int_value - 1)) == 0;
     case ARGS_STR: return n == 1 && first->kind == EXPR_STR;
     case ARGS_OPT_STR: return n == 0 || (n == 1 && first->kind == EXPR_STR);

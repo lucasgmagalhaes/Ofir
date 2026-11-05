@@ -203,6 +203,8 @@ pub copy enum RvalueKind {
     PtrAdd
     /** the size in bytes of a value of type `to` (an int) */
     SizeOf
+    /** the alignment in bytes of type `to` (an int) */
+    AlignOf
     /** the function value of the function `flag`, with the environment a (or none) */
     FnValue
     /**
@@ -244,7 +246,7 @@ pub struct Rvalue {
     pub a: Operand
     /** The second operand. */
     pub b: Operand
-    /** The target type of casts and `SizeOf`. */
+    /** The target type of casts, `SizeOf` and `AlignOf`. */
     pub to: int
     /** The overflow local of `Checked`. */
     pub flag: int
