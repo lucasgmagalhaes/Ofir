@@ -205,7 +205,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.12c | Diagnostics: notes and help messages | M | **done** (both stages): `= note:` and `= help:` lines after the excerpt, a `notes` array in JSON, left out of the short format (`docs/design/toolchain.md`); E0600 and E0304 suggest their fix |
 | 5.12e | Diagnostics: "did you mean" for unknown names, methods and fields (E0200, E0301, E0316) | S | **done** (both stages): an unknown name, import, type, field or method gets `= help: did you mean `x`?` with the closest candidate by edit distance (with swaps), at most a third of the name's length |
 | 5.12d | `ofir explain` and an explanation file for every registry code | M | **done** (stage 1): `ofir explain` prints `docs/errors/EXXXX.md`; every code that is not planned has a file, and `make check-codes` compiles each example (it must report its code) and fix (it must compile cleanly) with stage 1 |
-| 5.13 | Debug info (DWARF) | M | stepping through code in `lldb` works |
+| 5.13 | Debug info (DWARF) | M | **done**: stage 1 `-g` emits functions and line tables; breakpoints on functions and lines, `next` and `step` work in `lldb` and `gdb` |
 | 5.14 | Optimization: `noalias`/`readonly` (stage 1 only), niche layouts, field reordering, AIR check elimination | M | benchmarks within 10% of C |
 | 5.15 | Generated-code benchmark suite with C/Rust/Go baselines (started at M2 with the first programs) | M | **done**: `make bench-programs` checks outputs and measures all four languages in CI; first results in `bench/HISTORY.md`, with new results recorded per release |
 | 5.16 | Generic type aliases (`type Pair<T> = (T, T)`) | S | **done**: both stages expand aliases; scope, arity, cycles, bounds and storage restrictions tested |
