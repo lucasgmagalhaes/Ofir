@@ -1,0 +1,35 @@
+// requires: stage1
+// `@export` and `@link` (spec 11.3, 11.4).
+
+@link("m")
+extern "C" {
+    fn sqrt(x: f64) f64
+}
+
+@link("-o/tmp/x")   // error[E0809]: invalid arguments for `@link`: write `@link("name")`, name a library name
+extern "C" {
+    fn floor(x: f64) f64
+}
+
+@link("")   // error[E0809]: invalid arguments for `@link`: write `@link("name")`, name a library name
+extern "C" {
+    fn ceil(x: f64) f64
+}
+
+@export("1st")   // error[E0809]: invalid arguments for `@export`: write `@export("name")`, name a C identifier
+extern "C" fn first(x: i32) i32 {
+    return x
+}
+
+@export("ofir_double")   // error[E0808]: `@export` applies only to an `extern "C"` function
+fn double(x: int) int {
+    return x * 2
+}
+
+extern "C" {
+    @export("ofir_round")   // error[E0808]: the attribute `@export` does not apply to a function of an extern block
+    fn round(x: f64) f64
+}
+
+fn main() {
+}

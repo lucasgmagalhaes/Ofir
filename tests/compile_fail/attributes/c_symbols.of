@@ -1,0 +1,14 @@
+// requires: stage1
+// A program defines each C symbol once (spec 11.4).
+
+@export("twice")
+extern "C" fn twiceA(n: i32) i32 {
+    return n * 2
+}
+
+extern "C" fn twice(n: i32) i32 {   // error[E0813]: the C symbol `twice` is defined twice
+    return n + n
+}
+
+fn main() {
+}
