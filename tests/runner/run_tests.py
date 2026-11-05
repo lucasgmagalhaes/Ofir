@@ -35,6 +35,8 @@ PANIC_EXIT_STATUS = 101
 ANNOTATION_RE = re.compile(r"//\s*(error|warning)\[([EW]\d{4})\]:\s*(.*?)\s*$")
 DIAGNOSTIC_RE = re.compile(r"^(.*?):(\d+):(\d+): (error|warning)\[([EW]\d{4})\]: (.*)$")
 REQUIRES_RE = re.compile(r"^//\s*requires:\s*(\S+)", re.MULTILINE)
+# Extra compiler flags of a run or codegen test, e.g. `// flags: --release`.
+FLAGS_RE = re.compile(r"^//\s*flags:\s*(.+)$", re.MULTILINE)
 PANIC_RE = re.compile(r"^//\s*panic:\s*(.*?)\s*$", re.MULTILINE)
 CHECK_RE = re.compile(r"^//\s*(CHECK|CHECK-NOT):\s*(.*?)\s*$")
 TOP_LEVEL_FN_RE = re.compile(r"^(pub\s+)?(unsafe\s+)?fn\b")
@@ -199,9 +201,14 @@ def check_panic(cfg: Config, path: Path, source: str) -> Result:
     return Result(path, "pass")
 
 
-def check_run(cfg: Config, path: Path) -> Result:
+def test_flags(source: str) -> list[str]:
+    return [flag for line in FLAGS_RE.findall(source) for flag in line.split()]
+
+
+def check_run(cfg: Config, path: Path, source: str) -> Result:
     # Programs that run are warning-free: a warning fails the test.
-    proc = run_process(compiler_cmd(cfg, "run", str(path), "--deny-warnings"))
+    proc = run_process(compiler_cmd(cfg, "run", str(path), "--deny-warnings",
+                                    *test_flags(source)))
     if proc.returncode != 0:
         return Result(path, "fail", describe(proc))
     return compare_output(cfg, path, proc.stdout, ".out")
@@ -216,7 +223,8 @@ def check_emit(cfg: Config, path: Path, what: str, suffix: str) -> Result:
 
 def check_codegen(cfg: Config, path: Path, source: str) -> Result:
     out = cfg.tmp / path.stem
-    proc = run_process(compiler_cmd(cfg, "build", str(path), "--emit=llvm", "-o", str(out)))
+    proc = run_process(compiler_cmd(cfg, "build", str(path), "--emit=llvm", "-o", str(out),
+                                    *test_flags(source)))
     if proc.returncode != 0:
         return Result(path, "fail", describe(proc))
     ir_path = out.with_suffix(".ll")
@@ -260,7 +268,7 @@ def run_test(cfg: Config, suite: str, path: Path) -> Result:
     if suite == "parse":
         return check_emit(cfg, path, "ast", ".ast")
     if suite == "run":
-        return check_run(cfg, path)
+        return check_run(cfg, path, source)
     if suite == "panic":
         return check_panic(cfg, path, source)
     if suite == "codegen":
