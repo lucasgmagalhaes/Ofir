@@ -16,6 +16,8 @@ import base.span.SourceMap
 import codegen.llvm.generate
 import diag.Diagnostics
 import diag.Format
+import diag.Severity
+import diag.jsonNoSource
 import driver.cfg.CfgTarget
 import driver.modules.Front
 import driver.modules.loadProgram
@@ -52,6 +54,7 @@ fn printUsage() {
              + "  --release                 optimize the program\n"
              + "  --deny-warnings           treat warnings as errors\n"
              + "  --message-format=short    one line per diagnostic\n"
+             + "  --message-format=json     one JSON object per diagnostic\n"
              + "  --stop-after=PHASE       run the phases up to lex, parse or check, without "
              + "output\n"
              + "  --time-passes             report the time spent in each phase")
@@ -73,13 +76,13 @@ struct Options {
     release: bool
     /** `--deny-warnings`. */
     deny: bool
-    /** `--message-format=short`. */
-    short: bool
+    /** `--message-format=human`, `short` or `json`. */
+    format: Format
 }
 
 fn parseOptions(args: &List<str>) Option<Options> {
     var opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
-                       stopAfter: "", release: false, deny: false, short: false}
+                       stopAfter: "", release: false, deny: false, format: Format.Human}
     var hasInput = false
     var i = 2
     for i < args.len() {
@@ -95,9 +98,11 @@ fn parseOptions(args: &List<str>) Option<Options> {
             } else if arg == "--release" {
                 opts.release = true
             } else if arg == "--message-format=short" {
-                opts.short = true
+                opts.format = Format.Short
+            } else if arg == "--message-format=json" {
+                opts.format = Format.Json
             } else if arg == "--message-format=human" {
-                opts.short = false
+                opts.format = Format.Human
             } else if arg.startsWith("--stop-after=") && knownPhase(arg.sliceFrom(13)) {
                 opts.stopAfter = arg.sliceFrom(13).toOwned()
             } else if arg != "--time-passes" {
@@ -178,8 +183,17 @@ struct Pipeline {
 }
 
 // Writes the diagnostics in the requested format.
-fn render(diags: Diagnostics, map: SourceMap, short: bool) {
-    eprint(diags.render(map, if short { Format.Short } else { Format.Human }))
+fn render(diags: Diagnostics, map: SourceMap, format: Format) {
+    eprint(diags.render(map, format))
+}
+
+// An error of the driver, which points at no source.
+fn driverError(format: Format, code: str, message: str) {
+    if format == Format.Json {
+        eprint(jsonNoSource(Severity.Error, code, message))
+    } else {
+        eprintln("error[{code}]: {message}")
+    }
 }
 
 // Runs the phases in order, then the program or its tests. Returns the
@@ -191,7 +205,7 @@ fn build(given: move Options) int {
     var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
     front.diags.denyWarnings = opts.deny
     let Option.Some(file) = front.load(opts.input) else {
-        eprintln("error[E0900]: cannot read `{opts.input}`")
+        driverError(opts.format, "E0900", "cannot read `{opts.input}`")
         return 1
     }
     let tokens = tokenize(front.map.file(file).text, file, front.names, front.diags)
@@ -240,7 +254,7 @@ fn build(given: move Options) int {
     }
     let ok = backend(c, program, pipeline)
     if !ok && !c.r.diags.hasErrors() {
-        render(c.r.diags, c.r.map, opts.short)
+        render(c.r.diags, c.r.map, opts.format)
         return 1
     }
     return finish(c.r.diags, c.r.map, &pipeline)
@@ -252,7 +266,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     let opts = pipeline.opts.clone()
     let l = lowerProgram(c, program)
     if l.unsupported {
-        eprintln("error[E0901]: stage 1 does not compile {l.missing} yet")
+        driverError(opts.format, "E0901", "stage 1 does not compile {l.missing} yet")
         return false
     }
     for i in 0..l.tests.len() {
@@ -270,7 +284,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     let exe = outputPath(&opts)
     let ll = "{exe}.ll"
     if fs.writeString(ll, generate(c, program, &l.out)).isErr() {
-        eprintln("error[E0902]: cannot write `{ll}`")
+        driverError(opts.format, "E0902", "cannot write `{ll}`")
         return false
     }
     if c.r.diags.hasErrors() {   // the lowering reported errors
@@ -373,7 +387,8 @@ fn runtimeLibrary() Option<str> {
 // default target.
 fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
     let Option.Some(runtime) = runtimeLibrary() else {
-        eprintln("error[E0902]: cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)")
+        let message = "cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)"
+        driverError(opts.format, "E0902", message)
         return false
     }
     var clang = "clang".toOwned()
@@ -402,12 +417,12 @@ fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
             out.status == 0
         }
         Result.Err(_) => {
-            eprintln("error[E0902]: cannot run `{clang}`")
+            driverError(opts.format, "E0902", "cannot run `{clang}`")
             false
         }
     }
     if !ok {
-        eprintln("error[E0902]: clang failed to compile the generated code")
+        driverError(opts.format, "E0902", "clang failed to compile the generated code")
     }
     return ok
 }
@@ -448,7 +463,7 @@ fn runTests(exe: str, tests: &List<str>) int {
 
 // The diagnostics, then the program or its tests.
 fn finish(diags: Diagnostics, map: SourceMap, pipeline: &Pipeline) int {
-    render(diags, map, pipeline.opts.short)
+    render(diags, map, pipeline.opts.format)
     if diags.hasErrors() {
         return 1
     }
