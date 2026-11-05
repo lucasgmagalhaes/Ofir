@@ -21,6 +21,7 @@ import sema.check.itemOf
 import sema.check.noGenerics
 import sema.check.typeGenerics
 import sema.check_list.checkMapKey
+import sema.check_list.coerceToSlice
 import sema.check_list.hashable
 import sema.check_methods.isCloneable
 import sema.check_types.resolveType
@@ -91,7 +92,7 @@ pub fn inferNew(params: move Generics) Infer {
 pub fn inferExplicit(c: mut Checker, p: Program, inf: mut Infer, ofOwner: bool,
                      list: &List<TypeExpr>, span: Span) {
     let first = if ofOwner { 0 } else { inf.params.owner.len() }
-    let count = if ofOwner { inf.params.owner.len() } else { inf.params.fnParams.len() }
+    let count = if ofOwner { inf.params.owner.len() } else { namedCount(c, &inf.params) }
     if list.len() != count {
         c.error("E0302", span, "wrong number of type arguments: expected {count}, "
                 + "found {list.len()}")
@@ -101,6 +102,18 @@ pub fn inferExplicit(c: mut Checker, p: Program, inf: mut Infer, ofOwner: bool,
         inf.args[first + i] = resolveType(c, p, &list[i])
         inf.known[first + i] = true
     }
+}
+
+// The function's own parameters that are written: the anonymous ones
+// (ADR 0029) come after them and are always inferred.
+fn namedCount(c: Checker, params: &Generics) int {
+    var n = 0
+    for i in 0..params.fnParams.len() {
+        if c.text(params.fnParams[i]).find(" ").isNone() {
+            n += 1
+        }
+    }
+    return n
 }
 
 /**
@@ -151,6 +164,13 @@ pub fn inferFrom(c: Checker, inf: mut Infer, pattern: int, actual: int) {
         return
     }
     let at = c.types.get(actual)
+    let slice = c.r.langItems[4]
+    let list = c.r.langItems[1]
+    if pt.kind == TyKind.Adt && at.kind == TyKind.Adt && slice != 0 && pt.data == slice &&
+       at.data == list && at.args.len() == 1 {
+        inferFrom(c, inf, pt.args[0], at.args[0])   // a list given for `[T]` is its slice
+        return
+    }
     if at.kind != pt.kind || at.args.len() != pt.args.len() ||
        (pt.kind == TyKind.Adt && at.data != pt.data) {
         return   // a mismatch, reported when the argument is checked
@@ -220,7 +240,7 @@ pub fn inferFinish(c: mut Checker, inf: mut Infer, span: Span) {
         }
         let owner = inf.params.owner.len()
         let name = if i < owner { inf.params.owner[i] } else { inf.params.fnParams[i - owner] }
-        c.error("E0330", span, "cannot infer the type parameter `{c.text(name)}`: write the "
+        c.error("E0330", span, "cannot infer the type parameter `{c.paramText(name)}`: write the "
                 + "type arguments, as in `f<int>(x)`")
         inf.args[i] = ERROR
         inf.known[i] = true
@@ -265,7 +285,10 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
     for i in 0..args.len() {
         if i < params.len() {
             let wanted = inferApply(c, &inf, params[i])
-            requireType(c, &args[i].value, c.typeOf(args[i].value.id.0), wanted)
+            let found = c.typeOf(args[i].value.id.0)
+            if !coerceToSlice(c, p, &args[i].value, found, wanted) {
+                requireType(c, &args[i].value, found, wanted)
+            }
         }
     }
     if callId >= 0 {
@@ -408,7 +431,7 @@ pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<in
             }
             let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
             c.error("E0332", span, "the type `{c.typeName(args[i])}` does not satisfy the "
-                    + "bound `{boundName(bit)}` of `{c.text(name)}`")
+                    + "bound `{boundName(bit)}` of `{c.paramText(name)}`")
         }
         if i < params.ifaces.len() {
             checkInterfaceBounds(c, p, params, i, args[i], span)
@@ -426,7 +449,7 @@ fn checkInterfaceBounds(c: mut Checker, p: Program, params: &Generics, i: int, a
         if why.len() > 0 {
             let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
             c.error("E0332", span, "the type `{c.typeName(arg)}` does not satisfy the bound "
-                    + "`{c.text(c.def(wanted[k]).name)}` of `{c.text(name)}`: {why}")
+                    + "`{c.text(c.def(wanted[k]).name)}` of `{c.paramText(name)}`: {why}")
         }
     }
 }

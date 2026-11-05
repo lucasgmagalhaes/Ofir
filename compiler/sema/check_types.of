@@ -192,6 +192,12 @@ fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: S
             }
             adtInstance(c, p, id, types, span)
         }
+        DefKind.Interface => {
+            let name = c.text(c.def(id).name)
+            c.error("E0356", span, "`{name}` is an interface: only a parameter type can name it "
+                    + "alone; write `dyn {name}` or a type parameter (spec 9.6)")
+            ERROR
+        }
         _ => {
             c.error("E0310", span, "expected a type, found `{c.text(c.def(id).name)}`")
             ERROR
