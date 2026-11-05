@@ -1303,17 +1303,18 @@ fn vtableThunk(g: mut Gen, c: mut Checker, p: Program, ty: int, id: int, name: s
             forward.push("{selfType} %s")
         }
     }
-    let first = if fnOf(p, c.loc(target.def)).hasSelf { 1 } else { 0 }
-    for i in first..params.len() {
-        let index = i - first
+    for i in 0..params.len() {   // the signature leaves `self` out
+        let index = i
         let pty = llvmType(g, c, p, c.types.subst(params[i], targs.clone()))
         if pty == "void" {
             continue
         }
         let given = byAddress(c, p, id, index)
         let taken = byAddress(c, p, target.def, index)
-        head.push(", {if given { "ptr" } else { pty }} %a{i}")
-        var arg = "{if taken { "ptr" } else { pty }} %a{i}"
+        let givenType = if given { "ptr".toOwned() } else { pty.clone() }
+        let takenType = if taken { "ptr".toOwned() } else { pty.clone() }
+        head.push(", {givenType} %a{i}")
+        var arg = "{takenType} %a{i}"
         if given && !taken {
             body.push("  %v{i} = load {pty}, ptr %a{i}\n")
             arg = "{pty} %v{i}"
