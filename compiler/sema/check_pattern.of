@@ -297,7 +297,8 @@ fn typeTest(c: mut Checker, p: Program, pat: &Pattern, target: &TypeExpr, ty: in
                 + "{c.typeName(concrete)}: it names a concrete type")
         return
     }
-    let why = unsatisfied(c, p, concrete, iface)
+    let dynArgs = c.types.get(object).args.clone()
+    let why = unsatisfied(c, p, concrete, iface, c.types.tuple(dynArgs))
     if why.len() > 0 {
         c.error("E0354", pat.span, "the type test can never match: {c.typeName(concrete)} does "
                 + "not satisfy {c.text(c.def(iface).name)}: {why}")

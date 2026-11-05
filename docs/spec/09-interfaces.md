@@ -108,7 +108,31 @@ interface From<T> {
 }
 ```
 
-Stage 1 does not support generic interfaces yet (E0901).
+The parameters come after `Self`. A bound, an assertion or an interface
+parameter type gives them, one each (E0302): `S: Iterator<int>`,
+`struct Lines: Iterator<str>`, `it: Iterator<T>`. A type satisfies
+`I<A>` when its methods match those of `I` with `Self` and the
+parameters replaced (E0335, E0332):
+
+```ofir
+struct Countdown: Iterator<int> {
+    n: int
+
+    fn next(mut self) Option<int> { ... }
+}
+
+fn count<I, T>(it: mut I) int where I: Iterator<T> { ... }
+
+count(Countdown{n: 3})   // `T` is `int`, from `next`
+```
+
+- A parameter that appears only in a bound's arguments is inferred from
+  the methods of the type given for the bounded parameter.
+- A type parameter bounded by an interface with
+  `fn next(mut self) Option<T>` can be iterated with `for` (spec 4).
+- `Iterator<T>` is in the prelude (`std.core.iter`).
+- Not supported yet (E0901): `dyn` of a generic interface and embedding
+  one.
 
 ## 9.6 Static dispatch
 

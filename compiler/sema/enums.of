@@ -9,7 +9,7 @@ import base.intern.Symbol
 import sema.check.Checker
 import sema.check.Loc
 import sema.check.itemOf
-import sema.check.typeGenerics
+import sema.check.typeGenericsOf
 import sema.check_ref.checkStorable
 import sema.check_types.ownerType
 import sema.check_types.resolveType
@@ -129,7 +129,7 @@ pub fn enumVariants(c: mut Checker, p: Program, id: int) bool {
     let declared = declaredFlags(p, c.loc(id))
     let saved = c.enter(c.def(id).module)
     let savedSelf = c.selfType
-    let outer = c.enterGenerics(typeGenerics(c, itemOf(p, c.loc(id))))
+    let outer = c.enterGenerics(typeGenericsOf(c, p, id))
     c.selfType = ownerType(c, p, id)
     c.info[id].checking = true
     var info = EnumInfo{variants: [], hasPayload: false}
