@@ -59,8 +59,12 @@ void use_place(Moves *m, const Place *p, State *s, Span span) {
         move_error(m, "E0601", span, "use of possibly uninitialized variable `" SV_FMT "`",
                    SV_ARG(name(m, p->part.local)));
     } else if (moved_part(s, &p->part)) {
-        move_error(m, "E0600", span, "use of moved value `" SV_FMT "`: it was moved before; "
-                   "clone it, or move a copy", SV_ARG(name(m, p->part.local)));
+        StrView local = name(m, p->part.local);
+        move_error(m, "E0600", span, "use of moved value `" SV_FMT "`", SV_ARG(local));
+        if (m->report) {
+            diag_help(&m->c->sema->session->diags, "`" SV_FMT "` was moved before: clone it "
+                      "there if both copies are needed", SV_ARG(local));
+        }
     }
 }
 
