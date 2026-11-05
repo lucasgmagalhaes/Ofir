@@ -36,7 +36,27 @@ struct Header {
 | `@tag("key", "value")` | types, fields, variants | metadata for compile-time code (chapter 15.4) |
 | `@lang("type")` | structs, `std` only | the fields and methods of a primitive type (ADR 0019); `@lang("box")`, `"list"`, `"option"` and `"result"` mark the std types the compiler knows |
 
-Unknown attributes are compile errors.
+Attributes are checked where they are declared:
+
+- an unknown attribute is an error (E0807);
+- an attribute on a declaration the table does not list for it is an
+  error (E0808): `@inline` on a struct, `@packed` on a field;
+- arguments that do not match the table are an error (E0809): `@cold(1)`,
+  `@inline(always)`, `@align("8")`;
+- an attribute written twice on one declaration is an error (E0810).
+
+"Functions" are top-level functions and methods; the functions declared
+in an `extern` block have no body and take only `@deprecated`, `@cfg`
+and `@allow`. A test file's declarations follow the same rules.
+
+`@inline` asks for the function to be inlined at every call and
+`@inline(never)` forbids it; `@cold` marks a function as unlikely to be
+called, so the optimizer moves its calls out of the hot path. They are
+hints with no effect on the meaning of the program.
+
+Stage 0 and stage 1 implement `@inline`, `@cold`, `@test` and `@lang`;
+the other attributes of the table are checked, then reported as not
+supported yet (E0901) until roadmap 5.11b and 5.11c.
 
 ## 12.2 Tests
 
