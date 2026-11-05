@@ -304,7 +304,25 @@ fields all satisfy them, unless the type defines the method itself.
 | `Default` | `fn default() Self` | `..T.default()` in struct literals, `mem.take` |
 
 `Display` is **not** derived automatically; a type chooses how it is shown.
-`Debug` is derived for every type.
+`Debug` is derived for every type whose parts have it; `{x:?}` shows its
+debug representation, close to how the value is written in code:
+
+| Value | Representation |
+|-------|----------------|
+| numbers, `bool`, `()` | as interpolated: `42`, `1.5`, `true`, `()` |
+| `str` | quoted, with `\"`, `\\`, `\n`, `\t`, `\r`, `\0` and `\xNN` escapes |
+| tuple | `(1, "a")`, `(7,)` |
+| struct | `Point { x: 1, y: 2 }`; empty: `Empty {}`; tuple struct: `Meters(5)` |
+| enum | the variant and its fields in order: `Some(3)`, `Rect(3, 4)`, `None` |
+| `List`, array | `[1, 2, 3]` |
+| `Map` | `{"a": 1, "b": 2}`, in insertion order |
+| `Box<T>`, `&T` | the value it points to |
+
+A type that declares `fn debug(self, out: mut str)` appends its own
+representation to `out`; a method named `debug` of another shape, or a
+`drop` method, blocks the derivation. Functions and raw pointers have no
+debug representation. `Debug` can bound a type parameter
+(`fn show<T: Debug>(x: T)`). Stage 1 only.
 
 `Eq`, `Ord` and `Hash` are derived as follows:
 
