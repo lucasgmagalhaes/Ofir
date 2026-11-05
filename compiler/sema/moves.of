@@ -21,6 +21,7 @@
  */
 
 import base.span.Span
+import sema.borrows.Access
 import sema.borrows.Loan
 import sema.borrows.Conflict
 import sema.borrows.access
@@ -371,8 +372,8 @@ pub struct Moves {
  */
 pub fn markFlag(c: mut Checker, id: int, flag: int) {
     let old = match c.moveFlags[c.module()].get(id) {
-        .Some(value) => *value
-        .None => 0
+        Option.Some(value) => *value
+        Option.None => 0
     }
     c.moveFlags[c.module()].insert(id, old | flag)
 }
@@ -412,10 +413,10 @@ fn checkMutParams(m: Moves, c: mut Checker, p: Program, s: &State, span: Span) {
     let decl = fnOf(p, c.loc(m.fnDef))
     for i in 0..decl.params.len() + 1 {
         let isSelf = i == decl.params.len()
-        if isSelf && !(decl.hasSelf && decl.selfMode == .Mut) {
+        if isSelf && !(decl.hasSelf && decl.selfMode == Mode.Mut) {
             continue
         }
-        if !isSelf && decl.params[i].mode != .Mut {
+        if !isSelf && decl.params[i].mode != Mode.Mut {
             continue
         }
         let local = if isSelf { 0 } else { c.localAt(decl.params[i].id.0) }
@@ -470,8 +471,8 @@ pub fn movesBlock(m: mut Moves, c: mut Checker, p: Program, block: &Block, s: mu
 // The owned locals a statement declares: they die at the end of the block.
 fn declaredLocals(m: mut Moves, c: Checker, stmt: &Stmt) {
     match stmt.kind {
-        .Let(pattern, _, _, _) => patternLocals(c, &pattern, m.scope)
-        .Var(_, _, _) => {
+        StmtKind.Let(pattern, _, _, _) => patternLocals(c, &pattern, m.scope)
+        StmtKind.Var(_, _, _) => {
             let local = c.localAt(stmt.id.0)
             if local >= 0 {
                 m.scope.push(local)
@@ -483,27 +484,27 @@ fn declaredLocals(m: mut Moves, c: Checker, stmt: &Stmt) {
 
 fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State) {
     match stmt.kind {
-        .Let(pattern, _, value, otherwise) => {
+        StmtKind.Let(pattern, _, value, otherwise) => {
             // `let _ = value` keeps nothing: the value is a temporary, dropped at once.
             let keeps = match pattern.kind {
-                .Wildcard => false
+                PatternKind.Wildcard => false
                 _ => true
             }
             let mark = m.carry.len()
             movesNode(m, c, p, &value, s, if keeps { Use.Move } else { Use.Read })
             let loans = carriedSince(m, mark)
-            if let .Some(block) = otherwise {
+            if let Option.Some(block) = otherwise {
                 var other = s.dup()
-                movesBlock(m, c, p, &block, other, .Read)   // never falls through
+                movesBlock(m, c, p, &block, other, Use.Read)   // never falls through
             }
             m.binding = loans
             patternInit(m, c, &pattern, s, false)
             m.binding = []
         }
-        .Var(_, _, value) => {
+        StmtKind.Var(_, _, value) => {
             let mark = m.carry.len()
-            if let .Some(v) = value {
-                movesNode(m, c, p, &v, s, .Move)
+            if let Option.Some(v) = value {
+                movesNode(m, c, p, &v, s, Use.Move)
             }
             let local = c.localAt(stmt.id.0)
             if local >= 0 {
@@ -515,33 +516,33 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
                 }
             }
         }
-        .Assign(op, target, value) => {
+        StmtKind.Assign(op, target, value) => {
             // `x = v` moves `v` into `x`; `x op= v` only reads it (`s += t` appends).
             let mark = m.carry.len()
-            movesNode(m, c, p, &value, s, if op == .Assign { Use.Move } else { Use.Read })
-            if op != .Assign {   // `x += 1` reads `x` first, then writes it
+            movesNode(m, c, p, &value, s, if op == Op.Assign { Use.Move } else { Use.Read })
+            if op != Op.Assign {   // `x += 1` reads `x` first, then writes it
                 m.lastLocal = false
-                movesNode(m, c, p, &target, s, .Mutate)
+                movesNode(m, c, p, &target, s, Use.Mutate)
                 if m.lastLocal && isPlaceView(c, &target) {
-                    access(s, &m.lastPlace, .Write, target.span)
+                    access(s, &m.lastPlace, Access.Write, target.span)
                 }
                 return
             }
             m.binding = carriedSince(m, mark)
-            movesNode(m, c, p, &target, s, .Assign)
+            movesNode(m, c, p, &target, s, Use.Assign)
             m.binding = []
         }
-        .For(_, _, _, _, _, _) => {
+        StmtKind.For(_, _, _, _, _, _) => {
             loopBody(m, c, p, stmt, s)
         }
-        .Return(value) => {
-            if let .Some(v) = value {
-                movesNode(m, c, p, &v, s, .Move)
+        StmtKind.Return(value) => {
+            if let Option.Some(v) = value {
+                movesNode(m, c, p, &v, s, Use.Move)
             }
             checkMutParams(m, c, p, &s, stmt.span)
             s.dead = true
         }
-        .Break => {
+        StmtKind.Break => {
             let last = m.loops.len() - 1
             if last >= 0 {   // else E0309 was reported
                 endScope(m, c, s, m.loops[last].scope, stmt.span)
@@ -549,7 +550,7 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
             }
             s.dead = true
         }
-        .Continue => {
+        StmtKind.Continue => {
             let last = m.loops.len() - 1
             if last >= 0 {
                 endScope(m, c, s, m.loops[last].scope, stmt.span)
@@ -558,8 +559,8 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
             }
             s.dead = true
         }
-        .ExprStmt(e) => {
-            movesNode(m, c, p, &e, s, .Read)
+        StmtKind.ExprStmt(e) => {
+            movesNode(m, c, p, &e, s, Use.Read)
         }
     }
 }
@@ -569,12 +570,12 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
 
 fn isRange(stmt: &Stmt) bool {
     return match stmt.kind {
-        .For(_, _, _, _, expr, _) => match expr {
-            .Some(e) => match e.kind {
-                .Range(_, _, _) => true
+        StmtKind.For(_, _, _, _, expr, _) => match expr {
+            Option.Some(e) => match e.kind {
+                ExprKind.Range(_, _, _) => true
                 _ => false
             }
-            .None => false
+            Option.None => false
         }
         _ => false
     }
@@ -591,17 +592,17 @@ fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &Stat
     var st = entry.dup()
     var exit = deadState()
     match stmt.kind {
-        .For(kind, _, _, second, expr, body) => {
-            if kind == .Cond {
-                if let .Some(cond) = expr {
-                    movesNode(m, c, p, &cond, st, .Read)
+        StmtKind.For(kind, _, _, second, expr, body) => {
+            if kind == ForKind.Cond {
+                if let Option.Some(cond) = expr {
+                    movesNode(m, c, p, &cond, st, Use.Read)
                 }
                 exit = st.dup()   // the condition was false
-            } else if kind == .In {
+            } else if kind == ForKind.In {
                 let first = c.localAt(stmt.id.0)
                 var owns = isRange(stmt)
                 if !owns {
-                    if let .Some(e) = expr {
+                    if let Option.Some(e) = expr {
                         owns = iteratorItem(c, p, viewType(c, &e, -1)).isSome()
                     }
                 }
@@ -624,7 +625,7 @@ fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &Stat
                     exit = st.dup()
                 }
             }
-            movesBlock(m, c, p, &body, st, .Read)
+            movesBlock(m, c, p, &body, st, Use.Read)
             endScope(m, c, st, base, body.span)
             if m.scope.len() > base {
                 m.scope.truncate(base)
@@ -653,19 +654,19 @@ fn bindLoopVar(m: mut Moves, st: mut State, local: int, borrows: bool, last: int
 fn loopLoans(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut State) {
     let holder = m.holderBase + m.loops.len()
     if let StmtKind.For(kind, mutable, _, _, expr, _) = stmt.kind {
-        if kind != .In {
+        if kind != ForKind.In {
             return
         }
-        if let .Some(e) = expr {
+        if let Option.Some(e) = expr {
             let mark = m.carry.len()
             m.lastLocal = false
-            movesNode(m, c, p, &e, st, .Read)   // evaluated once, borrowed
+            movesNode(m, c, p, &e, st, Use.Read)   // evaluated once, borrowed
             var loans = carriedSince(m, mark)
             dropCarry(m, mark)
             let owns = isRange(stmt) || iteratorItem(c, p, viewType(c, &e, -1)).isSome()
             if !owns && m.lastLocal && isPlaceView(c, &e) {
                 if mutable {
-                    access(st, &m.lastPlace, .BorrowMut, e.span)
+                    access(st, &m.lastPlace, Access.BorrowMut, e.span)
                 }
                 loans.push(Loan{holder, part: m.lastPlace.clone(), mutable, span: e.span})
             }
@@ -733,19 +734,19 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
                   allParts: [], refLocal, copyLocal, holderBase: count, carry: [],
                   binding: [], lastPlace: Part{local: 0, fields: []}, lastLocal: false,
                   scope: [], depth: 0}
-    if decl.hasSelf && decl.selfMode == .Borrow && count > 0 {
+    if decl.hasSelf && decl.selfMode == Mode.Borrow && count > 0 {
         m.borrowed[0] = true
     }
     for i in 0..decl.params.len() {
         let local = c.localAt(decl.params[i].id.0)
-        if decl.params[i].mode == .Borrow && local >= 0 {
+        if decl.params[i].mode == Mode.Borrow && local >= 0 {
             m.borrowed[local] = true
         }
     }
     var s = newState(count)
     match decl.body {
-        .Some(body) => movesBlock(m, c, p, &body, s, .Read)
-        .None => {}
+        Option.Some(body) => movesBlock(m, c, p, &body, s, Use.Read)
+        Option.None => {}
     }
     checkMutParams(m, c, p, &s, decl.span)
     c.fnMoves.insert(id, FnMoves{borrowed: mem.replace(m.borrowed, []),

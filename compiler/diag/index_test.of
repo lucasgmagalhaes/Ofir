@@ -15,7 +15,7 @@ fn humanFormatMatchesStageZero() {
     var diags = Diagnostics.new()
     let span = Span{file: FileId(0), start: 22, end: 23}
     diags.error("E0101", span, "expected an expression".toOwned())
-    let text = diags.render(sample(), .Human)
+    let text = diags.render(sample(), Format.Human)
     let expected = "error[E0101]: expected an expression\n" +
         " --> a.of:2:11\n" +
         "  |\n" +
@@ -32,7 +32,7 @@ fn shortFormatIsSortedAndDeduplicated() {
     diags.error("E0200", Span{file: FileId(0), start: 3, end: 7}, "cannot find `main`".toOwned())
     diags.warning("W0001", late, "unused variable `x`".toOwned())
     assert(diags.errorCount() == 1 && diags.len() == 3)
-    let text = diags.render(sample(), .Short)
+    let text = diags.render(sample(), Format.Short)
     assert(text == "a.of:1:4: error[E0200]: cannot find `main`\n" +
         "a.of:2:2: warning[W0001]: unused variable `x`\n")
 }
@@ -49,6 +49,6 @@ fn denyWarningsMakesErrors() {
 fn caretStopsAtTheEndOfTheLine() {
     var diags = Diagnostics.new()
     diags.error("E0003", Span{file: FileId(0), start: 0, end: 40}, "unterminated".toOwned())
-    let text = diags.render(sample(), .Human)
+    let text = diags.render(sample(), Format.Human)
     assert(text.endsWith("1 | fn main() \{\n  | ^^^^^^^^^^^^\n\n"))
 }

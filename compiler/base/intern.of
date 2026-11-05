@@ -40,7 +40,7 @@ pub struct Interner {
      * @returns its symbol
      */
     pub fn intern(mut self, text: str) Symbol {
-        if let .Some(id) = self.ids.get(text) {
+        if let Option.Some(id) = self.ids.get(text) {
             return Symbol(*id)
         }
         let id = self.names.len()
@@ -57,8 +57,8 @@ pub struct Interner {
      */
     pub fn find(self, text: str) Option<Symbol> {
         return match self.ids.get(text) {
-            .Some(id) => .Some(Symbol(*id))
-            .None => .None
+            Option.Some(id) => Option.Some(Symbol(*id))
+            Option.None => Option.None
         }
     }
 

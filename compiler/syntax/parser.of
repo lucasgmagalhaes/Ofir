@@ -155,14 +155,15 @@ pub struct Parser {
      */
     pub fn atWord(self, word: Option<Symbol>) bool {
         let t = self.token(0)
-        return t.kind == .Ident && word.isSome() && symbolOf(t).0 == word.unwrapOr(Symbol(0)).0
+        return t.kind == TokenKind.Ident && word.isSome() &&
+               symbolOf(t).0 == word.unwrapOr(Symbol(0)).0
     }
 
     /**
      * Skips newlines, wherever the grammar needs more tokens (spec 1.3).
      */
     pub fn skipNewlines(mut self) {
-        for self.at(.Newline) {
+        for self.at(TokenKind.Newline) {
             self.advance()
         }
     }
@@ -214,7 +215,7 @@ pub struct Parser {
     // of a line, just after the previous token (not after a comment).
     fn errorSpan(self) Span {
         let t = self.token(0)
-        if t.kind != .Newline || self.pos == 0 {
+        if t.kind != TokenKind.Newline || self.pos == 0 {
             return t.span
         }
         let after = self.tokens[self.pos - 1].span
@@ -244,13 +245,13 @@ pub struct Parser {
      * @returns its name, or `None` if it was missing
      */
     pub fn expectName(mut self, what: str) Option<Symbol> {
-        if self.at(.Ident) {
+        if self.at(TokenKind.Ident) {
             let name = symbolOf(self.token(0))
             self.advance()
-            return .Some(name)
+            return Option.Some(name)
         }
         self.unexpected(what)
-        return .None
+        return Option.None
     }
 
     /**
@@ -270,8 +271,8 @@ pub struct Parser {
      * @returns false if there was neither
      */
     pub fn acceptSeparator(mut self) bool {
-        let comma = self.accept(.Comma)
-        let newline = self.accept(.Newline)
+        let comma = self.accept(TokenKind.Comma)
+        let newline = self.accept(TokenKind.Newline)
         return comma || newline
     }
 
@@ -280,9 +281,9 @@ pub struct Parser {
      * the end of the file.
      */
     pub fn expectTerminator(mut self) {
-        if self.accept(.Newline) {
+        if self.accept(TokenKind.Newline) {
             self.skipNewlines()
-        } else if !self.at(.RBrace) && !self.at(.Eof) {
+        } else if !self.at(TokenKind.RBrace) && !self.at(TokenKind.Eof) {
             self.unexpected("a new line after the statement")
         }
     }
@@ -293,14 +294,15 @@ pub struct Parser {
      */
     pub fn synchronize(mut self) {
         var depth = 0
-        for !self.at(.Eof) {
+        for !self.at(TokenKind.Eof) {
             let k = self.peek()
-            if depth == 0 && (k == .Newline || k == .RBrace) {
+            if depth == 0 && (k == TokenKind.Newline || k == TokenKind.RBrace) {
                 break
             }
-            if k == .LParen || k == .LBracket || k == .LBrace {
+            if k == TokenKind.LParen || k == TokenKind.LBracket || k == TokenKind.LBrace {
                 depth += 1
-            } else if (k == .RParen || k == .RBracket || k == .RBrace) && depth > 0 {
+            } else if (k == TokenKind.RParen || k == TokenKind.RBracket || k == TokenKind.RBrace) &&
+                      depth > 0 {
                 depth -= 1
             }
             self.advance()
@@ -334,7 +336,7 @@ pub copy struct Words {
  */
 pub fn symbolOf(t: &Token) Symbol {
     return match t.value {
-        .Name(symbol) => symbol
+        TokenValue.Name(symbol) => symbol
         _ => Symbol(0)
     }
 }
@@ -347,18 +349,18 @@ pub fn symbolOf(t: &Token) Symbol {
  */
 pub fn textOf(t: &Token) str {
     return match t.value {
-        .Str(text) => text.sliceFrom(0)
+        TokenValue.Str(text) => text.sliceFrom(0)
         _ => ""
     }
 }
 
 fn describe(kind: TokenKind) str {
     return match kind {
-        .Ident => "an identifier"
-        .Int | .Float | .Byte => "a number"
-        .Str | .StrStart => "a string"
-        .Newline => "the end of the line"
-        .Eof => "the end of the file"
+        TokenKind.Ident => "an identifier"
+        TokenKind.Int | TokenKind.Float | TokenKind.Byte => "a number"
+        TokenKind.Str | TokenKind.StrStart => "a string"
+        TokenKind.Newline => "the end of the line"
+        TokenKind.Eof => "the end of the file"
         _ => ""
     }
 }
@@ -397,9 +399,9 @@ pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move I
     var kept: List<Token> = []
     for i in 0..tokens.len() {
         let kind = tokens[i].kind
-        if kind == .ModuleDoc {
+        if kind == TokenKind.ModuleDoc {
             docs.push(textOf(&tokens[i]).toOwned())
-        } else if kind != .DocComment {
+        } else if kind != TokenKind.DocComment {
             kept.push(copyToken(&tokens[i]))
         }
     }
@@ -415,12 +417,12 @@ pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move I
 
 fn copyToken(t: &Token) Token {
     let value: TokenValue = match t.value {
-        .None => .None
-        .Int(v) => .Int(v)
-        .Float(v) => .Float(v)
-        .Byte(v) => .Byte(v)
-        .Str(text) => .Str(text.toOwned())
-        .Name(symbol) => .Name(symbol)
+        TokenValue.None => TokenValue.None
+        TokenValue.Int(v) => TokenValue.Int(v)
+        TokenValue.Float(v) => TokenValue.Float(v)
+        TokenValue.Byte(v) => TokenValue.Byte(v)
+        TokenValue.Str(text) => TokenValue.Str(text.toOwned())
+        TokenValue.Name(symbol) => TokenValue.Name(symbol)
     }
     return Token{kind: t.kind, span: t.span, value}
 }

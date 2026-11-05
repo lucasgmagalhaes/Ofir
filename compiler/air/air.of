@@ -95,7 +95,7 @@ fn operand(kind: OperandKind, ty: int) Operand {
  * @returns the operand
  */
 pub fn opCopy(local: int, ty: int) Operand {
-    var o = operand(.Copy, ty)
+    var o = operand(OperandKind.Copy, ty)
     o.local = local
     return o
 }
@@ -108,7 +108,7 @@ pub fn opCopy(local: int, ty: int) Operand {
  * @returns the operand
  */
 pub fn opAddr(local: int, ty: int) Operand {
-    var o = operand(.Addr, ty)
+    var o = operand(OperandKind.Addr, ty)
     o.local = local
     return o
 }
@@ -121,7 +121,7 @@ pub fn opAddr(local: int, ty: int) Operand {
  * @returns the operand
  */
 pub fn opInt(bits: u64, ty: int) Operand {
-    var o = operand(.Int, ty)
+    var o = operand(OperandKind.Int, ty)
     o.bits = bits
     return o
 }
@@ -134,7 +134,7 @@ pub fn opInt(bits: u64, ty: int) Operand {
  * @returns the operand
  */
 pub fn opFloat(value: float, ty: int) Operand {
-    var o = operand(.Float, ty)
+    var o = operand(OperandKind.Float, ty)
     o.float = value
     return o
 }
@@ -147,7 +147,7 @@ pub fn opFloat(value: float, ty: int) Operand {
  * @returns the operand
  */
 pub fn opBool(value: bool, ty: int) Operand {
-    var o = operand(.Bool, ty)
+    var o = operand(OperandKind.Bool, ty)
     o.truth = value
     return o
 }
@@ -160,7 +160,7 @@ pub fn opBool(value: bool, ty: int) Operand {
  * @returns the operand
  */
 pub fn opStr(text: str, ty: int) Operand {
-    var o = operand(.Str, ty)
+    var o = operand(OperandKind.Str, ty)
     o.text = text.toOwned()
     return o
 }
@@ -172,7 +172,7 @@ pub fn opStr(text: str, ty: int) Operand {
  * @returns the operand
  */
 pub fn opUnit(ty: int) Operand {
-    return operand(.Unit, ty)
+    return operand(OperandKind.Unit, ty)
 }
 
 /** What an rvalue computes. */
@@ -262,7 +262,7 @@ pub struct Rvalue {
  * @returns the rvalue
  */
 pub fn rvalue(kind: RvalueKind, op: Op, a: move Operand, b: move Operand) Rvalue {
-    return Rvalue{kind: kind, op: op, a: a, b: b, to: 0, flag: 0, floatFn: .Sqrt, items: []}
+    return Rvalue{kind: kind, op: op, a: a, b: b, to: 0, flag: 0, floatFn: FloatFn.Sqrt, items: []}
 }
 
 /**
@@ -272,7 +272,7 @@ pub fn rvalue(kind: RvalueKind, op: Op, a: move Operand, b: move Operand) Rvalue
  * @returns the rvalue
  */
 pub fn rvUse(a: move Operand) Rvalue {
-    return rvalue(.Use, .Add, a, opUnit(UNIT))
+    return rvalue(RvalueKind.Use, Op.Add, a, opUnit(UNIT))
 }
 
 /** The functions of the runtime library (runtime/include/ofir_rt.h). */
@@ -305,23 +305,23 @@ pub copy enum RuntimeFn {
  */
 pub fn runtimeName(f: RuntimeFn) str {
     return match f {
-        .PrintStr => "ofir_print_str"
-        .PrintInt => "ofir_print_int"
-        .PrintUint => "ofir_print_uint"
-        .PrintFloat => "ofir_print_float"
-        .PrintF32 => "ofir_print_f32"
-        .PrintBool => "ofir_print_bool"
-        .PrintNewline => "ofir_print_newline"
-        .StrPushStr => "ofir_str_push_str"
-        .StrPushInt => "ofir_str_push_int"
-        .StrPushUint => "ofir_str_push_uint"
-        .StrPushFloat => "ofir_str_push_float"
-        .StrPushF32 => "ofir_str_push_f32"
-        .StrPushBool => "ofir_str_push_bool"
-        .StrConcat => "ofir_str_concat"
-        .StrEq => "ofir_str_eq"
-        .StrCmp => "ofir_str_cmp"
-        .TestIndex => "ofir_test_index"
+        RuntimeFn.PrintStr => "ofir_print_str"
+        RuntimeFn.PrintInt => "ofir_print_int"
+        RuntimeFn.PrintUint => "ofir_print_uint"
+        RuntimeFn.PrintFloat => "ofir_print_float"
+        RuntimeFn.PrintF32 => "ofir_print_f32"
+        RuntimeFn.PrintBool => "ofir_print_bool"
+        RuntimeFn.PrintNewline => "ofir_print_newline"
+        RuntimeFn.StrPushStr => "ofir_str_push_str"
+        RuntimeFn.StrPushInt => "ofir_str_push_int"
+        RuntimeFn.StrPushUint => "ofir_str_push_uint"
+        RuntimeFn.StrPushFloat => "ofir_str_push_float"
+        RuntimeFn.StrPushF32 => "ofir_str_push_f32"
+        RuntimeFn.StrPushBool => "ofir_str_push_bool"
+        RuntimeFn.StrConcat => "ofir_str_concat"
+        RuntimeFn.StrEq => "ofir_str_eq"
+        RuntimeFn.StrCmp => "ofir_str_cmp"
+        RuntimeFn.TestIndex => "ofir_test_index"
     }
 }
 
@@ -428,7 +428,8 @@ pub struct Terminator {
  * @returns the terminator, with no operands
  */
 pub fn terminator(kind: TermKind) Terminator {
-    return Terminator{kind: kind, cond: opUnit(UNIT), target: 0, other: 0, panic: .Overflow,
+    return Terminator{kind: kind, cond: opUnit(UNIT), target: 0, other: 0,
+                      panic: PanicKind.Overflow,
                       index: opUnit(UNIT), len: opUnit(UNIT), span: noSpan()}
 }
 
@@ -439,7 +440,7 @@ pub fn terminator(kind: TermKind) Terminator {
  * @returns the terminator
  */
 pub fn jump(target: int) Terminator {
-    var t = terminator(.Goto)
+    var t = terminator(TermKind.Goto)
     t.target = target
     return t
 }
@@ -453,7 +454,7 @@ pub fn jump(target: int) Terminator {
  * @returns the terminator
  */
 pub fn branch(cond: move Operand, then: int, other: int) Terminator {
-    var t = terminator(.Branch)
+    var t = terminator(TermKind.Branch)
     t.cond = cond
     t.target = then
     t.other = other
@@ -525,7 +526,7 @@ pub struct AirBody {
      * @returns its number
      */
     pub fn newBlock(mut self) int {
-        self.blocks.push(AirBlock{stmts: [], term: terminator(.None)})
+        self.blocks.push(AirBlock{stmts: [], term: terminator(TermKind.None)})
         return self.blocks.len() - 1
     }
 

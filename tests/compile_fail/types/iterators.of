@@ -5,7 +5,7 @@ struct Numbers {
 
     fn next(mut self) Option<int> {
         self.n -= 1
-        return if self.n < 0 { .None } else { .Some(self.n) }
+        return if self.n < 0 { Option.None } else { Option.Some(self.n) }
     }
 }
 

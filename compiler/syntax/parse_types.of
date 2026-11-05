@@ -12,6 +12,7 @@ import syntax.ast.TypeKind
 import syntax.ast.WherePred
 import syntax.parse_exprs.parseExpr
 import syntax.parser.Parser
+import syntax.token.TokenKind
 
 fn newType(p: Parser, kind: move TypeKind, start: Span) TypeExpr {
     return TypeExpr{kind, span: p.spanSince(start)}
@@ -25,7 +26,8 @@ fn newType(p: Parser, kind: move TypeKind, start: Span) TypeExpr {
  */
 pub fn canStartType(p: Parser) bool {
     return match p.peek() {
-        .Ident | .Amp | .Star | .LBracket | .LParen | .Fn | .Dyn | .Bang | .SelfType => true
+        TokenKind.Ident | TokenKind.Amp | TokenKind.Star | TokenKind.LBracket | TokenKind.LParen |
+        TokenKind.Fn | TokenKind.Dyn | TokenKind.Bang | TokenKind.SelfType => true
         _ => false
     }
 }
@@ -37,14 +39,14 @@ pub fn canStartType(p: Parser) bool {
  * @returns the mode, `Borrow` when there is none
  */
 pub fn parseMode(p: mut Parser) Mode {
-    if p.accept(.Mut) {
-        return .Mut
+    if p.accept(TokenKind.Mut) {
+        return Mode.Mut
     }
-    if p.atWord(p.words.move) && p.peekAt(1) != .Colon {
+    if p.atWord(p.words.move) && p.peekAt(1) != TokenKind.Colon {
         p.advance()
-        return .Move
+        return Mode.Move
     }
-    return .Borrow
+    return Mode.Borrow
 }
 
 /**
@@ -56,15 +58,15 @@ pub fn parseMode(p: mut Parser) Mode {
 pub fn parseTypeArgs(p: mut Parser) List<TypeExpr> {
     var args: List<TypeExpr> = []
     p.skipNewlines()
-    for !p.at(.Gt) && !p.at(.Eof) {
+    for !p.at(TokenKind.Gt) && !p.at(TokenKind.Eof) {
         args.push(parseType(p))
         p.skipNewlines()
-        if !p.accept(.Comma) {
+        if !p.accept(TokenKind.Comma) {
             break
         }
         p.skipNewlines()
     }
-    p.expect(.Gt, "`>` to close the type arguments")
+    p.expect(TokenKind.Gt, "`>` to close the type arguments")
     return args
 }
 
@@ -76,7 +78,7 @@ pub fn parseTypeArgs(p: mut Parser) List<TypeExpr> {
  */
 pub fn parseBounds(p: mut Parser) List<TypeExpr> {
     var bounds = [parseType(p)]
-    for p.accept(.Plus) {
+    for p.accept(TokenKind.Plus) {
         bounds.push(parseType(p))
     }
     return bounds
@@ -91,21 +93,21 @@ pub fn parseBounds(p: mut Parser) List<TypeExpr> {
  */
 pub fn parseTypeParams(p: mut Parser, preds: mut List<WherePred>) List<Symbol> {
     var params: List<Symbol> = []
-    if p.accept(.Lt) {
-        for p.at(.Ident) {
+    if p.accept(TokenKind.Lt) {
+        for p.at(TokenKind.Ident) {
             let start = p.here()
             let name = p.takeName()
             params.push(name)
-            if p.accept(.Colon) {
-                let ty = newType(p, .Path([name], []), start)
+            if p.accept(TokenKind.Colon) {
+                let ty = newType(p, TypeKind.Path([name], []), start)
                 let bounds = parseBounds(p)
                 preds.push(WherePred{ty, bounds, span: p.spanSince(start)})
             }
-            if !p.accept(.Comma) {
+            if !p.accept(TokenKind.Comma) {
                 break
             }
         }
-        p.expect(.Gt, "`>` to close the type parameters")
+        p.expect(TokenKind.Gt, "`>` to close the type parameters")
     }
     return params
 }
@@ -113,103 +115,107 @@ pub fn parseTypeParams(p: mut Parser, preds: mut List<WherePred>) List<Symbol> {
 fn pathType(p: mut Parser) TypeExpr {
     let start = p.here()
     var segments = [p.takeName()]
-    for p.at(.Dot) && p.peekAt(1) == .Ident {
+    for p.at(TokenKind.Dot) && p.peekAt(1) == TokenKind.Ident {
         p.advance()
         segments.push(p.takeName())
     }
     var args: List<TypeExpr> = []
-    if p.accept(.Lt) {
+    if p.accept(TokenKind.Lt) {
         args = parseTypeArgs(p)
     }
-    return newType(p, .Path(segments, args), start)
+    return newType(p, TypeKind.Path(segments, args), start)
 }
 
 // `fn(A, mut B) R` or `move fn(A) R`; the `fn` keyword is next.
 fn fnType(p: mut Parser, start: Span, owned: bool) TypeExpr {
     p.advance()
-    p.expect(.LParen, "`(` after `fn`")
+    p.expect(TokenKind.LParen, "`(` after `fn`")
     var params: List<TypeExpr> = []
     var modes: List<Mode> = []
-    for !p.at(.RParen) && !p.at(.Eof) {
+    for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
         modes.push(parseMode(p))
         params.push(parseType(p))
-        if !p.accept(.Comma) {
+        if !p.accept(TokenKind.Comma) {
             break
         }
     }
-    p.expect(.RParen, "`)` to close the parameter types")
-    var ret: Option<Box<TypeExpr>> = .None
+    p.expect(TokenKind.RParen, "`)` to close the parameter types")
+    var ret: Option<Box<TypeExpr>> = Option.None
     if canStartType(p) {
-        ret = .Some(Box.new(parseType(p)))
+        ret = Option.Some(Box.new(parseType(p)))
     }
-    return newType(p, .Fn(params, modes, ret, owned), start)
+    return newType(p, TypeKind.Fn(params, modes, ret, owned), start)
 }
 
 // `[T]` or `[T; N]`; the `[` is next.
 fn bracketType(p: mut Parser, start: Span) TypeExpr {
     p.advance()
     let elem = Box.new(parseType(p))
-    if p.accept(.Semicolon) {
+    if p.accept(TokenKind.Semicolon) {
         let len = Box.new(parseExpr(p))
-        p.expect(.RBracket, "`]`")
-        return newType(p, .Array(elem, len), start)
+        p.expect(TokenKind.RBracket, "`]`")
+        return newType(p, TypeKind.Array(elem, len), start)
     }
-    p.expect(.RBracket, "`]`")
-    return newType(p, .Slice(elem), start)
+    p.expect(TokenKind.RBracket, "`]`")
+    return newType(p, TypeKind.Slice(elem), start)
 }
 
 // `()`, `(T,)`, `(A, B)`; the `(` is next.
 fn tupleType(p: mut Parser, start: Span) TypeExpr {
     p.advance()
     var elems: List<TypeExpr> = []
-    for !p.at(.RParen) && !p.at(.Eof) {
+    for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
         elems.push(parseType(p))
-        if !p.accept(.Comma) {
+        if !p.accept(TokenKind.Comma) {
             break
         }
     }
-    p.expect(.RParen, "`)` to close the tuple type")
-    return newType(p, .Tuple(elems), start)
+    p.expect(TokenKind.RParen, "`)` to close the tuple type")
+    return newType(p, TypeKind.Tuple(elems), start)
 }
 
 fn pointerType(p: mut Parser, start: Span, reference: bool) TypeExpr {
     p.advance()
-    let mutable = p.accept(.Mut)
+    let mutable = p.accept(TokenKind.Mut)
     let inner = Box.new(parseType(p))
-    let kind: TypeKind = if reference { .Ref(mutable, inner) } else { .Ptr(mutable, inner) }
+    let kind: TypeKind = if reference {
+        TypeKind.Ref(mutable, inner)
+    } else {
+        TypeKind.Ptr(mutable, inner)
+    }
     return newType(p, kind, start)
 }
 
 fn baseType(p: mut Parser) TypeExpr {
     let start = p.here()
     return match p.peek() {
-        .Ident => if p.atWord(p.words.move) && p.peekAt(1) == .Fn {
+        TokenKind.Ident => if p.atWord(p.words.move) && p.peekAt(1) == TokenKind.Fn {
             p.advance()
             fnType(p, start, true)
         } else {
             pathType(p)
         }
-        .SelfType => {
+        TokenKind.SelfType => {
             p.advance()
-            newType(p, .SelfType, start)
+            newType(p, TypeKind.SelfType, start)
         }
-        .Amp => pointerType(p, start, true)
-        .Star => pointerType(p, start, false)
-        .LBracket => bracketType(p, start)
-        .LParen => tupleType(p, start)
-        .Fn => fnType(p, start, false)
-        .Bang => {
+        TokenKind.Amp => pointerType(p, start, true)
+        TokenKind.Star => pointerType(p, start, false)
+        TokenKind.LBracket => bracketType(p, start)
+        TokenKind.LParen => tupleType(p, start)
+        TokenKind.Fn => fnType(p, start, false)
+        TokenKind.Bang => {
             p.advance()
-            newType(p, .Never, start)
+            newType(p, TypeKind.Never, start)
         }
-        .Dyn => {
+        TokenKind.Dyn => {
             p.advance()
             let inner = Box.new(parseType(p))
-            newType(p, .Dyn(inner), start)
+            newType(p, TypeKind.Dyn(inner), start)
         }
         _ => {
             p.unexpected("a type")
-            newType(p, .Never, start)
+            newType(p, TypeKind.Never, start)
         }
     }
 }
@@ -222,10 +228,10 @@ fn baseType(p: mut Parser) TypeExpr {
  */
 pub fn parseType(p: mut Parser) TypeExpr {
     var t = baseType(p)
-    for p.at(.Question) {
+    for p.at(TokenKind.Question) {
         p.advance()
         let span = t.span
-        t = TypeExpr{kind: .Optional(Box.new(t)), span: p.spanSince(span)}
+        t = TypeExpr{kind: TypeKind.Optional(Box.new(t)), span: p.spanSince(span)}
     }
     return t
 }

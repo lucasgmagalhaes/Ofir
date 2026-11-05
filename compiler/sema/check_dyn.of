@@ -9,6 +9,7 @@ import sema.check.Checker
 import sema.check_box.boxInner
 import sema.interfaces.unsatisfied
 import sema.program.Program
+import sema.types.TyKind
 import syntax.ast.Expr
 
 /**
@@ -23,15 +24,15 @@ import syntax.ast.Expr
  * @returns whether it was converted (or an error reported)
  */
 pub fn coerceToDyn(c: mut Checker, p: Program, e: &Expr, found: int, expected: int) bool {
-    let Some(target) = dynTarget(c, found, expected) else {
+    let Option.Some(target) = dynTarget(c, found, expected) else {
         return false
     }
-    if c.types.kind(target) == .Error {
+    if c.types.kind(target) == TyKind.Error {
         return true
     }
     let object = match boxInner(c, expected) {
-        .Some(inner) => inner
-        .None => c.types.get(expected).inner
+        Option.Some(inner) => inner
+        Option.None => c.types.get(expected).inner
     }
     let why = unsatisfied(c, p, target, c.types.get(object).data)
     if why.len() > 0 {
@@ -47,37 +48,38 @@ pub fn coerceToDyn(c: mut Checker, p: Program, e: &Expr, found: int, expected: i
 // The concrete type that `found` gives to `expected`, if the conversion
 // applies.
 fn dynTarget(c: Checker, found: int, expected: int) Option<int> {
-    if let .Some(inner) = boxInner(c, expected) {
-        if c.types.kind(inner) != .Dyn {
-            return .None
+    if let Option.Some(inner) = boxInner(c, expected) {
+        if c.types.kind(inner) != TyKind.Dyn {
+            return Option.None
         }
-        let Some(source) = boxInner(c, found) else {
-            return .None
+        let Option.Some(source) = boxInner(c, found) else {
+            return Option.None
         }
         return dynSource(c, source)
     }
     if !c.types.isFat(expected) {
-        return .None
+        return Option.None
     }
     let want = c.types.get(expected)
     let have = c.types.get(found)
     if have.kind == want.kind {   // `&T` to `&dyn I`, `*T` to `*dyn I`
         if want.data == 1 && have.data != 1 {
-            return .None
+            return Option.None
         }
         return dynSource(c, have.inner)
     }
-    if want.kind == .Ref && want.data == 0 && have.kind != .Ref && have.kind != .Ptr {
+    if want.kind == TyKind.Ref && want.data == 0 && have.kind != TyKind.Ref &&
+       have.kind != TyKind.Ptr {
         return dynSource(c, found)   // a value, borrowed
     }
-    return .None
+    return Option.None
 }
 
 fn dynSource(c: Checker, ty: int) Option<int> {
-    if c.types.kind(ty) == .Dyn || c.types.kind(ty) == .Never {
-        return .None
+    if c.types.kind(ty) == TyKind.Dyn || c.types.kind(ty) == TyKind.Never {
+        return Option.None
     }
-    return .Some(ty)
+    return Option.Some(ty)
 }
 
 /**
@@ -89,8 +91,8 @@ fn dynSource(c: Checker, ty: int) Option<int> {
  */
 pub fn boxesDyn(c: Checker, ty: int) bool {
     return match boxInner(c, ty) {
-        .Some(inner) => c.types.kind(inner) == .Dyn
-        .None => false
+        Option.Some(inner) => c.types.kind(inner) == TyKind.Dyn
+        Option.None => false
     }
 }
 
@@ -104,11 +106,11 @@ pub fn boxesDyn(c: Checker, ty: int) bool {
  */
 pub fn dynBorrowed(c: Checker, e: &Expr) bool {
     return match c.dynCoercions[c.module()].get(e.id.0) {
-        .Some(found) => {
+        Option.Some(found) => {
             let kind = c.types.kind(*found)
-            kind != .Ref && kind != .Ptr && boxInner(c, *found).isNone()
+            kind != TyKind.Ref && kind != TyKind.Ptr && boxInner(c, *found).isNone()
         }
-        .None => false
+        Option.None => false
     }
 }
 
@@ -121,7 +123,7 @@ pub fn dynBorrowed(c: Checker, e: &Expr) bool {
  */
 pub fn dynSourceType(c: Checker, e: &Expr) int {
     return match c.dynCoercions[c.module()].get(e.id.0) {
-        .Some(found) => *found
-        .None => -1
+        Option.Some(found) => *found
+        Option.None => -1
     }
 }

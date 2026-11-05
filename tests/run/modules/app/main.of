@@ -1,6 +1,7 @@
 import geometry
 import geometry.shapes
 import geometry.shapes.Circle
+import geometry.shapes.Kind
 import util as u
 
 fn main() {
@@ -8,6 +9,6 @@ fn main() {
     let s = shapes.Square.new(3.0)
     println("{shapes.area(c)} {s.area()} {u.twice(21)} {u.LIMIT}")
     let kind = shapes.Kind.Round
-    println("{shapes.describe(kind)} {shapes.describe(.Angular)}")
+    println("{shapes.describe(kind)} {shapes.describe(Kind.Angular)}")
     println("{geometry.unitArea()}")
 }

@@ -108,8 +108,8 @@ fn copied() {
     var list = [1, 2, 3]
     let n = list.len()
     let first = match list.first() {
-        .Some(x) => *x
-        .None => 0
+        Option.Some(x) => *x
+        Option.None => 0
     }
     list.push(n + first)
 }

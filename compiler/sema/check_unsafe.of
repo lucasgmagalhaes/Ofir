@@ -11,12 +11,15 @@ import sema.check.itemOf
 import sema.check_box.boxInner
 import sema.check_box.boxTarget
 import sema.check_types.fnSignature
+import sema.def.DefKind
 import sema.expr_check.checkExpr
 import sema.program.Program
 import sema.types.ERROR
 import sema.types.I64
+import sema.types.TyKind
 import sema.types.U64
 import syntax.ast.Expr
+import syntax.ast.ItemKind
 
 /**
  * Reports E0803 outside an `unsafe` block or function.
@@ -46,11 +49,11 @@ pub fn checkDeref(c: mut Checker, p: Program, e: &Expr, operand: &Expr) int {
         return boxTarget(c, p, ty)
     }
     let kind = c.types.kind(ty)
-    if kind == .Ptr {
+    if kind == TyKind.Ptr {
         requireUnsafe(c, e.span, "dereferencing a raw pointer")
         return c.types.get(ty).inner
     }
-    if kind == .Ref {   // `*r`: the referenced value, safe
+    if kind == TyKind.Ref {   // `*r`: the referenced value, safe
         return c.types.get(ty).inner
     }
     if ty != ERROR {
@@ -72,8 +75,9 @@ pub fn checkDeref(c: mut Checker, p: Program, e: &Expr, operand: &Expr) int {
 pub fn pointerCast(c: mut Checker, from: int, to: int, span: Span) bool {
     let a = c.types.kind(from)
     let b = c.types.kind(to)
-    let ptrPtr = (a == .Ptr || a == .Ref) && b == .Ptr
-    let ptrInt = (a == .Ptr && (to == U64 || to == I64)) || (b == .Ptr && (from == U64 ||
+    let ptrPtr = (a == TyKind.Ptr || a == TyKind.Ref) && b == TyKind.Ptr
+    let ptrInt = (a == TyKind.Ptr && (to == U64 || to == I64)) || (b == TyKind.Ptr &&
+                                                                   (from == U64 ||
                                                                          from == I64))
     if ptrPtr || ptrInt {
         requireUnsafe(c, span, "converting a raw pointer")
@@ -85,8 +89,9 @@ pub fn pointerCast(c: mut Checker, from: int, to: int, span: Span) bool {
 // Integers, floats, bool, raw pointers and () can cross the C boundary.
 fn cCompatible(c: Checker, ty: int) bool {
     let kind = c.types.kind(ty)
-    return kind == .Int || kind == .Float || kind == .Bool || kind == .Ptr || kind == .Unit ||
-           kind == .Never || kind == .Error
+    return kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool ||
+           kind == TyKind.Ptr || kind == TyKind.Unit ||
+           kind == TyKind.Never || kind == TyKind.Error
 }
 
 /**
@@ -121,12 +126,12 @@ pub fn checkCSignature(c: mut Checker, p: Program, id: int) {
 
 fn externAbi(c: Checker, p: Program, id: int) Option<str> {
     let def = c.def(id)
-    if def.kind != .Fn || def.item < 0 {
-        return .None
+    if def.kind != DefKind.Fn || def.item < 0 {
+        return Option.None
     }
     return match itemOf(p, c.loc(id)).kind {
-        .Extern(abi, _) => .Some(abi.clone())
-        _ => .None
+        ItemKind.Extern(abi, _) => Option.Some(abi.clone())
+        _ => Option.None
     }
 }
 
@@ -141,8 +146,8 @@ fn externAbi(c: Checker, p: Program, id: int) Option<str> {
  */
 pub fn isIntrinsic(c: Checker, p: Program, id: int) bool {
     return match externAbi(c, p, id) {
-        .Some(abi) => abi == "intrinsic"
-        .None => false
+        Option.Some(abi) => abi == "intrinsic"
+        Option.None => false
     }
 }
 
@@ -156,7 +161,7 @@ pub fn isIntrinsic(c: Checker, p: Program, id: int) bool {
  * @returns true if it does
  */
 pub fn isUnsafeFn(c: Checker, p: Program, id: int) bool {
-    if c.def(id).kind != .Fn || isIntrinsic(c, p, id) {
+    if c.def(id).kind != DefKind.Fn || isIntrinsic(c, p, id) {
         return false
     }
     return fnOf(p, c.loc(id)).isUnsafe || externAbi(c, p, id).isSome()

@@ -6,19 +6,19 @@ copy enum Direction {
 
     fn turned(self) Direction {
         return match self {
-            .North => .East
-            .East => .South
-            .South => .West
-            .West => .North
+            Direction.North => Direction.East
+            Direction.East => Direction.South
+            Direction.South => Direction.West
+            Direction.West => Direction.North
         }
     }
 
     fn name(self) str {
         return match self {
-            .North => "north"
-            .East => "east"
-            .South => "south"
-            .West => "west"
+            Direction.North => "north"
+            Direction.East => "east"
+            Direction.South => "south"
+            Direction.West => "west"
         }
     }
 }
@@ -29,15 +29,15 @@ enum Shape {
 
     fn scaled(self, k: float) Shape {
         return match self {
-            .Circle(r) => .Circle(r * k)
-            .Square(s) => Shape.Square(s * k)
+            Shape.Circle(r) => Shape.Circle(r * k)
+            Shape.Square(s) => Shape.Square(s * k)
         }
     }
 
     fn area(self) float {
         return match self {
-            .Circle(r) => 3.0 * r * r
-            .Square(s) => s * s
+            Shape.Circle(r) => 3.0 * r * r
+            Shape.Square(s) => s * s
         }
     }
 }
@@ -49,8 +49,8 @@ fn main() {
         d = d.turned()
     }
     println("")
-    println("{d == .East} {d == Direction.West} {d != .North}")
-    var s: Shape = .Square(2.0)
+    println("{d == Direction.East} {d == Direction.West} {d != Direction.North}")
+    var s: Shape = Shape.Square(2.0)
     s = s.scaled(1.5)
     let c = Shape.Circle(1.0).scaled(2.0)
     println("{s.area()} {c.area()}")

@@ -20,22 +20,22 @@ enum Expr {
 
 fn describe(t: Token) str {
     return match t {
-        .Number(0) => "zero"
-        .Number(n) if n < 0 => "negative {n}"
-        .Number(n) => "number {n}"
-        .Word("hi") | .Word("hello") => "greeting"
-        .Word(w) => "word {w}"
-        .Pair(a, _) | .Pair(_, a) if a == 0 => "pair with zero"
-        .Pair(a, b) => "pair {a + b}"
-        .End => "end"
+        Token.Number(0) => "zero"
+        Token.Number(n) if n < 0 => "negative {n}"
+        Token.Number(n) => "number {n}"
+        Token.Word("hi") | Token.Word("hello") => "greeting"
+        Token.Word(w) => "word {w}"
+        Token.Pair(a, _) | Token.Pair(_, a) if a == 0 => "pair with zero"
+        Token.Pair(a, b) => "pair {a + b}"
+        Token.End => "end"
     }
 }
 
 fn eval(e: Expr) int {
     return match e {
-        .Literal(n) => n
-        .Negate(.Number(n)) => -n
-        .Add(.Number(a), .Number(b)) => a + b
+        Expr.Literal(n) => n
+        Expr.Negate(Token.Number(n)) => -n
+        Expr.Add(Token.Number(a), Token.Number(b)) => a + b
         _ => 0
     }
 }
@@ -52,8 +52,8 @@ fn quadrant(p: Point) str {
 fn main() {
     let tokens = (Token.Number(0), Token.Number(-3), Token.Number(7), Token.Word("hi"))
     println("{describe(tokens.0)}, {describe(tokens.1)}, {describe(tokens.2)}, {describe(tokens.3)}")
-    println("{describe(.Word("x"))}, {describe(.Pair(0, 5))}, {describe(.Pair(2, 3))}, {describe(.End)}")
-    println("{eval(.Literal(4))} {eval(.Negate(.Number(5)))} {eval(.Add(.Number(1), .Number(2)))} {eval(.Negate(.End))}")
+    println("{describe(Token.Word("x"))}, {describe(Token.Pair(0, 5))}, {describe(Token.Pair(2, 3))}, {describe(Token.End)}")
+    println("{eval(Expr.Literal(4))} {eval(Expr.Negate(Token.Number(5)))} {eval(Expr.Add(Token.Number(1), Token.Number(2)))} {eval(Expr.Negate(Token.End))}")
     println("{quadrant(Point{x: 0, y: 0})} {quadrant(Point{x: 0, y: 3})} {quadrant(Point{x: 2, y: 2})} {quadrant(Point{x: -1, y: 2})}")
     let id = UserId(42)
     let UserId(raw) = id

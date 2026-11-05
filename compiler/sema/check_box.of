@@ -15,6 +15,7 @@ import sema.program.Program
 import sema.structs.structFieldType
 import sema.structs.structFields
 import base.intern.Symbol
+import sema.types.TyKind
 import syntax.ast.Expr
 
 /**
@@ -26,10 +27,10 @@ import syntax.ast.Expr
  */
 pub fn boxInner(c: Checker, ty: int) Option<int> {
     let t = c.types.get(ty)
-    if c.r.langItems[0] == 0 || t.kind != .Adt || t.data != c.r.langItems[0] {
-        return .None
+    if c.r.langItems[0] == 0 || t.kind != TyKind.Adt || t.data != c.r.langItems[0] {
+        return Option.None
     }
-    return .Some(t.args[0])
+    return Option.Some(t.args[0])
 }
 
 /**
@@ -57,7 +58,7 @@ fn derefStep(c: mut Checker, p: Program, ty: int) int {
     if !ownBox(c) && boxInner(c, ty).isSome() {
         return boxTarget(c, p, ty)
     }
-    if c.types.kind(ty) == .Ref {
+    if c.types.kind(ty) == TyKind.Ref {
         return c.types.get(ty).inner
     }
     return ty
@@ -111,7 +112,7 @@ pub fn methodReceiver(c: mut Checker, p: Program, e: &Expr, ty: int, name: Symbo
     var current = ty
     for {
         let viaBox = boxInner(c, current).isSome() && !hasMethod(c, p, c.r.langItems[0], name)
-        let through = c.types.kind(current) == .Ref || viaBox
+        let through = c.types.kind(current) == TyKind.Ref || viaBox
         let next = if through { derefStep(c, p, current) } else { current }
         if next == current {
             break
@@ -132,8 +133,8 @@ pub fn methodReceiver(c: mut Checker, p: Program, e: &Expr, ty: int, name: Symbo
  */
 pub fn derefsOf(c: Checker, e: &Expr) List<int> {
     return match c.derefs[c.module()].get(e.id.0) {
-        .Some(steps) => steps.clone()
-        .None => []
+        Option.Some(steps) => steps.clone()
+        Option.None => []
     }
 }
 
@@ -146,7 +147,7 @@ pub fn derefsOf(c: Checker, e: &Expr) List<int> {
  */
 pub fn adjustedType(c: Checker, e: &Expr) int {
     return match c.adjusted[c.module()].get(e.id.0) {
-        .Some(ty) => *ty
-        .None => c.typeOf(e.id.0)
+        Option.Some(ty) => *ty
+        Option.None => c.typeOf(e.id.0)
     }
 }

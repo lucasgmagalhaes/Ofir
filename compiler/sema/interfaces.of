@@ -14,6 +14,9 @@ import sema.check_methods.methodAt
 import sema.check_methods.methodCount
 import sema.check_types.fnSignature
 import sema.program.Program
+import sema.types.TyKind
+import syntax.ast.ItemKind
+import syntax.ast.Mode
 
 /**
  * An interface and the interfaces it embeds, directly or not, each once.
@@ -29,7 +32,7 @@ pub fn interfaceClosure(c: mut Checker, p: Program, iface: int) List<int> {
     for i < out.len() {
         let id = out[i]
         match itemOf(p, c.loc(id)).kind {
-            .Interface(_, embeds, _) => {
+            ItemKind.Interface(_, embeds, _) => {
                 let saved = c.enter(c.def(id).module)
                 for j in 0..embeds.len() {
                     let embedded = interfaceOf(c, &embeds[j])
@@ -131,7 +134,7 @@ pub fn dynMethods(c: mut Checker, p: Program, iface: int) List<int> {
  */
 pub fn dynCallable(c: mut Checker, p: Program, id: int) bool {
     let m = methodAt(p, c.loc(id), c.def(id).member)
-    if !m.hasSelf || m.selfMode == .Move || m.typeParams.len() > 0 {
+    if !m.hasSelf || m.selfMode == Mode.Move || m.typeParams.len() > 0 {
         return false
     }
     return !c.types.get(fnSignature(c, p, id)).hasParam
@@ -222,16 +225,16 @@ pub fn paramMethodOwner(c: mut Checker, p: Program, param: int, name: Symbol) in
  */
 pub fn unsatisfied(c: mut Checker, p: Program, ty: int, iface: int) str {
     let kind = c.types.kind(ty)
-    if kind == .Error || kind == .Never {
+    if kind == TyKind.Error || kind == TyKind.Never {
         return ""
     }
-    if kind == .Dyn {   // `dyn I` satisfies `I` and the interfaces `I` embeds
+    if kind == TyKind.Dyn {   // `dyn I` satisfies `I` and the interfaces `I` embeds
         if contains(&interfaceClosure(c, p, c.types.get(ty).data), iface) {
             return ""
         }
         return "it is not one of its interfaces"
     }
-    if kind == .Param {
+    if kind == TyKind.Param {
         if paramHas(c, p, c.types.get(ty).data, iface) {
             return ""
         }
@@ -239,7 +242,7 @@ pub fn unsatisfied(c: mut Checker, p: Program, ty: int, iface: int) str {
     }
     var owner = 0
     var args: List<int> = []
-    if kind == .Adt {
+    if kind == TyKind.Adt {
         owner = c.types.get(ty).data
         args = c.types.get(ty).args.clone()
     } else if ty < c.r.lang.len() {
@@ -297,7 +300,7 @@ pub fn isInterfaceMethod(c: Checker, p: Program, id: int) bool {
         return false
     }
     return match itemOf(p, c.loc(id)).kind {
-        .Interface(_, _, _) => true
+        ItemKind.Interface(_, _, _) => true
         _ => false
     }
 }

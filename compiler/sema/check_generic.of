@@ -32,6 +32,7 @@ import sema.interfaces.unsatisfied
 import sema.program.Program
 import sema.types.ERROR
 import sema.types.NEVER
+import sema.types.TyKind
 import sema.types.kindNumber
 import syntax.ast.Arg
 import syntax.ast.TypeExpr
@@ -112,7 +113,7 @@ pub fn inferExplicit(c: mut Checker, p: Program, inf: mut Infer, ofOwner: bool,
  */
 pub fn inferFromSelf(c: Checker, inf: mut Infer, selfType: int, count: int) {
     let t = c.types.get(selfType)
-    if t.kind != .Adt {
+    if t.kind != TyKind.Adt {
         return
     }
     for i in 0..count {
@@ -125,7 +126,8 @@ pub fn inferFromSelf(c: Checker, inf: mut Infer, selfType: int, count: int) {
 
 fn hasInner(c: Checker, ty: int) bool {
     let kind = c.types.kind(ty)
-    return kind == .Ref || kind == .Ptr || kind == .Slice || kind == .Array || kind == .Fn
+    return kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
+           kind == TyKind.Array || kind == TyKind.Fn
 }
 
 /**
@@ -141,7 +143,7 @@ pub fn inferFrom(c: Checker, inf: mut Infer, pattern: int, actual: int) {
     if !pt.hasParam || actual == ERROR || actual == NEVER {
         return
     }
-    if pt.kind == .Param {
+    if pt.kind == TyKind.Param {
         if pt.data < inf.args.len() && !inf.known[pt.data] {
             inf.args[pt.data] = actual
             inf.known[pt.data] = true
@@ -150,7 +152,7 @@ pub fn inferFrom(c: Checker, inf: mut Infer, pattern: int, actual: int) {
     }
     let at = c.types.get(actual)
     if at.kind != pt.kind || at.args.len() != pt.args.len() ||
-       (pt.kind == .Adt && at.data != pt.data) {
+       (pt.kind == TyKind.Adt && at.data != pt.data) {
         return   // a mismatch, reported when the argument is checked
     }
     if hasInner(c, pattern) {
@@ -166,7 +168,7 @@ fn allKnown(c: Checker, inf: &Infer, pattern: int) bool {
     if !pt.hasParam {
         return true
     }
-    if pt.kind == .Param {
+    if pt.kind == TyKind.Param {
         return pt.data >= inf.args.len() || inf.known[pt.data]
     }
     if hasInner(c, pattern) && !allKnown(c, inf, pt.inner) {
@@ -288,7 +290,7 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
  */
 pub fn paramBounds(c: Checker, ty: int) int {
     let t = c.types.get(ty)
-    if t.kind != .Param || t.data >= c.generics.bounds.len() {
+    if t.kind != TyKind.Param || t.data >= c.generics.bounds.len() {
         return 0
     }
     return c.generics.bounds[t.data]
@@ -306,13 +308,13 @@ pub fn paramBounds(c: Checker, ty: int) int {
  */
 pub fn equatable(c: mut Checker, p: Program, ty: int) bool {
     let kind = c.types.kind(ty)
-    if kindNumber(kind) <= 6 || kind == .Ptr {
+    if kindNumber(kind) <= 6 || kind == TyKind.Ptr {
         return true
     }
-    if kind == .Param {
+    if kind == TyKind.Param {
         return paramBounds(c, ty) & BOUND_EQ != 0
     }
-    if kind == .Tuple {
+    if kind == TyKind.Tuple {
         let elems = c.types.get(ty).args.clone()
         for i in 0..elems.len() {
             if !equatable(c, p, elems[i]) {
@@ -321,7 +323,7 @@ pub fn equatable(c: mut Checker, p: Program, ty: int) bool {
         }
         return true
     }
-    if let .Some(id) = enumOf(c, p, ty) {
+    if let Option.Some(id) = enumOf(c, p, ty) {
         return !variantsOf(c, id).hasPayload
     }
     return false
@@ -336,8 +338,9 @@ pub fn equatable(c: mut Checker, p: Program, ty: int) bool {
  */
 pub fn orderable(c: Checker, ty: int) bool {
     let kind = c.types.kind(ty)
-    return kind == .Int || kind == .Float || kind == .Str || kind == .Error ||
-           (kind == .Param && paramBounds(c, ty) & BOUND_ORD != 0)
+    return kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Str ||
+           kind == TyKind.Error ||
+           (kind == TyKind.Param && paramBounds(c, ty) & BOUND_ORD != 0)
 }
 
 /**
@@ -351,10 +354,10 @@ pub fn orderable(c: Checker, ty: int) bool {
  */
 pub fn satisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
     let kind = c.types.kind(ty)
-    if kind == .Error || kind == .Never {
+    if kind == TyKind.Error || kind == TyKind.Never {
         return true
     }
-    if kind == .Param && paramBounds(c, ty) & bit != 0 {
+    if kind == TyKind.Param && paramBounds(c, ty) & bit != 0 {
         return true
     }
     return if bit == BOUND_EQ {

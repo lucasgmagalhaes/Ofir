@@ -26,13 +26,13 @@ enum Opt<T> {
 
     fn getOr(move self, fallback: move T) T {
         return match self {
-            .Some(value) => value
-            .None => fallback
+            Opt.Some(value) => value
+            Opt.None => fallback
         }
     }
 
     fn isSome(self) bool {
-        if let .Some(_) = self {
+        if let Opt.Some(_) = self {
             return true
         }
         return false
@@ -46,15 +46,15 @@ enum Either<L, R> {
 
 fn describe(e: Either<int, str>) str {
     return match e {
-        .Left(n) => "left {n}"
-        .Right(s) => "right {s}"
+        Either.Left(n) => "left {n}"
+        Either.Right(s) => "right {s}"
     }
 }
 
 fn find(values: (int, int, int), wanted: int) Opt<int> {
     let (a, b, c) = values
     if a == wanted {
-        return .Some(0)
+        return Opt.Some(0)
     }
     if b == wanted {
         return Opt.Some(1)
@@ -62,7 +62,7 @@ fn find(values: (int, int, int), wanted: int) Opt<int> {
     if c == wanted {
         return Opt<int>.Some(2)
     }
-    return .None
+    return Opt.None
 }
 
 fn main() {
@@ -80,13 +80,13 @@ fn main() {
     println(inner.0)
 
     println("{find((4, 5, 6), 6).getOr(-1)} {find((4, 5, 6), 9).getOr(-1)}")
-    let none: Opt<str> = .None
+    let none: Opt<str> = Opt.None
     println("{none.isSome()} {Opt.Some("x").isSome()}")
-    println(describe(.Left(3)))
+    println(describe(Either.Left(3)))
     println(describe(Either.Right("r")))
 
     let deep = Opt.Some(Pair{first: Opt.Some(7), second: Wrap(8)})
-    if let .Some(Pair{first: .Some(seven), second: Wrap(eight)}) = deep {
+    if let Opt.Some(Pair{first: Opt.Some(seven), second: Wrap(eight)}) = deep {
         println("{seven + eight}")
     }
 }

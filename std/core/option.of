@@ -42,8 +42,8 @@ pub enum Option<T> {
      */
     pub fn isSome(self) bool {
         return match self {
-            Some(_) => true
-            None => false
+            Option.Some(_) => true
+            Option.None => false
         }
     }
 
@@ -69,8 +69,8 @@ pub enum Option<T> {
      */
     pub fn unwrap(move self) T {
         return match self {
-            Some(value) => value
-            None => panic("called `unwrap` on a `None` value")
+            Option.Some(value) => value
+            Option.None => panic("called `unwrap` on a `None` value")
         }
     }
 
@@ -87,8 +87,8 @@ pub enum Option<T> {
      */
     pub fn expect(move self, message: str) T {
         return match self {
-            Some(value) => value
-            None => panic(message)
+            Option.Some(value) => value
+            Option.None => panic(message)
         }
     }
 
@@ -106,8 +106,8 @@ pub enum Option<T> {
      */
     pub fn unwrapOr(move self, fallback: move T) T {
         return match self {
-            Some(value) => value
-            None => fallback
+            Option.Some(value) => value
+            Option.None => fallback
         }
     }
 
@@ -123,7 +123,7 @@ pub enum Option<T> {
      */
     pub fn take(mut self) Option<T> {
         let taken = self
-        self = None
+        self = Option.None
         return taken
     }
 
@@ -141,8 +141,8 @@ pub enum Option<T> {
      */
     pub fn okOr<E>(move self, error: move E) Result<T, E> {
         return match self {
-            Some(value) => Ok(value)
-            None => Err(error)
+            Option.Some(value) => Result.Ok(value)
+            Option.None => Result.Err(error)
         }
     }
 }

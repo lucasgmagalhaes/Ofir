@@ -13,6 +13,7 @@ import sema.check.typeGenerics
 import sema.check_ref.checkStorable
 import sema.check_types.ownerType
 import sema.check_types.resolveType
+import sema.def.DefKind
 import sema.enums.enumVariants
 import sema.expr_check.coerce
 import sema.program.Program
@@ -20,8 +21,10 @@ import sema.types.ERROR
 import sema.types.FN_OWNED
 import sema.types.I64
 import sema.types.STR
+import sema.types.TyKind
 import sema.types.U8
 import syntax.ast.FieldDecl
+import syntax.ast.ItemKind
 
 /**
  * The fields of a struct.
@@ -42,7 +45,8 @@ pub struct StructInfo {
 // The flags of a struct: (copy, ref, tuple), and its number of fields.
 fn declaredFlags(p: Program, at: Loc) (bool, bool, bool, int) {
     return match itemOf(p, at).kind {
-        .Struct(isCopy, isRef, isTuple, _, fields, _) => (isCopy, isRef, isTuple, fields.len())
+        ItemKind.Struct(isCopy, isRef, isTuple, _, fields, _) => (isCopy, isRef, isTuple,
+                                                                  fields.len())
         _ => (false, false, false, 0)
     }
 }
@@ -57,7 +61,7 @@ fn declaredFlags(p: Program, at: Loc) (bool, bool, bool, int) {
  */
 pub fn fieldDeclAt(p: Program, at: Loc, i: int) &FieldDecl {
     return match itemOf(p, at).kind {
-        .Struct(_, _, _, _, fields, _) => &fields[i]
+        ItemKind.Struct(_, _, _, _, fields, _) => &fields[i]
         _ => {
             panic("fieldDeclAt: not a struct")
         }
@@ -77,20 +81,20 @@ pub fn fieldDeclAt(p: Program, at: Loc, i: int) &FieldDecl {
 pub fn isCopy(c: Checker, p: Program, ty: int) bool {
     let t = c.types.get(ty)
     return match t.kind {
-        .Adt => {
+        TyKind.Adt => {
             if t.data == c.r.langItems[2] || t.data == c.r.langItems[3] {
                 return argsAreCopy(c, p, &t.args)
             }
             match itemOf(p, c.loc(t.data)).kind {
-                .Struct(isCopyType, _, _, _, _, _) => isCopyType
-                .Enum(isCopyType, _, _, _) => isCopyType
+                ItemKind.Struct(isCopyType, _, _, _, _, _) => isCopyType
+                ItemKind.Enum(isCopyType, _, _, _) => isCopyType
                 _ => false
             }
         }
-        .Tuple => argsAreCopy(c, p, &t.args)
-        .Array => isCopy(c, p, t.inner)
-        .Str | .Param | .Slice => false
-        .Fn => t.data != FN_OWNED   // a `move fn` owns its captured values
+        TyKind.Tuple => argsAreCopy(c, p, &t.args)
+        TyKind.Array => isCopy(c, p, t.inner)
+        TyKind.Str | TyKind.Param | TyKind.Slice => false
+        TyKind.Fn => t.data != FN_OWNED   // a `move fn` owns its captured values
         _ => true
     }
 }
@@ -115,7 +119,7 @@ fn argsAreCopy(c: Checker, p: Program, args: &List<int>) bool {
  * @returns its type
  */
 pub fn structFieldType(c: mut Checker, p: Program, ty: int, i: int) int {
-    if c.types.kind(ty) != .Adt {
+    if c.types.kind(ty) != TyKind.Adt {
         let lang = c.r.lang[ty]
         return fieldsOf(c, lang).types[i]
     }
@@ -135,8 +139,8 @@ pub fn structFieldType(c: mut Checker, p: Program, ty: int, i: int) int {
  */
 pub fn fieldsOf(c: Checker, id: int) &StructInfo {
     return match c.info[id].fields {
-        .Some(info) => &*info
-        .None => {
+        Option.Some(info) => &*info
+        Option.None => {
             panic("fieldsOf: not computed")
         }
     }
@@ -146,12 +150,12 @@ pub fn fieldsOf(c: Checker, id: int) &StructInfo {
 // value: `Wrap<Node>` inside `Node` contains `Node`.
 fn checkInstanceFields(c: mut Checker, p: Program, ty: int, span: Span) {
     let def = c.types.get(ty).data
-    if c.def(def).kind == .Struct && c.info[def].fields.isSome() {
+    if c.def(def).kind == DefKind.Struct && c.info[def].fields.isSome() {
         for i in 0..fieldsOf(c, def).types.len() {
             checkNotRecursive(c, p, structFieldType(c, p, ty, i), span)
         }
     }
-    if c.def(def).kind == .Enum && c.info[def].variants.isSome() {
+    if c.def(def).kind == DefKind.Enum && c.info[def].variants.isSome() {
         let count = variantCount(c, def)
         for v in 0..count {
             for i in 0..variantFieldCount(c, def, v) {
@@ -163,15 +167,15 @@ fn checkInstanceFields(c: mut Checker, p: Program, ty: int, span: Span) {
 
 fn variantCount(c: Checker, def: int) int {
     return match c.info[def].variants {
-        .Some(info) => info.variants.len()
-        .None => 0
+        Option.Some(info) => info.variants.len()
+        Option.None => 0
     }
 }
 
 fn variantFieldCount(c: Checker, def: int, v: int) int {
     return match c.info[def].variants {
-        .Some(info) => info.variants[v].types.len()
-        .None => 0
+        Option.Some(info) => info.variants[v].types.len()
+        Option.None => 0
     }
 }
 
@@ -188,8 +192,8 @@ fn variantFieldCount(c: Checker, def: int, v: int) int {
 pub fn variantFieldType(c: mut Checker, p: Program, ty: int, v: int, i: int) int {
     let def = c.types.get(ty).data
     let field = match c.info[def].variants {
-        .Some(info) => info.variants[v].types[i]
-        .None => ERROR
+        Option.Some(info) => info.variants[v].types[i]
+        Option.None => ERROR
     }
     let args = c.types.get(ty).args.clone()
     return c.types.subst(field, args)
@@ -206,13 +210,13 @@ pub fn variantFieldType(c: mut Checker, p: Program, ty: int, v: int, i: int) int
  * @param span the field
  */
 pub fn checkNotRecursive(c: mut Checker, p: Program, ty: int, span: Span) {
-    if c.types.kind(ty) == .Tuple {
+    if c.types.kind(ty) == TyKind.Tuple {
         let items = c.types.get(ty).args.clone()
         for i in 0..items.len() {
             checkNotRecursive(c, p, items[i], span)
         }
     }
-    if c.types.kind(ty) != .Adt {
+    if c.types.kind(ty) != TyKind.Adt {
         return
     }
     let id = c.types.get(ty).data
@@ -221,9 +225,9 @@ pub fn checkNotRecursive(c: mut Checker, p: Program, ty: int, span: Span) {
                 "a type cannot contain itself by value; use Box<T> or a collection".toOwned())
         return
     }
-    if c.def(id).kind == .Struct {
+    if c.def(id).kind == DefKind.Struct {
         structFields(c, p, id)
-    } else if c.def(id).kind == .Enum {
+    } else if c.def(id).kind == DefKind.Enum {
         enumVariants(c, p, id)
     }
     if c.types.get(ty).args.len() > 0 {
@@ -264,7 +268,7 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
             checkStorable(c, p, ty, field.span, "a struct field")
         }
         checkNotRecursive(c, p, ty, field.span)
-        if let .Some(value) = field.defaultValue {
+        if let Option.Some(value) = field.defaultValue {
             coerce(c, p, &value, ty)
         }
         if info.isCopy && !isCopy(c, p, ty) && ty != ERROR {
@@ -276,7 +280,7 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     c.enterGenerics(outer)
     c.selfType = savedSelf
     c.enter(saved)
-    c.info[id].fields = .Some(Box.new(info))
+    c.info[id].fields = Option.Some(Box.new(info))
     return true
 }
 
@@ -329,7 +333,7 @@ pub fn checkStructLayouts(c: mut Checker, p: Program, id: int) {
     }
     if id == c.r.langItems[1] {
         let types = fieldsOf(c, id).types.clone()
-        let ok = types.len() == 3 && c.types.kind(types[0]) == .Ptr && types[1] == I64
+        let ok = types.len() == 3 && c.types.kind(types[0]) == TyKind.Ptr && types[1] == I64
         if !ok {
             c.error("E0806", c.def(id).span, "`@lang(\"list\")` must declare `ptr: *mut T`, "
                     + "`len: int`, `cap: int`")

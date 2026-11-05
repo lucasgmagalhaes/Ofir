@@ -5,33 +5,33 @@ enum Reply {
 
 fn lookup(key: int) Reply {
     if key > 0 {
-        return .Value(key * 10)
+        return Reply.Value(key * 10)
     }
-    return .Missing
+    return Reply.Missing
 }
 
 fn doubled(key: int) int {
-    let .Value(v) = lookup(key) else {
+    let Reply.Value(v) = lookup(key) else {
         return -1
     }
     return v * 2
 }
 
 fn main() {
-    if let .Value(v) = lookup(3) {
+    if let Reply.Value(v) = lookup(3) {
         println("found {v}")
     }
-    if let .Value(v) = lookup(0) {
+    if let Reply.Value(v) = lookup(0) {
         println("unexpected {v}")
     } else {
         println("missing")
     }
-    let label = if let .Value(v) = lookup(1) { "v={v}" } else { "none" }
+    let label = if let Reply.Value(v) = lookup(1) { "v={v}" } else { "none" }
     println(label)
     println("{doubled(4)} {doubled(-2)}")
     var total = 0
     for k in -2..4 {
-        let .Value(v) = lookup(k) else {
+        let Reply.Value(v) = lookup(k) else {
             continue
         }
         total += v

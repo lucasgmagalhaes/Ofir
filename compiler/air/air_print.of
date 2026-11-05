@@ -11,8 +11,12 @@ import air.air.FloatFn
 import air.air.GLUE_CLONE
 import air.air.GLUE_DROP
 import air.air.Operand
+import air.air.OperandKind
 import air.air.PanicKind
 import air.air.Rvalue
+import air.air.RvalueKind
+import air.air.StmtKind
+import air.air.TermKind
 import air.air.Terminator
 import air.air.isGlue
 import air.air.runtimeName
@@ -22,47 +26,47 @@ import syntax.ast.Op
 
 fn opName(op: Op) str {
     return match op {
-        .Add => "add"
-        .Sub => "sub"
-        .Mul => "mul"
-        .Div => "div"
-        .Rem => "rem"
-        .And => "and"
-        .Or => "or"
-        .Xor => "xor"
-        .Shl => "shl"
-        .Shr => "shr"
-        .Eq => "eq"
-        .Ne => "ne"
-        .Lt => "lt"
-        .Le => "le"
-        .Gt => "gt"
-        .Ge => "ge"
-        .Neg => "neg"
-        .Not => "not"
+        Op.Add => "add"
+        Op.Sub => "sub"
+        Op.Mul => "mul"
+        Op.Div => "div"
+        Op.Rem => "rem"
+        Op.And => "and"
+        Op.Or => "or"
+        Op.Xor => "xor"
+        Op.Shl => "shl"
+        Op.Shr => "shr"
+        Op.Eq => "eq"
+        Op.Ne => "ne"
+        Op.Lt => "lt"
+        Op.Le => "le"
+        Op.Gt => "gt"
+        Op.Ge => "ge"
+        Op.Neg => "neg"
+        Op.Not => "not"
         _ => "?"
     }
 }
 
 fn panicName(kind: PanicKind) str {
     return match kind {
-        .Overflow => "overflow"
-        .DivZero => "div_zero"
-        .Shift => "shift"
-        .Cast => "cast"
-        .Bounds => "bounds"
-        .Assert => "assert"
+        PanicKind.Overflow => "overflow"
+        PanicKind.DivZero => "div_zero"
+        PanicKind.Shift => "shift"
+        PanicKind.Cast => "cast"
+        PanicKind.Bounds => "bounds"
+        PanicKind.Assert => "assert"
     }
 }
 
 fn floatFnName(f: FloatFn) str {
     return match f {
-        .Sqrt => "sqrt"
-        .Fabs => "fabs"
-        .Floor => "floor"
-        .Ceil => "ceil"
-        .Minnum => "minnum"
-        .Maxnum => "maxnum"
+        FloatFn.Sqrt => "sqrt"
+        FloatFn.Fabs => "fabs"
+        FloatFn.Floor => "floor"
+        FloatFn.Ceil => "ceil"
+        FloatFn.Minnum => "minnum"
+        FloatFn.Maxnum => "maxnum"
     }
 }
 
@@ -88,11 +92,11 @@ fn stringLiteral(out: mut str, text: str) {
 fn decimalDigits(text: str) (str, int) {
     var mantissa = text.clone()
     var exponent = 0
-    if let .Some(e) = text.find("e") {
+    if let Option.Some(e) = text.find("e") {
         mantissa = text.slice(0, e).toOwned()
         exponent = match int.parse(text.sliceFrom(e + 1)) {
-            .Ok(n) => n
-            .Err(_) => 0
+            Result.Ok(n) => n
+            Result.Err(_) => 0
         }
     }
     var digits = ""
@@ -241,8 +245,8 @@ pub struct AirPrinter {
 
     fn operand(mut self, c: Checker, o: &Operand) {
         match o.kind {
-            .Copy | .Addr => {
-                if o.kind == .Addr {
+            OperandKind.Copy | OperandKind.Addr => {
+                if o.kind == OperandKind.Addr {
                     self.out.push("&")
                 }
                 if o.path.deref {
@@ -253,11 +257,11 @@ pub struct AirPrinter {
                     self.out.push(".{o.path.fields[i] as u64 & 4294967295}")
                 }
             }
-            .Int => self.out.push("{o.bits}_{c.typeName(o.ty)}")
-            .Float => self.out.push("{formatG(o.float)}_{c.typeName(o.ty)}")
-            .Bool => self.out.push(if o.truth { "true" } else { "false" })
-            .Str => stringLiteral(self.out, o.text)
-            .Unit => self.out.push("()")
+            OperandKind.Int => self.out.push("{o.bits}_{c.typeName(o.ty)}")
+            OperandKind.Float => self.out.push("{formatG(o.float)}_{c.typeName(o.ty)}")
+            OperandKind.Bool => self.out.push(if o.truth { "true" } else { "false" })
+            OperandKind.Str => stringLiteral(self.out, o.text)
+            OperandKind.Unit => self.out.push("()")
         }
     }
 
@@ -265,7 +269,7 @@ pub struct AirPrinter {
         self.out.push(name)
         self.out.push(" ")
         self.operand(c, a)
-        if let .Some(second) = b {
+        if let Option.Some(second) = b {
             self.out.push(", ")
             self.operand(c, second)
         }
@@ -273,14 +277,16 @@ pub struct AirPrinter {
 
     fn rvalue(mut self, c: Checker, rv: &Rvalue) {
         match rv.kind {
-            .StrLen => self.operands(c, "str_len", &rv.a, .None)
-            .PtrAdd => self.operands(c, "ptr_add", &rv.a, .Some(&rv.b))
-            .SizeOf => self.out.push("size_of {c.typeName(rv.to)}")
-            .FnValue => self.operands(c, "fn_value {c.text(c.def(rv.flag).name)}", &rv.a, .None)
-            .Closure => self.operands(c, "closure c{rv.flag}", &rv.a, .None)
-            .Unsize => self.operands(c, "unsize {c.typeName(rv.to)}", &rv.a, .Some(&rv.b))
-            .DynFn => self.operands(c, "dyn_fn {rv.flag}", &rv.a, .None)
-            .Aggregate => {
+            RvalueKind.StrLen => self.operands(c, "str_len", &rv.a, Option.None)
+            RvalueKind.PtrAdd => self.operands(c, "ptr_add", &rv.a, Option.Some(&rv.b))
+            RvalueKind.SizeOf => self.out.push("size_of {c.typeName(rv.to)}")
+            RvalueKind.FnValue => self.operands(c, "fn_value {c.text(c.def(rv.flag).name)}", &rv.a,
+                                                Option.None)
+            RvalueKind.Closure => self.operands(c, "closure c{rv.flag}", &rv.a, Option.None)
+            RvalueKind.Unsize => self.operands(c, "unsize {c.typeName(rv.to)}", &rv.a,
+                                               Option.Some(&rv.b))
+            RvalueKind.DynFn => self.operands(c, "dyn_fn {rv.flag}", &rv.a, Option.None)
+            RvalueKind.Aggregate => {
                 self.out.push("\{")
                 for i in 0..rv.items.len() {
                     if i > 0 {
@@ -290,35 +296,35 @@ pub struct AirPrinter {
                 }
                 self.out.push("\}")
             }
-            .StrByte => self.operands(c, "str_byte", &rv.a, .Some(&rv.b))
-            .FloatFn => {
-                let two = rv.floatFn == .Minnum || rv.floatFn == .Maxnum
+            RvalueKind.StrByte => self.operands(c, "str_byte", &rv.a, Option.Some(&rv.b))
+            RvalueKind.FloatFn => {
+                let two = rv.floatFn == FloatFn.Minnum || rv.floatFn == FloatFn.Maxnum
                 self.operands(c, floatFnName(rv.floatFn), &rv.a, if two { Option.Some(&rv.b) }
                               else { Option.None })
             }
-            .Saturate => {
-                self.operands(c, "saturate", &rv.a, .None)
+            RvalueKind.Saturate => {
+                self.operands(c, "saturate", &rv.a, Option.None)
                 self.out.push(" to {c.typeName(rv.to)}")
             }
-            .Use => self.operand(c, &rv.a)
-            .Unary => {
+            RvalueKind.Use => self.operand(c, &rv.a)
+            RvalueKind.Unary => {
                 self.out.push("{opName(rv.op)} ")
                 self.operand(c, &rv.a)
             }
-            .Cast | .CastFails => {
-                self.out.push(if rv.kind == .Cast { "cast " } else { "cast_fails " })
+            RvalueKind.Cast | RvalueKind.CastFails => {
+                self.out.push(if rv.kind == RvalueKind.Cast { "cast " } else { "cast_fails " })
                 self.operand(c, &rv.a)
                 self.out.push(" to {c.typeName(rv.to)}")
             }
-            .Binary | .Checked => {
-                if rv.kind == .Checked {
+            RvalueKind.Binary | RvalueKind.Checked => {
+                if rv.kind == RvalueKind.Checked {
                     self.out.push("checked ")
                 }
                 self.out.push("{opName(rv.op)} ")
                 self.operand(c, &rv.a)
                 self.out.push(", ")
                 self.operand(c, &rv.b)
-                if rv.kind == .Checked {
+                if rv.kind == RvalueKind.Checked {
                     self.out.push(" (overflow: _{rv.flag})")
                 }
             }
@@ -334,7 +340,7 @@ pub struct AirPrinter {
             }
             self.out.push(" = ")
         }
-        if s.kind == .Assign {
+        if s.kind == StmtKind.Assign {
             self.rvalue(c, &s.value)
         } else {
             if s.runtime {
@@ -365,21 +371,21 @@ pub struct AirPrinter {
     fn terminator(mut self, c: Checker, t: &Terminator) {
         self.out.push("    ")
         match t.kind {
-            .None => self.out.push("<unterminated>")
-            .Goto => self.out.push("goto bb{t.target}")
-            .Branch => {
+            TermKind.None => self.out.push("<unterminated>")
+            TermKind.Goto => self.out.push("goto bb{t.target}")
+            TermKind.Branch => {
                 self.out.push("branch ")
                 self.operand(c, &t.cond)
                 self.out.push(", bb{t.target}, bb{t.other}")
             }
-            .Assert => {
+            TermKind.Assert => {
                 self.out.push("assert not ")
                 self.operand(c, &t.cond)
                 self.out.push(", {panicName(t.panic)} -> bb{t.target}")
             }
-            .Return => self.out.push("return")
-            .Panic => self.operands(c, "panic", &t.cond, .None)
-            .Unreachable => self.out.push("unreachable")
+            TermKind.Return => self.out.push("return")
+            TermKind.Panic => self.operands(c, "panic", &t.cond, Option.None)
+            TermKind.Unreachable => self.out.push("unreachable")
         }
         self.out.push("\n")
     }
@@ -394,7 +400,7 @@ pub struct AirPrinter {
         let name = if isGlue(b.def) { "" } else { c.text(b.name) }
         self.out.push("fn {name}")
         self.typeArgs(c, b.targs)
-        if let .Some(closure) = b.closure {
+        if let Option.Some(closure) = b.closure {
             self.out.push(".c{closure.id}")
             if closure.drop {
                 self.out.push(".drop")
@@ -405,7 +411,7 @@ pub struct AirPrinter {
             let local = &b.locals[i]
             let role = if i == 0 { "return" } else if i <= b.paramCount { "param" } else { "let" }
             self.out.push("    {role} _{i}: {c.typeName(local.ty)}")
-            if let .Some(name) = local.name {
+            if let Option.Some(name) = local.name {
                 self.out.push("   // {c.text(name)}")
             }
             self.out.push("\n")

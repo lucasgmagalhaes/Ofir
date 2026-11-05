@@ -20,14 +20,14 @@ enum List<T> {
 
     fn len(self) int {
         return match self {
-            .Nil => 0
-            .Cons(_, rest) => 1 + rest.len()
+            List.Nil => 0
+            List.Cons(_, rest) => 1 + rest.len()
         }
     }
 }
 
 fn prepend<T>(list: move List<T>, value: move T) List<T> {
-    return .Cons(value, Box.new(list))
+    return List.Cons(value, Box.new(list))
 }
 
 fn main() {
@@ -46,8 +46,8 @@ fn main() {
 
     let list = prepend(prepend(prepend(List<str>.Nil, "c"), "b"), "a")
     println("{list.len()}")
-    if let .Cons(head, rest) = list {
-        if let .Cons(second, _) = *rest {
+    if let List.Cons(head, rest) = list {
+        if let List.Cons(second, _) = *rest {
             println("{head} {second}")
         }
     }

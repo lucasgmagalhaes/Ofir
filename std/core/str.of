@@ -372,7 +372,7 @@ pub struct str {
         var out = ""
         var at = 0
         for from.len > 0 {
-            let .Some(i) = findFrom(self, from, at) else {
+            let Option.Some(i) = findFrom(self, from, at) else {
                 break
             }
             out.push(self.slice(at, i))
@@ -564,10 +564,10 @@ fn sameBytes(a: *u8, b: *u8, n: int) bool {
 fn findFrom(text: str, part: str, from: int) Option<int> {
     for i in from..=text.len - part.len {
         if sameBytes(unsafe { text.ptr.add(i) }, part.ptr, part.len) {
-            return .Some(i)
+            return Option.Some(i)
         }
     }
-    return .None
+    return Option.None
 }
 
 // ASCII whitespace: space, \t, \n, vertical tab, form feed, \r.

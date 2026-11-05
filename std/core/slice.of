@@ -83,9 +83,9 @@ pub ref struct Slice<T> {
      */
     pub fn get(self, i: int) Option<&T> {
         if i < 0 || i >= self.len {
-            return None
+            return Option.None
         }
-        return Some(unsafe { &*self.ptr.add(i) })
+        return Option.Some(unsafe { &*self.ptr.add(i) })
     }
 
     /**

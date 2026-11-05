@@ -46,10 +46,10 @@ pub struct Front {
      * @returns its id, or `None` when it cannot be read
      */
     pub fn load(mut self, path: str) Option<FileId> {
-        let Ok(text) = fs.readToString(path) else {
-            return .None
+        let Result.Ok(text) = fs.readToString(path) else {
+            return Option.None
         }
-        return .Some(self.map.add(path.toOwned(), text))
+        return Option.Some(self.map.add(path.toOwned(), text))
     }
 
     /**
@@ -73,14 +73,14 @@ pub struct Front {
     pub fn parseFileFrom(mut self, file: FileId, firstId: int) Option<Module> {
         let tokens = tokenize(self.map.file(file).text, file, self.names, self.diags)
         if self.diags.hasErrors() {
-            return .None
+            return Option.None
         }
         let names = mem.replace(self.names, Interner.new())
         let diags = mem.replace(self.diags, Diagnostics.new())
         let parsed = parseFrom(file, self.map.file(file).text, tokens, names, diags, firstId)
         self.names = parsed.names
         self.diags = parsed.diags
-        return .Some(parsed.module)
+        return Option.Some(parsed.module)
     }
 }
 
@@ -103,10 +103,10 @@ fn addTestFile(ld: Loader, front: mut Front, module: mut Module, name: str, path
     if !fs.exists(test) {
         return
     }
-    let Some(file) = front.load(test) else {
+    let Option.Some(file) = front.load(test) else {
         return
     }
-    let Some(tests) = front.parseFileFrom(file, module.nodeCount) else {
+    let Option.Some(tests) = front.parseFileFrom(file, module.nodeCount) else {
         return
     }
     if tests.items.len() == 0 {
@@ -144,8 +144,8 @@ fn moduleFile(ld: Loader, name: str) Option<str> {
     var dir = ld.rootDir.clone()
     var rest = name.toOwned()
     if inStd {
-        let Some(std) = ld.stdDir.clone() else {
-            return .None
+        let Option.Some(std) = ld.stdDir.clone() else {
+            return Option.None
         }
         dir = std.clone()
         rest = name.sliceFrom(4).toOwned()
@@ -153,20 +153,20 @@ fn moduleFile(ld: Loader, name: str) Option<str> {
     let relative = rest.replace(".", "/")
     let file = "{dir}/{relative}.of"
     if fs.exists(file) {
-        return .Some(file)
+        return Option.Some(file)
     }
     let index = "{dir}/{relative}/index.of"
     if fs.exists(index) {
-        return .Some(index)
+        return Option.Some(index)
     }
-    return .None
+    return Option.None
 }
 
 fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
-    let Some(file) = front.load(path) else {
+    let Option.Some(file) = front.load(path) else {
         return
     }
-    if let .Some(parsed) = front.parseFile(file) {
+    if let Option.Some(parsed) = front.parseFile(file) {
         var module = parsed
         addTestFile(ld, front, module, name, path)
         ld.modules.push(ProgramModule{name: name.toOwned(), module})
@@ -192,7 +192,7 @@ fn loadImport(ld: mut Loader, front: mut Front, path: &List<Symbol>) {
         if isLoaded(ld, name) {
             return
         }
-        if let .Some(file) = moduleFile(ld, name) {
+        if let Option.Some(file) = moduleFile(ld, name) {
             loadModule(ld, front, name, file)
             return
         }
@@ -218,75 +218,75 @@ fn rootName(input: str) str {
 // The dotted name of `input` relative to the directory `dir`, with `prefix`
 // (`std.` for the standard library), if `input` is inside it.
 fn nameUnder(input: str, dir: str, prefix: str) Option<str> {
-    let Ok(file) = fs.canonicalize(input) else {
-        return .None
+    let Result.Ok(file) = fs.canonicalize(input) else {
+        return Option.None
     }
-    let Ok(base) = fs.canonicalize(dir) else {
-        return .None
+    let Result.Ok(base) = fs.canonicalize(dir) else {
+        return Option.None
     }
     if !file.startsWith("{base}/") {
-        return .None
+        return Option.None
     }
     let dotted = "{prefix}{file.sliceFrom(base.len() + 1)}"
     let min = prefix.len() + 4   // at least `x.of`
     if dotted.len() < min {
-        return .None
+        return Option.None
     }
     let isIndex = dotted.len() > min + 5 && dotted.endsWith("/index.of")
     let cut = dotted.len() - if isIndex { 9 } else { 3 }   // or `.of`
-    return .Some(dotted.slice(0, cut).replace("/", "."))
+    return Option.Some(dotted.slice(0, cut).replace("/", "."))
 }
 
 // The project root (spec 7.2): the nearest directory above the root file
 // that holds an `ofir.json`.
 fn projectDir(input: str) Option<str> {
-    let Ok(path) = fs.canonicalize(input) else {
-        return .None
+    let Result.Ok(path) = fs.canonicalize(input) else {
+        return Option.None
     }
     var dir = path
     for {
         let slash = lastSlash(dir)
         if slash <= 0 {
-            return .None
+            return Option.None
         }
         dir = dir.slice(0, slash).toOwned()
         if fs.exists("{dir}/ofir.json") {
-            return .Some(dir)
+            return Option.Some(dir)
         }
     }
 }
 
 // The standard library: `$OFIR_STD`, or installed next to the compiler.
 fn findStd() Option<str> {
-    if let .Some(given) = os.env("OFIR_STD") {
+    if let Option.Some(given) = os.env("OFIR_STD") {
         if given.len() > 0 {
-            return .Some(given)
+            return Option.Some(given)
         }
     }
-    let Ok(exe) = os.executablePath() else {
-        return .None
+    let Result.Ok(exe) = os.executablePath() else {
+        return Option.None
     }
     let dir = exe.slice(0, if lastSlash(exe) >= 0 { lastSlash(exe) } else { exe.len() })
     let places = ["../../std", "../lib/ofir/std"]
     for i in 0..places.len() {
         let place = "{dir}/{places[i]}"
         if fs.exists(place) {
-            return .Some(place)
+            return Option.Some(place)
         }
     }
-    return .None
+    return Option.None
 }
 
 // The name of the root module: a file inside std is that std module, and a
 // file of a project is named from the project root (`base.intern`).
 fn rootModuleName(ld: Loader, input: str, inProject: bool) str {
-    if let .Some(std) = ld.stdDir.clone() {
-        if let .Some(name) = nameUnder(input, std, "std.") {
+    if let Option.Some(std) = ld.stdDir.clone() {
+        if let Option.Some(name) = nameUnder(input, std, "std.") {
             return name
         }
     }
     if inProject {
-        if let .Some(name) = nameUnder(input, ld.rootDir, "") {
+        if let Option.Some(name) = nameUnder(input, ld.rootDir, "") {
             return name
         }
     }
@@ -307,7 +307,7 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front, testing: boo
     var rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
     let project = projectDir(input)
     let inProject = project.isSome()
-    if let .Some(dir) = project {
+    if let Option.Some(dir) = project {
         rootDir = dir
     }
     var ld = Loader{modules: [], rootDir, stdDir: findStd(), testing}
@@ -316,7 +316,7 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front, testing: boo
     addTestFile(ld, front, module, name, input)
     ld.modules.push(ProgramModule{name, module})
     if !isLoaded(ld, "std.core") {   // the prelude, in every program
-        if let .Some(core) = moduleFile(ld, "std.core") {
+        if let Option.Some(core) = moduleFile(ld, "std.core") {
             loadModule(ld, front, "std.core", core)
         }
     }

@@ -8,7 +8,7 @@ fn compute(x: int, unusedParam: int) int {   // parameters are not reported
     }
     for _ in 0..3 {
     }
-    if let Some(value) = Some(1) {   // warning[W0001]: unused variable `value`: use it, or start its name with `_`
+    if let Option.Some(value) = Option.Some(1) {   // warning[W0001]: unused variable `value`: use it, or start its name with `_`
     }
     return assigned
 }

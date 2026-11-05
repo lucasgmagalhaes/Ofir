@@ -12,15 +12,15 @@ fn main() {
     s.pushChar(0x1F600)
     println("{s} {s.len()}")
     match strings.fromUtf8([0x68, 0xC3, 0xA9]) {
-        .Ok(t) => println("ok {t}")
-        .Err(e) => println("err {e.offset}")
+        Result.Ok(t) => println("ok {t}")
+        Result.Err(e) => println("err {e.offset}")
     }
     let cases: List<List<u8>> = [[0x61, 0xFF], [0xC0, 0x80], [0xED, 0xA0, 0x80], [0xE2, 0x82]]
     for k in 0..cases.len() {
         let bad = cases[k].clone()
         match strings.fromUtf8(bad) {
-            .Ok(t) => println("ok {t}")
-            .Err(e) => println("err {e.offset}")
+            Result.Ok(t) => println("ok {t}")
+            Result.Err(e) => println("err {e.offset}")
         }
     }
     var b = strings.Builder.new()

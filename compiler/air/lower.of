@@ -22,6 +22,7 @@ import air.air.OperandKind
 import air.air.PanicKind
 import air.air.Rvalue
 import air.air.RuntimeFn
+import air.air.RvalueKind
 import air.air.StmtKind
 import air.air.Terminator
 import air.air.TermKind
@@ -47,9 +48,11 @@ import diag.noSpan
 import sema.check.Checker
 import sema.check.checkLate
 import sema.check.fnOf
+import sema.def.DefKind
 import sema.types.I64
 import air.air.opInt
 import air.air.rvalue
+import sema.types.TyKind
 import syntax.ast.ItemKind
 import sema.resolve.findAttribute
 import sema.check.skippedTest
@@ -72,6 +75,8 @@ import sema.types.BOOL
 import sema.types.FN_OWNED
 import sema.types.UNIT
 import std.mem
+import syntax.ast.Mode
+import syntax.ast.Op
 
 /** Where `break` and `continue` go in a loop. */
 pub copy struct LoopTarget {
@@ -192,12 +197,12 @@ pub struct Lowerer {
  * @returns its local
  */
 pub fn newTemp(l: mut Lowerer, ty: int) int {
-    return l.body.newLocal(ty, .None, noSpan())
+    return l.body.newLocal(ty, Option.None, noSpan())
 }
 
 fn stmt(kind: StmtKind) AirStmt {
     return AirStmt{kind: kind, dest: 0, destPath: noPath(), hasDest: false,
-                   value: rvUse(opUnit(UNIT)), runtime: false, rt: .PrintStr, callee: 0,
+                   value: rvUse(opUnit(UNIT)), runtime: false, rt: RuntimeFn.PrintStr, callee: 0,
                    targs: UNIT, args: []}
 }
 
@@ -209,7 +214,7 @@ fn stmt(kind: StmtKind) AirStmt {
  * @param value the value
  */
 pub fn emitAssign(l: mut Lowerer, dest: int, value: move Rvalue) {
-    var s = stmt(.Assign)
+    var s = stmt(StmtKind.Assign)
     s.dest = dest
     s.hasDest = true
     s.value = value
@@ -239,7 +244,7 @@ pub fn emitTemp(l: mut Lowerer, ty: int, value: move Rvalue) int {
  * @param dest the local receiving the result, or -1
  */
 pub fn emitRuntime(l: mut Lowerer, f: RuntimeFn, args: move List<Operand>, dest: int) {
-    var s = stmt(.Call)
+    var s = stmt(StmtKind.Call)
     s.hasDest = dest >= 0
     s.dest = if dest >= 0 { dest } else { 0 }
     s.runtime = true
@@ -258,7 +263,7 @@ pub fn emitRuntime(l: mut Lowerer, f: RuntimeFn, args: move List<Operand>, dest:
  * @param dest the local receiving the result, or -1
  */
 pub fn emitCall(l: mut Lowerer, callee: int, targs: int, args: move List<Operand>, dest: int) {
-    var s = stmt(.Call)
+    var s = stmt(StmtKind.Call)
     s.hasDest = dest >= 0
     s.dest = if dest >= 0 { dest } else { 0 }
     s.callee = callee
@@ -275,8 +280,8 @@ pub fn emitCall(l: mut Lowerer, callee: int, targs: int, args: move List<Operand
  * @param block the block
  */
 pub fn switchTo(l: mut Lowerer, block: int) {
-    if l.body.blocks[l.block].term.kind == .None {
-        l.body.blocks[l.block].term.kind = .Unreachable
+    if l.body.blocks[l.block].term.kind == TermKind.None {
+        l.body.blocks[l.block].term.kind = TermKind.Unreachable
     }
     l.block = block
 }
@@ -313,7 +318,7 @@ pub fn emitGoto(l: mut Lowerer, target: int) {
  */
 pub fn emitAssert(l: mut Lowerer, fails: move Operand, panic: PanicKind, span: Span) {
     let next = l.body.newBlock()
-    var t = terminator(.Assert)
+    var t = terminator(TermKind.Assert)
     t.cond = fails
     t.target = next
     t.panic = panic
@@ -330,7 +335,7 @@ pub fn emitAssert(l: mut Lowerer, fails: move Operand, panic: PanicKind, span: S
  * @returns the local
  */
 pub fn toLocal(l: mut Lowerer, operand: move Operand) int {
-    if operand.kind == .Copy && operand.path.fields.len() == 0 && !operand.path.deref {
+    if operand.kind == OperandKind.Copy && operand.path.fields.len() == 0 && !operand.path.deref {
         return operand.local
     }
     let ty = operand.ty
@@ -371,7 +376,7 @@ pub fn localPlace(local: int) Place {
  * @param value the value
  */
 pub fn emitStore(l: mut Lowerer, place: &Place, value: move Operand) {
-    var s = stmt(.Assign)
+    var s = stmt(StmtKind.Assign)
     s.dest = place.local
     s.destPath.fields = place.fields.clone()
     s.destPath.deref = place.deref
@@ -411,7 +416,7 @@ pub fn concreteType(l: Lowerer, c: mut Checker, ty: int) int {
 pub fn typeMethod(c: Checker, p: Program, ty: int, name: str) int {
     let t = c.types.get(ty)
     var owner = 0
-    if t.kind == .Adt {
+    if t.kind == TyKind.Adt {
         owner = t.data
     } else if ty < c.r.lang.len() {
         owner = c.r.lang[ty]
@@ -431,7 +436,7 @@ pub fn typeMethod(c: Checker, p: Program, ty: int, name: str) int {
 
 fn fieldsNeedDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
     let t = c.types.get(ty)
-    if t.kind == .Tuple {
+    if t.kind == TyKind.Tuple {
         let args = t.args.clone()
         for i in 0..args.len() {
             if needsDrop(l, c, p, args[i]) {
@@ -440,11 +445,11 @@ fn fieldsNeedDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
         }
         return false
     }
-    if t.kind != .Adt {
+    if t.kind != TyKind.Adt {
         return false
     }
     let id = t.data
-    if c.def(id).kind == .Struct {
+    if c.def(id).kind == DefKind.Struct {
         if !structFields(c, p, id) {
             return false
         }
@@ -473,14 +478,15 @@ fn fieldsNeedDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
 
 fn computeNeedsDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
     let kind = c.types.kind(ty)
-    if kind == .Ref || kind == .Ptr || kind == .Param || kind == .Int || kind == .Float ||
-       kind == .Bool {
+    if kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Param || kind == TyKind.Int ||
+       kind == TyKind.Float ||
+       kind == TyKind.Bool {
         return false
     }
-    if kind == .Fn {   // a `move fn` owns its environment
+    if kind == TyKind.Fn {   // a `move fn` owns its environment
         return c.types.get(ty).data == FN_OWNED
     }
-    if kind == .Dyn {   // dropped through its vtable
+    if kind == TyKind.Dyn {   // dropped through its vtable
         return true
     }
     return typeMethod(c, p, ty, "drop") != 0 || fieldsNeedDrop(l, c, p, ty)
@@ -522,7 +528,7 @@ pub fn emitDrop(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: i
     if !needsDrop(l, c, p, ty) {
         return
     }
-    let arg = placeOperand(place, .Addr, c.types.ref(ty, true))
+    let arg = placeOperand(place, OperandKind.Addr, c.types.ref(ty, true))
     emitCall(l, GLUE_DROP, c.types.tuple([ty]), [arg], -1)
 }
 
@@ -609,7 +615,7 @@ fn subPlace(place: &Place, field: int) Place {
 fn dropRest(l: mut Lowerer, c: mut Checker, p: Program, local: int, path: &List<int>,
             place: &Place, ty: int) {
     let t = c.types.get(ty)
-    let isTuple = t.kind == .Tuple
+    let isTuple = t.kind == TyKind.Tuple
     let count = if isTuple { t.args.len() } else { fieldsOf(c, t.data).types.len() }
     for i in 0..count {
         if path.len() >= 7 {
@@ -877,7 +883,8 @@ pub fn byAddress(c: Checker, p: Program, id: int, index: int) bool {
     let decl = fnOf(p, c.loc(id))
     let mode = if index < 0 { decl.selfMode } else { decl.params[index].mode }
     let info = &c.info[id]
-    return mode == .Mut || (info.returnsBorrow && info.sourceByRef && info.borrowSource == index)
+    return mode == Mode.Mut || (info.returnsBorrow && info.sourceByRef &&
+                                info.borrowSource == index)
 }
 
 const DEPTH_LIMIT: int = 64   // spec 8.6
@@ -946,7 +953,7 @@ fn substBody(l: mut Lowerer, c: mut Checker) {
     for b in 0..l.body.blocks.len() {
         for i in 0..l.body.blocks[b].stmts.len() {
             let s = &mut l.body.blocks[b].stmts[i]
-            if s.kind == .Assign {
+            if s.kind == StmtKind.Assign {
                 substOperand(c, s.value.a, &args)
                 substOperand(c, s.value.b, &args)
                 s.value.to = c.types.subst(s.value.to, args.clone())
@@ -975,7 +982,7 @@ pub fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
     for b in 0..l.body.blocks.len() {
         for i in 0..l.body.blocks[b].stmts.len() {
             let s = &l.body.blocks[b].stmts[i]
-            if s.kind == .Call && !s.runtime {
+            if s.kind == StmtKind.Call && !s.runtime {
                 let callee = s.callee
                 let targs = s.targs
                 if isGlue(callee) {
@@ -983,10 +990,10 @@ pub fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
                 } else if callee != CALL_VALUE {
                     reach(l, c, p, callee, targs)
                 }
-            } else if s.kind == .Assign && s.value.kind == .FnValue {
+            } else if s.kind == StmtKind.Assign && s.value.kind == RvalueKind.FnValue {
                 let fnDef = s.value.flag
                 reach(l, c, p, fnDef, UNIT)
-            } else if s.kind == .Assign && s.value.kind == .Unsize {
+            } else if s.kind == StmtKind.Assign && s.value.kind == RvalueKind.Unsize {
                 let concrete = s.value.b.ty
                 let iface = c.types.get(dynObject(c, s.value.to)).data
                 let slots = dynMethods(c, p, iface)
@@ -1013,8 +1020,8 @@ pub fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
  */
 pub fn dynObject(c: Checker, ty: int) int {
     return match boxInner(c, ty) {
-        .Some(inner) => inner
-        .None => c.types.get(ty).inner
+        Option.Some(inner) => inner
+        Option.None => c.types.get(ty).inner
     }
 }
 
@@ -1042,7 +1049,7 @@ fn isMainFn(c: Checker, p: Program, id: int) bool {
         return false
     }
     let isFn = match itemOf(p, c.loc(id)).kind {
-        .Fn(_) => true
+        ItemKind.Fn(_) => true
         _ => false
     }
     return isFn && c.text(def.name) == "main"
@@ -1059,21 +1066,21 @@ fn ownParams(l: mut Lowerer, c: mut Checker, p: Program, id: int, localCount: in
     l.tempScopes = []
     l.forward = false
     match c.fnMoves.get(id) {
-        .Some(found) => {
+        Option.Some(found) => {
             l.borrowed = found.borrowed.clone()
             l.movedParts = found.parts.clone()
         }
-        .None => {
+        Option.None => {
             l.borrowed = []
             l.movedParts = []
         }
     }
     dropScopeEnter(l)
-    if decl.hasSelf && decl.selfMode == .Move {
+    if decl.hasSelf && decl.selfMode == Mode.Move {
         ownLocal(l, c, p, 1, true)
     }
     for i in 0..decl.params.len() {
-        if decl.params[i].mode == .Move {
+        if decl.params[i].mode == Mode.Move {
             ownLocal(l, c, p, c.localAt(decl.params[i].id.0) + 1, true)
         }
     }
@@ -1090,18 +1097,18 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
     var body = AirBody{def: id, targs: inst.targs, name: decl.name, isMain: isMainFn(c, p, id),
                        paramCount: decl.params.len() + if decl.hasSelf { 1 } else { 0 },
                        locals: [], blocks: [],
-                       closure: .None}
-    body.newLocal(c.types.get(sig).inner, .None, decl.span)   // the return value
+                       closure: Option.None}
+    body.newLocal(c.types.get(sig).inner, Option.None, decl.span)   // the return value
     let locals: List<Local> = match c.r.tables[module].fnLocals.get(decl.id.0) {
-        .Some(list) => list.clone()
-        .None => []
+        Option.Some(list) => list.clone()
+        Option.None => []
     }
     let types: List<int> = match c.localTypesOf[module].get(decl.id.0) {
-        .Some(list) => list.clone()
-        .None => []
+        Option.Some(list) => list.clone()
+        Option.None => []
     }
     for i in 0..locals.len() {
-        body.newLocal(types[i], .Some(locals[i].name), locals[i].span)
+        body.newLocal(types[i], Option.Some(locals[i].name), locals[i].span)
     }
     // `mut self`, `mut` parameters and the source of a returned borrow are
     // passed by address (spec 5.3, 5.6).
@@ -1118,10 +1125,10 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
     l.block = l.body.newBlock()
     ownParams(l, c, p, id, locals.len())
     match decl.body {
-        .Some(block) => {
+        Option.Some(block) => {
             let _ = lowerBlock(l, c, p, &block, false)
         }
-        .None => {}
+        Option.None => {}
     }
     // Falling off the end returns (); other functions were checked to return.
     let end = if c.types.get(sig).inner == UNIT { TermKind.Return } else { TermKind.Unreachable }
@@ -1134,7 +1141,7 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
 fn emptyBody() AirBody {
     return AirBody{def: 0, targs: UNIT, name: Symbol(0), isMain: false, paramCount: 0,
                    locals: [], blocks: [],
-                   closure: .None}
+                   closure: Option.None}
 }
 
 // ---------------------------------------------------------------------------
@@ -1149,7 +1156,7 @@ fn emptyBody() AirBody {
  */
 pub fn methodTargs(c: mut Checker, ty: int) int {
     let t = c.types.get(ty)
-    if t.kind != .Adt {
+    if t.kind != TyKind.Adt {
         return UNIT
     }
     let args = t.args.clone()
@@ -1203,16 +1210,20 @@ fn glueBody(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
         emitCall(l, method, targs, [opCopy(1, selfRef)], -1)
     }
     let t = c.types.get(ty)
-    let isStruct = t.kind == .Adt && c.def(t.data).kind == .Struct
-    if t.kind == .Tuple || isStruct {
-        let count = if t.kind == .Tuple { t.args.len() } else { fieldsOf(c, t.data).types.len() }
+    let isStruct = t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Struct
+    if t.kind == TyKind.Tuple || isStruct {
+        let count = if t.kind == TyKind.Tuple {
+            t.args.len()
+        } else {
+            fieldsOf(c, t.data).types.len()
+        }
         for i in 0..count {
-            let field = if c.types.kind(ty) == .Tuple { c.types.get(ty).args[i] } else {
+            let field = if c.types.kind(ty) == TyKind.Tuple { c.types.get(ty).args[i] } else {
                 structFieldType(c, p, ty, i)
             }
             emitDrop(l, c, p, &fieldPlace(&value, 0, i), field)
         }
-    } else if t.kind == .Adt {
+    } else if t.kind == TyKind.Adt {
         dropVariants(l, c, p, &value, ty)
     }
 }
@@ -1221,14 +1232,14 @@ fn lowerGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     let ty = c.types.get(targs).args[0]
     l.body = AirBody{def: GLUE_DROP, targs: targs, name: Symbol(0), isMain: false,
                      paramCount: 1, locals: [], blocks: [],
-                     closure: .None}
-    l.body.newLocal(UNIT, .None, noSpan())
-    l.body.newLocal(c.types.ref(ty, true), .None, noSpan())
+                     closure: Option.None}
+    l.body.newLocal(UNIT, Option.None, noSpan())
+    l.body.newLocal(c.types.ref(ty, true), Option.None, noSpan())
     l.fnDef = 0
     l.flags = []
     l.block = l.body.newBlock()
     glueBody(l, c, p, ty)
-    l.body.terminate(l.block, terminator(.Return))
+    l.body.terminate(l.block, terminator(TermKind.Return))
     monoBody(l, c, p)
     l.out.push(mem.replace(l.body, emptyBody()))
 }
@@ -1237,11 +1248,11 @@ fn lowerGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
 // Clone glue: `clone<T>(value: T) T` for the types without a `clone` method
 
 fn clonePart(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: int) Operand {
-    return cloneValue(l, c, p, placeOperand(place, .Copy, ty), ty)
+    return cloneValue(l, c, p, placeOperand(place, OperandKind.Copy, ty), ty)
 }
 
 fn cloneFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
-    let isTuple = c.types.kind(ty) == .Tuple
+    let isTuple = c.types.kind(ty) == TyKind.Tuple
     let count = if isTuple { c.types.get(ty).args.len() } else {
         fieldsOf(c, c.types.get(ty).data).types.len()
     }
@@ -1251,7 +1262,7 @@ fn cloneFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
         items.push(clonePart(l, c, p, &Place{local: 1, fields: [i], deref: false}, field))
     }
     var rv = rvUse(opUnit(UNIT))
-    rv.kind = .Aggregate
+    rv.kind = RvalueKind.Aggregate
     rv.items = items
     emitAssign(l, 0, rv)
 }
@@ -1278,7 +1289,7 @@ fn cloneVariants(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
         emitGoto(l, join)
         switchTo(l, next)
     }
-    terminate(l, terminator(.Unreachable))
+    terminate(l, terminator(TermKind.Unreachable))
     switchTo(l, join)
 }
 
@@ -1286,23 +1297,23 @@ fn lowerCloneGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     let ty = c.types.get(targs).args[0]
     l.body = AirBody{def: GLUE_CLONE, targs: targs, name: Symbol(0), isMain: false,
                      paramCount: 1, locals: [], blocks: [],
-                     closure: .None}
-    l.body.newLocal(ty, .None, noSpan())
-    l.body.newLocal(ty, .None, noSpan())
+                     closure: Option.None}
+    l.body.newLocal(ty, Option.None, noSpan())
+    l.body.newLocal(ty, Option.None, noSpan())
     l.fnDef = 0
     l.flags = []
     l.block = l.body.newBlock()
     let method = typeMethod(c, p, ty, "clone")
     let t = c.types.get(ty)
-    let isStruct = t.kind == .Adt && c.def(t.data).kind == .Struct
+    let isStruct = t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Struct
     if method != 0 {
         emitCall(l, method, methodTargs(c, ty), [opCopy(1, ty)], 0)
-    } else if t.kind == .Tuple || isStruct {
+    } else if t.kind == TyKind.Tuple || isStruct {
         cloneFields(l, c, p, ty)
     } else {
         cloneVariants(l, c, p, ty)
     }
-    l.body.terminate(l.block, terminator(.Return))
+    l.body.terminate(l.block, terminator(TermKind.Return))
     monoBody(l, c, p)
     l.out.push(mem.replace(l.body, emptyBody()))
 }
@@ -1328,16 +1339,16 @@ fn findTests(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
 fn lowerTestMain(l: mut Lowerer, c: mut Checker, p: Program) {
     l.body = AirBody{def: GLUE_DROP, targs: UNIT, name: Symbol(0), isMain: true, paramCount: 0,
                      locals: [], blocks: [],
-                     closure: .None}
-    l.body.newLocal(UNIT, .None, noSpan())
+                     closure: Option.None}
+    l.body.newLocal(UNIT, Option.None, noSpan())
     l.fnDef = 0
     l.flags = []
     l.block = l.body.newBlock()
     let index = newTemp(l, I64)
-    emitRuntime(l, .TestIndex, [], index)
+    emitRuntime(l, RuntimeFn.TestIndex, [], index)
     let done = l.body.newBlock()
     for k in 0..l.tests.len() {
-        let test = rvalue(.Binary, .Eq, opCopy(index, I64), opInt(k as u64, I64))
+        let test = rvalue(RvalueKind.Binary, Op.Eq, opCopy(index, I64), opInt(k as u64, I64))
         let chosen = emitTemp(l, BOOL, test)
         let run = l.body.newBlock()
         let next = l.body.newBlock()
@@ -1349,7 +1360,7 @@ fn lowerTestMain(l: mut Lowerer, c: mut Checker, p: Program) {
     }
     emitGoto(l, done)
     switchTo(l, done)
-    l.body.terminate(l.block, terminator(.Return))
+    l.body.terminate(l.block, terminator(TermKind.Return))
     monoBody(l, c, p)
     l.out.push(mem.replace(l.body, emptyBody()))
 }
@@ -1357,10 +1368,10 @@ fn lowerTestMain(l: mut Lowerer, c: mut Checker, p: Program) {
 // The root module must declare `fn main()`.
 fn checkMain(c: mut Checker, p: Program) {
     var id = 0
-    if let .Some(name) = c.r.names.find("main") {
+    if let Option.Some(name) = c.r.names.find("main") {
         id = c.r.scope.moduleIn(0, name)
     }
-    var ok = id > 0 && c.def(id).kind == .Fn && c.def(id).module == 0
+    var ok = id > 0 && c.def(id).kind == DefKind.Fn && c.def(id).module == 0
     if ok {
         ok = fnOf(p, c.loc(id)).body.isSome()
     }
@@ -1382,14 +1393,14 @@ fn findRoots(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
     let items = &p.modules[m].module.items
     for i in 0..items.len() {
         match items[i].kind {
-            .Fn(decl) => {
+            ItemKind.Fn(decl) => {
                 let id = c.r.tables[m].fnDefs[decl.id.0]
                 let isMain = !c.r.testing && m == 0 && c.text(decl.name) == "main"
                 if id != 0 && decl.body.isSome() && (isMain || decl.abi.len() > 0) {
                     reach(l, c, p, id, UNIT)
                 }
             }
-            .Global(_, _) => {
+            ItemKind.Global(_, _) => {
                 c.error("E0901", items[i].span,
                         "compiling this declaration is not supported yet".toOwned())
             }

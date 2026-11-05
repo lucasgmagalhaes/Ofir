@@ -17,14 +17,20 @@ import sema.check.typeGenerics
 import sema.check_generic.checkBounds
 import sema.check_list.checkMapKey
 import sema.check_ref.checkInstanceStorable
+import sema.def.DefKind
 import sema.interfaces.dynIncompatible
 import sema.program.Program
 import sema.types.ERROR
 import sema.types.FN_BORROWED
 import sema.types.NEVER
 import sema.types.STR
+import sema.types.TyKind
 import sema.types.UNIT
+import syntax.ast.ExprKind
+import syntax.ast.ItemKind
+import syntax.ast.Mode
 import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
 import syntax.ast_text.typeText
 
 /**
@@ -48,7 +54,7 @@ pub fn ownerTypeOf(c: mut Checker, p: Program, m: int, index: int) int {
     let id = c.itemDefs[m][index]
     let params = itemTypeParams(&p.modules[m].module.items[index])
     let isInterface = match p.modules[m].module.items[index].kind {
-        .Interface(_, _, _) => true
+        ItemKind.Interface(_, _, _) => true
         _ => false
     }
     if isInterface {   // in an interface, `Self` is its type parameter 0
@@ -77,7 +83,8 @@ pub fn ownerType(c: mut Checker, p: Program, id: int) int {
 fn resolveAlias(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
     let item = itemOf(p, c.loc(id))
     return match item.kind {
-        .TypeAlias(typeParams, aliased) => aliasType(c, p, id, &typeParams, &aliased, args, span)
+        ItemKind.TypeAlias(typeParams, aliased) => aliasType(c, p, id, &typeParams, &aliased, args,
+                                                             span)
         _ => ERROR
     }
 }
@@ -153,28 +160,29 @@ pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span)
 fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
     for i in 0..c.generics.fnParams.len() {
         if c.generics.fnParams[i].0 == name.0 {
-            return .Some(c.types.param(c.generics.owner.len() + i, name.0))
+            return Option.Some(c.types.param(c.generics.owner.len() + i, name.0))
         }
     }
     for i in 0..c.generics.owner.len() {
         if c.generics.owner[i].0 == name.0 {
-            return .Some(if c.generics.aliasArgs.len() > 0 { c.generics.aliasArgs[i] }
+            return Option.Some(if c.generics.aliasArgs.len() > 0 { c.generics.aliasArgs[i] }
                          else { c.types.param(i, name.0) })
         }
     }
-    return .None
+    return Option.None
 }
 
 fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
     let kind = c.def(id).kind
-    if args.len() > 0 && kind != .Struct && kind != .Enum && kind != .TypeAlias {
+    if args.len() > 0 && kind != DefKind.Struct && kind != DefKind.Enum &&
+       kind != DefKind.TypeAlias {
         c.error("E0302", span, "`{c.text(c.def(id).name)}` takes no type arguments")
         return ERROR
     }
     return match kind {
-        .Primitive => c.def(id).primitive
-        .TypeAlias => resolveAlias(c, p, id, args, span)
-        .Struct | .Enum => {
+        DefKind.Primitive => c.def(id).primitive
+        DefKind.TypeAlias => resolveAlias(c, p, id, args, span)
+        DefKind.Struct | DefKind.Enum => {
             if c.def(id).lang {
                 return c.def(id).primitive   // a `@lang` body names its primitive
             }
@@ -225,7 +233,7 @@ fn pathTarget(c: mut Checker, segments: &List<Symbol>, span: Span) int {
         c.error("E0200", span, "cannot find `{c.text(segments[0])}` in this scope")
         return 0
     }
-    if segments.len() > 2 || c.def(first).kind != .Module {
+    if segments.len() > 2 || c.def(first).kind != DefKind.Module {
         c.unsupported(span, "nested module paths in types are")
         return 0
     }
@@ -235,7 +243,7 @@ fn pathTarget(c: mut Checker, segments: &List<Symbol>, span: Span) int {
 fn resolvePath(c: mut Checker, p: Program, segments: &List<Symbol>, args: &List<TypeExpr>,
                span: Span) int {
     if segments.len() == 1 {
-        if let .Some(param) = typeParameter(c, segments[0]) {
+        if let Option.Some(param) = typeParameter(c, segments[0]) {
             if args.len() > 0 {
                 c.error("E0302", span, "a type parameter takes no type arguments".toOwned())
             }
@@ -272,7 +280,7 @@ fn sliceOf(c: mut Checker, elem: int, span: Span) int {
  */
 fn isSliceType(t: &TypeExpr) bool {
     return match t.kind {
-        .Slice(_) => true
+        TypeKind.Slice(_) => true
         _ => false
     }
 }
@@ -287,14 +295,14 @@ fn isSliceType(t: &TypeExpr) bool {
  */
 pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
     return match t.kind {
-        .Path(segments, args) => resolvePath(c, p, &segments, &args, t.span)
-        .SelfType => {
+        TypeKind.Path(segments, args) => resolvePath(c, p, &segments, &args, t.span)
+        TypeKind.SelfType => {
             if c.selfType == ERROR {
                 c.error("E0200", t.span, "`Self` is only available inside a type".toOwned())
             }
             c.selfType
         }
-        .Ref(mutable, inner) => {
+        TypeKind.Ref(mutable, inner) => {
             let target = resolveType(c, p, &*inner)
             if target == STR && !mutable {
                 return STR   // stage 0: `&str` is a `str` view
@@ -307,48 +315,48 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
             }
             c.types.ref(target, mutable)
         }
-        .Ptr(mutable, inner) => {
+        TypeKind.Ptr(mutable, inner) => {
             let target = resolveType(c, p, &*inner)
             c.types.ptr(target, mutable)
         }
-        .Slice(elem) => {
+        TypeKind.Slice(elem) => {
             let item = resolveType(c, p, &*elem)
             sliceOf(c, item, t.span)
         }
-        .Array(elem, len) => {
+        TypeKind.Array(elem, len) => {
             let item = resolveType(c, p, &*elem)
             match len.kind {
-                .Int(n) => {
+                ExprKind.Int(n) => {
                     if n > 4294967295 {
                         return c.unsupported(len.span,
                                              "array lengths other than integer literals are")
                     }
-                    c.types.intern(.Array, n as int, item, [])
+                    c.types.intern(TyKind.Array, n as int, item, [])
                 }
                 _ => c.unsupported(len.span, "array lengths other than integer literals are")
             }
         }
-        .Tuple(items) => {
+        TypeKind.Tuple(items) => {
             var types: List<int> = []
             for i in 0..items.len() {
                 types.push(resolveType(c, p, &items[i]))
             }
             c.types.tuple(types)
         }
-        .Fn(params, _, ret, owned) => {
+        TypeKind.Fn(params, _, ret, owned) => {
             var types: List<int> = []
             for i in 0..params.len() {
                 types.push(resolveType(c, p, &params[i]))
             }
             let result = match ret {
-                .Some(r) => resolveType(c, p, &*r)
-                .None => UNIT
+                Option.Some(r) => resolveType(c, p, &*r)
+                Option.None => UNIT
             }
             c.types.fnValueType(types, result, owned)
         }
-        .Never => NEVER
-        .Dyn(inner) => dynType(c, p, &*inner, t.span)
-        .Optional(_) => c.unsupported(t.span, "optional types (`T?`) are")
+        TypeKind.Never => NEVER
+        TypeKind.Dyn(inner) => dynType(c, p, &*inner, t.span)
+        TypeKind.Optional(_) => c.unsupported(t.span, "optional types (`T?`) are")
     }
 }
 
@@ -370,7 +378,8 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
     let decl = fnOf(p, c.loc(id))
     let item = itemOf(p, c.loc(id))
     let isMethod = match item.kind {
-        .Struct(_, _, _, _, _, _) | .Enum(_, _, _, _) | .Interface(_, _, _) => true
+        ItemKind.Struct(_, _, _, _, _, _) | ItemKind.Enum(_, _, _, _) |
+        ItemKind.Interface(_, _, _) => true
         _ => false
     }
     let saved = c.enter(module)
@@ -383,11 +392,11 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
     var params: List<int> = []
     for i in 0..decl.params.len() {
         var ty = resolveType(c, p, &decl.params[i].ty)
-        if decl.params[i].mode == .Move {   // `f: move fn(A) R` takes an owned function
+        if decl.params[i].mode == Mode.Move {   // `f: move fn(A) R` takes an owned function
             ty = ownedFn(c, ty)
         }
-        if c.types.kind(ty) == .Dyn {   // `s: dyn Shape` borrows the value
-            if decl.params[i].mode != .Borrow {
+        if c.types.kind(ty) == TyKind.Dyn {   // `s: dyn Shape` borrows the value
+            if decl.params[i].mode != Mode.Borrow {
                 ty = c.unsupported(decl.params[i].ty.span, "`mut` and `move` `dyn` parameters are")
             } else {
                 ty = c.types.ref(ty, false)
@@ -396,8 +405,8 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
         params.push(ty)
     }
     let ret = match decl.ret {
-        .Some(t) => resolveType(c, p, &t)
-        .None => UNIT
+        Option.Some(t) => resolveType(c, p, &t)
+        Option.None => UNIT
     }
     c.enterGenerics(outer)
     c.selfType = savedSelf
@@ -424,7 +433,7 @@ pub fn compatible(found: int, expected: int) bool {
 // The owned function type `move fn(A) R` of `fn(A) R`; other types as they are.
 fn ownedFn(c: mut Checker, ty: int) int {
     let t = c.types.get(ty)
-    if t.kind != .Fn || t.data != FN_BORROWED {
+    if t.kind != TyKind.Fn || t.data != FN_BORROWED {
         return ty
     }
     let args = t.args.clone()

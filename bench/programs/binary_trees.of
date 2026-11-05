@@ -8,15 +8,15 @@ enum Tree {
 
 fn make(depth: int) Tree {
     if depth == 0 {
-        return .Node(Box.new(Tree.Leaf), Box.new(Tree.Leaf))
+        return Tree.Node(Box.new(Tree.Leaf), Box.new(Tree.Leaf))
     }
-    return .Node(Box.new(make(depth - 1)), Box.new(make(depth - 1)))
+    return Tree.Node(Box.new(make(depth - 1)), Box.new(make(depth - 1)))
 }
 
 fn check(t: Tree) int {
     return match t {
-        .Leaf => 0
-        .Node(l, r) => 1 + check(*l) + check(*r)
+        Tree.Leaf => 0
+        Tree.Node(l, r) => 1 + check(*l) + check(*r)
     }
 }
 
