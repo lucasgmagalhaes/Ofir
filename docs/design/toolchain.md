@@ -32,7 +32,28 @@ A single file can be compiled without a project: `ofir run hello.of`.
 | `--emit=asm` | write assembly |
 | `--time-passes` | print the time spent in each phase |
 | `--message-format=short` | one line per diagnostic: `file:line:col: error[E0300]: message` |
-| `--message-format=json` | diagnostics as JSON objects **[planned]** |
+| `--message-format=json` | diagnostics as JSON objects, one per line (below) |
+
+### JSON diagnostics
+
+With `--message-format=json` every diagnostic is written to standard error
+as one JSON object per line, sorted as the human format sorts them:
+
+```json
+{"severity":"error","code":"E0300","message":"mismatched types: expected int, found str","file":"src/main.of","line":3,"column":13,"endLine":3,"endColumn":18}
+```
+
+- `severity` is `"error"` or `"warning"`; `code` is the registry code
+  (`docs/errors`).
+- `line` and `column` start at 1 and count bytes; `endLine` and
+  `endColumn` are the position just after the span.
+- Driver errors that point at no source, as E0900 (cannot read a file) or
+  E0902 (clang failed), have no `file`, `line`, `column`, `endLine` or
+  `endColumn`.
+- Strings are escaped as JSON requires: `\"`, `\\`, `\n`, `\t` and
+  `\u00XX` for other control characters; other bytes are copied.
+
+The format is stage 1's: stage 0 accepts only `short` and `human`.
 
 ## 2. Project layout
 
