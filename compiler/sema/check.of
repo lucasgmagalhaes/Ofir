@@ -31,6 +31,8 @@ import sema.enums.EnumInfo
 import sema.enums.checkEnumLayouts
 import sema.enums.enumVariants
 import sema.expr_check.checkConst
+import sema.interfaces.interfaceArity
+import sema.interfaces.interfaceText
 import sema.interfaces.unsatisfied
 import sema.moves.FnMoves
 import sema.moves.checkMoves
@@ -830,7 +832,7 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
     let decl = fnOf(p, c.loc(id))
     let inner = fnGenericsIn(c, p, &c.generics.clone(), decl)
     let outer = c.enterGenerics(inner)
-    checkDeclBounds(c, &decl.bounds)
+    checkDeclBounds(c, p, &decl.bounds)
     let sig = fnSignature(c, p, id)
     checkBorrowSource(c, p, id, sig, selfType)   // what callers need, now
     c.enterGenerics(outer)
@@ -995,9 +997,10 @@ fn checkExtern(c: mut Checker, p: Program, item: &Item, abi: str, fns: &List<FnD
  * interface (E0333).
  *
  * @param c the checker, with the declaration's parameters in scope
+ * @param p the program
  * @param preds the bounds
  */
-pub fn checkDeclBounds(c: mut Checker, preds: &List<WherePred>) {
+pub fn checkDeclBounds(c: mut Checker, p: Program, preds: &List<WherePred>) {
     for i in 0..preds.len() {
         let pred = &preds[i]
         if boundedParam(&pred.ty, &c.generics.owner, &c.generics.fnParams) < 0 {
@@ -1005,17 +1008,19 @@ pub fn checkDeclBounds(c: mut Checker, preds: &List<WherePred>) {
                     + "parameter of this declaration: only type parameters take bounds")
         }
         for j in 0..pred.bounds.len() {
-            if boundBit(c, &pred.bounds[j]) == 0 && interfaceOf(c, &pred.bounds[j]) == 0 {
+            let iface = interfaceOf(c, &pred.bounds[j])
+            if boundBit(c, &pred.bounds[j]) == 0 && iface == 0 {
                 c.error("E0333", pred.bounds[j].span, "`{typeText(&pred.bounds[j], c.r.names)}` "
                         + "is not an interface")
             }
+            checkArity(c, p, &pred.bounds[j], iface)
         }
     }
 }
 
 fn checkTypeBounds(c: mut Checker, p: Program, item: &Item) {
     let outer = c.enterGenerics(typeGenerics(c, p, item))
-    checkDeclBounds(c, &item.bounds)
+    checkDeclBounds(c, p, &item.bounds)
     c.enterGenerics(outer)
 }
 
@@ -1062,28 +1067,56 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
     }
 }
 
-// An interface: not generic beyond `Self`, embedding only interfaces, with
-// its default methods checked once, generically over `Self`.
+// An interface: embedding only interfaces, with its default methods checked
+// once, generically over `Self` and its parameters.
 fn checkInterface(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>) {
     let item = &p.modules[c.module()].module.items[index]
-    if itemTypeParams(item).len() > 1 {
-        c.unsupported(item.span, "generic interfaces are")
-        return
-    }
     match item.kind {
-        ItemKind.Interface(_, embeds, _) => notInterfaces(c, &embeds)
+        ItemKind.Interface(_, embeds, _) => {
+            notInterfaces(c, p, &embeds)
+            for i in 0..embeds.len() {
+                if typeArgCount(&embeds[i]) > 0 {
+                    c.unsupported(embeds[i].span, "embedded generic interfaces are")
+                }
+            }
+        }
         _ => {}
     }
     checkMethods(c, p, index, methods)
 }
 
-// E0333 for each type named where only interfaces go.
-fn notInterfaces(c: mut Checker, list: &List<TypeExpr>) {
+// E0333 for each type named where only interfaces go, E0302 for each
+// interface given the wrong number of type arguments.
+fn notInterfaces(c: mut Checker, p: Program, list: &List<TypeExpr>) {
     for i in 0..list.len() {
-        if interfaceOf(c, &list[i]) == 0 {
+        let iface = interfaceOf(c, &list[i])
+        if iface == 0 {
             c.error("E0333", list[i].span, "`{typeText(&list[i], c.r.names)}` is not an "
                     + "interface")
         }
+        checkArity(c, p, &list[i], iface)
+    }
+}
+
+// The number of type arguments a path is written with.
+fn typeArgCount(t: &TypeExpr) int {
+    return match t.kind {
+        TypeKind.Path(_, args) => args.len()
+        _ => 0
+    }
+}
+
+// E0302 unless interface `iface`, named by `t`, is given one type argument
+// per parameter.
+fn checkArity(c: mut Checker, p: Program, t: &TypeExpr, iface: int) {
+    if iface == 0 {
+        return
+    }
+    let expected = interfaceArity(c, p, iface)
+    let found = typeArgCount(t)
+    if found != expected {
+        c.error("E0302", t.span, "wrong number of type arguments for "
+                + "`{c.text(c.def(iface).name)}`: expected {expected}, found {found}")
     }
 }
 
@@ -1094,17 +1127,19 @@ fn checkAsserts(c: mut Checker, p: Program, index: int) {
     if item.asserts.len() == 0 || c.itemDefs[c.module()][index] == 0 {
         return
     }
-    notInterfaces(c, &item.asserts)
+    notInterfaces(c, p, &item.asserts)
     let ty = ownerTypeOf(c, p, c.module(), index)
+    let generics = typeGenerics(c, p, item)
     for i in 0..item.asserts.len() {
         let iface = interfaceOf(c, &item.asserts[i])
-        if iface == 0 {
-            continue
+        if iface == 0 || typeArgCount(&item.asserts[i]) != interfaceArity(c, p, iface) {
+            continue   // E0333, E0302
         }
-        let why = unsatisfied(c, p, ty, iface)
+        let args = boundArgs(c, p, &item.asserts[i], &generics)
+        let why = unsatisfied(c, p, ty, iface, args)
         if why.len() > 0 {
             c.error("E0335", item.asserts[i].span, "the type `{c.typeName(ty)}` does not "
-                    + "satisfy `{c.text(c.def(iface).name)}`: {why}")
+                    + "satisfy `{interfaceText(c, iface, args)}`: {why}")
         }
     }
 }

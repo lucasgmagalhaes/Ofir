@@ -456,6 +456,13 @@ fn dynType(c: mut Checker, p: Program, inner: &TypeExpr, span: Span) int {
         c.error("E0333", inner.span, "`{typeText(inner, c.r.names)}` is not an interface")
         return ERROR
     }
+    let generic = match inner.kind {
+        TypeKind.Path(_, args) => args.len() > 0
+        _ => false
+    }
+    if generic {
+        return c.unsupported(span, "`dyn` of generic interfaces is")
+    }
     let why = dynIncompatible(c, p, iface)
     if why.len() > 0 {
         c.error("E0338", span, "`dyn {typeText(inner, c.r.names)}` is not allowed: {why}")

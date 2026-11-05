@@ -34,7 +34,8 @@ pub fn coerceToDyn(c: mut Checker, p: Program, e: &Expr, found: int, expected: i
         Option.Some(inner) => inner
         Option.None => c.types.get(expected).inner
     }
-    let why = unsatisfied(c, p, target, c.types.get(object).data)
+    let dynArgs = c.types.get(object).args.clone()
+    let why = unsatisfied(c, p, target, c.types.get(object).data, c.types.tuple(dynArgs))
     if why.len() > 0 {
         c.error("E0300", e.span, "mismatched types: expected {c.typeName(expected)}, found "
                 + "{c.typeName(found)}: {why}")
