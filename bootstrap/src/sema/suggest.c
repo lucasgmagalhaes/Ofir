@@ -103,3 +103,22 @@ void suggest_member(Sema *sema, uint32_t index, Symbol name) {
     }
     suggestion_report(&s, &sema->session->diags);
 }
+
+void suggest_field(Sema *sema, const StructInfo *info, Symbol name) {
+    const Interner *names = &sema->session->names;
+    Suggestion s = suggestion_start(symbol_name(names, name));
+    for (uint32_t i = 0; info && !info->is_tuple && i < info->count; i++) {
+        suggestion_offer(&s, info->names[i], symbol_name(names, info->names[i]));
+    }
+    suggestion_report(&s, &sema->session->diags);
+}
+
+void suggest_method(Sema *sema, const Item *item, Symbol name) {
+    const Interner *names = &sema->session->names;
+    Suggestion s = suggestion_start(symbol_name(names, name));
+    FnList methods = item->kind == ITEM_ENUM ? item->as.enum_.methods : item->as.struct_.methods;
+    for (uint32_t i = 0; i < methods.len; i++) {
+        suggestion_offer(&s, methods.items[i]->name, symbol_name(names, methods.items[i]->name));
+    }
+    suggestion_report(&s, &sema->session->diags);
+}

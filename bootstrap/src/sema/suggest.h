@@ -38,4 +38,11 @@ void suggest_name(Sema *sema, Symbol name, SuggestScope where);
 // declarations.
 void suggest_member(Sema *sema, uint32_t index, Symbol name);
 
+// The help line for an unknown field of a struct: its named fields.
+void suggest_field(Sema *sema, const StructInfo *info, Symbol name);
+
+// The help line for an unknown method of a struct, an enum or a `@lang`
+// declaration: the methods it declares.
+void suggest_method(Sema *sema, const Item *item, Symbol name);
+
 #endif
