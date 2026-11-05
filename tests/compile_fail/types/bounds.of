@@ -3,7 +3,7 @@
 // arguments that do not satisfy them.
 
 struct Point {
-    x: int
+    x: bool   // `bool` has no order, so `Point` derives none (spec 9.9)
 }
 
 struct Sorted<T: Ord> {
@@ -22,7 +22,7 @@ fn dup<T: Ord>(a: T) T {
     return a.clone()             // error[E0322]: type `T` cannot be cloned
 }
 
-fn size<K: Hash, V>(m: Map<K, V>) int {   // error[E0313]: `Map` keys must be integers, bool, str or tuples of them in stage 0, not `K`
+fn size<K: Hash, V>(m: Map<K, V>) int {   // error[E0313]: `Map` keys must satisfy `Hash`: `K` does not
     return m.len()
 }
 
@@ -46,7 +46,7 @@ where
 }
 
 fn main() {
-    let p = max(Point{x: 1}, Point{x: 2})        // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
+    let p = max(Point{x: true}, Point{x: false}) // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
     let s: Sorted<Point> = Sorted{items: []}     // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
     let e = same([1], [2])                       // error[E0332]: the type `List<int>` does not satisfy the bound `Eq` of `T`
 }

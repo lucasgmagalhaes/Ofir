@@ -8,8 +8,6 @@ import air.air.AirBody
 import air.air.AirStmt
 import air.air.CALL_VALUE
 import air.air.FloatFn
-import air.air.GLUE_CLONE
-import air.air.GLUE_DROP
 import air.air.Operand
 import air.air.OperandKind
 import air.air.PanicKind
@@ -18,6 +16,7 @@ import air.air.RvalueKind
 import air.air.StmtKind
 import air.air.TermKind
 import air.air.Terminator
+import air.air.glueName
 import air.air.isGlue
 import air.air.runtimeName
 import sema.check.Checker
@@ -347,8 +346,8 @@ pub struct AirPrinter {
             if s.runtime {
                 self.out.push("call {runtimeName(s.rt)}(")
             } else {
-                let name = if s.callee == GLUE_DROP { "drop" } else if s.callee == GLUE_CLONE {
-                    "clone"
+                let name = if isGlue(s.callee) {
+                    glueName(s.callee)
                 } else if s.callee == CALL_VALUE {
                     "value"
                 } else {

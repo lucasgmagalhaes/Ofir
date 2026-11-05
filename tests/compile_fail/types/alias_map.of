@@ -1,2 +1,2 @@
-type Table<K> = Map<K, int> // error[E0313]: `Map` keys must be integers, bool, str or tuples of them in stage 0, not `List<int>`
+type Table<K> = Map<K, int> // error[E0313]: `Map` keys must satisfy `Hash`: `List<int>` does not
 fn use(x: Table<List<int>>) {}

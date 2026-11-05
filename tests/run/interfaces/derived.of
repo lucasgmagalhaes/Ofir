@@ -1,0 +1,78 @@
+// requires: stage1
+// Derived built-in interfaces (spec 9.9): `==`, `<` and `Map` keys on structs,
+// enums and tuples, from their fields or from their own `eq` and `cmp`.
+
+import std.core.Ordering
+
+struct P {
+    x: int
+    y: int
+}
+
+enum Color {
+    Red
+    Green
+    Rgb(int, int, int)
+}
+
+struct Name {
+    text: str
+}
+
+struct Loose {
+    a: int
+    b: int
+
+    fn eq(self, other: Loose) bool {
+        return self.a == other.a
+    }
+}
+
+struct Rev {
+    n: int
+
+    fn cmp(self, other: Rev) Ordering {
+        return if self.n > other.n {
+            Ordering.Less
+        } else if self.n < other.n {
+            Ordering.Greater
+        } else {
+            Ordering.Equal
+        }
+    }
+}
+
+struct Pair<T> {
+    a: T
+    b: T
+}
+
+fn same<T: Eq>(x: T, y: T) bool {
+    return x == y
+}
+
+fn main() {
+    let a = P{x: 1, y: 2}
+    let b = P{x: 1, y: 3}
+    println("{a == b} {a != b} {a < b} {b <= a} {a == P{x: 1, y: 2}}")
+    let c = Color.Rgb(1, 2, 3)
+    println("{c == Color.Rgb(1, 2, 3)} {c == Color.Red} {Color.Red < Color.Green}")
+    println("{Color.Rgb(1, 2, 3) < Color.Rgb(1, 2, 4)} {Color.Green < Color.Rgb(0, 0, 0)}")
+    var m: Map<P, int> = Map.new()
+    m.insert(P{x: 1, y: 2}, 5)
+    m.insert(P{x: 2, y: 2}, 6)
+    m.insert(P{x: 1, y: 2}, 7)
+    println("{m.len()} {m.contains(P{x: 1, y: 2})}")
+    var names: Map<Name, int> = Map.new()
+    names.insert(Name{text: "a"}, 1)
+    println("{names.contains(Name{text: "a"})} {Name{text: "a"} == Name{text: "b"}}")
+    var colors: Map<Color, str> = Map.new()
+    colors.insert(Color.Rgb(1, 2, 3), "x")
+    colors.insert(Color.Red, "r")
+    println("{colors.contains(Color.Rgb(1, 2, 3))} {colors.contains(Color.Green)}")
+    println("{Loose{a: 1, b: 2} == Loose{a: 1, b: 3}} {Rev{n: 1} < Rev{n: 2}}")
+    println("{same(Pair{a: 1, b: 2}, Pair{a: 1, b: 2})} {same((1, "x"), (1, "y"))}")
+    var list = [P{x: 3, y: 1}, P{x: 1, y: 9}, P{x: 1, y: 2}]
+    list.sort()
+    println("{list[0].y} {list[1].y} {list[2].x}")
+}

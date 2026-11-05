@@ -336,6 +336,12 @@ pub const GLUE_DROP: int = 0
 pub const GLUE_CLONE: int = -2
 /** The `fn` of a call of a function value: the value is the first argument. */
 pub const CALL_VALUE: int = -3
+/** The `fn` of a call to the derived `eq` of the type in `targs` (spec 9.9). */
+pub const GLUE_EQ: int = -4
+/** The `fn` of a call to the derived `hash` of the type in `targs`. */
+pub const GLUE_HASH: int = -5
+/** The `fn` of a call to the derived `cmp` of the type in `targs`: an `Ordering` tag. */
+pub const GLUE_CMP: int = -6
 
 /**
  * Whether a function of a call or a body is glue.
@@ -344,7 +350,28 @@ pub const CALL_VALUE: int = -3
  * @returns true for glue
  */
 pub fn isGlue(def: int) bool {
-    return def == GLUE_DROP || def == GLUE_CLONE
+    return def == GLUE_DROP || def == GLUE_CLONE || def == GLUE_EQ || def == GLUE_HASH ||
+           def == GLUE_CMP
+}
+
+/**
+ * The name of a glue function.
+ *
+ * @param def a glue constant
+ * @returns `drop`, `clone`, `eq`, `hash` or `cmp`
+ */
+pub fn glueName(def: int) str {
+    return if def == GLUE_DROP {
+        "drop"
+    } else if def == GLUE_CLONE {
+        "clone"
+    } else if def == GLUE_EQ {
+        "eq"
+    } else if def == GLUE_HASH {
+        "hash"
+    } else {
+        "cmp"
+    }
 }
 
 /** What a statement does. */

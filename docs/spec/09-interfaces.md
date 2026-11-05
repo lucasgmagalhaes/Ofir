@@ -282,6 +282,37 @@ fields all satisfy them, unless the type defines the method itself.
 `Display` is **not** derived automatically; a type chooses how it is shown.
 `Debug` is derived for every type.
 
+`Eq`, `Ord` and `Hash` are derived as follows:
+
+- A struct compares and hashes its fields in declaration order. An enum
+  compares its variants first, in declaration order, then the fields of
+  the variant. So `<` on two structs is decided by the first fields that
+  differ.
+- Tuples satisfy each interface when every element does. Floats satisfy
+  none of them (chapter 2.1), so a struct with a float field is not
+  derived either.
+- A type with a `drop` method (`List`, `Box`, `Map`) owns a resource: its
+  fields say nothing about its value, so nothing is derived for it.
+- A type that declares `fn eq(self, other: Self) bool` or
+  `fn cmp(self, other: Self) Ordering` uses that method for `==` or `<`.
+  A method named `eq` or `cmp` of another shape does not count, and blocks
+  the derivation of its interface. A type that declares `eq` is not
+  hashed by its fields, since equal values must hash equally: it is not a
+  `Map` key until it can declare `hash` (which needs `Hasher`).
+
+```
+struct Version {
+    major: int
+    minor: int
+}
+
+let a = Version{major: 1, minor: 2}
+let b = Version{major: 1, minor: 10}
+a < b                                  // true: `major` ties, `minor` decides
+var seen: Map<Version, bool> = Map.new()
+seen.insert(a, true)
+```
+
 A `for` loop accepts built-in collections (`List`, arrays, slices, `str`,
 `Map`) and any value whose type satisfies `Iterator<T>`. User collections
 expose iteration through a method returning a `ref struct` iterator

@@ -1,13 +1,8 @@
-struct Point {
-    x: int
-}
-
-fn generic<K>(m: Map<K, int>) {     // error[E0313]: `Map` keys must be integers, bool, str or tuples of them in stage 0, not `K`
+fn generic<K>(m: Map<K, int>) {     // error[E0313]: `Map` keys must satisfy `Hash`: `K` does not
 }
 
 fn main() {
-    let a: Map<float, int> = Map.new()   // error[E0313]: `Map` keys must be integers, bool, str or tuples of them in stage 0, not `float`
-    let b = Map<Point, int>.new()        // error[E0313]: `Map` keys must be integers, bool, str or tuples of them in stage 0, not `Point`
+    let a: Map<float, int> = Map.new()   // error[E0313]: `Map` keys must satisfy `Hash`: `float` does not
     let c = Map<str, int>.new()
     for key in c {                       // error[E0300]: iterate a map with two variables: `for key, value in map`
     }

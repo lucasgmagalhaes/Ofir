@@ -37,6 +37,11 @@ import air.air.rvUse
 import air.air.terminator
 import air.air.CALL_VALUE
 import air.air.GLUE_CLONE
+import air.air.GLUE_EQ
+import air.air.GLUE_HASH
+import air.lower_derive.lowerCmpGlue
+import air.lower_derive.lowerEqGlue
+import air.lower_derive.lowerHashGlue
 import air.lower_expr.cloneValue
 import air.lower_expr.lowerBlock
 import air.lower_pattern.variantValue
@@ -1142,7 +1147,7 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
     l.out.push(mem.replace(l.body, emptyBody()))
 }
 
-fn emptyBody() AirBody {
+pub fn emptyBody() AirBody {
     return AirBody{def: 0, targs: UNIT, name: Symbol(0), isMain: false, paramCount: 0,
                    locals: [], blocks: [],
                    closure: Option.None}
@@ -1167,7 +1172,7 @@ pub fn methodTargs(c: mut Checker, ty: int) int {
     return c.types.tuple(args)
 }
 
-fn fieldPlace(base: &Place, step: int, field: int) Place {
+pub fn fieldPlace(base: &Place, step: int, field: int) Place {
     var fields = base.fields.clone()
     if step != 0 {
         fields.push(step)
@@ -1449,8 +1454,14 @@ pub fn lowerProgram(c: mut Checker, p: Program) Lowerer {
             c.enter(0)
             if inst.glue == GLUE_DROP {
                 lowerGlue(l, c, p, inst.targs)
-            } else {
+            } else if inst.glue == GLUE_CLONE {
                 lowerCloneGlue(l, c, p, inst.targs)
+            } else if inst.glue == GLUE_EQ {
+                lowerEqGlue(l, c, p, inst.targs)
+            } else if inst.glue == GLUE_HASH {
+                lowerHashGlue(l, c, p, inst.targs)
+            } else {
+                lowerCmpGlue(l, c, p, inst.targs)
             }
             continue
         }

@@ -1,0 +1,46 @@
+// requires: stage1
+// What the built-in interfaces are not derived for (spec 9.9).
+
+struct Bag {
+    items: List<int>   // a type with `drop` derives nothing
+}
+
+struct Weight {
+    value: float
+}
+
+struct Loose {
+    a: int
+
+    fn eq(self, other: Loose) bool {
+        return self.a == other.a
+    }
+}
+
+struct Odd {
+    a: int
+
+    fn eq(self, other: int) bool {
+        return self.a == other
+    }
+}
+
+enum Flag {
+    On(bool)
+    Off
+}
+
+struct Sample {
+    at: (int, float)
+}
+
+fn main() {
+    let a = Bag{items: []}
+    let same = a == a                    // error[E0313]: operator cannot be applied to type `Bag`
+    let m: Map<Weight, int> = Map.new()  // error[E0313]: `Map` keys must satisfy `Hash`: `Weight` does not
+    let n: Map<Loose, int> = Map.new()   // error[E0313]: `Map` keys must satisfy `Hash`: `Loose` does not
+    let odd = Odd{a: 1} == Odd{a: 1}     // error[E0313]: operator cannot be applied to type `Odd`
+    let less = Flag.Off < Flag.Off       // error[E0313]: operator cannot be applied to type `Flag`
+    let s = Sample{at: (1, 2.0)}
+    let equal = s == s                   // error[E0313]: operator cannot be applied to type `Sample`
+}

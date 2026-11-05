@@ -25,8 +25,7 @@ import sema.check_list.coerceToSlice
 import sema.check_list.hashable
 import sema.check_methods.isCloneable
 import sema.check_types.resolveType
-import sema.enums.enumOf
-import sema.enums.variantsOf
+import sema.derive.adtSatisfies
 import sema.expr_check.checkExpr
 import sema.expr_check.requireType
 import sema.interfaces.unsatisfied
@@ -346,24 +345,33 @@ pub fn equatable(c: mut Checker, p: Program, ty: int) bool {
         }
         return true
     }
-    if let Option.Some(id) = enumOf(c, p, ty) {
-        return !variantsOf(c, id).hasPayload
-    }
-    return false
+    return kind == TyKind.Adt && adtSatisfies(c, p, ty, BOUND_EQ)
 }
 
 /**
  * Whether `<`, `<=`, `>`, `>=` and `sort` order values of a type.
  *
  * @param c the checker
+ * @param p the program
  * @param ty the type
- * @returns true for numbers, `str` and parameters bound by `Ord`
+ * @returns true for numbers, `str`, parameters bound by `Ord`, and tuples,
+ *   structs and enums that satisfy `Ord` (spec 9.9)
  */
-pub fn orderable(c: Checker, ty: int) bool {
+pub fn orderable(c: mut Checker, p: Program, ty: int) bool {
     let kind = c.types.kind(ty)
+    if kind == TyKind.Tuple {
+        let elems = c.types.get(ty).args.clone()
+        for i in 0..elems.len() {
+            if !orderable(c, p, elems[i]) {
+                return false
+            }
+        }
+        return true
+    }
     return kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Str ||
            kind == TyKind.Error ||
-           (kind == TyKind.Param && paramBounds(c, ty) & BOUND_ORD != 0)
+           (kind == TyKind.Param && paramBounds(c, ty) & BOUND_ORD != 0) ||
+           (kind == TyKind.Adt && adtSatisfies(c, p, ty, BOUND_ORD))
 }
 
 /**
@@ -386,9 +394,9 @@ pub fn satisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
     return if bit == BOUND_EQ {
         equatable(c, p, ty)
     } else if bit == BOUND_ORD {
-        orderable(c, ty)
+        orderable(c, p, ty)
     } else if bit == BOUND_HASH {
-        hashable(c, ty)
+        hashable(c, p, ty)
     } else {
         isCloneable(c, p, ty)
     }
