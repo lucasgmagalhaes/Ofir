@@ -55,9 +55,25 @@ requires it to return `Option<U>`.
 
 If the error types differ, `?` widens the error when `F` is a union type
 that contains `E` (chapter 17.3), and otherwise converts it when the
-function's error type `F` satisfies `From<E>` (`F.from(e)` is called). Otherwise the
+function's error type `F` satisfies `From<E>`: it declares
+`fn from(value: move E) Self`, and `F.from(e)` is called. Otherwise the
 conversion is explicit with `.mapErr(...)`. Stage 0 requires both error
 types to be equal.
+
+```ofir
+struct AppError {
+    message: str
+
+    fn from(value: move ParseError) AppError {
+        return AppError{message: "cannot parse: {value.text}"}
+    }
+}
+
+fn load(text: str) Result<Config, AppError> {
+    let n = parseInt(text)?    // a ParseError becomes an AppError
+    ...
+}
+```
 
 ## 6.3 Unused results
 
