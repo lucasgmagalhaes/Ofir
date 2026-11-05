@@ -399,6 +399,12 @@ AIR is translated to **textual LLVM IR** (`.ll`), see ADR 0001.
   `select (icmp eq ptr p, null), none, some`, storing the empty variant's
   tag stores null, and the other variant's tag store is dropped (its
   payload is already there). Both stages do this, with the same IR.
+- A struct's LLVM type holds its fields by descending alignment, keeping
+  declaration order among equals (spec 13.2), so `{ u8, int, u8 }` takes
+  16 bytes, not 24. `@repr(C)`, `@packed` and `@lang` structs keep
+  declaration order. Codegen maps a declared field index to its slot in
+  the GEP of a place and the `insertvalue` of an aggregate; the AIR keeps
+  declared indices. Both stages do this, with the same IR.
 - String literals are private constant globals.
 - Vtables are constant globals: `{ drop, size, align, type_id, methods... }`.
 
