@@ -25,6 +25,14 @@ typedef struct FnDecl FnDecl;
 typedef List(Expr *) ExprList;
 typedef List(Stmt *) StmtList;
 typedef List(TypeExpr *) TypeList;
+
+// `T: Eq + Hash`, inline in `<...>` or in a `where` clause (spec 8.4).
+typedef struct {
+    TypeExpr *type;
+    TypeList bounds;
+    Span span;
+} WherePred;
+typedef List(WherePred) WhereList;
 typedef List(Pattern *) PatternList;
 typedef List(Symbol) SymbolList;
 typedef List(FnDecl *) FnList;
@@ -292,6 +300,7 @@ struct FnDecl {
     bool is_pub, is_unsafe;
     StrView abi;            // "C" for extern "C" fn, empty otherwise
     SymbolList type_params;
+    WhereList bounds;       // inline and `where` bounds, in order
     bool has_self;
     Mode self_mode;
     List(Param) params;
@@ -320,6 +329,7 @@ struct FnDecl {
     bool check_pending;
     TypeId pending_self;
     SymbolList pending_owner_params;
+    WhereList pending_owner_bounds;
 };
 
 enum { PART_DEPTH = 7 };
@@ -371,6 +381,7 @@ typedef struct Item {
     Symbol name;
     AttributeList attributes;
     bool is_pub;
+    WhereList bounds;           // inline bounds of struct and enum type parameters
     union {
         FnDecl *fn;
         struct {

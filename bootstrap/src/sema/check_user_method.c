@@ -96,6 +96,11 @@ static TypeId method_args(Checker *c, Expr *call, FnDecl *fn, TypeHints hints) {
             check_error(c, "E0302", field->span, "`" SV_FMT "` takes no type arguments",
                         SV_ARG(name_of(c, fn->name)));
         }
+        const Ty *self = type_get(c->types, hints.self);
+        if (fn->bounds.len > 0 && self->kind == TY_ADT) {   // `where` binds this method only
+            Generics own = {.owner = fn_generics(def).owner, .fn_bounds = fn->bounds};
+            check_bounds(c, own, self->args, self->arg_count, call->span);
+        }
         return check_args(c, call, sig);
     }
     Infer inf = infer_new(c, fn_generics(def));
@@ -135,9 +140,6 @@ TypeId check_user_method(Checker *c, Expr *call, DefId owner, bool via_type, Typ
     check_visible(c, sema_def(c->sema, owner)->module, fn->is_pub, name, field->span);
     field->as.field.res = (Res){RES_DEF, fn->def.id};
     TypeId ret = method_args(c, call, fn, hints);
-    if (owner.id == c->sema->list.id && sv_eq(name_of(c, name), SV("sort"))) {
-        check_list_sort(c, call);
-    }
     check_mut_args(c, fn, call);
     if (!via_type && is_clone(c, name)) {
         check_std_clone(c, call, owner, fn, hints.self);

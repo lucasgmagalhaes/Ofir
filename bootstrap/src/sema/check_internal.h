@@ -14,6 +14,7 @@
 // numbered first, then those of the function (spec 8.3).
 typedef struct {
     SymbolList owner, fn;
+    WhereList owner_bounds, fn_bounds;   // their bounds (spec 8.1)
     const TypeId *alias_args; // actual arguments when expanding an alias
 } Generics;
 
@@ -126,6 +127,18 @@ typedef struct {
 } Infer;
 
 Generics fn_generics(const Def *fn);
+
+// The bounds stage 0 knows (spec 8.1); others are a stage 0 limit (E0901).
+enum { BOUND_EQ = 1, BOUND_ORD = 2, BOUND_HASH = 4 };
+// The bounds of a type parameter in scope, or 0 for other types.
+uint32_t param_bounds(Checker *c, TypeId type);
+// Whether a type satisfies a bound.
+bool satisfies(Checker *c, TypeId type, uint32_t bit);
+// E0332 for each argument that does not satisfy its parameter's bounds;
+// E0901 for a struct, enum or tuple that stage 0 cannot compare or hash.
+void check_bounds(Checker *c, Generics params, const TypeId *args, uint32_t count, Span span);
+// E0901 for the bounds stage 0 does not know.
+void check_bound_names(Checker *c, WhereList bounds);
 Infer infer_new(Checker *c, Generics params);
 // The explicit arguments `list` of the type's parameters (`of_owner`) or of
 // the function's own (E0302).
@@ -181,8 +194,6 @@ TypeId check_list_repeat(Checker *c, Expr *e, TypeId expected);
 // `for x in list`, `for i, x in list`, `for key, value in map`.
 void check_for_collection(Checker *c, Stmt *s);
 bool map_parts(Checker *c, TypeId type, TypeId *key, TypeId *value);   // Map<key, value>
-void check_map_key(Checker *c, TypeId type, Span span);   // E0313 for unhashable keys
-void check_list_sort(Checker *c, Expr *call);
 void check_list_layout(Checker *c, const Def *def);
 
 // check_option.c: `?`, `??` and unused results (spec 6)

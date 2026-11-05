@@ -87,56 +87,6 @@ bool map_parts(Checker *c, TypeId type, TypeId *key, TypeId *value) {
     return true;
 }
 
-// The keys Map can hash and compare without bounds (roadmap 5.2).
-static bool hashable(Checker *c, TypeId type) {
-    const Ty *ty = type_get(c->types, type);
-    if (ty->kind == TY_TUPLE) {
-        for (uint32_t i = 0; i < ty->arg_count; i++) {
-            if (!hashable(c, ty->args[i])) {
-                return false;
-            }
-        }
-        return true;
-    }
-    bool in_std = c->sema->program.items[c->sema->current].name.len >= 3 &&
-                  memcmp(c->sema->program.items[c->sema->current].name.ptr, "std", 3) == 0;
-    return ty->kind == TY_INT || ty->kind == TY_BOOL || ty->kind == TY_STR ||
-           ty->kind == TY_ERROR || (ty->kind == TY_PARAM && in_std);
-}
-
-// A struct or enum without `drop`: stage 1 derives its `Hash`.
-static bool derives_hash(Checker *c, TypeId type) {
-    const Ty *ty = type_get(c->types, type);
-    if (ty->kind != TY_ADT) {
-        return false;
-    }
-    const Def *def = sema_def(c->sema, (DefId){ty->data});
-    if (!def || !def->item) {
-        return false;
-    }
-    const Item *item = def->item;
-    FnList methods = item->kind == ITEM_ENUM ? item->as.enum_.methods : item->as.struct_.methods;
-    for (uint32_t i = 0; i < methods.len; i++) {
-        if (sv_eq(symbol_name(&c->sema->session->names, methods.items[i]->name), SV("drop"))) {
-            return false;
-        }
-    }
-    return true;
-}
-
-void check_map_key(Checker *c, TypeId type, Span span) {
-    TypeId key, value;
-    if (map_parts(c, type, &key, &value) && !hashable(c, key)) {
-        if (derives_hash(c, key)) {   // spec 9.9
-            check_error(c, "E0901", span, "`Map` keys of type `%s` are not supported by stage 0",
-                        type_name(c, key));
-            return;
-        }
-        check_error(c, "E0313", span, "`Map` keys must satisfy `Hash`: `%s` does not",
-                    type_name(c, key));
-    }
-}
-
 // `for x in list`, `for i, x in list` (with the index), `for key, value in
 // map`. The variables borrow the elements (spec 5.5); stage 0 binds them to
 // copies of the bits, which is the same while there are no drops (3.2).
@@ -203,17 +153,6 @@ TypeId check_range_index(Checker *c, Expr *e) {
     e->as.call.args = (ArgList){.items = args, .len = count};
     e->as.call.type_args = (TypeId){0};
     return check_method_call(c, e, NO_TYPE);
-}
-
-// Stage 0 sorts the elements it can compare without bounds (roadmap 5.2).
-void check_list_sort(Checker *c, Expr *call) {
-    const Ty *args = type_get(c->types, call->as.call.type_args);
-    TypeId elem = args->arg_count > 0 ? args->args[0] : type_id(TID_ERROR);
-    TyKind kind = type_get(c->types, elem)->kind;
-    if (kind != TY_INT && kind != TY_FLOAT && kind != TY_STR && kind != TY_ERROR) {
-        check_error(c, "E0313", call->span, "`sort` needs elements of type int, float or str "
-                    "in stage 0, not `%s`", type_name(c, elem));
-    }
 }
 
 // The fields the compiler reads: `ptr: *mut T`, `len: int`, then `cap`.

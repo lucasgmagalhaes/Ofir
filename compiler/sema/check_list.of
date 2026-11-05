@@ -16,7 +16,6 @@ import sema.check.itemOf
 import sema.check.itemTypeParams
 import sema.check_box.autoDeref
 import sema.check_box.methodReceiver
-import sema.check_generic.orderable
 import sema.check_generic.paramBounds
 import sema.check_methods.hasMethod
 import sema.check_methods.methodAt
@@ -192,28 +191,10 @@ pub fn hashable(c: mut Checker, p: Program, ty: int) bool {
     if t.kind == TyKind.Adt {
         return adtSatisfies(c, p, ty, BOUND_HASH)
     }
-    let inStd = c.r.moduleName.startsWith("std")
     let both = BOUND_HASH | BOUND_EQ
     return t.kind == TyKind.Int || t.kind == TyKind.Bool || t.kind == TyKind.Str ||
            t.kind == TyKind.Error ||
-           (t.kind == TyKind.Param && (inStd || paramBounds(c, ty) & both == both))
-}
-
-/**
- * Reports E0313 for a map whose keys cannot be hashed.
- *
- * @param c the checker
- * @param p the program
- * @param ty a type
- * @param span where it is named
- */
-pub fn checkMapKey(c: mut Checker, p: Program, ty: int, span: Span) {
-    if let Option.Some(parts) = mapParts(c, ty) {
-        if !hashable(c, p, parts.0) {
-            c.error("E0313", span,
-                    "`Map` keys must satisfy `Hash`: `{c.typeName(parts.0)}` does not")
-        }
-    }
+           (t.kind == TyKind.Param && paramBounds(c, ty) & both == both)
 }
 
 // ---------------------------------------------------------------------------
@@ -407,29 +388,6 @@ pub fn checkRangeIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, range:
         _ => {
             return ERROR
         }
-    }
-}
-
-/**
- * Stage 0 sorts the elements it can compare without bounds (roadmap 5.2).
- *
- * @param c the checker
- * @param p the program
- * @param call the call of `sort`
- */
-pub fn checkListSort(c: mut Checker, p: Program, call: &Expr) {
-    let targs = match c.callTypeArgs[c.module()].get(call.id.0) {
-        Option.Some(t) => *t
-        Option.None => 0
-    }
-    var args: List<int> = []
-    if targs != 0 {
-        args = c.types.get(targs).args.clone()
-    }
-    let elem = if args.len() > 0 { args[0] } else { ERROR }
-    if !orderable(c, p, elem) {
-        c.error("E0313", call.span, "`sort` needs elements of type int, float or str in stage "
-                + "0, not `{c.typeName(elem)}`")
     }
 }
 

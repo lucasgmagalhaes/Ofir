@@ -66,7 +66,8 @@ EnumInfo *enum_variants(Checker *c, DefId id) {
     info->variants = ARENA_ARRAY(&c->sema->session->arena, VariantInfo, info->count + 1);
     uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
-    Generics outer = enter_generics(c, (Generics){.owner = item->as.enum_.type_params});
+    Generics outer = enter_generics(c, (Generics){.owner = item->as.enum_.type_params,
+                                                  .owner_bounds = item->bounds});
     c->self_type = owner_type(c->sema, item);
     def->checking = true;
     int64_t next = 0;
@@ -115,7 +116,8 @@ typedef struct {
 // `hints.self` (`Opt<int>.None`), the expected type or the payload.
 static TypeId build_generic(Checker *c, VariantUse use, const VariantInfo *v, TypeHints hints) {
     const Item *item = sema_def(c->sema, use.id)->item;
-    Infer inf = infer_new(c, (Generics){.owner = item->as.enum_.type_params});
+    Infer inf = infer_new(c, (Generics){.owner = item->as.enum_.type_params,
+                                        .owner_bounds = item->bounds});
     infer_from_self(&inf, type_get(c->types, hints.self), inf.count);
     Ty sig = {.kind = TY_FN, .inner = owner_type(c->sema, item), .arg_count = v->count,
               .args = v->types};

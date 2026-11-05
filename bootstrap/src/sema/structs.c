@@ -120,7 +120,8 @@ StructInfo *struct_fields(Checker *c, DefId id) {
     info->is_copy = item->as.struct_.is_copy;
     uint32_t saved_module = sema_enter(c->sema, def->module);
     TypeId saved_self = c->self_type;
-    Generics outer = enter_generics(c, (Generics){.owner = item->as.struct_.type_params});
+    Generics outer = enter_generics(c, (Generics){.owner = item->as.struct_.type_params,
+                                                  .owner_bounds = item->bounds});
     c->self_type = def->lang ? def->type : owner_type(c->sema, item);
     def->checking = true;
     fill_fields(c, def, info);
@@ -208,7 +209,7 @@ TypeId check_constructor(Checker *c, Expr *call, DefId id, TypeList explicit, Ty
         return type_id(TID_ERROR);
     }
     Ty sig = {.kind = TY_FN, .inner = type, .arg_count = info->count, .args = info->types};
-    Generics params = {.owner = item->as.struct_.type_params};
+    Generics params = {.owner = item->as.struct_.type_params, .owner_bounds = item->bounds};
     if (params.owner.len == 0 && explicit.len == 0) {
         return check_args(c, call, &sig);
     }
@@ -264,7 +265,8 @@ static void require_fields(Checker *c, Expr *e, const StructInfo *info, const In
 // type, then the field values.
 static TypeId generic_literal(Checker *c, Expr *e, const Def *def, bool *given, TypeId expected) {
     Expr *name = e->as.struct_.type;
-    Infer inf = infer_new(c, (Generics){.owner = def->item->as.struct_.type_params});
+    Infer inf = infer_new(c, (Generics){.owner = def->item->as.struct_.type_params,
+                                        .owner_bounds = def->item->bounds});
     if (name->kind == EXPR_GENERIC) {
         infer_explicit(c, &inf, true, name->as.generic.args, name->span);
     }

@@ -228,8 +228,21 @@ static Operand binary(Lowerer *l, Expr *e) {
     }
     Operand a = settle(l, lower_expr(l, e->as.binary.lhs), e->as.binary.rhs);
     Operand b = lower_expr(l, e->as.binary.rhs);
-    return lower_binary_op(l, (Arith){.op = op, .type = e->as.binary.lhs->type, .a = a, .b = b,
-                                      .span = e->span});
+    TypeId type = e->as.binary.lhs->type;
+    if (type_get(l->types, type)->has_param) {   // a bounded parameter (spec 8.1)
+        const Ty *targs = type_get(l->types, l->body->targs);
+        type = type_subst(l->types, type, targs->args, targs->arg_count);
+        a.type = b.type = type;
+        if ((op == OP_EQ || op == OP_NE) && type_get(l->types, type)->kind == TY_TUPLE) {
+            Operand same = lower_equal_values(l, a, b, type);
+            if (op == OP_EQ) {
+                return same;
+            }
+            Rvalue not = {.kind = RV_UNARY, .op = OP_NOT, .a = same};
+            return op_copy(emit_temp(l, type_id(TID_BOOL), not), type_id(TID_BOOL));
+        }
+    }
+    return lower_binary_op(l, (Arith){.op = op, .type = type, .a = a, .b = b, .span = e->span});
 }
 
 static Operand lower_kind(Lowerer *l, Expr *e);

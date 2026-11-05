@@ -17,9 +17,6 @@ extern "C" {
 extern "intrinsic" {
     fn dropInPlace<T>(p: *mut T)   // drops the value at `p` (spec 5.2)
     fn forget<T>(value: move T)    // consumes a value without dropping it
-    // `a < b` for the instance's type. Stage 0: int, float and str (the
-    // checker restricts `sort`); bounds replace it (roadmap 5.2).
-    fn lessThan<T>(a: T, b: T) bool
     fn cloneOf<T>(value: T) T     // what `value.clone()` does for any `T` (roadmap 3.3)
     // Appends the debug representation of `value` (`{x:?}`, spec 9.9).
     fn debugOf<T>(value: T, out: mut str)
@@ -476,8 +473,8 @@ pub struct List<T> {
      * elements keep their order) and takes O(n log n) time: a bottom-up
      * merge sort through one temporary buffer.
      *
-     * Stage 0 sorts lists of int, float and str (E0313 otherwise), until
-     * generic bounds (roadmap 5.2).
+     * The elements must be ordered (`T: Ord`, spec 8.1); stage 0 orders
+     * int, float and str.
      *
      * @panics when the system is out of memory
      * @example
@@ -486,7 +483,7 @@ pub struct List<T> {
      * names.sort()   // ["ana", "bob", "mia"]
      * ```
      */
-    pub fn sort(mut self) {
+    pub fn sort(mut self) where T: Ord {
         if self.len < 2 {
             return
         }
@@ -565,12 +562,12 @@ unsafe fn shift<T>(dst: *mut T, src: *T, count: int) {
 
 // Merges the sorted runs src[lo..mid] and src[mid..hi] into dst[lo..hi];
 // on ties the left run comes first, so the sort is stable.
-fn mergeRuns<T>(src: *mut T, dst: *mut T, lo: int, mid: int, hi: int) {
+fn mergeRuns<T: Ord>(src: *mut T, dst: *mut T, lo: int, mid: int, hi: int) {
     var i = lo
     var j = mid
     for k in lo..hi {
         unsafe {
-            let takeLeft = i < mid && (j >= hi || !lessThan(*src.add(j), *src.add(i)))
+            let takeLeft = i < mid && (j >= hi || !(*src.add(j) < *src.add(i)))
             if takeLeft {
                 *dst.add(k) = *src.add(i)
                 i += 1

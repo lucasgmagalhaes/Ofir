@@ -51,7 +51,10 @@ static void check_body(Checker *c, FnDecl *fn, TypeId self_type);
 
 static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
     Generics outer = enter_generics(c, (Generics){.owner = c->generics.owner,
-                                                  .fn = fn->type_params});
+                                                  .owner_bounds = c->generics.owner_bounds,
+                                                  .fn = fn->type_params,
+                                                  .fn_bounds = fn->bounds});
+    check_bound_names(c, fn->bounds);
     const Ty *sig = type_get(c->types, fn_signature(c, fn));
     check_borrow_source(c, fn, sig, self_type);   // what callers need, now
     enter_generics(c, outer);
@@ -61,6 +64,7 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
         fn->check_pending = true;
         fn->pending_self = self_type;
         fn->pending_owner_params = c->generics.owner;
+        fn->pending_owner_bounds = c->generics.owner_bounds;
         return;
     }
     check_body(c, fn, self_type);
@@ -68,7 +72,9 @@ static void check_fn(Checker *c, FnDecl *fn, TypeId self_type) {
 
 static void check_body(Checker *c, FnDecl *fn, TypeId self_type) {
     Generics outer = enter_generics(c, (Generics){.owner = c->generics.owner,
-                                                  .fn = fn->type_params});
+                                                  .owner_bounds = c->generics.owner_bounds,
+                                                  .fn = fn->type_params,
+                                                  .fn_bounds = fn->bounds});
     const Ty *sig = type_get(c->types, fn_signature(c, fn));
     c->fn = fn;
     c->ret = sig->inner;
@@ -103,7 +109,9 @@ static void check_body(Checker *c, FnDecl *fn, TypeId self_type) {
 
 static void check_methods(Checker *c, const Item *item, FnList methods) {
     TypeId self_type = owner_type(c->sema, item);
-    Generics outer = enter_generics(c, (Generics){.owner = item_type_params(item)});
+    Generics outer = enter_generics(c, (Generics){.owner = item_type_params(item),
+                                                  .owner_bounds = item->bounds});
+    check_bound_names(c, item->bounds);
     for (uint32_t i = 0; i < methods.len; i++) {
         check_fn(c, methods.items[i], self_type);
     }
@@ -180,6 +188,7 @@ void sema_check_late(Sema *sema, FnDecl *fn) {
     uint32_t saved = sema_enter(sema, sema_def(sema, fn->def)->module);
     Checker c = {.sema = sema, .types = &sema->types, .self_type = NO_TYPE};
     c.generics.owner = fn->pending_owner_params;
+    c.generics.owner_bounds = fn->pending_owner_bounds;
     check_body(&c, fn, fn->pending_self);
     VEC_FREE(c.loops);
     arena_free(&c.scratch);

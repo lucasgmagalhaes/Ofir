@@ -58,7 +58,8 @@ TypeId adt_instance(Checker *c, DefId id, const TypeId *args, uint32_t count, Sp
     TypeId type = type_intern(c->types, (Ty){.kind = TY_ADT, .data = id.id,
                                              .arg_count = count, .args = args});
     check_instance_storable(c, type, span);
-    check_map_key(c, type, span);
+    check_bounds(c, (Generics){.owner = item_type_params(def->item),
+                               .owner_bounds = def->item->bounds}, args, count, span);
     return type;
 }
 
@@ -259,7 +260,10 @@ TypeId fn_signature(Checker *c, FnDecl *fn) {
     const Item *owner = def->item;
     Generics outer = enter_generics(c, (Generics){.owner = owner ? item_type_params(owner)
                                                                  : (SymbolList){0},
-                                                  .fn = fn->type_params});
+                                                  .owner_bounds = owner ? owner->bounds
+                                                                        : (WhereList){0},
+                                                  .fn = fn->type_params,
+                                                  .fn_bounds = fn->bounds});
     if (owner && owner->kind != ITEM_FN && owner->kind != ITEM_EXTERN) {
         c->self_type = owner_type(c->sema, owner);
     }

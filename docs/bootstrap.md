@@ -123,9 +123,13 @@ M4, the code in `compiler/` must be written in this subset.
 - explicit references `&T`, `&mut T` as locals; slices `&[T]`, `&str`
 - built-in generics: `List<T>`, `Map<K, V>`, `Option<T>`, `Result<T, E>`,
   `Box<T>`, and the `?` operator (both error types must be equal)
-- user-defined generic functions, structs and enums **without bounds**
-  (monomorphized; enough for typed index vectors and other containers)
-- `list.sort()` for lists of integers, `str`, and tuples of those
+- user-defined generic functions, structs and enums (monomorphized),
+  with the bounds `Eq`, `Ord` and `Hash` on their type parameters and in
+  `where` clauses, also on methods: stage 0 compares and hashes scalars,
+  `str`, pointers, enums without payloads and tuples of these; a bound
+  that a struct or enum would satisfy through derived code, or any other
+  bound, is a stage 0 limit (E0901)
+- `list.sort()` (`where T: Ord`) for lists of integers, floats and `str`
 - built-in methods that return borrows, special-cased by the compiler:
   `List.get`, `getMut`, `first`, `last`, `Map.get`, `getMut`, and the
   iterators `str.split`, `splitWhitespace`, `lines`, `bytes`, which may be
@@ -138,7 +142,7 @@ M4, the code in `compiler/` must be written in this subset.
 **Excluded** (implemented only in stage 1):
 
 - the borrow checker (stage 0 checks moves, not borrows)
-- generic bounds, `where` clauses, interfaces and `dyn`
+- bounds other than `Eq`, `Ord` and `Hash`, interfaces and `dyn`
 - closures and function values
 - `ref struct` and user functions returning borrows
 - error conversion in `?`

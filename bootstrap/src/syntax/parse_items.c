@@ -64,7 +64,12 @@ static void value_item(Parser *p, Item *item) {
 static void type_alias(Parser *p, Item *item) {
     const Token *name = expect(p, TOK_IDENT, "a type name");
     item->name = name ? name->as.symbol : (Symbol){0};
-    item->as.alias.type_params = parse_type_params(p);
+    WhereVec bounds = {0};
+    item->as.alias.type_params = parse_type_params(p, &bounds);
+    if (bounds.len) {
+        syntax_error(p, bounds.data[0].span, "a type alias cannot bound its type parameters");
+    }
+    VEC_FREE(bounds);
     expect(p, TOK_EQ, "`=` and a type");
     item->as.alias.type = parse_type(p);
 }

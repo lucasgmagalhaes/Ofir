@@ -1,0 +1,18 @@
+// requires: stage0
+// Bounds that stage 0 cannot check (docs/bootstrap.md): interfaces other
+// than `Eq`, `Ord` and `Hash`, and types that stage 1 derives them for.
+
+struct Point {
+    x: int
+}
+
+fn max<T: Ord>(a: move T, b: move T) T {
+    return if a < b { b } else { a }
+}
+
+fn show<T: Debug>(a: T) {   // error[E0901]: the bound `Debug` is not supported by stage 0
+}
+
+fn main() {
+    let p = max(Point{x: 1}, Point{x: 2}) // error[E0901]: the bound `Ord` of `T` on `Point` is not supported by stage 0
+}
