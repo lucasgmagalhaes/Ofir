@@ -177,6 +177,7 @@ pub fn literalText(e: &Expr, names: Interner) str {
         ExprKind.Byte(v) => "b{v}"
         ExprKind.Bool(v) => if v { "true".toOwned() } else { "false".toOwned() }
         ExprKind.Str(text) => escapedText(text)
+        ExprKind.ByteStr(text) => "b{escapedText(text)}"
         ExprKind.Ident(name) => names.name(name).toOwned()
         ExprKind.Unary(op, operand) => if op == Op.Neg {
             "-" + literalText(&*operand, names)

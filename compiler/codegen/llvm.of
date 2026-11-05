@@ -573,6 +573,9 @@ fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) 
                                   text: if o.truth { "true".toOwned() } else { "false".toOwned() }}
         OperandKind.Str => {
             let n = stringGlobal(g, o.text)
+            if c.types.kind(o.ty) != TyKind.Str {   // a byte string: a `Slice<u8>`
+                return Value{ty: ty, text: "\{ ptr @.str.{n}, i64 {o.text.len()} \}"}
+            }
             Value{ty: ty, text: "\{ ptr @.str.{n}, i64 {o.text.len()}, i64 0 \}"}
         }
         OperandKind.Unit => Value{ty: "void".toOwned(), text: ""}

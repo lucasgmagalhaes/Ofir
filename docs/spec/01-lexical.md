@@ -189,16 +189,24 @@ conversion (all primitive types do). A literal brace is written `\{` or `\}`.
 ### Raw strings
 
 Raw strings start with `r"` (single line) or `"""` (multi-line). They have no
-escapes and no interpolation. In multi-line strings, the indentation of the
-closing `"""` is removed from every line.
+escapes and no interpolation.
+
+A multi-line string's text starts on the line after the opening `"""` (only
+blanks may follow it on its own line) and ends with the line before the
+closing `"""`. The indentation of the closing `"""` is removed from every
+line, and every line, the last included, ends with `\n`. A blank line may
+be indented less; any other line indented less than the closing `"""` is an
+error (E0007). A `\r` before a line break is dropped.
 
 ```ofir
 let pattern = r"C:\path\{name}"
 let text = """
     first line
     second line
-    """
+    """                        // "first line\nsecond line\n"
 ```
+
+Raw, multi-line and byte strings are implemented by stage 1 only.
 
 ### Characters and bytes
 

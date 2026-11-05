@@ -121,6 +121,7 @@ struct Printer {
             ExprKind.Int(_) | ExprKind.Float(_) | ExprKind.Byte(_) |
             ExprKind.Bool(_) => self.line("lit {literalText(e, names)}")
             ExprKind.Str(_) => self.line("str {literalText(e, names)}")
+            ExprKind.ByteStr(_) => self.line("bytes {literalText(e, names)}")
             ExprKind.Ident(name) => self.line("ident {names.name(name)}")
             ExprKind.SelfValue => self.line("self")
             ExprKind.SelfType => self.line("Self")

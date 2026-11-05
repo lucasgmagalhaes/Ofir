@@ -15,7 +15,10 @@ import syntax.cursor.Cursor
 import syntax.cursor.isDigit
 import syntax.cursor.isLetter
 import syntax.literals.scanByteLiteral
+import syntax.literals.scanByteString
+import syntax.literals.scanMultiline
 import syntax.literals.scanNumber
+import syntax.literals.scanRawString
 import syntax.literals.scanStringPart
 import syntax.token.Token
 import syntax.token.TokenKind
@@ -82,8 +85,15 @@ struct Lexer {
     fn tokenAt(mut self, src: str, names: mut Interner, diags: mut Diagnostics) {
         let start = self.cur.pos
         let c = self.cur.peek(src, 0)
-        if c == b'b' && self.cur.peek(src, 1) == b'\'' {
+        let next = self.cur.peek(src, 1)
+        if c == b'b' && next == b'\'' {
             self.out.push(scanByteLiteral(self.cur, src, diags))
+        } else if c == b'b' && next == b'"' {
+            self.out.push(scanByteString(self.cur, src, diags))
+        } else if c == b'r' && next == b'"' {
+            self.out.push(scanRawString(self.cur, src, diags))
+        } else if c == b'"' && next == b'"' && self.cur.peek(src, 2) == b'"' {
+            self.out.push(scanMultiline(self.cur, src, diags))
         } else if isLetter(c) {
             self.out.push(self.word(src, names))
         } else if isDigit(c) {

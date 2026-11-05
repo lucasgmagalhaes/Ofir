@@ -270,7 +270,7 @@ fn resolvePath(c: mut Checker, p: Program, segments: &List<Symbol>, args: &List<
 }
 
 // `[T]` and `&[T]`: the std `Slice<T>`, a pointer and a length (spec 2.12).
-fn sliceOf(c: mut Checker, elem: int, span: Span) int {
+pub fn sliceOf(c: mut Checker, elem: int, span: Span) int {
     let slice = c.r.langItems[4]
     if slice == 0 {
         return c.unsupported(span, "slices without the standard library are")

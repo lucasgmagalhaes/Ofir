@@ -1,0 +1,21 @@
+// requires: stage1
+fn main() {
+    let a = """ text   // error[E0007]: the text of a multi-line string starts on the line after
+        body
+        """
+}
+
+fn second() {
+    let b = """
+        body
+  short                // error[E0007]: this line is indented less than the closing
+        """
+}
+
+fn third() {
+    let c = r"open        // error[E0002]: unterminated string literal
+}
+
+fn fourth() {
+    let d = b"\q"          // error[E0004]: invalid escape sequence
+}

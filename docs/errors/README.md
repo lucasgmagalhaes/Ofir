@@ -35,6 +35,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0004 | invalid escape sequence | stage 0 |
 | E0005 | integer literal too large | stage 0 |
 | E0006 | unescaped `}` in string literal | stage 0 |
+| E0007 | malformed multi-line string: text after the opening `"""`, or a line indented less than the closing `"""` | stage 1 |
 | E0100 | expected X, found Y | stage 0 |
 | E0200 | cannot find name `x` in this scope | stage 0 |
 | E0201 | `x` is defined more than once | stage 0 |

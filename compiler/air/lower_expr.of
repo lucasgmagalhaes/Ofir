@@ -453,7 +453,7 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
         ExprKind.Float(value) => opFloat(value, ty)
         ExprKind.Byte(value) => opInt(value as u64, ty)
         ExprKind.Bool(value) => opBool(value, BOOL)
-        ExprKind.Str(value) => opStr(value, ty)
+        ExprKind.Str(value) | ExprKind.ByteStr(value) => opStr(value, ty)
         ExprKind.Interp(parts) => interpolation(l, c, p, &parts)
         ExprKind.Ident(_) | ExprKind.SelfValue => name(l, c, p, e, ty)
         ExprKind.Unary(op, operand) => unary(l, c, p, e, op, &*operand, ty)
