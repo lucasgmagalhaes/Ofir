@@ -137,7 +137,8 @@ M4, the code in `compiler/` must be written in this subset.
 - moves and automatic drops
 - modules, `import`, `pub`
 - `extern "C"` blocks and `unsafe` blocks
-- `@test` functions
+- `@test` functions, `@inline`, `@inline(never)` and `@cold`; every
+  attribute is checked (spec 12.1)
 
 **Excluded** (implemented only in stage 1):
 
@@ -146,7 +147,8 @@ M4, the code in `compiler/` must be written in this subset.
 - closures and function values
 - `ref struct` and user functions returning borrows
 - error conversion in `?`
-- format specifiers, raw strings, attributes other than `@test`
+- format specifiers, raw strings, attributes other than `@test`, `@inline`
+  and `@cold`
 - default parameter values and named arguments
 - compile-time code (`comptime`, `std.meta`)
 - good diagnostics: stage 0 reports the first error per function
