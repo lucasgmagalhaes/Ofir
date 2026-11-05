@@ -6,6 +6,7 @@
  */
 
 import base.span.Span
+import sema.call_args.arrangeArgs
 import sema.check.Checker
 import sema.check.fnOf
 import sema.check.itemOf
@@ -376,11 +377,33 @@ pub fn checkArgs(c: mut Checker, p: Program, span: Span, args: &List<Arg>, param
     }
     for i in 0..args.len() {
         if args[i].name.isSome() {
-            c.unsupported(args[i].value.span, "named arguments are")
+            c.error("E0306", args[i].value.span, "this callee has no named parameters: pass "
+                    + "the argument by position")
         }
         coerce(c, p, &args[i].value, if i < params.len() { params[i] } else { ERROR })
     }
     return ret
+}
+
+/**
+ * Checks the arguments of a call of the function `id`, which is not
+ * generic: they may be named, and parameters left to their defaults.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param call the call
+ * @param args the arguments
+ * @param id the callee's `DefId`
+ * @returns the result type
+ */
+pub fn checkCallArgs(c: mut Checker, p: Program, call: &Expr, args: &List<Arg>, id: int) int {
+    let sig = fnSignature(c, p, id)
+    let params = c.types.get(sig).args.clone()
+    let slots = arrangeArgs(c, p, call.id.0, call.span, args, id)
+    for i in 0..args.len() {
+        coerce(c, p, &args[i].value, if slots[i] >= 0 { params[slots[i]] } else { ERROR })
+    }
+    return c.types.get(sig).inner
 }
 
 /**
@@ -418,7 +441,7 @@ fn checkFnCall(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<
         if explicit.len() > 0 {
             c.error("E0302", callee.span, "`{c.text(c.def(id).name)}` takes no type arguments")
         }
-        ret = checkArgsOf(c, p, e.span, args, sig)
+        ret = checkCallArgs(c, p, e, args, id)
     } else {
         var inf = inferNew(generics)
         if explicit.len() > 0 {
@@ -426,9 +449,10 @@ fn checkFnCall(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<
         }
         let params = c.types.get(sig).args.clone()
         let result = c.types.get(sig).inner
-        ret = checkGenericArgs(c, p, e.id.0, e.span, args, &params, result, inf, expected)
+        ret = checkGenericArgs(c, p, e.id.0, e.span, args, &params, result, inf, expected,
+                               id)
     }
-    checkMutArgs(c, p, id, callee, args)
+    checkMutArgs(c, p, id, e.id.0, args)
     return ret
 }
 
