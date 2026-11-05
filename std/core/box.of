@@ -32,6 +32,20 @@ extern "intrinsic" {
      * ```
      */
     pub fn sizeOf<T>() int
+
+    /**
+     * The alignment in bytes of a value of type `T` (spec 7.5, chapter 13):
+     * what the address of an allocation for a `T` must be a multiple of.
+     *
+     * @typeParam T the type to measure
+     * @returns a power of two; 1 for `()`
+     * @example
+     * ```ofir
+     * assert(alignOf<i32>() == 4)
+     * assert(alignOf<str>() == 8)
+     * ```
+     */
+    pub fn alignOf<T>() int
 }
 
 /**
