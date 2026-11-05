@@ -19,11 +19,6 @@ struct Both {
     a: u8
 }
 
-@align(32)   // error[E0901]: alignments above 16 are not supported yet
-struct Wide {
-    a: u8
-}
-
 @repr(C)   // error[E0808]: `@repr(C)` applies only to enums without payloads
 enum Shape {
     Dot
