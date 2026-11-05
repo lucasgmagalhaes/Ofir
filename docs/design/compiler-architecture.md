@@ -246,7 +246,12 @@ Properties:
 - Control flow (`if`, `match`, `for`, `?`, `&&`, `||`) becomes explicit
   blocks and switches.
 - Runtime checks (overflow, bounds, division by zero) are explicit `Assert`
-  terminators, so later passes can remove the ones proven redundant.
+  terminators, so later passes can remove the ones proven redundant. Both
+  stages fold them (`air/fold`): within a block, a temporary assigned from
+  constants is known, and an `Assert` whose failure condition is known false
+  becomes a `Goto`; the assignments left unread are then removed. Dividing
+  or shifting by a constant needs no check; a narrowing cast of a constant
+  that does not fit keeps its check.
 - AIR is validated after each pass in debug builds (`air/validate`).
 
 ### Lowering highlights

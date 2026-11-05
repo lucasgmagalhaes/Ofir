@@ -144,10 +144,25 @@ static bool block_comment(Lexer *lx) {
 // ---------------------------------------------------------------------------
 // Words
 
+// Stage 1 lexes byte and raw strings: `b"` or `r"` reports where one starts.
+static void stage1_string(Lexer *lx, uint32_t start, char prefix) {
+    if (prefix == 'b' && lx->src[lx->pos] == '#') {
+        return;
+    }
+    lx->pos++;
+    diag_error(&lx->session->diags, "E0100", span_from(lx, start),
+               "%s strings are not supported by stage 0", prefix == 'b' ? "byte" : "raw");
+    lx->pos--;
+}
+
 static void word(Lexer *lx) {
     uint32_t start = lx->pos;
     while (!at_end(lx) && (is_letter(lx->src[lx->pos]) || is_digit(lx->src[lx->pos]))) {
         lx->pos++;
+    }
+    char c = lx->src[start], next = lx->src[lx->pos];
+    if (lx->pos - start == 1 && (c == 'b' || c == 'r') && (next == '"' || next == '#')) {
+        stage1_string(lx, start, c);
     }
     Symbol symbol = intern(&lx->session->names, (StrView){lx->src + start, lx->pos - start});
     if (symbol.id <= ARRAY_LEN(keywords)) {

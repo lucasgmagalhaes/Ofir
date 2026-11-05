@@ -1,0 +1,374 @@
+// Check elimination (stage 0: air/fold.c). Within a block, a temporary
+// assigned from constants is known until the block ends; an assertion on a
+// condition known to be false cannot fail and becomes a goto. Named locals
+// and locals whose address is taken are never tracked: a call or a closure
+// could write them.
+
+import air.air.AirBlock
+import air.air.AirBody
+import air.air.AirStmt
+import air.air.Operand
+import air.air.OperandKind
+import air.air.PanicKind
+import air.air.Rvalue
+import air.air.RvalueKind
+import air.air.StmtKind
+import air.air.TermKind
+import air.air.Terminator
+import air.air.jump
+import sema.check.Checker
+import sema.types.TyKind
+import syntax.ast.Op
+import diag.noSpan
+import std.mem
+
+const ONES: u64 = 18446744073709551615
+
+struct Folder {
+    /** stamp[local] == block + 1: value[local] is known. */
+    stamp: List<int>
+    /** Sign- or zero-extended to 64 bits. */
+    value: List<u64>
+    /** Address taken, or a `mut` parameter. */
+    escaped: List<bool>
+    block: int
+}
+
+fn intBits(data: int) int {
+    return match data % 4 {
+        0 => 8
+        1 => 16
+        2 => 32
+        _ => 64
+    }
+}
+
+fn isInt(c: Checker, ty: int) bool {
+    return c.types.get(ty).kind == TyKind.Int
+}
+
+fn isSigned(c: Checker, ty: int) bool {
+    return c.types.get(ty).data <= 3
+}
+
+// `bits` read as a value of `ty`: an int is extended from its width.
+fn normalize(c: Checker, ty: int, bits: u64) u64 {
+    if !isInt(c, ty) {
+        return bits & 1
+    }
+    let width = intBits(c.types.get(ty).data)
+    if width == 64 {
+        return bits
+    }
+    let mask = (1 as u64 << width as u64) - 1
+    let low = bits & mask
+    if isSigned(c, ty) && (low >> (width - 1) as u64) & 1 == 1 {
+        return low | (ONES ^ mask)
+    }
+    return low
+}
+
+fn known(f: &Folder, c: Checker, o: &Operand) Option<u64> {
+    return match o.kind {
+        OperandKind.Int => Option.Some(normalize(c, o.ty, o.bits))
+        OperandKind.Bool => Option.Some(if o.truth { 1 as u64 } else { 0 as u64 })
+        OperandKind.Copy => {
+            if o.path.fields.len() > 0 || o.path.deref || f.stamp[o.local] != f.block + 1 {
+                Option.None
+            } else {
+                Option.Some(f.value[o.local])
+            }
+        }
+        _ => Option.None
+    }
+}
+
+// Whether the known value `v` of int type `from` lies outside int type `to`.
+fn castFails(c: Checker, from: int, to: int, v: u64) bool {
+    let t = intBits(c.types.get(to).data)
+    let one: u64 = 1
+    if isSigned(c, from) && v.wrappingCast<i64>() < 0 {
+        let min = if t == 64 { i64.MIN } else { 0 - ((one << ((t - 1) as u64)) as i64) }
+        return !isSigned(c, to) || v.wrappingCast<i64>() < min
+    }
+    var max = ONES
+    if isSigned(c, to) {
+        max = (one << ((t - 1) as u64)) - 1
+    } else if t < 64 {
+        max = (one << (t as u64)) - 1
+    }
+    return v > max
+}
+
+fn compare(op: Op, a: u64, b: u64, sign: bool) Option<bool> {
+    let lt = if sign { a.wrappingCast<i64>() < b.wrappingCast<i64>() } else { a < b }
+    let gt = if sign { a.wrappingCast<i64>() > b.wrappingCast<i64>() } else { a > b }
+    return match op {
+        Op.Eq => Option.Some(a == b)
+        Op.Ne => Option.Some(a != b)
+        Op.Lt => Option.Some(lt)
+        Op.Le => Option.Some(!gt)
+        Op.Gt => Option.Some(gt)
+        Op.Ge => Option.Some(!lt)
+        _ => Option.None
+    }
+}
+
+fn holds(o: Option<u64>, v: u64) bool {
+    return match o {
+        Option.Some(x) => x == v
+        Option.None => false
+    }
+}
+
+fn truth(b: bool) u64 {
+    return if b { 1 } else { 0 }
+}
+
+// `a and b`, `a or b` of bools: one known operand can decide.
+fn logic(f: &Folder, c: Checker, rv: &Rvalue) Option<u64> {
+    let a = known(f, c, &rv.a)
+    let b = known(f, c, &rv.b)
+    let absorbing = truth(rv.op == Op.Or)
+    if holds(a, absorbing) || holds(b, absorbing) {
+        return Option.Some(absorbing)
+    }
+    if a.isNone() || b.isNone() {
+        return Option.None
+    }
+    return Option.Some(1 - absorbing)
+}
+
+fn binary(f: &Folder, c: Checker, rv: &Rvalue) Option<u64> {
+    let int = isInt(c, rv.a.ty)
+    if !int && (rv.op == Op.And || rv.op == Op.Or) {
+        return logic(f, c, rv)
+    }
+    let a = known(f, c, &rv.a)
+    let b = known(f, c, &rv.b)
+    if a.isNone() || b.isNone() {
+        return Option.None
+    }
+    return match compare(rv.op, a.unwrap(), b.unwrap(), int && isSigned(c, rv.a.ty)) {
+        Option.Some(r) => Option.Some(truth(r))
+        Option.None => Option.None
+    }
+}
+
+fn eval(f: &Folder, c: Checker, rv: &Rvalue, dest: int) Option<u64> {
+    let ints = isInt(c, rv.a.ty) && isInt(c, rv.to)
+    if rv.kind == RvalueKind.Use {
+        return known(f, c, &rv.a)
+    }
+    if rv.kind == RvalueKind.Binary {
+        return binary(f, c, rv)
+    }
+    let unary = rv.kind == RvalueKind.Unary && rv.op == Op.Not && !isInt(c, dest)
+    let cast = (rv.kind == RvalueKind.Cast || rv.kind == RvalueKind.CastFails) && ints
+    if !unary && !cast {
+        return Option.None
+    }
+    let a = known(f, c, &rv.a)
+    if a.isNone() {
+        return Option.None
+    }
+    let v = a.unwrap()
+    if unary {
+        return Option.Some(1 - v)
+    }
+    let fails = castFails(c, rv.a.ty, rv.to, v)
+    if rv.kind == RvalueKind.CastFails {
+        return Option.Some(truth(fails))
+    }
+    if fails {
+        return Option.None
+    }
+    return Option.Some(normalize(c, rv.to, v))
+}
+
+fn step(f: mut Folder, c: Checker, body: &AirBody, s: &AirStmt) {
+    if s.kind == StmtKind.Call {
+        if s.hasDest {
+            f.stamp[s.dest] = 0
+        }
+        return
+    }
+    if s.value.kind == RvalueKind.Checked {
+        f.stamp[s.value.flag] = 0
+    }
+    let tracked = s.destPath.fields.len() == 0 && !s.destPath.deref && !f.escaped[s.dest] &&
+        body.locals[s.dest].name.isNone()
+    var v: Option<u64> = Option.None
+    if tracked {
+        v = eval(&f, c, &s.value, body.locals[s.dest].ty)
+    }
+    match v {
+        Option.Some(value) => {
+            f.stamp[s.dest] = f.block + 1
+            f.value[s.dest] = value
+        }
+        Option.None => {
+            f.stamp[s.dest] = 0
+        }
+    }
+}
+
+// The operands `s` reads.
+fn stmtOperands(s: &AirStmt, out: mut List<Operand>) {
+    if s.destPath.deref {   // writes through the address the local holds
+        var o = s.value.a.clone()
+        o.kind = OperandKind.Copy
+        o.local = s.dest
+        out.push(o)
+    }
+    if s.kind == StmtKind.Call {
+        for i in 0..s.args.len() {
+            out.push(s.args[i].clone())
+        }
+        return
+    }
+    out.push(s.value.a.clone())
+    out.push(s.value.b.clone())
+    for i in 0..s.value.items.len() {
+        out.push(s.value.items[i].clone())
+    }
+}
+
+fn termOperands(t: &Terminator, out: mut List<Operand>) {
+    match t.kind {
+        TermKind.Branch => out.push(t.cond.clone())
+        TermKind.Panic => out.push(t.cond.clone())
+        TermKind.Assert => {
+            out.push(t.cond.clone())
+            if t.panic == PanicKind.Bounds {
+                out.push(t.index.clone())
+                out.push(t.len.clone())
+            }
+        }
+        _ => {}
+    }
+}
+
+fn countReads(reads: mut List<int>, operands: &List<Operand>, delta: int) {
+    for i in 0..operands.len() {
+        let o = &operands[i]
+        if o.kind == OperandKind.Copy || o.kind == OperandKind.Addr {
+            reads[o.local] = reads[o.local] + delta
+        }
+    }
+}
+
+fn removable(body: &AirBody, s: &AirStmt, reads: &List<int>) bool {
+    if s.kind != StmtKind.Assign || s.destPath.fields.len() > 0 || s.destPath.deref {
+        return false
+    }
+    let id = s.dest
+    if id <= body.paramCount || body.locals[id].name.isSome() || reads[id] != 0 {
+        return false
+    }
+    return match s.value.kind {
+        RvalueKind.Use => true
+        RvalueKind.Binary => true
+        RvalueKind.Unary => true
+        RvalueKind.Cast => true
+        RvalueKind.CastFails => true
+        _ => false
+    }
+}
+
+// One backward sweep over `block`; true if it removed a statement.
+fn removeInBlock(body: &AirBody, block: mut AirBlock, reads: mut List<int>) bool {
+    var old = mem.replace(block.stmts, [])
+    var kept: List<AirStmt> = []
+    var removed = false
+    for old.len() > 0 {
+        let s = old.pop().unwrap()
+        if removable(body, &s, &reads) {
+            var operands: List<Operand> = []
+            stmtOperands(&s, operands)
+            countReads(reads, &operands, -1)
+            removed = true
+        } else {
+            kept.push(s)
+        }
+    }
+    kept.reverse()
+    block.stmts = kept
+    return removed
+}
+
+// Removes the assignments to temporaries that nothing reads, until none is
+// left: a removal can leave the temporaries it read unread.
+fn removeDead(body: mut AirBody) {
+    var reads = List.filled(0, body.locals.len())
+    for b in 0..body.blocks.len() {
+        var operands: List<Operand> = []
+        for i in 0..body.blocks[b].stmts.len() {
+            stmtOperands(&body.blocks[b].stmts[i], operands)
+        }
+        termOperands(&body.blocks[b].term, operands)
+        countReads(reads, &operands, 1)
+    }
+    var changed = true
+    for changed {
+        changed = false
+        var b = body.blocks.len()
+        for b > 0 {
+            b -= 1
+            var block = mem.replace(body.blocks[b], emptyBlock())
+            if removeInBlock(&body, block, reads) {
+                changed = true
+            }
+            body.blocks[b] = block
+        }
+    }
+}
+
+fn emptyBlock() AirBlock {
+    return AirBlock{stmts: [], term: jump(0), at: noSpan()}
+}
+
+/**
+ * Replaces each `assert not c` whose `c` folds to false within its block
+ * with a goto, then removes the assignments to temporaries no operand reads
+ * any more (docs/design/compiler-architecture.md, 7).
+ *
+ * @param c the checker, for the types
+ * @param body the body, changed in place
+ */
+pub fn foldChecks(c: Checker, body: mut AirBody) {
+    let n = body.locals.len()
+    var f = Folder{stamp: List.filled(0, n), value: List.filled(0 as u64, n),
+                   escaped: List.filled(false, n), block: 0}
+    for b in 0..body.blocks.len() {
+        var operands: List<Operand> = []
+        for i in 0..body.blocks[b].stmts.len() {
+            stmtOperands(&body.blocks[b].stmts[i], operands)
+        }
+        termOperands(&body.blocks[b].term, operands)
+        for i in 0..operands.len() {
+            if operands[i].kind == OperandKind.Addr {
+                f.escaped[operands[i].local] = true
+            }
+        }
+    }
+    for i in 0..n {
+        f.escaped[i] = f.escaped[i] || body.locals[i].byRef
+    }
+    var folded = false
+    for b in 0..body.blocks.len() {
+        f.block = b
+        for i in 0..body.blocks[b].stmts.len() {
+            step(f, c, &body, &body.blocks[b].stmts[i])
+        }
+        let term = &body.blocks[b].term
+        if term.kind == TermKind.Assert && holds(known(&f, c, &term.cond), 0) {
+            let target = term.target
+            body.blocks[b].term = jump(target)
+            folded = true
+        }
+    }
+    if folded {
+        removeDead(body)
+    }
+}
