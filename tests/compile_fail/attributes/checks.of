@@ -1,0 +1,39 @@
+// Attributes are checked where they are declared (spec 12.1).
+
+@inlined   // error[E0807]: unknown attribute `@inlined`
+fn a() {
+}
+
+@cold
+@cold   // error[E0810]: the attribute `@cold` is written twice
+fn b() {
+}
+
+@inline   // error[E0808]: the attribute `@inline` does not apply to a struct
+struct S {
+    @cold   // error[E0808]: the attribute `@cold` does not apply to a field
+    x: int
+
+    @test   // error[E0808]: the attribute `@test` does not apply to a method
+    fn m(self) {
+    }
+}
+
+@cold(1)   // error[E0809]: invalid arguments for `@cold`: write `@cold`
+fn c() {
+}
+
+@inline(always)   // error[E0809]: invalid arguments for `@inline`: write `@inline` or `@inline(never)`
+fn d() {
+}
+
+@test   // error[E0808]: the attribute `@test` does not apply to a constant
+const N: int = 1
+
+extern "C" {
+    @inline   // error[E0808]: the attribute `@inline` does not apply to a function of an extern block
+    fn abs(x: i32) i32
+}
+
+fn main() {
+}
