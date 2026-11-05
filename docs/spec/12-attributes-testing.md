@@ -25,7 +25,7 @@ struct Header {
 | `@cold` | functions | rarely called (e.g. error paths) |
 | `@repr(C)` | structs, enums | C-compatible layout |
 | `@packed` | structs | no padding |
-| `@align(N)` | structs | minimum alignment |
+| `@align(N)` | structs | minimum alignment, `N` a power of two up to 4096 |
 | `@link("name")` | `extern` blocks | link a native library |
 | `@export("name")` | `extern "C"` functions | export a C symbol |
 | `@deprecated("msg")` | any | warn on use |
@@ -42,7 +42,7 @@ Attributes are checked where they are declared:
 - an attribute on a declaration the table does not list for it is an
   error (E0808): `@inline` on a struct, `@packed` on a field;
 - arguments that do not match the table are an error (E0809): `@cold(1)`,
-  `@inline(always)`, `@align("8")`;
+  `@inline(always)`, `@align("8")`, `@align(8192)`;
 - an attribute written twice on one declaration is an error (E0810).
 
 "Functions" are top-level functions and methods; the functions declared

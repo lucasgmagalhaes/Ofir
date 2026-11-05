@@ -27,9 +27,10 @@ properties stated as **guaranteed** can be relied on.
   must be `bool`, numbers or `@packed` structs (E0811), and a field of a
   `@packed` struct cannot be borrowed, with `&`, `&mut` or as a `mut`
   argument (E0812): its address may not be aligned.
-- `@align(N)` structs have an alignment of at least `N` bytes, and a size
-  that is a multiple of it, wherever they are stored: locals, globals,
-  fields, enum payloads and the heap. **Guaranteed.** A struct cannot be
+- `@align(N)` structs (`N` a power of two up to 4096, the page size) have
+  an alignment of at least `N` bytes, and a size that is a multiple of it,
+  wherever they are stored: locals, globals, fields, enum payloads and the
+  heap. **Guaranteed.** A struct cannot be
   both `@packed` and `@align(N)` (E0808).
 - Zero-sized structs occupy no space in their container.
 
