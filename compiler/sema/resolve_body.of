@@ -13,6 +13,7 @@ import sema.def.DefKind
 import sema.def.Local
 import sema.def.Res
 import sema.resolve.Resolver
+import sema.resolve_attributes.warnDeprecated
 import sema.resolve_import.resolveQualified
 import sema.trace.traceAt
 import sema.trace.traceUse
@@ -78,6 +79,9 @@ fn resolveClosure(r: mut Resolver, e: &Expr, params: &List<Param>, body: &Expr) 
 fn lookup(r: mut Resolver, name: Symbol, span: Span) Res {
     let res = find(r, name, span)
     traceUse(r, "use", name, span, res)
+    if let Res.Def(def) = res {
+        warnDeprecated(r, def, span)
+    }
     return res
 }
 

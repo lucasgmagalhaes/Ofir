@@ -311,3 +311,23 @@ pub fn recordDeprecated(r: mut Resolver, item: &Item, first: int) {
         }
     }
 }
+
+/**
+ * Warns about a use of a `@deprecated` declaration (W0006).
+ *
+ * @param r the resolver
+ * @param def the declaration used
+ * @param span the use
+ */
+pub fn warnDeprecated(r: mut Resolver, def: int, span: Span) {
+    let Option.Some(message) = r.deprecated.get(def) else {
+        return
+    }
+    let name = r.text(r.def(def).name)
+    let text = if message.len() == 0 {
+        "`{name}` is deprecated"
+    } else {
+        "`{name}` is deprecated: {message}"
+    }
+    r.diags.warning("W0006", span, text)
+}
