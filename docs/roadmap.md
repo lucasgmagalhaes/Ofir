@@ -226,6 +226,65 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 6.9 | Scheduled CI job for the auditable bootstrap path | S |
 | 6.10 | Website, tutorial ("The Ofir Book"), playground | L |
 
+### API and service ecosystem (proposed)
+
+The [API ecosystem plan](design/api-ecosystem.md) inventories the current
+implementation and defines **49 pending deliverables**, API-01 through API-49,
+with priorities, dependencies, library/package placement and completion tests.
+The following epics extend phase 6; they are proposed work, not implemented
+features or additional commitments for language version 1.0.
+
+| # | Epic | Deliverables | Completion gate |
+|---|------|--------------|-----------------|
+| 6.11 | Stream I/O, filesystem/paths, time/date, data types, errors, config and lifecycle | API-01 to API-08 | Portable contracts, limits and resource cleanup tested |
+| 6.12 | Entropy/crypto providers, sockets/DNS, TLS and bounded concurrency | API-09 to API-12 | Interoperability, deadlines, overload and cancellation tested |
+| 6.13 | JSON, typed serialization, URLs/forms/multipart and compression | API-13 to API-16 | Malformed input, precision, streaming and size limits tested |
+| 6.14 | HTTP client/server, HTTP/1.1 and optional HTTP/2/HTTP/3 | API-17 to API-21 | Protocol corpus and client/server interoperability pass |
+| 6.15 | REST router/middleware, validation, API conventions, OpenAPI, cookies/sessions/CORS | API-22 to API-26 | Reference routes, schema compatibility and error contracts tested |
+| 6.16 | Authentication/authorization and service resilience | API-27 to API-28 | Credential, tenant, retry and quota failure cases tested |
+| 6.17 | Database contracts/drivers, pools/transactions, migrations, ORM and cache | API-29 to API-37 | Real-database tests, rollback, cancellation and precision pass |
+| 6.18 | Object storage, jobs/queues, realtime and optional protocol/provider adapters | API-38 to API-41 | Delivery/consistency contracts and disconnect/retry behavior tested |
+| 6.19 | Structured logs, metrics and distributed traces | API-42 to API-44 | Correlation, redaction, cardinality and bounded exporters tested |
+| 6.20 | API test tools, protocol conformance, fault/load tests and portability | API-45 to API-46 | Reproducible latency/resource results and supported-OS matrix |
+| 6.21 | Package delivery, deployment lifecycle and reference CRUD service | API-47 to API-49 | Clean-machine build plus local and production-example gates |
+
+Recommended progression: **API-F** foundations, **API-L** local REST + SQLite,
+**API-P** production candidate + PostgreSQL/TLS/auth/observability, then **API-X**
+optional integrations. The linked plan defines the exact gate membership.
+Use blocking I/O with bounded workers first, following chapter 14; optional
+async and automatic codec/schema generation must not block the first service.
+
+### Language-wide completeness (proposed)
+
+The [master capability inventory](design/language-completeness.md) expands the
+survey beyond APIs: **86 capability records**, OFIR-01 through OFIR-86, covering
+the language, runtime, compiler, general libraries, tools and ecosystem. Records
+audit or extend existing tasks as well as expose new work; they are not 86 absent
+features or independent implementation tickets. Reuse phase 5/6 tasks and the
+API subplan wherever they overlap. Existing completion markers remain unchanged.
+
+G0 establishes implementation truth and safety; G1 proposes a general-purpose
+baseline; G2 identifies optional specializations. Select the release subset
+explicitly rather than treating this inventory as a new 1.0 commitment.
+
+| # | Coverage epic | Capability records | Completion gate |
+|---|---------------|--------------------|-----------------|
+| 6.22 | Specification, conformance inventory and compatibility policy | OFIR-01 to OFIR-07 | Guarantees mapped to source/tests, stages, targets and feature states |
+| 6.23 | Language completion and unresolved semantic choices | OFIR-08 to OFIR-21 | Existing phase 5 tasks linked; accepted semantics and rejection cases tested |
+| 6.24 | Runtime, ownership, allocation, concurrency and ABI | OFIR-22 to OFIR-30 | Resource, failure, layout and concurrency contracts verified |
+| 6.25 | Compiler correctness, bootstrap, build performance and debug information | OFIR-31 to OFIR-38 | Invariants, parity, cache invalidation and debugger evidence recorded |
+| 6.26 | General-purpose standard library and public API quality | OFIR-39 to OFIR-47 | Documented exports, generic usage, portability and boundary tests |
+| 6.27 | FFI, native libraries, target tiers and cross compilation | OFIR-48 to OFIR-55 | Real foreign consumers and supported-target execution pass |
+| 6.28 | Formatting, LSP, diagnostics, debugging, profiling and documentation | OFIR-56 to OFIR-63 | End-to-end developer workflows work on supported platforms |
+| 6.29 | Packages, build inputs, registry, installation and releases | OFIR-64 to OFIR-71 | Clean-machine/offline builds, integrity and compatibility evidence |
+| 6.30 | Conformance, fuzzing, safety, performance, CI and build security | OFIR-72 to OFIR-78 | Reproducible checks plus representative applications across releases |
+| 6.31 | Service ecosystem, learning, domain packages and maintenance | OFIR-79 to OFIR-86 | Scoped deliverables, maintained examples, owners and explicit optional decisions |
+
+Keep stage 0 minimal. GUI, scientific computing, mobile, embedded, WebAssembly,
+alternative backends and async require separate workload and maintenance
+decisions. The master plan defines acceptance evidence and architectural
+boundaries; coverage epics must be split into small implementation PRs.
+
 ## Releases
 
 | Version | Content |
@@ -255,7 +314,18 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 
 ## Next steps
 
-1. `Map<K, V>` (2.23) in `std`, then the warnings of 2.24, which close
-   phase 2.
+1. Establish the implementation matrix (OFIR-01) and classify specification,
+   safety and compatibility gaps before assigning new release commitments.
+2. Continue the remaining phase 5 language tasks; after completed 5.16,
+   the next sequential item is key types and indexed access (5.17).
+3. Advance general-purpose std, tooling, packages and installation alongside
+   the API foundation contracts in 6.11 and the JSON codec in 6.13,
+   using the dependency and priority order in the
+   [API ecosystem plan](design/api-ecosystem.md). Coordinate interfaces (5.3)
+   and concurrency (6.1) before committing to shared stream/driver contracts
+   or a concurrent server.
+4. Validate a CLI/filesystem utility, C consumer and concurrent program
+   (OFIR-76), plus each API milestone with the reference service (API-49).
+   Select optional adapters and domain ecosystems by concrete demand and ownership.
 
 See also the [risk register](risks.md).

@@ -40,6 +40,8 @@ Ofir logo. Install it locally using the commands in its README.
 | [Decisions](docs/adr/README.md) | architecture decision records |
 | [Bootstrap](docs/bootstrap.md) | the path to a self-hosted compiler |
 | [Roadmap](docs/roadmap.md) | ordered implementation tasks |
+| [Language completeness](docs/design/language-completeness.md) | language-wide capabilities, evidence, priorities and release gates |
+| [API ecosystem plan](docs/design/api-ecosystem.md) | service capabilities, gaps, dependencies and delivery gates |
 | [Risks](docs/risks.md) | risk register and mitigations |
 
 ## Goals
