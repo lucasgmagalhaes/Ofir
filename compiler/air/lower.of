@@ -45,6 +45,7 @@ import air.lower_derive.lowerDebugGlue
 import air.lower_derive.lowerEqGlue
 import air.lower_derive.lowerHashGlue
 import air.lower_expr.cloneValue
+import air.lower_expr.closingBrace
 import air.lower_expr.lowerBlock
 import air.lower_pattern.variantValue
 import air.lower_pattern.isVariant
@@ -1207,6 +1208,7 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
     match decl.body {
         Option.Some(block) => {
             let _ = lowerBlock(l, c, p, &block, false)
+            l.body.at = closingBrace(&block)
         }
         Option.None => {}
     }

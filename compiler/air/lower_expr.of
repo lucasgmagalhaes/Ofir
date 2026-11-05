@@ -2540,8 +2540,10 @@ pub fn lowerBlock(l: mut Lowerer, c: mut Checker, p: Program, block: &Block,
     var result = unit()
     dropScopeEnter(l)
     let count = block.stmts.len()
+    let outer = l.body.at
     for i in 0..count {
         let s = &block.stmts[i]
+        l.body.at = s.span   // what the statement emits is at its line (debug info)
         var tail = false
         if asValue && i + 1 == count {
             if let StmtKind.ExprStmt(e) = s.kind {
@@ -2556,6 +2558,18 @@ pub fn lowerBlock(l: mut Lowerer, c: mut Checker, p: Program, block: &Block,
         lowerStmt(l, c, p, s)
         tempScopeLeave(l, c, p)
     }
+    l.body.at = closingBrace(block)   // the drops at its end
     dropScopeLeave(l, c, p)
+    l.body.at = outer
     return result
+}
+
+/**
+ * Where a block ends, for the debug info of what runs there.
+ *
+ * @param block the block
+ * @returns its `}`
+ */
+pub fn closingBrace(block: &Block) Span {
+    return Span{file: block.span.file, start: block.span.end - 1, end: block.span.end}
 }
