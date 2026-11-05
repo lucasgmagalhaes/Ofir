@@ -186,6 +186,18 @@ conversion (all primitive types do). A literal brace is written `\{` or `\}`.
 | `0N` | zero padded | `{n:04}` → `0042` |
 | `x` / `X` / `b` | hexadecimal / binary | `{n:x}` → `ff` |
 
+A specifier is `?` or `[<][0][width][.N][x|X|b]`, in that order:
+`{pi:8.3}` → `   3.142`, `{n:08b}` → `00101010`. The specifier starts at
+the first `:` that is not inside a bracket of the expression. A precision
+applies only to floats, a radix only to integers, and zero padding only to
+numbers. A negative integer in hexadecimal or binary shows the bits of its
+type (`{-1 as i8:x}` → `ff`), and the width counts Unicode scalar values. A
+malformed specifier, or one that does not apply to the type, is an error
+(E0357).
+
+Format specifiers are implemented by stage 1 only. `?` waits for the
+derived `Debug` interface (roadmap 5.5).
+
 ### Raw strings
 
 Raw strings start with `r"` (single line) or `"""` (multi-line). They have no
