@@ -22,6 +22,15 @@ properties stated as **guaranteed** can be relied on.
 - The compiler may reorder fields to minimize padding (default layout).
 - `@repr(C)` structs use C layout: declaration order, C padding rules.
   **Guaranteed.**
+- `@packed` structs have no padding: each field starts right after the
+  previous one and the struct has alignment 1. **Guaranteed.** Their fields
+  must be `bool`, numbers or `@packed` structs (E0811), and a field of a
+  `@packed` struct cannot be borrowed, with `&`, `&mut` or as a `mut`
+  argument (E0812): its address may not be aligned.
+- `@align(N)` structs have an alignment of at least `N` bytes, and a size
+  that is a multiple of it, wherever they are stored: locals, globals,
+  fields, enum payloads and the heap. **Guaranteed.** A struct cannot be
+  both `@packed` and `@align(N)` (E0808).
 - Zero-sized structs occupy no space in their container.
 
 ## 13.3 Enums
@@ -29,6 +38,9 @@ properties stated as **guaranteed** can be relied on.
 - An enum with no payloads is represented as the smallest integer tag that
   fits its variants.
 - An enum with payloads is a tag followed by a union of the payloads.
+- `@repr(C)` applies only to enums without payloads (E0808): such an enum
+  is a C `int`, its variants numbered from 0 in declaration order.
+  **Guaranteed.**
 - **Niche optimization (guaranteed for these types):** `Option<&T>`,
   `Option<Box<T>>` and `Option<fn(...)>` have the same size as the pointer;
   `None` is represented by null.
