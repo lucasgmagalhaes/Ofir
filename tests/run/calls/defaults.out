@@ -1,0 +1,9 @@
+example.com:443 timeout=30 verbose=false
+example.com:8443 timeout=30 verbose=false
+example.com:80 timeout=5 verbose=false
+example.com:80 timeout=5 verbose=true
+0 6
+5 1 4
+0
+a#none
+6 101

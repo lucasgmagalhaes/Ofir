@@ -1,0 +1,64 @@
+// requires: stage1
+// Default parameter values (spec 3.3): trailing parameters may be left out,
+// and their defaults are evaluated at each call that omits them.
+
+const BASE: int = 10
+
+fn connect(host: str, port: int = 443, timeout: int = BASE * 3, verbose: bool = false) str {
+    return "{host}:{port} timeout={timeout} verbose={verbose}"
+}
+
+fn total(xs: List<int> = []) int {
+    var sum = 0
+    for i in 0..xs.len() {
+        sum += xs[i]
+    }
+    return sum
+}
+
+fn grow(xs: mut List<int>, extra: List<int> = []) {
+    for i in 0..extra.len() {
+        xs.push(extra[i])
+    }
+    xs.push(xs.len())
+}
+
+fn keys(m: Map<str, int> = Map.new()) int {
+    return m.len()
+}
+
+fn tagged(name: str, tag: str = "none") str {
+    return "{name}#{tag}"
+}
+
+struct Counter {
+    n: int
+
+    fn add(mut self, by: int = 1) {
+        self.n = self.n + by
+    }
+
+    fn make(start: int = 0) Counter {
+        return Counter{n: start}
+    }
+}
+
+fn main() {
+    println(connect("example.com"))
+    println(connect("example.com", 8443))
+    println(connect("example.com", 80, 5))
+    println(connect("example.com", 80, 5, true))
+    println("{total()} {total([1, 2, 3])}")
+    var xs = [7]
+    grow(xs)
+    grow(xs, [8, 9])
+    println("{xs.len()} {xs[1]} {xs[4]}")
+    println("{keys()}")
+    println(tagged("a"))
+    var c = Counter.make()
+    c.add()
+    c.add(5)
+    var d = Counter.make(100)
+    d.add()
+    println("{c.n} {d.n}")
+}
