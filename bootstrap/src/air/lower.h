@@ -7,8 +7,8 @@
 #include "sema/sema.h"
 
 // Receives each function as soon as it is lowered; the body is freed after
-// the call, so only one function is in memory at a time.
-typedef void (*BodySink)(void *context, const AirBody *body);
+// the call, so only one function is in memory at a time. The sink may change it.
+typedef void (*BodySink)(void *context, AirBody *body);
 
 // Runs after a successful check_program. Reports E0901 for constructs that
 // stage 0 can check but not compile yet.

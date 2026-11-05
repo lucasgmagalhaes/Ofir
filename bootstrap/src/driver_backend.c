@@ -3,6 +3,7 @@
 #include "driver_internal.h"
 
 #include "air/air_print.h"
+#include "air/fold.h"
 #include "air/lower.h"
 #include "base/platform.h"
 #include "codegen/llvm.h"
@@ -65,20 +66,21 @@ static Next link_program(const Options *opts, const char *ll, const char *exe) {
     return STOP;
 }
 
-// Each lowered function is validated, then printed (--emit=air) or turned
-// into LLVM IR right away.
+// Each lowered function is validated, its checks folded (air/fold.h), then
+// printed (--emit=air) or turned into LLVM IR right away.
 typedef struct {
     Sema *sema;
     Gen *gen;     // NULL for --emit=air
 } Sink;
 
-static void take_body(void *context, const AirBody *body) {
+static void take_body(void *context, AirBody *body) {
     Sink *sink = context;
     char error[256];
     if (!air_validate_body(body, error, sizeof error)) {
         air_print_body(body, sink->sema, stderr);   // what the bug report needs
         fatal("invalid AIR: %s", error);
     }
+    air_fold_checks(body, &sink->sema->types);
     if (sink->gen) {
         llvm_function(sink->gen, body);
     } else {
