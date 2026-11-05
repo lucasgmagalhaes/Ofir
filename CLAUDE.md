@@ -13,7 +13,7 @@ with clang.
   `docs/bootstrap.md`).
 - `std/`, `runtime/`, `tests/`, `tools/`, `docs/` (spec, ADRs, roadmap).
 - Manifest: `ofir.json` (JSONC, camelCase keys; ADR 0026).
-- Work follows `docs/roadmap.md`; next item (phase 5): 5.12e "did you mean" for unknown names.
+- Work follows `docs/roadmap.md`; next item (phase 5): 5.13 debug info (DWARF).
 
 ## Working rules
 
