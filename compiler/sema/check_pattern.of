@@ -25,6 +25,7 @@ import sema.structs.structFieldType
 import sema.structs.structFields
 import sema.structs.variantFieldType
 import sema.suggest.SuggestScope
+import sema.suggest.suggestField
 import sema.suggest.suggestName
 import sema.types.ERROR
 import sema.types.TyKind
@@ -139,6 +140,7 @@ fn structPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>,
                 if index == names.len() {
                     c.error("E0316", pat.span, "no field `{c.text(fields[i].name)}` on type "
                             + "`{c.typeName(ty)}`")
+                    suggestField(c.r, &names, fields[i].name)
                     continue
                 }
                 listed += 1

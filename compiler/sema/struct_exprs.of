@@ -35,6 +35,7 @@ import sema.structs.fieldIndex
 import sema.structs.fieldsOf
 import sema.structs.structFieldType
 import sema.structs.structFields
+import sema.suggest.suggestField
 import sema.types.ERROR
 import sema.types.TyKind
 import syntax.ast.Arg
@@ -66,6 +67,15 @@ fn fieldIsPub(c: Checker, p: Program, id: int, index: int) bool {
     }
 }
 
+// The help line for an unknown field of struct `id`, when its fields are
+// known and named.
+fn suggestFields(c: mut Checker, id: int, known: bool, name: Symbol) {
+    if known && !fieldsOf(c, id).isTuple {
+        let names = fieldsOf(c, id).names.clone()
+        suggestField(c.r, &names, name)
+    }
+}
+
 /**
  * `a.f` on a struct value of type `base`.
  *
@@ -83,6 +93,7 @@ pub fn checkStructField(c: mut Checker, p: Program, e: &Expr, name: Symbol, base
     if index < 0 {
         if base != ERROR && (id == 0 || known) {
             c.error("E0316", e.span, "no field `{c.text(name)}` on type `{c.typeName(base)}`")
+            suggestFields(c, id, known, name)
         }
         return ERROR
     }
@@ -167,6 +178,7 @@ fn checkLiteralFields(c: mut Checker, p: Program, id: int, fields: &List<FieldIn
         let index = fieldIndex(fieldsOf(c, id), init.name)
         if index < 0 {
             c.error("E0316", span, "no field `{c.text(init.name)}` on this struct")
+            suggestFields(c, id, true, init.name)
             checkInit(c, p, init, ERROR)
             continue
         }
