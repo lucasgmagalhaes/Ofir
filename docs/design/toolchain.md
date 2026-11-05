@@ -173,9 +173,10 @@ checks it can prove unnecessary.
 
 ### Debug info
 
-`-g` makes the compiler emit DWARF line tables and passes `-g` to clang,
-so a debugger (`lldb`, `gdb`) can set breakpoints on source lines and
-step through them:
+`-g` makes the compiler emit DWARF (functions and line tables, no
+variables or types yet) and passes `-g` to clang, so a debugger (`lldb`,
+`gdb`) can set breakpoints on functions and source lines and step
+through them:
 
 - each user function, closure included, gets a `DISubprogram` at the
   line of its declaration;
