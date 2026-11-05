@@ -1,0 +1,17 @@
+// A check whose condition is known while compiling is removed: dividing or
+// shifting by a constant cannot fail. A cast of a constant that does not fit
+// keeps its check.
+// CHECK: @"ofir.f"(i64 %p1)
+// CHECK-NOT: call void @ofir_panic_div_zero(
+// CHECK-NOT: call void @ofir_panic_shift(
+// CHECK: call void @ofir_panic_cast(
+fn f(a: int) int {
+    let b = a / 4
+    let c = a << 3
+    let _e = 300 as u8
+    return b + c
+}
+
+fn main() {
+    print("{f(5)}")
+}
