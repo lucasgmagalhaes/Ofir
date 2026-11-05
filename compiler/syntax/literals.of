@@ -312,8 +312,8 @@ pub fn scanRawString(cur: mut Cursor, src: str, diags: mut Diagnostics) Token {
         cur.pos += 1
     }
     let text = src[from..cur.pos].toOwned()
-    if !cur.eat(src, b'"') {
-        diags.error("E0002", cur.spanFrom(start), "unterminated string literal")
+    if !cur.eat(src, b'"') {   // from the quote, as stage 0 reports `r` then a string
+        diags.error("E0002", cur.spanFrom(start + 1), "unterminated string literal")
     }
     return cur.tokenWith(TokenKind.Str, start, TokenValue.Str(text))
 }
