@@ -58,6 +58,7 @@ import sema.enums.variantsOf
 import sema.program.Program
 import sema.resolve.findAttribute
 import sema.structs.fieldsOf
+import sema.structs.hasInteriorMutability
 import sema.structs.structFieldType
 import sema.structs.structFields
 import sema.structs.variantFieldType
@@ -134,6 +135,8 @@ pub struct Gen {
     pub scope: int
     /** The working directory, escaped, for the `DIFile`s. */
     pub dir: str
+    /** `--release`: whether to mark parameters `noalias` and `readonly`. */
+    pub optimize: bool
 }
 
 fn hexDigit(n: u64) str {
@@ -196,7 +199,7 @@ pub fn newGen() Gen {
                temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
                formats: false, packedPlace: false, alignedHeap: false,
                fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new(),
-               debug: false, di: DebugInfo.new(), scope: 0, dir: ""}
+               debug: false, di: DebugInfo.new(), scope: 0, dir: "", optimize: false}
 }
 
 fn nextTemp(g: mut Gen) str {
@@ -1602,6 +1605,30 @@ fn tagEnd(g: mut Gen, c: Checker, held: move str, span: Span) {
     }
 }
 
+// The aliasing attributes of parameter `i` of a user function (spec 13.5),
+// sound because the borrow checker has run: `mut` parameters and `&mut T`
+// do not alias, other borrows are also read-only, unless what they point to
+// has interior mutability.
+fn aliasAttrs(c: mut Checker, p: Program, body: &AirBody, i: int) str {
+    let local = &body.locals[i]
+    var exclusive = false
+    var target = local.ty
+    if local.byRef {
+        exclusive = local.exclusive
+    } else {
+        let t = c.types.get(local.ty)
+        if t.kind != TyKind.Ref || c.types.isFat(local.ty) {
+            return ""
+        }
+        exclusive = t.data == 1
+        target = t.inner
+    }
+    if exclusive {
+        return " noalias"
+    }
+    return if hasInteriorMutability(c, p, target) { "" } else { " noalias readonly" }
+}
+
 fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     g.temp = 0
     let ret = body.locals[0].ty
@@ -1629,11 +1656,13 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
         }
     }
     var first = !closure
+    let plain = g.optimize && !closure && !cfn && !isGlue(body.def)
     for k in 0..params.len() {
         let i = params[k]
         let local = &body.locals[i]
         if local.byRef || hasValue(local.ty) {
-            g.out.push("{if first { "" } else { ", " }}{localType(g, c, p, body, i)} %p{i}")
+            let attrs = if plain { aliasAttrs(c, p, body, i) } else { "" }
+            g.out.push("{if first { "" } else { ", " }}{localType(g, c, p, body, i)}{attrs} %p{i}")
             first = false
         }
     }
@@ -1866,9 +1895,11 @@ fn heapDecl(g: mut Gen, c: mut Checker, name: str, decl: str) {
  * @param debug `-g`: with debug info, which stage 0 does not write
  * @returns the module's text
  */
-pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>, debug: bool) str {
+pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>, debug: bool,
+                optimize: bool) str {
     var g = newGen()
     g.debug = debug
+    g.optimize = optimize
     var root = 0
     if debug {
         escapedBytes(g.dir, os.currentDir().ok() ?? "")
