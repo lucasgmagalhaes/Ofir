@@ -11,8 +11,18 @@ struct Block {
     x: int
 }
 
-@deprecated("use g")   // error[E0901]: the attribute `@deprecated` is not supported by stage 0
+@export("f")   // error[E0901]: the attribute `@export` is not supported by stage 0
 fn f() {
+}
+
+// Accepted and ignored by stage 0.
+@deprecated("use g")
+@allow(unused)
+fn g() {
+}
+
+@allow(sideways)   // error[E0809]: invalid arguments for `@allow`: write `@allow(category)`, category `unused`, `unreachable`, `deprecated` or `naming`
+fn h() {
 }
 
 fn main() {

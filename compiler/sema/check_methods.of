@@ -46,6 +46,7 @@ import sema.interfaces.methodIndex
 import sema.interfaces.paramBoundArgs
 import sema.interfaces.paramMethodOwner
 import sema.program.Program
+import sema.resolve_attributes.warnDeprecated
 import sema.struct_exprs.checkStructField
 import sema.structs.isCopy
 import sema.structs.structFieldType
@@ -297,6 +298,7 @@ pub fn checkUserMethod(c: mut Checker, p: Program, call: &Expr, field: &Expr, ba
         return skipArgs(c, p, args)
     }
     let decl = methodAt(p, c.loc(owner), index)
+    warnDeprecated(c.r, c.r.tables[c.def(owner).module].fnDefs[decl.id.0], field.span)
     if viaType && decl.hasSelf {
         c.error("E0301", field.span, "`{c.text(name)}` is a method: call it on a value, "
                 + "`value.m()`")

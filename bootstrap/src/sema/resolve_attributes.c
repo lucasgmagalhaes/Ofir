@@ -1,5 +1,6 @@
 // Attribute checks (spec 12.1): known names, where each one applies, its
-// arguments, and those stage 0 does not implement yet.
+// arguments, and those stage 0 does not implement yet. Stage 0 accepts
+// `@deprecated` and `@allow` and ignores them (stage 1 implements them).
 
 #include "sema/resolve_internal.h"
 
@@ -26,7 +27,7 @@ typedef enum {
     ARGS_STR,        // @link("m")
     ARGS_OPT_STR,    // @deprecated, @deprecated("use g")
     ARGS_ONE,        // @cfg(debug)
-    ARGS_IDENT,      // @allow(unused)
+    ARGS_ALLOW,      // @allow(unused)
     ARGS_TWO_STR,    // @tag("key", "value")
 } ArgsKind;
 
@@ -48,11 +49,12 @@ static const AttributeRule RULES[] = {
     {"align", ON_STRUCT, ARGS_ALIGN, false, "`@align(N)`, N a power of two"},
     {"link", ON_EXTERN, ARGS_STR, false, "`@link(\"name\")`"},
     {"export", ON_FN, ARGS_STR, false, "`@export(\"name\")`"},
-    {"deprecated", ON_ANY, ARGS_OPT_STR, false,
+    {"deprecated", ON_ANY, ARGS_OPT_STR, true,
      "`@deprecated` or `@deprecated(\"message\")`"},
     {"bench", ON_FN, ARGS_NONE, false, "`@bench`"},
     {"cfg", ON_ANY, ARGS_ONE, false, "`@cfg(condition)`"},
-    {"allow", ON_ANY, ARGS_IDENT, false, "`@allow(category)`"},
+    {"allow", ON_ANY, ARGS_ALLOW, true,
+     "`@allow(category)`, category `unused`, `unreachable`, `deprecated` or `naming`"},
     {"tag", ON_STRUCT | ON_ENUM | ON_FIELD, ARGS_TWO_STR, false, "`@tag(\"key\", \"value\")`"},
 };
 
@@ -90,7 +92,9 @@ static bool args_match(const Resolver *r, ArgsKind kind, const Attribute *a) {
     case ARGS_STR: return n == 1 && first->kind == EXPR_STR;
     case ARGS_OPT_STR: return n == 0 || (n == 1 && first->kind == EXPR_STR);
     case ARGS_ONE: return n == 1;
-    case ARGS_IDENT: return n == 1 && is_ident(r, first, NULL);
+    case ARGS_ALLOW:
+        return n == 1 && (is_ident(r, first, "unused") || is_ident(r, first, "unreachable") ||
+                          is_ident(r, first, "deprecated") || is_ident(r, first, "naming"));
     case ARGS_TWO_STR:
         return n == 2 && first->kind == EXPR_STR && a->args.items[1]->kind == EXPR_STR;
     }

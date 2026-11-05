@@ -52,3 +52,14 @@ fn caretStopsAtTheEndOfTheLine() {
     let text = diags.render(sample(), Format.Human)
     assert(text.endsWith("1 | fn main() \{\n  | ^^^^^^^^^^^^\n\n"))
 }
+
+@test
+fn allowSilencesAWarningInsideItsSpan() {
+    var diags = Diagnostics.new()
+    diags.allow("W0001", Span{file: FileId(0), start: 0, end: 20})
+    diags.warning("W0001", Span{file: FileId(0), start: 13, end: 16}, "unused".toOwned())
+    diags.warning("W0002", Span{file: FileId(0), start: 13, end: 16}, "unused".toOwned())
+    diags.warning("W0001", Span{file: FileId(0), start: 22, end: 23}, "unused".toOwned())
+    diags.warning("W0001", Span{file: FileId(1), start: 13, end: 16}, "unused".toOwned())
+    assert(diags.len() == 3)
+}

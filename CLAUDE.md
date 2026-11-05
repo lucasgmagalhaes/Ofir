@@ -13,14 +13,17 @@ with clang.
   `docs/bootstrap.md`).
 - `std/`, `runtime/`, `tests/`, `tools/`, `docs/` (spec, ADRs, roadmap).
 - Manifest: `ofir.json` (JSONC, camelCase keys; ADR 0026).
-- Work follows `docs/roadmap.md`; next items (phase 5): 5.11b `@deprecated`
-  and `@allow`, 5.12a default parameters and named arguments.
+- Work follows `docs/roadmap.md`; next items (phase 5): 5.12a default
+  parameters and named arguments, 5.11c `@repr`/`@packed`/`@align`/`@cfg`.
 
 ## Working rules
 
 - Talk to the user in Portuguese. Code, docs, commits and PRs in English.
 - Commit as you go, in small commits that each build: Conventional
   Commits (`CONTRIBUTING.md`), messages in English.
+- Keep commits very small: 1-3 files each, one concern per commit (spec,
+  stage 0, stage 1 per call site, tests, each doc separately). Never
+  bundle many changed files into one commit.
 - Git author and committer of every commit: Lucas Gomes
   <lucasgsm88@gmail.com> (`git -c user.name=... -c user.email=...` if the
   config differs).

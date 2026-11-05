@@ -1,0 +1,46 @@
+// requires: stage1
+// `@allow(category)` silences a category of warnings inside its declaration (spec 12.1).
+
+@allow(unused)
+fn quiet() {
+    let x = 1
+}
+
+@allow(unreachable)
+fn early() int {
+    return 1
+    println("never")
+}
+
+fn loud() {
+    let y = 2   // warning[W0001]: unused variable `y`: use it, or start its name with `_`
+}
+
+struct Counter {
+    n: int
+
+    @allow(unused)
+    fn reset(mut self) {
+        let old = self.n
+        self.n = 0
+    }
+
+    fn bump(mut self) {
+        let old = self.n   // warning[W0001]: unused variable `old`: use it, or start its name with `_`
+        self.n = self.n + 1
+    }
+}
+
+@allow(deprecated)
+fn old() {
+}
+
+fn main() {
+    quiet()
+    loud()
+    let _ = early()
+    var c = Counter{n: 0}
+    c.reset()
+    c.bump()
+    old()
+}

@@ -138,7 +138,8 @@ M4, the code in `compiler/` must be written in this subset.
 - modules, `import`, `pub`
 - `extern "C"` blocks and `unsafe` blocks
 - `@test` functions, `@inline`, `@inline(never)` and `@cold`; every
-  attribute is checked (spec 12.1)
+  attribute is checked (spec 12.1); `@deprecated` and `@allow` are
+  accepted and ignored
 
 **Excluded** (implemented only in stage 1):
 
@@ -148,7 +149,8 @@ M4, the code in `compiler/` must be written in this subset.
 - `ref struct` and user functions returning borrows
 - error conversion in `?`
 - format specifiers, raw strings, attributes other than `@test`, `@inline`
-  and `@cold`
+  and `@cold`; the warnings of `@deprecated` (W0006) and the silencing of
+  `@allow`
 - default parameter values and named arguments
 - compile-time code (`comptime`, `std.meta`)
 - good diagnostics: stage 0 reports the first error per function

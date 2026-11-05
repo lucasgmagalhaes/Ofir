@@ -54,9 +54,27 @@ and `@allow`. A test file's declarations follow the same rules.
 called, so the optimizer moves its calls out of the hot path. They are
 hints with no effect on the meaning of the program.
 
+`@deprecated` marks a function, method, type, constant or global that
+should no longer be used: each use of its name outside a deprecated
+declaration is a warning (W0006), "`name` is deprecated", followed by the
+message if one is given:
+
+```ofir
+@deprecated("use `parseInt`")
+fn atoi(s: str) int { ... }
+
+let n = atoi("12")   // warning[W0006]: `atoi` is deprecated: use `parseInt`
+```
+
+`@allow(category)` silences the warnings of one category inside the
+declaration it marks (12.6). The categories are `unused` (W0001, W0002,
+W0003), `unreachable` (W0004), `deprecated` (W0006) and `naming` (W0007);
+another identifier is an error (E0809).
+
 Stage 0 and stage 1 implement `@inline`, `@cold`, `@test` and `@lang`;
-the other attributes of the table are checked, then reported as not
-supported yet (E0901) until roadmap 5.11b and 5.11c.
+stage 1 implements `@deprecated` and `@allow`, which stage 0 accepts and
+ignores. The other attributes of the table are checked, then reported as
+not supported yet (E0901) until roadmap 5.11c.
 
 ## 12.2 Tests
 
@@ -184,5 +202,6 @@ meaningful:
   `_`; `for _ in 0..n` repeats without a variable. Stage 0 reports unused
   variables, unused imports (W0002), unreachable code (W0004) and
   unreachable `match` arms; the other warnings come with stage 1.
-- `@allow(unused)` on an item silences a warning category for that item.
+- `@allow(unused)` on a declaration silences a warning category inside
+  it (12.1).
 - Ignoring a `Result` is an **error**, not a warning (chapter 6.3).

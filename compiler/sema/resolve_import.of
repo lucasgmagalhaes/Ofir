@@ -14,6 +14,7 @@ import sema.def.Res
 import sema.program.Program
 import sema.resolve.ImportUse
 import sema.resolve.Resolver
+import sema.resolve_attributes.warnDeprecated
 import sema.trace.traceUse
 import syntax.ast.Expr
 import syntax.ast.ExprKind
@@ -149,6 +150,7 @@ pub fn resolveQualified(r: mut Resolver, e: &Expr, base: &Expr, name: Symbol) {
     let res: Res = if member != 0 { Res.Def(member) } else { Res.Error }
     r.setRes(e.id.0, res)
     traceUse(r, "member", name, e.span, res)
+    warnDeprecated(r, member, e.span)
 }
 
 // `std.core` and its submodules form the prelude.

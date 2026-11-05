@@ -56,6 +56,9 @@ pub struct Diagnostic {
 pub struct Diagnostics {
     items: List<Diagnostic>
     errors: int
+    // The spans where a warning code is silenced (`@allow`, spec 12.1).
+    allowedCodes: List<str>
+    allowedSpans: List<Span>
     /** `--deny-warnings`: warnings are reported as errors. */
     pub denyWarnings: bool
 
@@ -65,7 +68,8 @@ pub struct Diagnostics {
      * @returns the collection
      */
     pub fn new() Diagnostics {
-        return Diagnostics{items: [], errors: 0, denyWarnings: false}
+        return Diagnostics{items: [], errors: 0, allowedCodes: [], allowedSpans: [],
+                           denyWarnings: false}
     }
 
     /**
@@ -87,8 +91,23 @@ pub struct Diagnostics {
      * @param message what is suspicious
      */
     pub fn warning(mut self, code: str, span: Span, message: move str) {
+        if self.isAllowed(code, span) {
+            return
+        }
         self.add(if self.denyWarnings { Severity.Error } else { Severity.Warning }, code, span,
                  message)
+    }
+
+    /**
+     * Silences a warning code inside a span: `@allow(unused)` on a
+     * declaration.
+     *
+     * @param code the warning's code, as `W0001`
+     * @param span the declaration
+     */
+    pub fn allow(mut self, code: str, span: Span) {
+        self.allowedCodes.push(code.toOwned())
+        self.allowedSpans.push(span)
     }
 
     /**
@@ -141,6 +160,17 @@ pub struct Diagnostics {
             }
         }
         return out
+    }
+
+    fn isAllowed(self, code: str, span: Span) bool {
+        for i in 0..self.allowedCodes.len() {
+            let a = self.allowedSpans[i]
+            if self.allowedCodes[i] == code && a.file.0 == span.file.0 && a.start <= span.start &&
+                span.end <= a.end {
+                return true
+            }
+        }
+        return false
     }
 
     fn add(mut self, severity: Severity, code: str, span: Span, message: move str) {
