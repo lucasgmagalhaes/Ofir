@@ -1,0 +1,248 @@
+/**
+ * @module
+ * Conditional compilation (spec 12.4): the declarations whose `@cfg`
+ * condition is false are removed right after parsing, before their names
+ * are resolved. Conditions that are not valid are E0809.
+ */
+
+import base.intern.Interner
+import diag.Diagnostics
+import syntax.ast.Attribute
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.FieldDecl
+import syntax.ast.FnDecl
+import syntax.ast.Item
+import syntax.ast.ItemKind
+import syntax.ast.Module
+import syntax.ast.Op
+
+/**
+ * What `@cfg` conditions are evaluated against.
+ */
+pub struct CfgTarget {
+    /** `os`: `"linux"`, `"macos"` or `"windows"`. */
+    pub os: str
+    /** `arch`: `"x86_64"` or `"aarch64"`. */
+    pub arch: str
+    /** `debug`: the program is built without `--release`. */
+    pub debug: bool
+    /** `test`: the program is built by `ofir test`. */
+    pub test: bool
+}
+
+// The value of `os == value` or `arch == value`; `None` if `name` is not
+// one of them or `value` is not one of its values.
+fn compare(t: &CfgTarget, names: Interner, name: &Expr, value: &Expr) Option<bool> {
+    let Option.Some(key) = identName(names, name) else {
+        return Option.None
+    }
+    let text = match value.kind {
+        ExprKind.Str(text) => Option.Some(text.sliceFrom(0))
+        _ => Option.None
+    }
+    let Option.Some(given) = text else {
+        return Option.None
+    }
+    if key == "os" {
+        if given != "linux" && given != "macos" && given != "windows" {
+            return Option.None
+        }
+        return Option.Some(t.os == given)
+    }
+    if key == "arch" {
+        if given != "x86_64" && given != "aarch64" {
+            return Option.None
+        }
+        return Option.Some(t.arch == given)
+    }
+    return Option.None
+}
+
+fn identName(names: Interner, e: &Expr) Option<str> {
+    return match e.kind {
+        ExprKind.Ident(n) => Option.Some(names.name(n).sliceFrom(0))
+        _ => Option.None
+    }
+}
+
+// The value of a condition, `None` if it is not valid.
+fn holds(t: &CfgTarget, names: Interner, e: &Expr) Option<bool> {
+    return match e.kind {
+        ExprKind.Ident(_) => {
+            let name = identName(names, e) ?? ""
+            if name == "debug" {
+                Option.Some(t.debug)
+            } else if name == "test" {
+                Option.Some(t.test)
+            } else {
+                Option.None
+            }
+        }
+        ExprKind.Unary(op, operand) => match op {
+            Op.Not => match holds(t, names, &*operand) {
+                Option.Some(value) => Option.Some(!value)
+                Option.None => Option.None
+            }
+            _ => Option.None
+        }
+        ExprKind.Binary(op, lhs, rhs) => binary(t, names, op, &*lhs, &*rhs)
+        _ => Option.None
+    }
+}
+
+fn binary(t: &CfgTarget, names: Interner, op: Op, lhs: &Expr, rhs: &Expr) Option<bool> {
+    return match op {
+        Op.Eq => compare(t, names, lhs, rhs)
+        Op.Ne => match compare(t, names, lhs, rhs) {
+            Option.Some(value) => Option.Some(!value)
+            Option.None => Option.None
+        }
+        Op.LogicalAnd | Op.LogicalOr => {
+            let Option.Some(a) = holds(t, names, lhs) else {
+                return Option.None
+            }
+            let Option.Some(b) = holds(t, names, rhs) else {
+                return Option.None
+            }
+            match op {
+                Op.LogicalAnd => Option.Some(a && b)
+                _ => Option.Some(a || b)
+            }
+        }
+        _ => Option.None
+    }
+}
+
+fn isCfg(names: Interner, a: &Attribute) bool {
+    return a.args.len() == 1 && names.name(a.name) == "cfg"
+}
+
+fn hasCfg(names: Interner, attributes: &List<Attribute>) bool {
+    for i in 0..attributes.len() {
+        if isCfg(names, &attributes[i]) {
+            return true
+        }
+    }
+    return false
+}
+
+// Whether a declaration stays: its `@cfg` holds, or it has none. An invalid
+// condition is reported, and the declaration stays.
+fn keeps(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
+         attributes: &List<Attribute>) bool {
+    for i in 0..attributes.len() {
+        let a = &attributes[i]
+        if isCfg(names, a) {
+            if let Option.Some(value) = holds(t, names, &a.args[0]) {
+                return value
+            }
+            diags.error("E0809", a.span, "invalid condition for `@cfg`: write `os == \"linux\"`, "
+                        + "`arch == \"x86_64\"`, `debug` or `test`, combined with `&&`, `||` "
+                        + "and `!`")
+            return true
+        }
+    }
+    return true
+}
+
+// The functions that stay, `None` if they all do.
+fn keptFns(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
+           fns: &List<FnDecl>) Option<List<FnDecl>> {
+    var any = false
+    for i in 0..fns.len() {
+        any = any || hasCfg(names, &fns[i].attributes)
+    }
+    if !any {
+        return Option.None
+    }
+    var out: List<FnDecl> = []
+    for i in 0..fns.len() {
+        if keeps(t, names, diags, &fns[i].attributes) {
+            out.push(fns[i].clone())
+        }
+    }
+    return Option.Some(out)
+}
+
+// The fields that stay, `None` if they all do.
+fn keptFields(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
+              fields: &List<FieldDecl>) Option<List<FieldDecl>> {
+    var any = false
+    for i in 0..fields.len() {
+        any = any || hasCfg(names, &fields[i].attributes)
+    }
+    if !any {
+        return Option.None
+    }
+    var out: List<FieldDecl> = []
+    for i in 0..fields.len() {
+        if keeps(t, names, diags, &fields[i].attributes) {
+            out.push(fields[i].clone())
+        }
+    }
+    return Option.Some(out)
+}
+
+// The item with the members that stay, if one of them is removed.
+fn keptMembers(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
+               item: &Item) Option<ItemKind> {
+    return match item.kind {
+        ItemKind.Struct(isCopy, isRef, isTuple, typeParams, fields, methods) => {
+            let newFields = keptFields(t, names, diags, &fields)
+            let newMethods = keptFns(t, names, diags, &methods)
+            if newFields.isNone() && newMethods.isNone() {
+                return Option.None
+            }
+            Option.Some(ItemKind.Struct(isCopy, isRef, isTuple, typeParams.clone(),
+                                        newFields ?? fields.clone(), newMethods ?? methods.clone()))
+        }
+        ItemKind.Enum(isCopy, typeParams, variants, methods) => {
+            let Option.Some(kept) = keptFns(t, names, diags, &methods) else {
+                return Option.None
+            }
+            Option.Some(ItemKind.Enum(isCopy, typeParams.clone(), variants.clone(), kept))
+        }
+        ItemKind.Interface(typeParams, embeds, methods) => {
+            let Option.Some(kept) = keptFns(t, names, diags, &methods) else {
+                return Option.None
+            }
+            Option.Some(ItemKind.Interface(typeParams.clone(), embeds.clone(), kept))
+        }
+        ItemKind.Extern(abi, fns) => {
+            let Option.Some(kept) = keptFns(t, names, diags, &fns) else {
+                return Option.None
+            }
+            Option.Some(ItemKind.Extern(abi.clone(), kept))
+        }
+        _ => Option.None
+    }
+}
+
+/**
+ * Removes the declarations of a module whose `@cfg` condition is false:
+ * items, then the fields, methods and extern functions of those that stay.
+ *
+ * @param module the module, as parsed
+ * @param t the target
+ * @param names the interner
+ * @param diags where invalid conditions are reported (E0809)
+ */
+pub fn stripCfg(module: mut Module, t: &CfgTarget, names: Interner, diags: mut Diagnostics) {
+    var i = 0
+    for i < module.items.len() {
+        let stays = !hasCfg(names, &module.items[i].attributes) ||
+                    keeps(t, names, diags, &module.items[i].attributes)
+        if stays {
+            i += 1
+        } else {
+            let _ = module.items.remove(i)
+        }
+    }
+    for j in 0..module.items.len() {
+        let kind = keptMembers(t, names, diags, &module.items[j])
+        if let Option.Some(k) = kind {
+            module.items[j].kind = k
+        }
+    }
+}
