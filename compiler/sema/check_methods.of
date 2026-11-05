@@ -55,7 +55,6 @@ import sema.types.I64
 import sema.types.STR
 import sema.types.TyKind
 import sema.types.U8
-import sema.types.UNIT
 import sema.variant_exprs.checkQualifiedVariant
 import syntax.ast.Arg
 import syntax.ast.Expr

@@ -42,7 +42,6 @@ import air.lower_pattern.buildVariant
 import air.lower_pattern.isVariant
 import air.lower_pattern.variantValue
 import air.air.VARIANT_STEP
-import sema.check_list.iteratorItem
 import sema.check_methods.methodAt
 import sema.check_methods.methodCount
 import air.lower_pattern.enumEquality
