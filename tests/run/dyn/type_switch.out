@@ -1,0 +1,17 @@
+circle of radius 2.0
+a square
+if let: 3.0
+not a square
+the int 7
+the str text
+a point at 1, 2
+a float
+a List<int>
+took a
+drop config a
+other: true
+drop config d
+miss: true
+isType: true false true
+drop config c
+end

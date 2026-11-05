@@ -13,7 +13,7 @@ import syntax.ast.Stmt
 import syntax.parse_exprs.newExpr
 import syntax.parse_exprs.parseExpr
 import syntax.parse_exprs.parseExprNoStruct
-import syntax.parse_patterns.parsePattern
+import syntax.parse_patterns.parseTestPattern
 import syntax.parse_stmts.parseStmt
 import syntax.parser.Parser
 import syntax.token.TokenKind
@@ -51,7 +51,7 @@ fn ifExpr(p: mut Parser) Expr {
     let start = p.advance()
     var letPattern: Option<Pattern> = Option.None
     if p.accept(TokenKind.Let) {
-        letPattern = Option.Some(parsePattern(p))
+        letPattern = Option.Some(parseTestPattern(p))
         p.expect(TokenKind.Eq, "`=` after the pattern")
     }
     let cond = parseExprNoStruct(p)
@@ -70,7 +70,7 @@ fn ifExpr(p: mut Parser) Expr {
 }
 
 fn matchArm(p: mut Parser) MatchArm {
-    let pattern = parsePattern(p)
+    let pattern = parseTestPattern(p)
     var guard: Option<Expr> = Option.None
     if p.accept(TokenKind.If) {
         guard = Option.Some(parseExprNoStruct(p))

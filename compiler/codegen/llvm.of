@@ -43,6 +43,7 @@ import sema.check.itemTypeParams
 import sema.check_box.boxInner
 import sema.def.DefKind
 import sema.interfaces.dynMethods
+import sema.interfaces.isAnyMethod
 import sema.enums.enumVariants
 import sema.enums.variantsOf
 import sema.program.Program
@@ -53,6 +54,7 @@ import sema.structs.variantFieldType
 import sema.types.ERROR
 import sema.types.I32
 import sema.types.NEVER
+import sema.types.STR
 import sema.types.TyKind
 import sema.types.UNIT
 import syntax.ast.ItemKind
@@ -963,13 +965,25 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             let vt = nextTemp(g)
             g.out.push("  {vt} = extractvalue {FN_LLVM} {fat.text}, 1\n")
             let at = nextTemp(g)
-            g.out.push("  {at} = getelementptr inbounds ptr, ptr {vt}, i64 {rv.flag + 3}\n")
+            g.out.push("  {at} = getelementptr inbounds ptr, ptr {vt}, i64 {rv.flag + 4}\n")
             let code = nextTemp(g)
             g.out.push("  {code} = load ptr, ptr {at}\n")
             let half = nextTemp(g)
             g.out.push("  {half} = insertvalue {FN_LLVM} undef, ptr {code}, 0\n")
             let t = nextTemp(g)
             g.out.push("  {t} = insertvalue {FN_LLVM} {half}, ptr {data}, 1\n")
+            return Value{ty: ty, text: t}
+        }
+        RvalueKind.TypeId => {
+            let fat = operand(g, c, p, body, &rv.a)
+            let vt = nextTemp(g)
+            g.out.push("  {vt} = extractvalue {FN_LLVM} {fat.text}, 1\n")
+            let at = nextTemp(g)
+            g.out.push("  {at} = getelementptr inbounds ptr, ptr {vt}, i64 3\n")
+            let slot = nextTemp(g)
+            g.out.push("  {slot} = load ptr, ptr {at}\n")
+            let t = nextTemp(g)
+            g.out.push("  {t} = ptrtoint ptr {slot} to i64\n")
             return Value{ty: ty, text: t}
         }
         RvalueKind.Closure => {
@@ -1101,7 +1115,8 @@ fn vtable(g: mut Gen, ty: int, iface: int, drops: bool) int {
     return id
 }
 
-// The vtables: the drop glue, the size, the alignment, then a thunk per
+// The vtables: the drop glue, the size, the alignment, the type id (the
+// concrete type's number, for type switches: spec 9.8), then a thunk per
 // method, which takes the data pointer as `self` (spec 9.7).
 fn vtables(g: mut Gen, c: mut Checker, p: Program) {
     var noDrop = false
@@ -1115,21 +1130,35 @@ fn vtables(g: mut Gen, c: mut Checker, p: Program) {
         } else {
             noDrop = true
         }
-        g.module.push("\n@\"ofir.vt{k}\" = internal constant [{slots.len() + 3} x ptr] [")
+        g.module.push("\n@\"ofir.vt{k}\" = internal constant [{slots.len() + 4} x ptr] [")
         g.module.push("ptr {drop}, ptr inttoptr (i64 {l.size} to ptr), ")
-        g.module.push("ptr inttoptr (i64 {l.align} to ptr)")
+        g.module.push("ptr inttoptr (i64 {l.align} to ptr), ptr inttoptr (i64 {ty} to ptr)")
         for i in 0..slots.len() {
             g.module.push(", ptr @\"ofir.vt{k}.{i}\"")
         }
         g.module.push("]\n")
         for i in 0..slots.len() {
-            vtableThunk(g, c, p, ty, slots[i], "@\"ofir.vt{k}.{i}\"")
+            if isAnyMethod(c, slots[i]) {
+                typeNameThunk(g, c, p, ty, "@\"ofir.vt{k}.{i}\"")
+            } else {
+                vtableThunk(g, c, p, ty, slots[i], "@\"ofir.vt{k}.{i}\"")
+            }
         }
     }
     if noDrop {
         g.module.push("\ndefine internal fastcc void @ofir.dyn.nodrop(ptr %self) \{\n")
         g.module.push("  ret void\n\}\n")
     }
+}
+
+// `typeName` of `Any` (spec 9.8), which the compiler provides: the name of
+// the concrete type, as messages write it.
+fn typeNameThunk(g: mut Gen, c: mut Checker, p: Program, ty: int, name: str) {
+    let text = c.typeName(ty)
+    let n = stringGlobal(g, text)
+    let ret = llvmType(g, c, p, STR)
+    g.module.push("\ndefine internal fastcc {ret} {name}(ptr %self) \{\n")
+    g.module.push("  ret {ret} \{ ptr @.str.{n}, i64 {text.len()}, i64 0 \}\n\}\n")
 }
 
 // A vtable slot: calls the concrete type's method, converting `self` and
@@ -1212,6 +1241,9 @@ fn runtimeCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirSt
         RuntimeFn.StrCmp => "i32"
         RuntimeFn.TestIndex => "i64"
         _ => "void"
+    }
+    if s.rt == RuntimeFn.Free {
+        g.heap = true   // declared with `ofir_alloc`
     }
     var result = ""
     if s.hasDest {

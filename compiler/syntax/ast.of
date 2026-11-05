@@ -119,6 +119,8 @@ pub enum PatternKind {
     TupleStruct(path: List<Symbol>, args: List<Pattern>)
     /** `a | b` */
     Or(alternatives: List<Pattern>)
+    /** `c: Circle`, `_: int`: a type test (spec 9.8); `name` is `None` for `_` */
+    TypeTest(name: Option<Symbol>, ty: TypeExpr)
 }
 
 /**

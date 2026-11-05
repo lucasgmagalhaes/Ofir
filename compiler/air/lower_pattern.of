@@ -9,6 +9,7 @@
 import air.air.Operand
 import air.air.OperandKind
 import air.air.RvalueKind
+import air.air.RuntimeFn
 import air.air.TermKind
 import air.air.VARIANT_STEP
 import air.air.branch
@@ -19,11 +20,15 @@ import air.air.rvalue
 import air.air.terminator
 import air.lower.Lowerer
 import air.lower.Place
+import air.lower.concreteType
 import air.lower.dropScopeEnter
 import air.lower.dropScopeLeave
+import air.lower.emitDrop
 import air.lower.emitAssign
 import air.lower.emitGoto
+import air.lower.emitRuntime
 import air.lower.emitStore
+import air.lower.emitTemp
 import air.lower.localPlace
 import air.lower.newTemp
 import air.lower.placeOperand
@@ -40,15 +45,22 @@ import air.lower_expr.ownBindings
 import air.lower_expr.typeIsValue
 import diag.noSpan
 import sema.check.Checker
+import sema.check_dyn.boxesDyn
 import sema.def.DefKind
 import sema.enums.enumVariants
 import sema.enums.variantsOf
+import sema.moves.CONSUMED
+import sema.moves.MOVES
+import sema.moves_match.patternLocals
 import sema.program.Program
 import sema.structs.fieldsOf
+import sema.structs.structFieldType
 import sema.structs.structFields
 import sema.types.BOOL
 import sema.types.I32
+import sema.types.I64
 import sema.types.TyKind
+import sema.types.U8
 import sema.types.UNIT
 import syntax.ast.Arg
 import syntax.ast.Expr
@@ -245,7 +257,93 @@ pub fn lowerPattern(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Patter
         }
         PatternKind.Variant(_, _, args, _) => variantTest(l, c, p, pattern, place, ty, &args, fail)
         PatternKind.Or(alternatives) => orPattern(l, c, p, &alternatives, place, fail)
+        PatternKind.TypeTest(_, _) => typeTest(l, c, p, pattern, place, ty, fail)
     }
+}
+
+// The fat pointer to the `dyn I` value at `place`: the place's value, or
+// the pointer field of a `Box<dyn I>`.
+fn fatPointer(c: mut Checker, p: Program, place: &Place, ty: int) Operand {
+    if boxesDyn(c, ty) {
+        return placeOperand(&placeChild(place, 0), OperandKind.Copy, structFieldType(c, p, ty, 0))
+    }
+    return placeOperand(place, OperandKind.Copy, ty)
+}
+
+// The data pointer of the `dyn I` value at `place`, as a `*T`.
+fn dataPointer(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: int,
+               target: int) int {
+    var cast = rvalue(RvalueKind.Cast, Op.Add, fatPointer(c, p, place, ty), opUnit(UNIT))
+    let thin = c.types.ptr(target, true)
+    cast.to = thin
+    return emitTemp(l, thin, cast)
+}
+
+// `c: Circle` (spec 9.8): the type id in the vtable is that of `Circle`,
+// whose value the binding takes from the data pointer.
+fn typeTest(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, place: &Place,
+            ty: int, fail: int) {
+    let target = concreteType(l, c, c.members[c.module()][pattern.id.0])
+    let id = emitTemp(l, I64, rvalue(RvalueKind.TypeId, Op.Add, fatPointer(c, p, place, ty),
+                                     opUnit(UNIT)))
+    let is = compare(l, c, p, Op.Eq, I64, opCopy(id, I64), opInt(target as u64, I64))
+    test(l, is, fail)
+    let local = c.localAt(pattern.id.0)
+    if local >= 0 {
+        let data = dataPointer(l, c, p, place, ty, target)
+        bind(l, c, local, &Place{local: data, fields: [], deref: true}, target)
+    }
+}
+
+/**
+ * Whether a `match` or `if let` takes ownership of a `Box<dyn I>` it
+ * matches: the box is then freed or dropped in each arm (spec 9.8).
+ *
+ * @param c the checker
+ * @param scrutinee the matched value
+ * @returns true if it does
+ */
+pub fn ownsBox(c: Checker, scrutinee: &Expr) bool {
+    if !boxesDyn(c, c.typeOf(scrutinee.id.0)) {
+        return false
+    }
+    return match c.moveFlags[c.module()].get(scrutinee.id.0) {
+        Option.Some(f) => (*f & (MOVES | CONSUMED)) != 0
+        Option.None => false
+    }
+}
+
+/**
+ * What is left of an owned `Box<dyn I>` once an arm matched: a type test
+ * that took the value frees the memory; an arm that bound nothing drops
+ * the box.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param pattern the arm's pattern, or `None` for an `else`
+ * @param place the box
+ * @param ty its type
+ */
+pub fn boxRest(l: mut Lowerer, c: mut Checker, p: Program, pattern: Option<&Pattern>,
+               place: &Place, ty: int) {
+    if let Option.Some(pat) = pattern {
+        let tookValue = match pat.kind {
+            PatternKind.TypeTest(_, _) => c.localAt(pat.id.0) >= 0
+            _ => false
+        }
+        if tookValue {
+            let data = dataPointer(l, c, p, place, ty, U8)
+            emitRuntime(l, RuntimeFn.Free, [opCopy(data, c.types.ptr(U8, true))], -1)
+            return
+        }
+        var locals: List<int> = []
+        patternLocals(c, pat, locals)
+        if locals.len() > 0 {
+            return   // the binding owns the box
+        }
+    }
+    emitDrop(l, c, p, place, ty)
 }
 
 fn isEnum(c: Checker, ty: int) bool {
@@ -311,6 +409,8 @@ pub fn lowerMatch(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand 
     match e.kind {
         ExprKind.Match(scrutinee, arms) => {
             let place = localPlace(toLocal(l, lowerExpr(l, c, p, &*scrutinee)))
+            let owned = ownsBox(c, &*scrutinee)
+            let boxType = c.typeOf(scrutinee.id.0)
             let join = l.body.newBlock()
             for i in 0..arms.len() {
                 let next = l.body.newBlock()
@@ -325,6 +425,9 @@ pub fn lowerMatch(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand 
                 }
                 dropScopeEnter(l)   // the arm's bindings own what they took
                 ownBindings(l, c, p, &arms[i].pattern)
+                if owned {
+                    boxRest(l, c, p, Option.Some(&arms[i].pattern), &place, boxType)
+                }
                 let value = armValue(l, c, p, &arms[i].body, asValue)
                 if asValue && value.kind != OperandKind.Unit {
                     emitStore(l, &localPlace(dest), value)

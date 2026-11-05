@@ -224,6 +224,13 @@ pub fn patternText(p: &Pattern, names: Interner) str {
             "{symbolsText(path, names)}({patternListText(args, names)})"
         }
         PatternKind.Or(alternatives) => orText(alternatives, names)
+        PatternKind.TypeTest(name, ty) => {
+            let bound = match name {
+                Option.Some(n) => names.name(n).toOwned()
+                Option.None => "_".toOwned()
+            }
+            "{bound}: {typeText(&ty, names)}"
+        }
     }
 }
 

@@ -102,6 +102,7 @@ fn toPat(c: mut Checker, p: Program, pattern: &Pattern) Pat {
             _ => Pat.Opaque
         }
         PatternKind.Range(_, _, _) => Pat.Opaque
+        PatternKind.TypeTest(_, _) => Pat.Opaque   // the types behind a `dyn` are open
         PatternKind.Or(alternatives) => Pat.Or(toPats(c, p, &alternatives))
     }
 }

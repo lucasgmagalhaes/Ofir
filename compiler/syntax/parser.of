@@ -44,6 +44,8 @@ pub struct Parser {
     pub src: str
     /** In `if`, `match` and `for` headers (spec A.6). */
     pub noStructLiteral: bool
+    /** In the pattern of a `match` arm or an `if let`: `name: T` is a type test. */
+    pub typeTests: bool
     /** An error was reported: silent until resynchronized. */
     pub recovering: bool
     /** The interner, for contextual keywords and type names. */
@@ -408,8 +410,8 @@ pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move I
     let words = Words{move: names.find("move"), type: names.find("type"), ref: names.find("ref"),
                       where: names.find("where"), wildcard: names.find("_")}
     var p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
-                   recovering: false, names, diags, words, nextId: firstId, typeBounds: [],
-                   typeAsserts: []}
+                   typeTests: false, recovering: false, names, diags, words, nextId: firstId,
+                   typeBounds: [], typeAsserts: []}
     let items = moduleItems(p)
     let module = Module{file, nodeCount: p.nextId, docs, items}
     return ParseResult{module, names: p.names, diags: p.diags}
