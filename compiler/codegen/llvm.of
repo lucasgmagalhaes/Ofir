@@ -282,18 +282,18 @@ fn structLayout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
     return Layout{size: (l.size + align - 1) / align * align, align: align}
 }
 
-// The size of a payload unit of an enum: 16 when a variant needs that
-// alignment, otherwise 8.
+// The size of a payload unit of an enum: the largest alignment of its
+// variants, at least 8.
 fn payloadUnit(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
     let id = c.types.get(adt).data
     enumVariants(c, p, id)
+    var unit = 8
     for v in 0..variantsOf(c, id).variants.len() {
         let types = fieldTypes(c, p, adt, v)
-        if fieldsLayout(g, c, p, &types).align > 8 {
-            return 16
-        }
+        let align = fieldsLayout(g, c, p, &types).align
+        unit = if align > unit { align } else { unit }
     }
-    return 8
+    return unit
 }
 
 // The payload units of an enum: enough for its largest variant.
@@ -414,8 +414,9 @@ fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
         let types = fieldTypes(c, p, adt, v)
         define(g, c, p, variantType(c, adt, v), &types, false, 0)
     }
-    if words > 0 && payloadUnit(g, c, p, adt) > 8 {
-        g.typeDefs.push("{name} = type \{ i32, [{words} x <16 x i8>] \}\n")
+    let unit = payloadUnit(g, c, p, adt)
+    if words > 0 && unit > 8 {
+        g.typeDefs.push("{name} = type \{ i32, [{words} x <{unit} x i8>] \}\n")
     } else if words > 0 {
         g.typeDefs.push("{name} = type \{ i32, [{words} x i64] \}\n")
     } else {
