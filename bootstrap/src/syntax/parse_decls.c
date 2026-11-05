@@ -101,12 +101,33 @@ FnDecl *parse_fn(Parser *p, ItemHeader header, bool with_body) {
 // ---------------------------------------------------------------------------
 // Struct and enum bodies
 
+// After the attributes `@name(...)` that start at token `i`.
+static size_t skip_attributes(const Parser *p, size_t i) {
+    while (peek_at(p, i) == TOK_AT) {
+        i += 2;   // @name
+        if (peek_at(p, i) == TOK_LPAREN) {
+            int depth = 0;
+            do {
+                TokenKind k = peek_at(p, i++);
+                depth += k == TOK_LPAREN ? 1 : k == TOK_RPAREN ? -1 : 0;
+                if (k == TOK_EOF) {
+                    return i - 1;
+                }
+            } while (depth > 0);
+        }
+        while (peek_at(p, i) == TOK_NEWLINE) {
+            i++;
+        }
+    }
+    return i;
+}
+
 static bool at_method(const Parser *p) {
-    size_t i = 0;
+    size_t i = skip_attributes(p, 0);
     while (peek_at(p, i) == TOK_KW_PUB || peek_at(p, i) == TOK_KW_UNSAFE) {
         i++;
     }
-    return peek_at(p, i) == TOK_KW_FN || peek_at(p, i) == TOK_AT;
+    return peek_at(p, i) == TOK_KW_FN;
 }
 
 static FnDecl *method(Parser *p) {
@@ -168,7 +189,8 @@ static void tuple_struct_body(Parser *p, Item *item) {
     advance(p);   // (
     while (!at(p, TOK_RPAREN) && !at(p, TOK_EOF)) {
         ItemHeader header = parse_item_header(p);
-        FieldDecl f = {.is_pub = header.is_pub, .span = header.span, .type = parse_type(p)};
+        FieldDecl f = {.attributes = header.attributes, .is_pub = header.is_pub,
+                       .span = header.span, .type = parse_type(p)};
         VEC_PUSH(fields, f);
         if (!accept(p, TOK_COMMA)) {
             break;

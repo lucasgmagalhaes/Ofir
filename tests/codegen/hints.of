@@ -1,0 +1,31 @@
+// `@inline`, `@inline(never)` and `@cold` become LLVM function attributes
+// (spec 12.1).
+// CHECK: define internal fastcc i64 @"ofir.square"(i64 %p1) nounwind alwaysinline {
+// CHECK: define internal fastcc i64 @"ofir.Counter.next"(ptr %p1) nounwind noinline {
+// CHECK: define internal fastcc void @"ofir.fail"() nounwind cold {
+@inline
+fn square(x: int) int {
+    return x * x
+}
+
+struct Counter {
+    n: int
+
+    @inline(never)
+    fn next(mut self) int {
+        self.n += 1
+        return self.n
+    }
+}
+
+@cold
+fn fail() {
+    println("failed")
+}
+
+fn main() {
+    var c = Counter{n: square(3)}
+    if c.next() != 10 {
+        fail()
+    }
+}

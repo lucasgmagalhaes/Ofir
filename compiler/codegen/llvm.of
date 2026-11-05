@@ -51,6 +51,7 @@ import sema.interfaces.isAnyMethod
 import sema.enums.enumVariants
 import sema.enums.variantsOf
 import sema.program.Program
+import sema.resolve.findAttribute
 import sema.structs.fieldsOf
 import sema.structs.structFieldType
 import sema.structs.structFields
@@ -459,6 +460,23 @@ fn isCFunction(c: Checker, p: Program, id: int) bool {
         _ => false
     }
     return isExtern || fnOf(p, c.loc(id)).abi.len() > 0
+}
+
+// `@inline`, `@inline(never)` and `@cold` (spec 12.1).
+fn hints(c: Checker, p: Program, id: int) str {
+    let def = c.def(id)
+    if def.kind != DefKind.Fn || def.item < 0 {
+        return ""
+    }
+    let decl = fnOf(p, c.loc(id))
+    var text = ""
+    if let Option.Some(at) = findAttribute(c.r, decl.attributes, "inline") {
+        text = if decl.attributes[at].args.len() > 0 { " noinline" } else { " alwaysinline" }
+    }
+    if findAttribute(c.r, decl.attributes, "cold").isSome() {
+        text = "{text} cold"
+    }
+    return text
 }
 
 // User functions are prefixed so they never clash with C symbols; `main`
@@ -1463,7 +1481,11 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
             first = false
         }
     }
-    g.out.push(") nounwind \{\nstart:\n")
+    g.out.push(") nounwind")
+    if !closure && !isGlue(body.def) {
+        g.out.push(hints(c, p, body.def))
+    }
+    g.out.push(" \{\nstart:\n")
     for i in 0..body.locals.len() {
         let local = &body.locals[i]
         if local.byRef || hasValue(local.ty) {

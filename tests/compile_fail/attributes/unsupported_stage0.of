@@ -1,0 +1,19 @@
+// requires: stage0
+// Attributes that stage 0 checks but does not implement (docs/bootstrap.md).
+
+@repr(C)   // error[E0901]: the attribute `@repr` is not supported by stage 0
+struct Header {
+    magic: u32
+}
+
+@align(3)   // error[E0809]: invalid arguments for `@align`: write `@align(N)`, N a power of two
+struct Block {
+    x: int
+}
+
+@deprecated("use g")   // error[E0901]: the attribute `@deprecated` is not supported by stage 0
+fn f() {
+}
+
+fn main() {
+}

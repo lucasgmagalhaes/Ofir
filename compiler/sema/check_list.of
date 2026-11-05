@@ -6,14 +6,11 @@
  * conversion of a list to a slice.
  */
 
-import base.intern.Symbol
 import base.span.Span
 import sema.check.BOUND_EQ
 import sema.check.BOUND_HASH
 import sema.check.Checker
 import sema.check.fnOf
-import sema.check.itemOf
-import sema.check.itemTypeParams
 import sema.check_box.autoDeref
 import sema.check_box.methodReceiver
 import sema.check_generic.paramBounds

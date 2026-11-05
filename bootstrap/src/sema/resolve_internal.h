@@ -27,6 +27,9 @@ void trace(Resolver *r, Span span, const char *format, ...) __attribute__((forma
 // `line:col what name -> resolution`
 void trace_use(Resolver *r, const char *what, Symbol name, Span span, Res res);
 
+// resolve_attributes.c: spec 12.1
+void check_attributes(Resolver *r, const Item *item);
+
 // resolve_import.c
 void resolve_import(Resolver *r, const Item *item);
 void import_prelude(Resolver *r);   // after every module's declarations are known

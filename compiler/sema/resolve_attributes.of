@@ -1,0 +1,225 @@
+/**
+ * @module
+ * Attribute checks (spec 12.1; stage 0:
+ * bootstrap/src/sema/resolve_attributes.c): known names, where each one
+ * applies, its arguments, and those this compiler does not implement yet.
+ */
+
+import sema.resolve.Resolver
+import syntax.ast.Attribute
+import syntax.ast.Expr
+import syntax.ast.ExprKind
+import syntax.ast.FieldDecl
+import syntax.ast.FnDecl
+import syntax.ast.Item
+import syntax.ast.ItemKind
+
+const ON_FN: int = 1
+const ON_METHOD: int = 2
+const ON_EXTERN_FN: int = 4
+const ON_STRUCT: int = 8
+const ON_ENUM: int = 16
+const ON_FIELD: int = 32
+const ON_EXTERN: int = 64
+const ON_CONST: int = 128
+const ON_GLOBAL: int = 256
+const ON_ALIAS: int = 512
+const ON_IMPORT: int = 1024
+const ON_INTERFACE: int = 2048
+const ON_ANY: int = 4095
+
+const ARGS_NONE: int = 0
+const ARGS_INLINE: int = 1
+const ARGS_REPR: int = 2
+const ARGS_ALIGN: int = 3
+const ARGS_STR: int = 4
+const ARGS_OPT_STR: int = 5
+const ARGS_ONE: int = 6
+const ARGS_IDENT: int = 7
+const ARGS_TWO_STR: int = 8
+
+fn ruleIndex(name: str) Option<int> {
+    let names = ["inline", "cold", "test", "lang", "repr", "packed", "align", "link", "export",
+                 "deprecated", "bench", "cfg", "allow", "tag"]
+    for i in 0..names.len() {
+        if names[i] == name {
+            return Option.Some(i)
+        }
+    }
+    return Option.None
+}
+
+fn ruleTargets(rule: int) int {
+    let targets = [ON_FN | ON_METHOD, ON_FN | ON_METHOD, ON_FN, ON_STRUCT | ON_ENUM,
+                   ON_STRUCT | ON_ENUM, ON_STRUCT, ON_STRUCT, ON_EXTERN, ON_FN, ON_ANY, ON_FN,
+                   ON_ANY, ON_ANY, ON_STRUCT | ON_ENUM | ON_FIELD]
+    return targets[rule]
+}
+
+fn ruleArgs(rule: int) int {
+    let args = [ARGS_INLINE, ARGS_NONE, ARGS_NONE, ARGS_STR, ARGS_REPR, ARGS_NONE, ARGS_ALIGN,
+                ARGS_STR, ARGS_STR, ARGS_OPT_STR, ARGS_NONE, ARGS_ONE, ARGS_IDENT, ARGS_TWO_STR]
+    return args[rule]
+}
+
+// The attributes this compiler implements: `@inline`, `@cold`, `@test`, `@lang`.
+fn ruleSupported(rule: int) bool {
+    return rule < 4
+}
+
+fn ruleUsage(rule: int) str {
+    let usage = ["`@inline` or `@inline(never)`", "`@cold`", "`@test`", "`@lang(\"type\")`",
+                 "`@repr(C)`", "`@packed`", "`@align(N)`, N a power of two",
+                 "`@link(\"name\")`", "`@export(\"name\")`",
+                 "`@deprecated` or `@deprecated(\"message\")`", "`@bench`", "`@cfg(condition)`",
+                 "`@allow(category)`", "`@tag(\"key\", \"value\")`"]
+    return usage[rule].sliceFrom(0)
+}
+
+fn targetName(target: int) str {
+    return if target == ON_FN {
+        "a function"
+    } else if target == ON_METHOD {
+        "a method"
+    } else if target == ON_EXTERN_FN {
+        "a function of an extern block"
+    } else if target == ON_STRUCT {
+        "a struct"
+    } else if target == ON_ENUM {
+        "an enum"
+    } else if target == ON_FIELD {
+        "a field"
+    } else if target == ON_EXTERN {
+        "an extern block"
+    } else if target == ON_CONST {
+        "a constant"
+    } else if target == ON_GLOBAL {
+        "a global variable"
+    } else if target == ON_ALIAS {
+        "a type alias"
+    } else if target == ON_INTERFACE {
+        "an interface"
+    } else {
+        "an import"
+    }
+}
+
+// An identifier argument, `name` itself if given.
+fn isIdent(r: Resolver, e: &Expr, name: Option<str>) bool {
+    return match e.kind {
+        ExprKind.Ident(n) => match name {
+            Option.Some(want) => r.text(n) == want
+            Option.None => true
+        }
+        _ => false
+    }
+}
+
+fn isStr(e: &Expr) bool {
+    return match e.kind {
+        ExprKind.Str(_) => true
+        _ => false
+    }
+}
+
+// A power of two: `@align(8)`.
+fn isAlignment(e: &Expr) bool {
+    return match e.kind {
+        ExprKind.Int(value) => value > 0 && (value & (value - 1)) == 0
+        _ => false
+    }
+}
+
+fn argsMatch(r: Resolver, kind: int, a: &Attribute) bool {
+    let n = a.args.len()
+    if kind == ARGS_NONE {
+        return n == 0
+    } else if kind == ARGS_INLINE {
+        return n == 0 || (n == 1 && isIdent(r, &a.args[0], Option.Some("never")))
+    } else if kind == ARGS_REPR {
+        return n == 1 && isIdent(r, &a.args[0], Option.Some("C"))
+    } else if kind == ARGS_ALIGN {
+        return n == 1 && isAlignment(&a.args[0])
+    } else if kind == ARGS_STR {
+        return n == 1 && isStr(&a.args[0])
+    } else if kind == ARGS_OPT_STR {
+        return n == 0 || (n == 1 && isStr(&a.args[0]))
+    } else if kind == ARGS_ONE {
+        return n == 1
+    } else if kind == ARGS_IDENT {
+        return n == 1 && isIdent(r, &a.args[0], Option.None)
+    }
+    return n == 2 && isStr(&a.args[0]) && isStr(&a.args[1])
+}
+
+fn checkList(r: mut Resolver, attributes: &List<Attribute>, target: int) {
+    for i in 0..attributes.len() {
+        let a = &attributes[i]
+        let name = r.text(a.name)
+        var twice = false
+        for j in 0..i {
+            twice = twice || r.text(attributes[j].name) == name
+        }
+        match ruleIndex(name) {
+            Option.None => r.error("E0807", a.span, "unknown attribute `@{name}`")
+            Option.Some(rule) => {
+                if twice {
+                    r.error("E0810", a.span, "the attribute `@{name}` is written twice")
+                } else if ruleTargets(rule) & target == 0 {
+                    r.error("E0808", a.span,
+                            "the attribute `@{name}` does not apply to {targetName(target)}")
+                } else if !argsMatch(r, ruleArgs(rule), a) {
+                    r.error("E0809", a.span,
+                            "invalid arguments for `@{name}`: write {ruleUsage(rule)}")
+                } else if !ruleSupported(rule) {
+                    r.error("E0901", a.span, "the attribute `@{name}` is not supported yet")
+                }
+            }
+        }
+    }
+}
+
+fn checkFns(r: mut Resolver, fns: &List<FnDecl>, target: int) {
+    for i in 0..fns.len() {
+        checkList(r, &fns[i].attributes, target)
+    }
+}
+
+fn checkFields(r: mut Resolver, fields: &List<FieldDecl>) {
+    for i in 0..fields.len() {
+        checkList(r, &fields[i].attributes, ON_FIELD)
+    }
+}
+
+/**
+ * Checks the attributes of a declaration and of its members.
+ *
+ * @param r the resolver
+ * @param item the declaration
+ */
+pub fn checkAttributes(r: mut Resolver, item: &Item) {
+    match item.kind {
+        ItemKind.Fn(_) => checkList(r, &item.attributes, ON_FN)
+        ItemKind.Struct(_, _, _, _, fields, methods) => {
+            checkList(r, &item.attributes, ON_STRUCT)
+            checkFields(r, &fields)
+            checkFns(r, &methods, ON_METHOD)
+        }
+        ItemKind.Enum(_, _, _, methods) => {
+            checkList(r, &item.attributes, ON_ENUM)
+            checkFns(r, &methods, ON_METHOD)
+        }
+        ItemKind.Const(_, _) => checkList(r, &item.attributes, ON_CONST)
+        ItemKind.Global(_, _) => checkList(r, &item.attributes, ON_GLOBAL)
+        ItemKind.TypeAlias(_, _) => checkList(r, &item.attributes, ON_ALIAS)
+        ItemKind.Import(_, _) => checkList(r, &item.attributes, ON_IMPORT)
+        ItemKind.Extern(_, fns) => {
+            checkList(r, &item.attributes, ON_EXTERN)
+            checkFns(r, &fns, ON_EXTERN_FN)
+        }
+        ItemKind.Interface(_, _, methods) => {
+            checkList(r, &item.attributes, ON_INTERFACE)
+            checkFns(r, &methods, ON_METHOD)
+        }
+    }
+}

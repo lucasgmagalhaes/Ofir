@@ -175,6 +175,20 @@ static void terminator(Gen *g, const Terminator *t, size_t index) {
     }
 }
 
+// `@inline`, `@inline(never)` and `@cold` (spec 12.1).
+static void hints(Gen *g, const Def *def) {
+    if (!def->fn) {
+        return;
+    }
+    const Attribute *in = find_attribute(g->sema, def->fn->attributes, "inline");
+    if (in) {
+        out_str(&g->out, in->args.len > 0 ? " noinline" : " alwaysinline");
+    }
+    if (find_attribute(g->sema, def->fn->attributes, "cold")) {
+        out_str(&g->out, " cold");
+    }
+}
+
 static void header(Gen *g, const AirBody *body) {
     TypeId ret = body->locals.data[0].type;
     // `extern "C" fn`: callable from C
@@ -192,7 +206,11 @@ static void header(Gen *g, const AirBody *body) {
             first = false;
         }
     }
-    out_str(&g->out, ") nounwind {\nstart:\n");
+    out_str(&g->out, ") nounwind");
+    if (!is_glue(body->def)) {
+        hints(g, sema_def(g->sema, body->def));
+    }
+    out_str(&g->out, " {\nstart:\n");
 }
 
 void gen_body(Gen *g, const AirBody *body) {

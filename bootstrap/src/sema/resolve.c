@@ -283,6 +283,9 @@ static void resolve_pass(Resolver *r, int pass) {
     ItemList items = r->sema->module->items;
     for (uint32_t i = 0; i < items.len; i++) {
         Item *item = items.items[i];
+        if (pass == 0) {
+            check_attributes(r, item);
+        }
         if (pass == 0 && item->kind == ITEM_FN && item->attributes.len > 0 &&
             find_attribute(r->sema, item->attributes, "test")) {
             check_test_signature(r, item);

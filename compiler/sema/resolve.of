@@ -18,6 +18,7 @@ import sema.def.DefKind
 import sema.def.Local
 import sema.def.Res
 import sema.program.Program
+import sema.resolve_attributes.checkAttributes
 import sema.resolve_body.resolveExpr
 import sema.resolve_body.resolveFn
 import sema.resolve_import.importPrelude
@@ -610,6 +611,7 @@ fn resolvePass(r: mut Resolver, program: Program, pass: int) {
     for i in 0..items.len() {
         let item = &items[i]
         if pass == 0 {
+            checkAttributes(r, item)
             checkTestSignature(r, item)
         }
         if skippedTest(r, program, item) {
