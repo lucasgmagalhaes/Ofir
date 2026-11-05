@@ -48,6 +48,8 @@ import sema.check_box.boxInner
 import sema.def.DefKind
 import sema.interfaces.dynMethods
 import sema.interfaces.isAnyMethod
+import sema.layout_attrs.alignOf
+import sema.layout_attrs.isPacked
 import sema.enums.enumVariants
 import sema.enums.variantsOf
 import sema.program.Program
@@ -115,6 +117,8 @@ pub struct Gen {
     pub vtDrops: List<bool>
     /** The vtable numbers, by `type * 2^32 + interface`. */
     pub vtIds: Map<int, int>
+    /** Whether the last `placeAddress` went through a `@packed` struct. */
+    pub packedPlace: bool
 }
 
 fn hexDigit(n: u64) str {
@@ -175,7 +179,7 @@ pub fn newGen() Gen {
     return Gen{module: "", out: "", globals: "", typeDefs: "", strCount: 0, locCount: 0,
                overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
                temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
-               formats: false,
+               formats: false, packedPlace: false,
                fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new()}
 }
 
@@ -258,7 +262,41 @@ fn fieldTypes(c: mut Checker, p: Program, adt: int, v: int) List<int> {
     return types
 }
 
-// The payload words of an enum: enough for its largest variant.
+// The layout of a struct: `@packed` has no padding, `@align(N)` raises its
+// alignment (spec 13.2).
+fn structLayout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
+    let id = c.types.get(ty).data
+    let types = fieldTypes(c, p, ty, -1)
+    if isPacked(c, p, id) {
+        var size = 0
+        for i in 0..types.len() {
+            size += layout(g, c, p, types[i]).size
+        }
+        return Layout{size: size, align: 1}
+    }
+    let l = fieldsLayout(g, c, p, &types)
+    let align = alignOf(c, p, id)
+    if align <= l.align {
+        return l
+    }
+    return Layout{size: (l.size + align - 1) / align * align, align: align}
+}
+
+// The size of a payload unit of an enum: 16 when a variant needs that
+// alignment, otherwise 8.
+fn payloadUnit(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
+    let id = c.types.get(adt).data
+    enumVariants(c, p, id)
+    for v in 0..variantsOf(c, id).variants.len() {
+        let types = fieldTypes(c, p, adt, v)
+        if fieldsLayout(g, c, p, &types).align > 8 {
+            return 16
+        }
+    }
+    return 8
+}
+
+// The payload units of an enum: enough for its largest variant.
 fn payloadWords(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
     let id = c.types.get(adt).data
     enumVariants(c, p, id)
@@ -268,7 +306,8 @@ fn payloadWords(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
         let l = fieldsLayout(g, c, p, &types)
         largest = if l.size > largest { l.size } else { largest }
     }
-    return (largest + 7) / 8
+    let unit = payloadUnit(g, c, p, adt)
+    return (largest + unit - 1) / unit
 }
 
 fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
@@ -288,12 +327,12 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
         }
         TyKind.Adt => {
             if c.def(data).kind == DefKind.Struct {
-                let types = fieldTypes(c, p, ty, -1)
-                fieldsLayout(g, c, p, &types)
+                structLayout(g, c, p, ty)
             } else {
                 let words = payloadWords(g, c, p, ty)
-                let size = if words > 0 { 8 + 8 * words } else { 4 }
-                let align = if words > 0 { 8 } else { 4 }
+                let unit = payloadUnit(g, c, p, ty)
+                let size = if words > 0 { unit + unit * words } else { 4 }
+                let align = if words > 0 { unit } else { 4 }
                 Layout{size: size, align: align}
             }
         }
@@ -326,18 +365,34 @@ fn nameType(c: mut Checker, ty: int, suffix: str) str {
     return out
 }
 
-fn define(g: mut Gen, c: mut Checker, p: Program, name: str, types: &List<int>) {
+// An empty array whose element has alignment `align`: the last field of an
+// `@align(N)` struct.
+fn alignField(align: int) str {
+    return if align >= 16 {
+        "[0 x <{align} x i8>]"
+    } else {
+        "[0 x i{align * 8}]"
+    }
+}
+
+// `packed` gives `<{ ... }>`; `align`, when above 0, adds `alignField`.
+fn define(g: mut Gen, c: mut Checker, p: Program, name: str, types: &List<int>, packed: bool,
+          align: int) {
     for i in 0..types.len() {
         let _ = fieldType(g, c, p, types[i])   // the field types first: no interleaving
     }
-    g.typeDefs.push("{name} = type \{ ")
+    g.typeDefs.push(if packed { "{name} = type <\{ " } else { "{name} = type \{ " })
     for i in 0..types.len() {
         if i > 0 {
             g.typeDefs.push(", ")
         }
         g.typeDefs.push(fieldType(g, c, p, types[i]))
     }
-    g.typeDefs.push(" \}\n")
+    if align > 0 {
+        g.typeDefs.push(if types.len() > 0 { ", " } else { "" })
+        g.typeDefs.push(alignField(align))
+    }
+    g.typeDefs.push(if packed { " \}>\n" } else { " \}\n" })
 }
 
 /**
@@ -357,9 +412,11 @@ fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
     let id = c.types.get(adt).data
     for v in 0..variantsOf(c, id).variants.len() {
         let types = fieldTypes(c, p, adt, v)
-        define(g, c, p, variantType(c, adt, v), &types)
+        define(g, c, p, variantType(c, adt, v), &types, false, 0)
     }
-    if words > 0 {
+    if words > 0 && payloadUnit(g, c, p, adt) > 8 {
+        g.typeDefs.push("{name} = type \{ i32, [{words} x <16 x i8>] \}\n")
+    } else if words > 0 {
         g.typeDefs.push("{name} = type \{ i32, [{words} x i64] \}\n")
     } else {
         g.typeDefs.push("{name} = type \{ i32 \}\n")
@@ -381,7 +438,7 @@ fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
     if c.info[id].fields.isSome() {
         types = fieldTypes(c, p, ty, -1)
     }
-    define(g, c, p, name.clone(), &types)
+    define(g, c, p, name.clone(), &types, isPacked(c, p, id), alignOf(c, p, id))
     return name
 }
 
@@ -403,6 +460,7 @@ fn tupleType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
 fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: int,
                 path: &FieldPath) str {
     var base = "%l{local}"
+    g.packedPlace = false
     if path.deref {   // the local holds the address of the value
         base = nextTemp(g)
         g.out.push("  {base} = load ptr, ptr %l{local}\n")
@@ -432,6 +490,9 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
                    + "i32 {entry}\n")
         let t = c.types.get(current)
         let isEnum = t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Enum
+        if !variant && t.kind == TyKind.Adt && isPacked(c, p, t.data) {
+            g.packedPlace = true
+        }
         if variant {
             current = variantFieldType(c, p, current, index, entry)
         } else if t.kind == TyKind.Tuple {
@@ -582,7 +643,7 @@ fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) 
             } else {
                 let at = placeAddress(g, c, p, body, o.local, &o.path)
                 let t = nextTemp(g)
-                g.out.push("  {t} = load {ty}, ptr {at}\n")
+                g.out.push("  {t} = load {ty}, ptr {at}{packedAlign(g)}\n")
                 Value{ty: ty, text: t}
             }
         }
@@ -1257,8 +1318,14 @@ fn storeAt(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, dest: int,
            path: &FieldPath, v: &Value) {
     if v.ty != "void" {
         let at = placeAddress(g, c, p, body, dest, path)
-        g.out.push("  store {v.ty} {v.text}, ptr {at}\n")
+        g.out.push("  store {v.ty} {v.text}, ptr {at}{packedAlign(g)}\n")
     }
+}
+
+// `, align 1` for a field of a `@packed` struct, whose address may not be
+// aligned.
+fn packedAlign(g: Gen) str {
+    return if g.packedPlace { ", align 1" } else { "" }
 }
 
 fn runtimeCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt) {
