@@ -84,7 +84,8 @@ There are no variadic functions in Ofir.
 | `std.os` | command line arguments, environment, exit, run processes |
 | `std.strings` | string helpers: split, trim, find, parse numbers (named so it does not shadow the `str` type) |
 | `std.math` | constants and functions such as `math.PI`, `math.hypot`; float methods like `x.sqrt()` live on the type |
-| `std.mem` | `swap`, `replace`, `take`, `UnsafeCell`, `Cell` |
+| `std.mem` | `swap`, `replace`, `take` |
+| `std.mem.cell` | `UnsafeCell`, `Cell` |
 
 These are the modules the self-hosted compiler needs. The rest of the
 standard library is **[planned]**.

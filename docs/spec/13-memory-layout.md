@@ -61,7 +61,8 @@ capacity 0; it is copied to the heap on first modification.
   | Mode | Passed as |
   |------|-----------|
   | borrow, Copy type up to 16 bytes | by value, in registers |
-  | borrow, other types | pointer, `noalias readonly` (unless the type has interior mutability) |
+  | borrow, type with interior mutability (chapter 5.8) | pointer, never `readonly` |
+  | borrow, other types | pointer, `noalias readonly` |
   | borrow, `[T]` / `str` / `dyn I` | fat pointer: data pointer + length or vtable |
   | `mut` | pointer, `noalias` |
   | `move` | by value; large values by hidden pointer to a caller-owned copy |

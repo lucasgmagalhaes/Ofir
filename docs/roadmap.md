@@ -193,7 +193,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.6 | Rewrite `List`, `Map`, `Option`, `Result`, `Box` as generic Ofir code in `std/` | L | built-in special cases removed from the compiler |
 | 5.7 | Closures: arrow syntax (`x => ...`, `move () => ...`, ADR 0023), `fn` and `move fn` types, captures, stack and heap environments | L | **done**: `mut` and `move` closure parameters wait (E0901); `tests/run/closures/*` pass; E0336, E0337 and the capture borrows tested |
 | 5.8 | Iterator interface and `for` over iterators | M | tests pass |
-| 5.9 | Interior mutability: `UnsafeCell`, `Cell` | S | tests pass |
+| 5.9 | Interior mutability: `UnsafeCell`, `Cell` | S | **done** (stage 1): `std/mem/cell.of`, the `Copy` bound, borrowed values with interior mutability passed and bound by address; `tests/run/cells/cell.of` passes; E0332 with `Copy` tested |
 | 5.10 | Format specifiers, raw strings, multi-line strings, byte strings | M | tests pass |
 | 5.11 | Attributes: `@inline`, `@cold`, `@repr(C)`, `@cfg`, `@deprecated`, `@export`, `@link`, `@allow` | M | tests pass |
 | 5.12a | Default parameter values and named arguments | M | `tests/run/calls/*` pass |

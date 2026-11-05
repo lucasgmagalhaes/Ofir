@@ -313,7 +313,7 @@ written.
 
 Some types must allow mutation through a shared borrow: counters shared by
 several owners, caches, locks. They are built on one primitive,
-`UnsafeCell<T>` in `std.mem`, the only way to obtain a `*mut T` from a
+`UnsafeCell<T>` in `std.mem.cell`, the only way to obtain a `*mut T` from a
 shared borrow without undefined behavior. Safe wrappers in the standard
 library:
 
@@ -323,9 +323,24 @@ library:
 | `Mutex<T>`, `RwLock<T>`, atomics | shared mutation across threads (chapter 14) |
 
 A type **has interior mutability** if it contains an `UnsafeCell` directly or
-through its fields. The compiler never marks borrows of such types as
-`readonly` (chapter 13.5). `RefCell` (borrow checking at runtime) is
-intentionally not provided.
+through its fields, tuple elements, array elements or enum payloads; a
+pointer or reference to it does not count. The compiler never marks borrows
+of such types as `readonly` and passes them by pointer, so a `set` through a
+borrowed parameter or a binding of a borrowed place is seen by the owner
+(chapter 13.5). `RefCell` (borrow checking at runtime) is intentionally not
+provided.
+
+```ofir
+import std.mem.cell.Cell
+
+fn bump(counter: &Cell<int>) {
+    counter.set(counter.get() + 1)
+}
+```
+
+Stage 1 only: `Cell<T: Copy>` needs a bound, which stage 0 does not parse.
+A borrowed parameter whose type is a type parameter instantiated with such a
+type is still passed by value.
 
 ## 5.9 Shared ownership **[planned]**
 
