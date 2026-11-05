@@ -2,9 +2,11 @@
  * @module
  * Attribute checks (spec 12.1; stage 0:
  * bootstrap/src/sema/resolve_attributes.c): known names, where each one
- * applies, its arguments, and those this compiler does not implement yet.
+ * applies, its arguments, and those this compiler does not implement yet;
+ * `@allow` silences warnings inside its declaration.
  */
 
+import base.span.Span
 import sema.resolve.Resolver
 import syntax.ast.Attribute
 import syntax.ast.Expr
@@ -35,7 +37,7 @@ const ARGS_ALIGN: int = 3
 const ARGS_STR: int = 4
 const ARGS_OPT_STR: int = 5
 const ARGS_ONE: int = 6
-const ARGS_IDENT: int = 7
+const ARGS_ALLOW: int = 7
 const ARGS_TWO_STR: int = 8
 
 fn ruleIndex(name: str) Option<int> {
@@ -58,13 +60,13 @@ fn ruleTargets(rule: int) int {
 
 fn ruleArgs(rule: int) int {
     let args = [ARGS_INLINE, ARGS_NONE, ARGS_NONE, ARGS_STR, ARGS_REPR, ARGS_NONE, ARGS_ALIGN,
-                ARGS_STR, ARGS_STR, ARGS_OPT_STR, ARGS_NONE, ARGS_ONE, ARGS_IDENT, ARGS_TWO_STR]
+                ARGS_STR, ARGS_STR, ARGS_OPT_STR, ARGS_NONE, ARGS_ONE, ARGS_ALLOW, ARGS_TWO_STR]
     return args[rule]
 }
 
-// The attributes this compiler implements: `@inline`, `@cold`, `@test`, `@lang`.
+// The attributes this compiler implements: `@inline`, `@cold`, `@test`, `@lang`, `@allow`.
 fn ruleSupported(rule: int) bool {
-    return rule < 4
+    return rule < 4 || rule == 12
 }
 
 fn ruleUsage(rule: int) str {
@@ -72,8 +74,35 @@ fn ruleUsage(rule: int) str {
                  "`@repr(C)`", "`@packed`", "`@align(N)`, N a power of two",
                  "`@link(\"name\")`", "`@export(\"name\")`",
                  "`@deprecated` or `@deprecated(\"message\")`", "`@bench`", "`@cfg(condition)`",
-                 "`@allow(category)`", "`@tag(\"key\", \"value\")`"]
+                 "`@allow(category)`, category `unused`, `unreachable`, `deprecated` or `naming`",
+                 "`@tag(\"key\", \"value\")`"]
     return usage[rule].sliceFrom(0)
+}
+
+// The warning codes of an `@allow` category, empty for an unknown one.
+fn allowedCodes(category: str) List<str> {
+    return if category == "unused" {
+        ["W0001", "W0002", "W0003"]
+    } else if category == "unreachable" {
+        ["W0004"]
+    } else if category == "deprecated" {
+        ["W0006"]
+    } else if category == "naming" {
+        ["W0007"]
+    } else {
+        []
+    }
+}
+
+// The category of `@allow(category)`, empty if it is not an identifier.
+fn allowCategory(r: Resolver, a: &Attribute) str {
+    if a.args.len() != 1 {
+        return ""
+    }
+    return match a.args[0].kind {
+        ExprKind.Ident(n) => r.text(n)
+        _ => ""
+    }
 }
 
 fn targetName(target: int) str {
@@ -146,13 +175,13 @@ fn argsMatch(r: Resolver, kind: int, a: &Attribute) bool {
         return n == 0 || (n == 1 && isStr(&a.args[0]))
     } else if kind == ARGS_ONE {
         return n == 1
-    } else if kind == ARGS_IDENT {
-        return n == 1 && isIdent(r, &a.args[0], Option.None)
+    } else if kind == ARGS_ALLOW {
+        return allowedCodes(allowCategory(r, a)).len() > 0
     }
     return n == 2 && isStr(&a.args[0]) && isStr(&a.args[1])
 }
 
-fn checkList(r: mut Resolver, attributes: &List<Attribute>, target: int) {
+fn checkList(r: mut Resolver, attributes: &List<Attribute>, target: int, span: Span) {
     for i in 0..attributes.len() {
         let a = &attributes[i]
         let name = r.text(a.name)
@@ -173,6 +202,11 @@ fn checkList(r: mut Resolver, attributes: &List<Attribute>, target: int) {
                             "invalid arguments for `@{name}`: write {ruleUsage(rule)}")
                 } else if !ruleSupported(rule) {
                     r.error("E0901", a.span, "the attribute `@{name}` is not supported yet")
+                } else if name == "allow" {
+                    let codes = allowedCodes(allowCategory(r, a))
+                    for k in 0..codes.len() {
+                        r.diags.allow(codes[k], span)
+                    }
                 }
             }
         }
@@ -181,13 +215,13 @@ fn checkList(r: mut Resolver, attributes: &List<Attribute>, target: int) {
 
 fn checkFns(r: mut Resolver, fns: &List<FnDecl>, target: int) {
     for i in 0..fns.len() {
-        checkList(r, &fns[i].attributes, target)
+        checkList(r, &fns[i].attributes, target, fns[i].span)
     }
 }
 
 fn checkFields(r: mut Resolver, fields: &List<FieldDecl>) {
     for i in 0..fields.len() {
-        checkList(r, &fields[i].attributes, ON_FIELD)
+        checkList(r, &fields[i].attributes, ON_FIELD, fields[i].span)
     }
 }
 
@@ -199,26 +233,26 @@ fn checkFields(r: mut Resolver, fields: &List<FieldDecl>) {
  */
 pub fn checkAttributes(r: mut Resolver, item: &Item) {
     match item.kind {
-        ItemKind.Fn(_) => checkList(r, &item.attributes, ON_FN)
+        ItemKind.Fn(_) => checkList(r, &item.attributes, ON_FN, item.span)
         ItemKind.Struct(_, _, _, _, fields, methods) => {
-            checkList(r, &item.attributes, ON_STRUCT)
+            checkList(r, &item.attributes, ON_STRUCT, item.span)
             checkFields(r, &fields)
             checkFns(r, &methods, ON_METHOD)
         }
         ItemKind.Enum(_, _, _, methods) => {
-            checkList(r, &item.attributes, ON_ENUM)
+            checkList(r, &item.attributes, ON_ENUM, item.span)
             checkFns(r, &methods, ON_METHOD)
         }
-        ItemKind.Const(_, _) => checkList(r, &item.attributes, ON_CONST)
-        ItemKind.Global(_, _) => checkList(r, &item.attributes, ON_GLOBAL)
-        ItemKind.TypeAlias(_, _) => checkList(r, &item.attributes, ON_ALIAS)
-        ItemKind.Import(_, _) => checkList(r, &item.attributes, ON_IMPORT)
+        ItemKind.Const(_, _) => checkList(r, &item.attributes, ON_CONST, item.span)
+        ItemKind.Global(_, _) => checkList(r, &item.attributes, ON_GLOBAL, item.span)
+        ItemKind.TypeAlias(_, _) => checkList(r, &item.attributes, ON_ALIAS, item.span)
+        ItemKind.Import(_, _) => checkList(r, &item.attributes, ON_IMPORT, item.span)
         ItemKind.Extern(_, fns) => {
-            checkList(r, &item.attributes, ON_EXTERN)
+            checkList(r, &item.attributes, ON_EXTERN, item.span)
             checkFns(r, &fns, ON_EXTERN_FN)
         }
         ItemKind.Interface(_, _, methods) => {
-            checkList(r, &item.attributes, ON_INTERFACE)
+            checkList(r, &item.attributes, ON_INTERFACE, item.span)
             checkFns(r, &methods, ON_METHOD)
         }
     }
