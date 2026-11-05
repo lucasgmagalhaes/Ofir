@@ -40,6 +40,7 @@ import air.lower.byAddress
 import air.lower.dynObject
 import air.lower.dynSlotTarget
 import base.span.Span
+import sema.c_symbols.cSymbol
 import sema.check.Checker
 import sema.check.fnOf
 import sema.check.itemOf
@@ -553,8 +554,8 @@ fn functionName(c: mut Checker, p: Program, id: int, targs: int, isMain: bool) s
         let glue = glueName(id)
         return "@\"ofir.{glue}{typeArgsText(c, targs)}\""
     }
-    if isCFunction(c, p, id) {   // a C function keeps its name
-        return "@{c.text(c.def(id).name)}"
+    if isCFunction(c, p, id) {   // a C function keeps its name or takes its `@export` one
+        return "@{cSymbol(c.r, fnOf(p, c.loc(id)))}"
     }
     let def = c.def(id)
     var out = "@\"ofir."
