@@ -107,6 +107,8 @@ pub struct Gen {
     pub fnValues: List<bool>
     /** Whether a `move` closure allocates or frees its environment. */
     pub heap: bool
+    /** Whether an environment is aligned above 16 (spec 13.7). */
+    pub alignedHeap: bool
     /** Whether an interpolation uses a format specifier (spec 1.7). */
     pub formats: bool
     /** The vtables, by number: the concrete type of each. */
@@ -179,7 +181,7 @@ pub fn newGen() Gen {
     return Gen{module: "", out: "", globals: "", typeDefs: "", strCount: 0, locCount: 0,
                overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
                temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
-               formats: false, packedPlace: false,
+               formats: false, packedPlace: false, alignedHeap: false,
                fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new()}
 }
 
@@ -1096,7 +1098,13 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
                 g.out.push("  {size} = ptrtoint ptr getelementptr ({envType}, ptr null, ")
                 g.out.push("i32 1) to i64\n")
                 env = nextTemp(g)
-                g.out.push("  {env} = call ptr @ofir_alloc(i64 {size})\n")
+                let align = layout(g, c, p, rv.a.ty).align
+                if align > 16 {   // above malloc's alignment
+                    g.alignedHeap = true
+                    g.out.push("  {env} = call ptr @ofir_alloc_aligned(i64 {size}, i64 {align})\n")
+                } else {
+                    g.out.push("  {env} = call ptr @ofir_alloc(i64 {size})\n")
+                }
                 let drop = closureName(c, p, body.def, body.targs, rv.flag)
                 g.out.push("  store ptr {dropName(drop)}, ptr {env}\n")
                 let field = nextTemp(g)
@@ -1749,6 +1757,10 @@ fn cDecls(g: mut Gen, c: mut Checker, p: Program) {
     if g.heap {   // `move` closures: unless the program declares them already
         heapDecl(g, c, "ofir_alloc", "declare ptr @ofir_alloc(i64) nounwind\n")
         heapDecl(g, c, "ofir_free", "declare void @ofir_free(ptr) nounwind\n")
+    }
+    if g.alignedHeap {
+        heapDecl(g, c, "ofir_alloc_aligned",
+                 "declare ptr @ofir_alloc_aligned(i64, i64) nounwind\n")
     }
 }
 
