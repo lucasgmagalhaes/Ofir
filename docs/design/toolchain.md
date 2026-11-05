@@ -34,19 +34,39 @@ A single file can be compiled without a project: `ofir run hello.of`.
 | `--message-format=short` | one line per diagnostic: `file:line:col: error[E0300]: message` |
 | `--message-format=json` | diagnostics as JSON objects, one per line (below) |
 
+### Notes and help
+
+A diagnostic may end with lines that are not about its span: a `note`
+gives context, a `help` suggests a fix. The human format writes them
+after the excerpt, each on its own line:
+
+```
+error[E0304]: cannot assign twice to immutable variable `n`
+ --> src/main.of:3:5
+  |
+3 |     n = 2
+  |     ^
+  |
+  = help: declare it with `var n` to assign to it again
+```
+
+The short format leaves them out: it has one line per diagnostic.
+
 ### JSON diagnostics
 
 With `--message-format=json` every diagnostic is written to standard error
 as one JSON object per line, sorted as the human format sorts them:
 
 ```json
-{"severity":"error","code":"E0300","message":"mismatched types: expected int, found str","file":"src/main.of","line":3,"column":13,"endLine":3,"endColumn":18}
+{"severity":"error","code":"E0300","message":"mismatched types: expected int, found str","file":"src/main.of","line":3,"column":13,"endLine":3,"endColumn":18,"notes":[]}
 ```
 
 - `severity` is `"error"` or `"warning"`; `code` is the registry code
   (`docs/errors`).
 - `line` and `column` start at 1 and count bytes; `endLine` and
   `endColumn` are the position just after the span.
+- `notes` holds the notes and help lines in order, each an object with
+  `kind` (`"note"` or `"help"`) and `message`; it is `[]` without them.
 - Driver errors that point at no source, as E0900 (cannot read a file) or
   E0902 (clang failed), have no `file`, `line`, `column`, `endLine` or
   `endColumn`.

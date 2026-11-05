@@ -32,6 +32,26 @@ pub copy enum Format {
 }
 
 /**
+ * What a line after a diagnostic's excerpt says.
+ */
+pub copy enum NoteKind {
+    /** Context: `= note: ...`. */
+    Note
+    /** A fix: `= help: ...`. */
+    Help
+}
+
+/**
+ * A note or help line of a diagnostic.
+ */
+pub struct Note {
+    /** Whether it gives context or a fix. */
+    pub kind: NoteKind
+    /** Its text. */
+    pub message: str
+}
+
+/**
  * One error or warning.
  */
 pub struct Diagnostic {
@@ -43,6 +63,8 @@ pub struct Diagnostic {
     pub span: Span
     /** What went wrong. */
     pub message: str
+    /** The note and help lines, in order. */
+    pub notes: List<Note>
 }
 
 /**
@@ -63,6 +85,8 @@ pub struct Diagnostics {
     allowedSpans: List<Span>
     /** `--deny-warnings`: warnings are reported as errors. */
     pub denyWarnings: bool
+    // The last warning was silenced: its notes are dropped too.
+    silenced: bool
 
     /**
      * No diagnostics yet.
@@ -71,7 +95,7 @@ pub struct Diagnostics {
      */
     pub fn new() Diagnostics {
         return Diagnostics{items: [], errors: 0, allowedCodes: [], allowedSpans: [],
-                           denyWarnings: false}
+                           denyWarnings: false, silenced: false}
     }
 
     /**
@@ -94,10 +118,29 @@ pub struct Diagnostics {
      */
     pub fn warning(mut self, code: str, span: Span, message: move str) {
         if self.isAllowed(code, span) {
+            self.silenced = true
             return
         }
         self.add(if self.denyWarnings { Severity.Error } else { Severity.Warning }, code, span,
                  message)
+    }
+
+    /**
+     * Adds a note to the diagnostic recorded last.
+     *
+     * @param message the context it gives
+     */
+    pub fn note(mut self, message: move str) {
+        self.addNote(NoteKind.Note, message)
+    }
+
+    /**
+     * Adds a help line to the diagnostic recorded last.
+     *
+     * @param message the fix it suggests
+     */
+    pub fn help(mut self, message: move str) {
+        self.addNote(NoteKind.Help, message)
     }
 
     /**
@@ -181,7 +224,16 @@ pub struct Diagnostics {
         if severity == Severity.Error {
             self.errors += 1
         }
-        self.items.push(Diagnostic{severity, code: code.toOwned(), span, message})
+        self.silenced = false
+        self.items.push(Diagnostic{severity, code: code.toOwned(), span, message, notes: []})
+    }
+
+    fn addNote(mut self, kind: NoteKind, message: move str) {
+        let last = self.items.len() - 1
+        if last < 0 || self.silenced || self.items[last].notes.len() == MAX_NOTES {
+            return
+        }
+        self.items[last].notes.push(Note{kind, message})
     }
 
     // The indices of the diagnostics by (file, start, code), stable: an
@@ -201,6 +253,9 @@ pub struct Diagnostics {
         return order
     }
 }
+
+// The notes a diagnostic keeps, as stage 0 (`DIAG_MAX_NOTES`).
+const MAX_NOTES: int = 4
 
 // Whether `a` sorts before `b`: by file, then offset, then code.
 fn before(a: &Diagnostic, b: &Diagnostic) bool {
@@ -278,7 +333,7 @@ fn jsonEscape(b: u8) str {
  * @returns the line, with its `\n`
  */
 pub fn jsonNoSource(severity: Severity, code: str, message: str) str {
-    return "{jsonFields(severity, code, message)}\}\n"
+    return "{jsonFields(severity, code, message)},\"notes\":[]\}\n"
 }
 
 // The opening `{` and the fields every JSON diagnostic has.
@@ -293,7 +348,13 @@ fn jsonLine(d: &Diagnostic, map: SourceMap) str {
     let end = file.lineCol(if d.span.end > d.span.start { d.span.end } else { d.span.start })
     var out = jsonFields(d.severity, d.code, d.message)
     out.push(",\"file\":{jsonString(file.path)},\"line\":{at.line},\"column\":{at.column},")
-    out.push("\"endLine\":{end.line},\"endColumn\":{end.column}\}\n")
+    out.push("\"endLine\":{end.line},\"endColumn\":{end.column},\"notes\":[")
+    for i in 0..d.notes.len() {
+        let kind = if d.notes[i].kind == NoteKind.Help { "help" } else { "note" }
+        let separator = if i > 0 { "," } else { "" }
+        out.push("{separator}\{\"kind\":\"{kind}\",\"message\":{jsonString(d.notes[i].message)}\}")
+    }
+    out.push("]\}\n")
     return out
 }
 
@@ -317,7 +378,15 @@ fn excerpt(d: &Diagnostic, map: SourceMap) str {
         len = line.len() + 1 - (at.column - 1)
     }
     out.push("^".repeat(len))
-    out.push("\n\n")
+    out.push("\n")
+    if d.notes.len() > 0 {
+        out.push("{pad} |\n")
+    }
+    for i in 0..d.notes.len() {
+        let kind = if d.notes[i].kind == NoteKind.Help { "help" } else { "note" }
+        out.push("{pad} = {kind}: {d.notes[i].message}\n")
+    }
+    out.push("\n")
     return out
 }
 

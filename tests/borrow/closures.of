@@ -15,6 +15,6 @@ fn main() {
     println("{read()}")
     let s = "hi".toOwned()
     let own = move () => s.len()
-    println(s)                          // error[E0600]: use of moved value `s`: it was moved before; clone it, or move a copy
+    println(s)                          // error[E0600]: use of moved value `s`
     println("{own()}")
 }

@@ -17,14 +17,20 @@ void diags_free(Diagnostics *diags) {
     VEC_FREE(diags->items);
 }
 
-// Formats the message of `d` and records it.
-static void add(Diagnostics *diags, Diagnostic d, const char *format, va_list args) {
+// The formatted text, in the diagnostics arena.
+static char *format_text(Diagnostics *diags, const char *format, va_list args) {
     va_list copy;
     va_copy(copy, args);
     int n = vsnprintf(NULL, 0, format, copy);
     va_end(copy);
-    d.message = arena_alloc(diags->arena, (size_t)n + 1, 1);
-    vsnprintf(d.message, (size_t)n + 1, format, args);
+    char *text = arena_alloc(diags->arena, (size_t)n + 1, 1);
+    vsnprintf(text, (size_t)n + 1, format, args);
+    return text;
+}
+
+// Formats the message of `d` and records it.
+static void add(Diagnostics *diags, Diagnostic d, const char *format, va_list args) {
+    d.message = format_text(diags, format, args);
     d.seq = (uint32_t)diags->items.len;
     VEC_PUSH(diags->items, d);
     if (d.severity == SEVERITY_ERROR) {
@@ -50,6 +56,31 @@ void diag_warning(Diagnostics *diags, const char *code, Span span, const char *f
     va_start(args, format);
     Severity severity = diags->deny_warnings ? SEVERITY_ERROR : SEVERITY_WARNING;
     add(diags, make(severity, code, span), format, args);
+    va_end(args);
+}
+
+static void add_note(Diagnostics *diags, NoteKind kind, const char *format, va_list args) {
+    if (diags->items.len == 0) {
+        return;
+    }
+    Diagnostic *d = &diags->items.data[diags->items.len - 1];
+    if (d->note_count == DIAG_MAX_NOTES) {
+        return;
+    }
+    d->notes[d->note_count++] = (DiagNote){kind, format_text(diags, format, args)};
+}
+
+void diag_note(Diagnostics *diags, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    add_note(diags, NOTE_NOTE, format, args);
+    va_end(args);
+}
+
+void diag_help(Diagnostics *diags, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    add_note(diags, NOTE_HELP, format, args);
     va_end(args);
 }
 
@@ -101,7 +132,16 @@ static void render_human(const Diagnostic *d, const SourceMap *map, FILE *out) {
     for (uint32_t i = 0; i < len; i++) {
         fputc('^', out);
     }
-    fputs("\n\n", out);
+    fputc('\n', out);
+    if (d->note_count > 0) {
+        fprintf(out, "%*s |\n", width, "");
+    }
+    for (uint32_t i = 0; i < d->note_count; i++) {
+        const DiagNote *note = &d->notes[i];
+        fprintf(out, "%*s = %s: %s\n", width, "", note->kind == NOTE_HELP ? "help" : "note",
+                note->message);
+    }
+    fputc('\n', out);
 }
 
 void diags_render(Diagnostics *diags, const SourceMap *map, DiagFormat format, FILE *out) {

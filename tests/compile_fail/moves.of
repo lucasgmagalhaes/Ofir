@@ -9,7 +9,7 @@ fn consume(s: move str) {
 fn useAfterMove() {
     let a = "hello".toOwned()
     let b = a
-    println(a)                   // error[E0600]: use of moved value `a`: it was moved before; clone it, or move a copy
+    println(a)                   // error[E0600]: use of moved value `a`
 }
 
 fn conditional(flag: bool) {
@@ -17,13 +17,13 @@ fn conditional(flag: bool) {
     if flag {
         consume(v)
     }
-    println(v)                   // error[E0600]: use of moved value `v`: it was moved before; clone it, or move a copy
+    println(v)                   // error[E0600]: use of moved value `v`
 }
 
 fn inLoop() {
     let s = "x".toOwned()
     for _ in 0..3 {
-        consume(s)               // error[E0600]: use of moved value `s`: it was moved before; clone it, or move a copy
+        consume(s)               // error[E0600]: use of moved value `s`
     }
 }
 
@@ -31,7 +31,7 @@ fn partial() {
     let u = User{name: "ana", age: 3}
     let n = u.name
     println("{u.age}")
-    let whole = u                // error[E0600]: use of moved value `u`: it was moved before; clone it, or move a copy
+    let whole = u                // error[E0600]: use of moved value `u`
 }
 
 fn fromBorrowed(u: User) str {

@@ -45,8 +45,31 @@ fn jsonFormatHasOneObjectPerLine() {
     let text = diags.render(sample(), Format.Json)
     let expected = "\{\"severity\":\"error\",\"code\":\"E0101\"," +
         "\"message\":\"expected an expression\",\"file\":\"a.of\",\"line\":2," +
-        "\"column\":11,\"endLine\":2,\"endColumn\":12\}\n"
+        "\"column\":11,\"endLine\":2,\"endColumn\":12,\"notes\":[]\}\n"
     assert(text == expected)
+}
+
+@test
+fn notesFollowTheExcerpt() {
+    var diags = Diagnostics.new()
+    diags.error("E0101", Span{file: FileId(0), start: 22, end: 23}, "expected".toOwned())
+    diags.note("an operand".toOwned())
+    diags.help("write one".toOwned())
+    let text = diags.render(sample(), Format.Human)
+    assert(text.endsWith("  | \t         ^\n  |\n  = note: an operand\n  = help: write one\n\n"))
+    let json = diags.render(sample(), Format.Json)
+    assert(json.endsWith(",\"notes\":[\{\"kind\":\"note\",\"message\":\"an operand\"\}," +
+        "\{\"kind\":\"help\",\"message\":\"write one\"\}]\}\n"))
+}
+
+@test
+fn aSilencedWarningDropsItsNotes() {
+    var diags = Diagnostics.new()
+    diags.allow("W0001", Span{file: FileId(0), start: 0, end: 40})
+    diags.error("E0101", Span{file: FileId(0), start: 22, end: 23}, "expected".toOwned())
+    diags.warning("W0001", Span{file: FileId(0), start: 13, end: 16}, "unused".toOwned())
+    diags.help("rename it".toOwned())
+    assert(!diags.render(sample(), Format.Human).contains("rename"))
 }
 
 @test
