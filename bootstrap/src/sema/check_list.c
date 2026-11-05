@@ -104,11 +104,36 @@ static bool hashable(Checker *c, TypeId type) {
            ty->kind == TY_ERROR || (ty->kind == TY_PARAM && in_std);
 }
 
+// A struct or enum without `drop`: stage 1 derives its `Hash`.
+static bool derives_hash(Checker *c, TypeId type) {
+    const Ty *ty = type_get(c->types, type);
+    if (ty->kind != TY_ADT) {
+        return false;
+    }
+    const Def *def = sema_def(c->sema, (DefId){ty->data});
+    if (!def || !def->item) {
+        return false;
+    }
+    const Item *item = def->item;
+    FnList methods = item->kind == ITEM_ENUM ? item->as.enum_.methods : item->as.struct_.methods;
+    for (uint32_t i = 0; i < methods.len; i++) {
+        if (sv_eq(symbol_name(&c->sema->session->names, methods.items[i]->name), SV("drop"))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void check_map_key(Checker *c, TypeId type, Span span) {
     TypeId key, value;
     if (map_parts(c, type, &key, &value) && !hashable(c, key)) {
-        check_error(c, "E0313", span, "`Map` keys must be integers, bool, str or tuples of "
-                    "them in stage 0, not `%s`", type_name(c, key));
+        if (derives_hash(c, key)) {   // spec 9.9
+            check_error(c, "E0901", span, "`Map` keys of type `%s` are not supported by stage 0",
+                        type_name(c, key));
+            return;
+        }
+        check_error(c, "E0313", span, "`Map` keys must satisfy `Hash`: `%s` does not",
+                    type_name(c, key));
     }
 }
 
