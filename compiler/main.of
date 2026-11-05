@@ -54,6 +54,7 @@ fn printUsage() {
              + "  --emit=air                print the intermediate representation and stop\n"
              + "  --emit=llvm               write <output>.ll and stop\n"
              + "  --release                 optimize the program\n"
+             + "  -g                        write debug info (DWARF: functions, lines)\n"
              + "  --deny-warnings           treat warnings as errors\n"
              + "  --message-format=short    one line per diagnostic\n"
              + "  --message-format=json     one JSON object per diagnostic\n"
@@ -76,6 +77,8 @@ struct Options {
     stopAfter: str
     /** `--release`. */
     release: bool
+    /** `-g`. */
+    debugInfo: bool
     /** `--deny-warnings`. */
     deny: bool
     /** `--message-format=human`, `short` or `json`. */
@@ -84,7 +87,8 @@ struct Options {
 
 fn parseOptions(args: &List<str>) Option<Options> {
     var opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
-                       stopAfter: "", release: false, deny: false, format: Format.Human}
+                       stopAfter: "", release: false, debugInfo: false, deny: false,
+                       format: Format.Human}
     var hasInput = false
     var i = 2
     for i < args.len() {
@@ -99,6 +103,8 @@ fn parseOptions(args: &List<str>) Option<Options> {
                 opts.deny = true
             } else if arg == "--release" {
                 opts.release = true
+            } else if arg == "-g" {
+                opts.debugInfo = true
             } else if arg == "--message-format=short" {
                 opts.format = Format.Short
             } else if arg == "--message-format=json" {
@@ -292,7 +298,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     }
     let exe = outputPath(&opts)
     let ll = "{exe}.ll"
-    if fs.writeString(ll, generate(c, program, &l.out)).isErr() {
+    if fs.writeString(ll, generate(c, program, &l.out, opts.debugInfo)).isErr() {
         driverError(opts.format, "E0902", "cannot write `{ll}`")
         return false
     }
@@ -412,6 +418,9 @@ fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
         args.push("-l{libraries[i]}")
     }
     args.push("-lm".toOwned())
+    if opts.debugInfo {
+        args.push("-g".toOwned())
+    }
     args.push("-o".toOwned())
     args.push(exe.toOwned())
     // MinGW, not MSVC; the main thread gets the 8 MiB stack Linux gives it.
