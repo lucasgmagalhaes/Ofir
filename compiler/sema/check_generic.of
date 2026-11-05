@@ -17,9 +17,8 @@ import sema.check.Checker
 import sema.check.Generics
 import sema.check.fnGenericsIn
 import sema.check.fnOf
-import sema.check.itemOf
 import sema.check.noGenerics
-import sema.check.typeGenerics
+import sema.check.typeGenericsOf
 import sema.check_list.checkMapKey
 import sema.check_list.coerceToSlice
 import sema.check_list.hashable
@@ -57,13 +56,16 @@ pub struct Infer {
  * @param id the function's `DefId`
  * @returns them
  */
-pub fn fnGenerics(c: Checker, p: Program, id: int) Generics {
-    let def = c.def(id)
+pub fn fnGenerics(c: mut Checker, p: Program, id: int) Generics {
+    let module = c.def(id).module
     var owner = noGenerics()
-    if def.item >= 0 {
-        owner = typeGenerics(c, itemOf(p, c.loc(id)))
+    if c.def(id).item >= 0 {
+        owner = typeGenericsOf(c, p, id)
     }
-    return fnGenericsIn(c, &owner, fnOf(p, c.loc(id)))
+    let saved = c.enter(module)
+    let g = fnGenericsIn(c, p, &owner, fnOf(p, c.loc(id)))
+    c.enter(saved)
+    return g
 }
 
 /**

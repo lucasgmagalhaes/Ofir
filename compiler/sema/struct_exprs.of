@@ -10,7 +10,7 @@ import sema.check.Checker
 import sema.check.itemOf
 import sema.check.itemTypeParams
 import sema.check.noGenerics
-import sema.check.typeGenerics
+import sema.check.typeGenericsOf
 import sema.check_box.autoDeref
 import sema.check_generic.Infer
 import sema.check_generic.checkBoundArgs
@@ -145,7 +145,7 @@ pub fn checkConstructor(c: mut Checker, p: Program, call: &Expr, id: int,
     if owner.len() == 0 && explicit.len() == 0 {
         return checkArgs(c, p, call.span, args, &params, ty)
     }
-    var inf = inferNew(typeGenerics(c, itemOf(p, c.loc(id))))
+    var inf = inferNew(typeGenericsOf(c, p, id))
     if explicit.len() > 0 {
         let callee = match call.kind {
             ExprKind.Call(callee, _) => callee.span
@@ -247,7 +247,7 @@ pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) i
             }
             var ty = ERROR
             if owner.len() > 0 || explicit.isSome() {
-                var inf = inferNew(typeGenerics(c, itemOf(p, c.loc(id))))
+                var inf = inferNew(typeGenericsOf(c, p, id))
                 if let Option.Some(args) = explicit {
                     inferExplicit(c, p, inf, true, &args, name.span)
                 }
