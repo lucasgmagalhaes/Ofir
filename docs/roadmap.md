@@ -188,6 +188,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.3 | Interfaces: declaration, structural satisfaction, assertions, default methods, embedding | L | **done**: static dispatch per instance; generic interfaces wait (E0901); `tests/run/interfaces/*` pass; E0332, E0333 and E0335 tested |
 | 5.4 | `dyn`: vtables, fat pointers, unsized types (spec 9.7) | M | **done**: `dyn I` parameters, `&dyn I`, `*dyn I` and `Box<dyn I>`, with calls and drop through the vtable; `mut dyn I` parameters wait (E0901); `tests/run/dyn/*` pass; E0338, E0339 and E0355 tested |
 | 5.4b | Type switches, `Any` and `typeName` (spec 9.8, ADR 0024) | M | **done**: `examples/interfaces.of` runs; type tests on `&dyn I`, `*dyn I` and `Box<dyn I>`, in `match` and `if let`; `tests/run/dyn/type_switch.of` passes; E0354 tested |
+| 5.4c | Interfaces as parameter types: anonymous type parameters (spec 9.6, ADR 0029) | S | `tests/run/interfaces/*` cover `s: I` and `[I]` parameters; E0356 tested |
 | 5.5 | Built-in interfaces derived automatically (`Eq`, `Ord`, `Hash`, `Clone`, `Debug`); `From` in `?` | M | `==` on structs, structs as map keys |
 | 5.6 | Rewrite `List`, `Map`, `Option`, `Result`, `Box` as generic Ofir code in `std/` | L | built-in special cases removed from the compiler |
 | 5.7 | Closures: arrow syntax (`x => ...`, `move () => ...`, ADR 0023), `fn` and `move fn` types, captures, stack and heap environments | L | **done**: `mut` and `move` closure parameters wait (E0901); `tests/run/closures/*` pass; E0336, E0337 and the capture borrows tested |
