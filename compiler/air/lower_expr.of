@@ -626,8 +626,9 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
                   args: &List<Arg>) Operand {
     let name = c.text(fnOf(p, c.loc(id)).name).toOwned()
     let ty = c.typeOf(e.id.0)
-    if name == "sizeOf" {
-        var rv = rvalue(RvalueKind.SizeOf, Op.Add, unit(), unit())
+    if name == "sizeOf" || name == "alignOf" {
+        let kind = if name == "sizeOf" { RvalueKind.SizeOf } else { RvalueKind.AlignOf }
+        var rv = rvalue(kind, Op.Add, unit(), unit())
         rv.to = callTypeArg(c, e)
         return tempValue(l, I64, rv)
     }
