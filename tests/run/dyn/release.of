@@ -1,0 +1,50 @@
+// requires: stage1
+// flags: --release
+// Under -O2, with `noalias` and `readonly` parameters (spec 13.5): `dyn`
+// calls pass every argument through the vtable thunk.
+
+interface Shape {
+    fn area(self, scale: int) int
+    fn grow(mut self, by: int, times: int)
+}
+
+struct Square {
+    side: int
+
+    fn area(self, scale: int) int {
+        return self.side * self.side * scale
+    }
+
+    fn grow(mut self, by: int, times: int) {
+        self.side = self.side + by * times
+    }
+}
+
+fn total(shapes: &List<Box<dyn Shape>>, scale: int) int {
+    var sum = 0
+    for s in shapes {
+        sum = sum + s.area(scale)
+    }
+    return sum
+}
+
+fn addInto(dst: mut int, src: &int) {
+    dst = dst + *src
+}
+
+fn main() {
+    var shapes: List<Box<dyn Shape>> = List.new()
+    let small: Box<dyn Shape> = Box.new(Square{side: 2})
+    let big: Box<dyn Shape> = Box.new(Square{side: 3})
+    shapes.push(small)
+    shapes.push(big)
+    println("{total(&shapes, 2)}")
+    var sq = Square{side: 1}
+    let d: &mut dyn Shape = &mut sq
+    d.grow(2, 3)
+    println("{sq.side}")
+    var x = 4
+    let y = 5
+    addInto(x, &y)
+    println("{x}")
+}

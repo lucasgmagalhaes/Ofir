@@ -1,0 +1,33 @@
+// requires: stage1
+// flags: --release
+// With --release (spec 13.5): `mut` parameters get `noalias`, borrowed ones
+// `noalias readonly`, and a borrow of a type with a `Cell` neither; a
+// fat borrow (`&str`, a slice) none either.
+// CHECK: define internal fastcc void @"ofir.append"(ptr noalias %p1, ptr noalias readonly %p2)
+// CHECK: define internal fastcc i64 @"ofir.peek"(ptr %p1)
+import std.mem.cell.Cell
+
+struct Hits {
+    n: Cell<int>
+}
+
+struct Point {
+    x: int
+    y: int
+}
+
+fn append(dst: mut str, src: &Point) {
+    dst.push("{src.x + src.y}")
+}
+
+fn peek(h: &Hits) int {
+    return h.n.get()
+}
+
+fn main() {
+    var s = "a"
+    let p = Point{x: 1, y: 2}
+    append(s, &p)
+    let h = Hits{n: Cell.new(3)}
+    println("{s} {peek(&h)}")
+}

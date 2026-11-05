@@ -298,7 +298,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     }
     let exe = outputPath(&opts)
     let ll = "{exe}.ll"
-    if fs.writeString(ll, generate(c, program, &l.out, opts.debugInfo)).isErr() {
+    if fs.writeString(ll, generate(c, program, &l.out, opts.debugInfo, opts.release)).isErr() {
         driverError(opts.format, "E0902", "cannot write `{ll}`")
         return false
     }

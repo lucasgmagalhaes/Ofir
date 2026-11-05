@@ -529,6 +529,8 @@ pub struct AirLocal {
     pub span: Span
     /** A `mut` parameter: holds the address of a `ty` value. */
     pub byRef: bool
+    /** A `mut` parameter of a function (not a capture or a cell borrow). */
+    pub exclusive: bool
 }
 
 /** What the body of a closure (spec 10.3) adds to its enclosing function's. */
@@ -593,7 +595,8 @@ pub struct AirBody {
      * @returns its number
      */
     pub fn newLocal(mut self, ty: int, name: Option<Symbol>, span: Span) int {
-        self.locals.push(AirLocal{ty: ty, name: name, span: span, byRef: false})
+        self.locals.push(AirLocal{ty: ty, name: name, span: span, byRef: false,
+                                   exclusive: false})
         return self.locals.len() - 1
     }
 
