@@ -127,6 +127,10 @@ pub struct Gen {
     pub vtIds: Map<int, int>
     /** Whether the last `placeAddress` went through a `@packed` struct. */
     pub packedPlace: bool
+    /** The enum whose tag the last `placeAddress` named, if it has a niche; else -1. */
+    pub nicheTag: int
+    /** By enum type: the variant `nicheVariant` found. */
+    pub niches: Map<int, int>
     /** `-g`: whether to write debug info. */
     pub debug: bool
     /** The debug metadata. */
@@ -197,7 +201,8 @@ pub fn newGen() Gen {
     return Gen{module: "", out: "", globals: "", typeDefs: "", strCount: 0, locCount: 0,
                overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
                temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
-               formats: false, packedPlace: false, alignedHeap: false,
+               formats: false, packedPlace: false, nicheTag: -1, niches: Map.new(),
+               alignedHeap: false,
                fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new(),
                debug: false, di: DebugInfo.new(), scope: 0, dir: "", optimize: false}
 }
@@ -242,6 +247,55 @@ pub fn llvmType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
 fn fieldType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
     let t = llvmType(g, c, p, ty)
     return if t == "void" { "\{\}".toOwned() } else { t }
+}
+
+// A field that is never null: a reference, a `Box` or a function.
+fn neverNull(c: Checker, ty: int) bool {
+    let t = c.types.get(ty)
+    let box = c.r.langItems[0]
+    return t.kind == TyKind.Ref || t.kind == TyKind.Fn ||
+           (t.kind == TyKind.Adt && box != 0 && t.data == box)
+}
+
+/**
+ * The variant of a niche enum that holds a pointer, or -1 (spec 13.3): an
+ * enum of two variants, one without fields and the other with one field
+ * that is never null, keeps no tag; the other variant is a null pointer.
+ *
+ * @param g the generator
+ * @param c the checker
+ * @param p the program
+ * @param adt the enum type
+ * @returns the variant, or -1
+ */
+pub fn nicheVariant(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
+    if let Option.Some(known) = g.niches.get(adt) {
+        return *known
+    }
+    let id = c.types.get(adt).data
+    enumVariants(c, p, id)
+    var found = -1
+    if variantsOf(c, id).variants.len() == 2 {
+        let first = variantsOf(c, id).variants[0].types.len()
+        let second = variantsOf(c, id).variants[1].types.len()
+        let v = if first == 1 && second == 0 { 0 } else if first == 0 && second == 1 { 1 } else {
+            -1
+        }
+        if v >= 0 && neverNull(c, variantFieldType(c, p, adt, v, 0)) {
+            found = v
+        }
+    }
+    g.niches.insert(adt, found)
+    return found
+}
+
+// Whether `ty` is an enum with a niche.
+fn isNicheEnum(g: mut Gen, c: mut Checker, p: Program, ty: int) bool {
+    let t = c.types.get(ty)
+    if t.kind != TyKind.Adt || c.def(t.data).kind != DefKind.Enum {
+        return false
+    }
+    return nicheVariant(g, c, p, ty) >= 0
 }
 
 copy struct Layout {
@@ -347,6 +401,8 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
         TyKind.Adt => {
             if c.def(data).kind == DefKind.Struct {
                 structLayout(g, c, p, ty)
+            } else if nicheVariant(g, c, p, ty) >= 0 {   // the pointer alone
+                layout(g, c, p, variantFieldType(c, p, ty, nicheVariant(g, c, p, ty), 0))
             } else {
                 let words = payloadWords(g, c, p, ty)
                 let unit = payloadUnit(g, c, p, ty)
@@ -434,7 +490,11 @@ fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
         define(g, c, p, variantType(c, adt, v), &types, false, 0)
     }
     let unit = payloadUnit(g, c, p, adt)
-    if words > 0 && unit > 8 {
+    let niche = nicheVariant(g, c, p, adt)
+    if niche >= 0 {   // the pointer alone
+        let field = fieldType(g, c, p, variantFieldType(c, p, adt, niche, 0))
+        g.typeDefs.push("{name} = type \{ {field} \}\n")
+    } else if words > 0 && unit > 8 {
         g.typeDefs.push("{name} = type \{ i32, [{words} x <{unit} x i8>] \}\n")
     } else if words > 0 {
         g.typeDefs.push("{name} = type \{ i32, [{words} x i64] \}\n")
@@ -481,6 +541,7 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
                 path: &FieldPath) str {
     var base = "%l{local}"
     g.packedPlace = false
+    g.nicheTag = -1
     if path.deref {   // the local holds the address of the value
         base = nextTemp(g)
         g.out.push("  {base} = load ptr, ptr %l{local}\n")
@@ -494,6 +555,16 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
     var index = 0
     for i in 0..path.fields.len() {
         let entry = path.fields[i]
+        if !variant && isNicheEnum(g, c, p, current) {   // no tag: the pointer
+            if entry >= VARIANT_STEP {
+                variant = true
+                index = entry - VARIANT_STEP
+            } else {
+                g.nicheTag = current
+                current = I32
+            }
+            continue
+        }
         let next = nextTemp(g)
         if entry >= VARIANT_STEP {   // view the payload as a variant
             let container = llvmType(g, c, p, current)
@@ -662,6 +733,9 @@ fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) 
                 Value{ty: ty, text: ""}   // a local of type (): nothing to load
             } else {
                 let at = placeAddress(g, c, p, body, o.local, &o.path)
+                if g.nicheTag >= 0 {   // the tag of a niche enum: whether the pointer is null
+                    return nicheTagValue(g, c, p, at)
+                }
                 let t = nextTemp(g)
                 g.out.push("  {t} = load {ty}, ptr {at}{packedAlign(g)}\n")
                 Value{ty: ty, text: t}
@@ -681,6 +755,45 @@ fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) 
             Value{ty: ty, text: "\{ ptr @.str.{n}, i64 {o.text.len()}, i64 0 \}"}
         }
         OperandKind.Unit => Value{ty: "void".toOwned(), text: ""}
+    }
+}
+
+// The discriminants of the variants of the niche enum `g.nicheTag`: the
+// one without a payload, then the one with it.
+fn nicheDiscriminants(g: mut Gen, c: mut Checker, p: Program) (int, int) {
+    let adt = g.nicheTag
+    let some = nicheVariant(g, c, p, adt)
+    let id = c.types.get(adt).data
+    let none = variantsOf(c, id).variants[1 - some].discriminant
+    return (none, variantsOf(c, id).variants[some].discriminant)
+}
+
+// Reads the tag of a niche enum at `at`.
+fn nicheTagValue(g: mut Gen, c: mut Checker, p: Program, at: str) Value {
+    let (none, some) = nicheDiscriminants(g, c, p)
+    let word = nextTemp(g)
+    g.out.push("  {word} = load ptr, ptr {at}\n")
+    let isNull = nextTemp(g)
+    g.out.push("  {isNull} = icmp eq ptr {word}, null\n")
+    let tag = nextTemp(g)
+    g.out.push("  {tag} = select i1 {isNull}, i32 {none}, i32 {some}\n")
+    return Value{ty: "i32".toOwned(), text: tag}
+}
+
+// Writes the tag `v` of a niche enum at `at`: a null pointer for the
+// variant without a payload; the other variant's payload is already there.
+fn nicheTagStore(g: mut Gen, c: mut Checker, p: Program, at: str, v: &Value) {
+    let (none, some) = nicheDiscriminants(g, c, p)
+    if v.text == "{none}" {
+        g.out.push("  store ptr null, ptr {at}\n")
+    } else if v.text != "{some}" {   // not a constant
+        let word = nextTemp(g)
+        g.out.push("  {word} = load ptr, ptr {at}\n")
+        let isNone = nextTemp(g)
+        g.out.push("  {isNone} = icmp eq i32 {v.text}, {none}\n")
+        let kept = nextTemp(g)
+        g.out.push("  {kept} = select i1 {isNone}, ptr null, ptr {word}\n")
+        g.out.push("  store ptr {kept}, ptr {at}\n")
     }
 }
 
@@ -1353,6 +1466,10 @@ fn storeAt(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, dest: int,
            path: &FieldPath, v: &Value) {
     if v.ty != "void" {
         let at = placeAddress(g, c, p, body, dest, path)
+        if g.nicheTag >= 0 {
+            nicheTagStore(g, c, p, at, v)
+            return
+        }
         g.out.push("  store {v.ty} {v.text}, ptr {at}{packedAlign(g)}\n")
     }
 }
