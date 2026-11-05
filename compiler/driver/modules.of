@@ -333,6 +333,14 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front, testing: boo
             loadImport(ld, front, &imports[i])
         }
         m += 1
+        if m == ld.modules.len() && !isLoaded(ld, "std.core.any") {
+            // `Any` (spec 9.8): a prelude module that stage 0 cannot read, so
+            // `std.core` does not import it; loaded last, it leaves the
+            // numbers of the other modules as stage 0 gives them.
+            if let Option.Some(any) = moduleFile(ld, "std.core.any") {
+                loadModule(ld, front, "std.core.any", any)
+            }
+        }
     }
     return Program{modules: ld.modules}
 }

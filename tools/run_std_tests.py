@@ -51,6 +51,8 @@ def modules_with_tests() -> list[Path]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--compiler", type=executable, required=True)
+    parser.add_argument("--stage", type=int, default=0,
+                        help="the compiler's stage: stage 0 skips `// requires: stage1` modules")
     parser.add_argument("-j", "--jobs", type=int, default=min(4, os.cpu_count() or 1),
                         help="maximum concurrent compiler processes (default: up to 4)")
     args = parser.parse_args()
@@ -71,15 +73,22 @@ def main() -> int:
                 sys.stderr.write(result.stderr)
         print(f"unit tests (std, compiler): {total} tests in {len(paths)} modules, "
               f"{len(failed)} modules with failures")
-        checked = check_std_whole(args.compiler, pool)
+        checked = check_std_whole(args.compiler, pool, args.stage)
     return 1 if failed or not checked or not check_fixtures(args.compiler) else 0
 
 
-def check_std_whole(compiler: str, pool: concurrent.futures.ThreadPoolExecutor) -> bool:
+def requires_stage1(path: Path) -> bool:
+    """Whether the module uses what only stage 1 accepts (e.g. interfaces)."""
+    return any(line.startswith("// requires: stage1") for line in path.read_text().splitlines())
+
+
+def check_std_whole(compiler: str, pool: concurrent.futures.ThreadPoolExecutor,
+                    stage: int) -> bool:
     """Checks each std module as the root, where every body is checked: a
     program checks only the std bodies it uses (sema_check_late)."""
     ok = True
-    paths = [p for p in sorted((ROOT / "std").rglob("*.of")) if not p.stem.endswith("_test")]
+    paths = [p for p in sorted((ROOT / "std").rglob("*.of"))
+             if not p.stem.endswith("_test") and (stage > 0 or not requires_stage1(p))]
     results = pool.map(lambda path: subprocess.run(
         [compiler, "build", str(path), "--stop-after=check", "--deny-warnings"],
         capture_output=True, text=True), paths)
