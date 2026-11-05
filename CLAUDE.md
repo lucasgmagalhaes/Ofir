@@ -13,8 +13,8 @@ with clang.
   `docs/bootstrap.md`).
 - `std/`, `runtime/`, `tests/`, `tools/`, `docs/` (spec, ADRs, roadmap).
 - Manifest: `ofir.json` (JSONC, camelCase keys; ADR 0026).
-- Work follows `docs/roadmap.md`; next items (phase 5): 5.11b `@deprecated`
-  and `@allow`, 5.12a default parameters and named arguments.
+- Work follows `docs/roadmap.md`; next items (phase 5): 5.12a default
+  parameters and named arguments, 5.11c `@repr`/`@packed`/`@align`/`@cfg`.
 
 ## Working rules
 
