@@ -69,9 +69,9 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0326 | a variant is named through its enum: write `E.V` (ADR 0028) | stage 0 |
 | E0330 | cannot infer the type parameter `T`: write the type arguments | stage 0 |
 | E0331 | instantiating `f` nests types more than 64 levels deep | stage 0 |
-| E0332 | the type `X` does not satisfy the bound `B` of `T` | stage 1 |
+| E0332 | the type `X` does not satisfy the bound `B` of `T` | stage 0 |
 | E0333 | `B` is not an interface: only interfaces (and `Eq`, `Ord`, `Hash`, `Clone`) bound, embed or are asserted | stage 1 |
-| E0334 | `X` is not a type parameter of this declaration: only type parameters take bounds | stage 1 |
+| E0334 | `X` is not a type parameter of this declaration: only type parameters take bounds | stage 0 |
 | E0335 | the type `C` does not satisfy `I`, which it asserts (spec 9.2) | stage 1 |
 | E0336 | cannot infer the type of the closure parameter `x`: write its type (spec 10.1) | stage 1 |
 | E0337 | `x` is captured by a `move` closure: captured values are immutable (spec 10.3) | stage 1 |
