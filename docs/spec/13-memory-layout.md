@@ -42,9 +42,16 @@ properties stated as **guaranteed** can be relied on.
 - `@repr(C)` applies only to enums without payloads (E0808): such an enum
   is a C `int`, its variants numbered from 0 in declaration order.
   **Guaranteed.**
-- **Niche optimization (guaranteed for these types):** `Option<&T>`,
-  `Option<Box<T>>` and `Option<fn(...)>` have the same size as the pointer;
-  `None` is represented by null.
+- **Niche optimization:** an enum with exactly two variants, one without
+  fields and the other with a single field that is never null (`&T`,
+  `&mut T`, `Box<T>` or a `fn` value), keeps no tag: it has the size and
+  alignment of that field, and the variant without fields is represented
+  by a null pointer in the field's first word. **Guaranteed** for
+  `Option<&T>`, `Option<&mut T>` and `Option<Box<T>>`, which have the size
+  of a pointer, and for `Option<fn(...)>`, which has the size of a `fn`
+  value with `None` a null code pointer. `&dyn I` is a niche field too
+  (its data pointer); `&[T]` and `&str` are not, since an empty one may
+  hold a null data pointer.
 
 ## 13.4 Built-in types
 

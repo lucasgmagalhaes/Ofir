@@ -28,6 +28,8 @@ struct Gen {
     const char **adt_types;  // the LLVM name of each struct or enum, by TypeId (NULL until used)
     size_t adt_count;
     Vec(bool) c_used;        // by DefId: functions of extern blocks to declare
+    TypeId niche_tag;        // the enum whose tag the last place_address named...
+    bool has_niche_tag;      // ...when it has a niche (spec 13.3)
 };
 
 // A generated value: its LLVM type and its text (`%t3`, `42`, `true`, ...).
@@ -51,6 +53,11 @@ void next_temp(Gen *g, char text[16]);
 void place_address(Gen *g, LocalId local, FieldPath path, char text[16]);
 const char *adt_type(Gen *g, TypeId type);          // defined at its first use
 const char *variant_type(Gen *g, TypeId adt, uint32_t v);
+// The variant of a niche enum that holds a pointer, or -1 (spec 13.3).
+int niche_variant(Gen *g, TypeId adt);
+// Reads and writes the tag of the niche enum `g->niche_tag` at `at`.
+void niche_tag_value(Gen *g, const char *at, Value *v);
+void niche_tag_store(Gen *g, const char *at, Value v);
 // `<int, str>`: the type arguments of an instance, for its name.
 void type_args_text(Gen *g, Out *out, TypeId targs);
 const char *tuple_type(Gen *g, const Ty *ty);

@@ -8,6 +8,10 @@ static void store_at(Gen *g, LocalId dest, FieldPath path, Value v) {
     if (strcmp(v.type, "void") != 0) {
         char at[16];
         place_address(g, dest, path, at);
+        if (g->has_niche_tag) {
+            niche_tag_store(g, at, v);
+            return;
+        }
         out_fmt(&g->out, "  store %s %s, ptr %s\n", v.type, v.text, at);
     }
 }

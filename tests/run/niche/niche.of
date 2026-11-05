@@ -1,0 +1,43 @@
+// Niche layouts (spec 13.3): an enum of a variant without fields and one
+// holding a reference or a `Box` keeps no tag; the empty variant is null.
+
+struct Point {
+    x: int
+    y: int
+}
+
+enum Maybe {
+    Nothing
+    Just(Box<int>)
+}
+
+fn first(points: &List<Point>) Option<&Point> {
+    if points.len() == 0 {
+        return Option.None
+    }
+    return Option.Some(&points[0])
+}
+
+fn unwrapOr(m: Maybe, fallback: int) int {
+    return match m {
+        Maybe.Just(b) => *b
+        Maybe.Nothing => fallback
+    }
+}
+
+fn main() {
+    let points = [Point{x: 3, y: 4}]
+    let empty: List<Point> = []
+    if let Option.Some(p) = first(&points) {
+        println("{p.x} {p.y}")
+    }
+    println("{first(&empty).isNone()}")
+    var boxed: Option<Box<int>> = Option.Some(Box.new(7))
+    println("{*boxed.unwrap()}")
+    boxed = Option.None
+    println("{boxed.isSome()}")
+    println("{unwrapOr(Maybe.Just(Box.new(5)), 0)} {unwrapOr(Maybe.Nothing, 9)}")
+    println("{sizeOf<Option<&Point>>()} {sizeOf<Option<Box<int>>>()} {sizeOf<Maybe>()}")
+    let nested: Option<Option<&Point>> = Option.Some(Option.None)
+    println("{nested.isSome()} {sizeOf<Option<Option<&Point>>>()}")
+}

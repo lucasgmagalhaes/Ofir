@@ -3,7 +3,8 @@
 //
 // An enum is `{ i32 tag, [K x i64] payload }`: the payload is large enough
 // for the largest variant, each variant being a struct of its fields
-// (`%"Shape.3.Circle"`) laid over the payload.
+// (`%"Shape.3.Circle"`) laid over the payload. An enum with a niche (spec
+// 13.3) is its pointer alone, `{ ptr }`: null is the variant without fields.
 
 #include "codegen/llvm_internal.h"
 
@@ -49,6 +50,24 @@ static uint64_t payload_words(Gen *g, TypeId adt, const EnumInfo *info) {
     return (largest + 7) / 8;
 }
 
+// A field that is never null: a reference, a `Box` or a function.
+static bool never_null(Gen *g, TypeId type) {
+    const Ty *ty = type_get(g->types, type);
+    return ty->kind == TY_REF || ty->kind == TY_FN ||
+           (ty->kind == TY_ADT && g->sema->box.id != 0 && ty->data == g->sema->box.id);
+}
+
+int niche_variant(Gen *g, TypeId adt) {
+    const Ty *ty = type_get(g->types, adt);
+    const Def *def = ty->kind == TY_ADT ? sema_def(g->sema, (DefId){ty->data}) : NULL;
+    if (!def || def->kind != DEF_ENUM || def->variants->count != 2) {
+        return -1;
+    }
+    uint32_t first = def->variants->variants[0].count, second = def->variants->variants[1].count;
+    int v = first == 1 && second == 0 ? 0 : first == 0 && second == 1 ? 1 : -1;
+    return v >= 0 && never_null(g, variant_field_type(g->sema, adt, (uint32_t)v, 0)) ? v : -1;
+}
+
 static Layout layout(Gen *g, TypeId type) {
     static const uint64_t INT_BYTES[] = {1, 2, 4, 8, 1, 2, 4, 8};
     const Ty *ty = type_get(g->types, type);
@@ -65,6 +84,10 @@ static Layout layout(Gen *g, TypeId type) {
         if (def->kind == DEF_STRUCT) {
             uint32_t count = def->fields->count;
             return fields_layout(g, field_types(g, type, -1, count), count);
+        }
+        int niche = niche_variant(g, type);
+        if (niche >= 0) {   // the pointer alone
+            return layout(g, variant_field_type(g->sema, type, (uint32_t)niche, 0));
         }
         uint64_t words = payload_words(g, type, def->variants);
         return words ? (Layout){8 + 8 * words, 8} : (Layout){4, 4};
@@ -164,7 +187,11 @@ static const char *define_enum(Gen *g, TypeId adt, const char *name) {
         uint32_t count = info->variants[v].count;
         define(g, variant_type(g, adt, v), field_types(g, adt, v, count), count);
     }
-    if (words) {
+    int niche = niche_variant(g, adt);
+    if (niche >= 0) {   // the pointer alone
+        const char *field = field_type(g, variant_field_type(g->sema, adt, (uint32_t)niche, 0));
+        out_fmt(&g->type_defs, "%s = type { %s }\n", name, field);
+    } else if (words) {
         out_fmt(&g->type_defs, "%s = type { i32, [%llu x i64] }\n", name,
                 (unsigned long long)words);
     } else {
@@ -214,6 +241,17 @@ typedef struct {
 } Cursor;
 
 static void step(Gen *g, Cursor *cur, uint32_t entry, char base[16]) {
+    if (!cur->variant && niche_variant(g, cur->type) >= 0) {   // no tag: the pointer
+        if (entry & PATH_VARIANT) {
+            cur->variant = true;
+            cur->index = entry & ~PATH_VARIANT;
+        } else {
+            g->niche_tag = cur->type;
+            g->has_niche_tag = true;
+            cur->type = type_id(TID_I32);
+        }
+        return;
+    }
     char next[16];
     next_temp(g, next);
     const Ty *ty = type_get(g->types, cur->type);
@@ -245,6 +283,7 @@ static void step(Gen *g, Cursor *cur, uint32_t entry, char base[16]) {
 void place_address(Gen *g, LocalId local, FieldPath path, char text[16]) {
     char base[16];
     fmt_into(base, sizeof base, "%%l%u", local.id);
+    g->has_niche_tag = false;
     if (path.deref) {   // the local holds the address of the value
         next_temp(g, base);
         out_fmt(&g->out, "  %s = load ptr, ptr %%l%u\n", base, local.id);

@@ -392,8 +392,13 @@ AIR is translated to **textual LLVM IR** (`.ll`), see ADR 0001.
   which has no borrow checker, never emits them**.
 - Internal functions use `fastcc` and `internal` linkage, so LLVM can inline
   and specialize freely; `pub extern "C"` functions use the C ABI.
-- Enum layout, niches and struct field reordering are computed once by
-  `codegen/layout` and shared with the borrow checker and the debugger info.
+- An enum is `{ i32 tag, [K x i64] payload }`, each variant a struct laid
+  over the payload. An enum with a niche (spec 13.3: two variants, one
+  empty and one holding a thin reference, a `Box` or a `fn`) is the
+  pointer alone, `{ ptr }`: a place naming its tag reads
+  `select (icmp eq ptr p, null), none, some`, storing the empty variant's
+  tag stores null, and the other variant's tag store is dropped (its
+  payload is already there). Both stages do this, with the same IR.
 - String literals are private constant globals.
 - Vtables are constant globals: `{ drop, size, align, type_id, methods... }`.
 

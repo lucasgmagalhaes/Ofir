@@ -1,0 +1,18 @@
+// requires: stage1
+// `Option<fn>` keeps no tag (spec 13.3): `None` is a null code pointer.
+
+fn twice(x: int) int {
+    return x * 2
+}
+
+fn apply(f: Option<fn(int) int>, x: int) int {
+    return match f {
+        Option.Some(g) => g(x)
+        Option.None => x
+    }
+}
+
+fn main() {
+    println("{apply(Option.Some(twice), 21)} {apply(Option.None, 5)}")
+    println("{sizeOf<Option<fn(int) int>>()}")
+}
