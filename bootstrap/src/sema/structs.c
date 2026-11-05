@@ -2,6 +2,7 @@
 // (spec 3.4).
 
 #include "sema/check_internal.h"
+#include "sema/suggest.h"
 
 static StrView name_of(Checker *c, Symbol name) {
     return symbol_name(&c->sema->session->names, name);
@@ -167,6 +168,7 @@ TypeId check_struct_field(Checker *c, Expr *e, TypeId base) {
         if (base.id != TID_ERROR && (!def || info)) {
             check_error(c, "E0316", e->span, "no field `" SV_FMT "` on type `%s`",
                         SV_ARG(name_of(c, e->as.field.name)), type_name(c, base));
+            suggest_field(c->sema, info, e->as.field.name);
         }
         return type_id(TID_ERROR);
     }
@@ -230,6 +232,7 @@ static void check_literal_fields(Checker *c, Expr *e, const Def *def, bool *give
         if (index < 0) {
             check_error(c, "E0316", init->value->span, "no field `" SV_FMT "` on this struct",
                         SV_ARG(name_of(c, init->name)));
+            suggest_field(c->sema, info, init->name);
             check_expr(c, init->value, NO_TYPE);
             continue;
         }

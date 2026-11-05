@@ -119,6 +119,7 @@ static void struct_pattern(Checker *c, Pattern *p, TypeId type) {
         if (index == info->count) {
             check_error(c, "E0316", p->span, "no field `" SV_FMT "` on type `%s`",
                         SV_ARG(name_of(c, f->name)), type_name(c, type));
+            suggest_field(c->sema, info, f->name);
             continue;
         }
         listed++;
