@@ -1,0 +1,24 @@
+// A niche enum (spec 13.3) is its pointer alone: the tag is read by testing
+// it for null and `None` is stored as a null pointer.
+// CHECK: = type { ptr }
+// CHECK: icmp eq ptr
+// CHECK: select i1
+// CHECK: store ptr null
+struct Point {
+    x: int
+    y: int
+}
+
+fn first(points: &List<Point>) Option<&Point> {
+    if points.len() == 0 {
+        return Option.None
+    }
+    return Option.Some(&points[0])
+}
+
+fn main() {
+    let points = [Point{x: 3, y: 4}]
+    if let Option.Some(p) = first(&points) {
+        println("{p.x}")
+    }
+}
