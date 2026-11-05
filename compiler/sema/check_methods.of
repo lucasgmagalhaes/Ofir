@@ -46,6 +46,7 @@ import sema.interfaces.isInterfaceMethod
 import sema.interfaces.methodIndex
 import sema.interfaces.paramBoundArgs
 import sema.interfaces.paramMethodOwner
+import sema.layout_attrs.checkPackedBorrow
 import sema.program.Program
 import sema.resolve_attributes.warnDeprecated
 import sema.struct_exprs.checkStructField
@@ -214,6 +215,7 @@ pub fn checkMutArgs(c: mut Checker, p: Program, id: int, callId: int, args: &Lis
         let slot = argParam(c, callId, i)
         if slot >= 0 && slot < decl.params.len() && decl.params[slot].mode == Mode.Mut {
             requireMutable(c, p, &args[i].value)
+            checkPackedBorrow(c, p, &args[i].value)
         }
     }
 }

@@ -14,6 +14,7 @@ import sema.check_place.placeRoot
 import sema.check_place.requireMutable
 import sema.def.Res
 import sema.expr_check.checkExpr
+import sema.layout_attrs.checkPackedBorrow
 import sema.program.Program
 import sema.structs.isCopy
 import sema.types.ERROR
@@ -48,6 +49,7 @@ pub fn checkRef(c: mut Checker, p: Program, e: &Expr, operand: &Expr, mutable: b
     if mutable {
         requireMutable(c, p, operand)
     }
+    checkPackedBorrow(c, p, operand)
     if ty == STR {
         if mutable {
             return c.unsupported(e.span, "`&mut str` is")
