@@ -1,6 +1,7 @@
 // Type expressions → TypeId, function signatures and type compatibility.
 
 #include "sema/check_internal.h"
+#include "sema/suggest.h"
 
 static void resolve_list(Checker *c, TypeList list, TypeId *out);
 
@@ -115,6 +116,7 @@ DefId module_type(Checker *c, uint32_t module, Symbol name, Span span) {
     if (!def || def->in_prelude || def->module != module) {
         check_error(c, "E0200", span, "cannot find `" SV_FMT "` in module `" SV_FMT "`",
                     SV_ARG(symbol_name(&c->sema->session->names, name)), SV_ARG(module_name));
+        suggest_member(c->sema, module, name);
         return (DefId){0};
     }
     if (!def->is_pub) {
@@ -136,6 +138,7 @@ static DefId path_target(Checker *c, const TypeExpr *type, Symbol *name) {
     if (id.id == 0) {   // `nowhere.Name`
         check_error(c, "E0200", type->span, "cannot find `" SV_FMT "` in this scope",
                     SV_ARG(symbol_name(&c->sema->session->names, segments.items[0])));
+        suggest_name(c->sema, segments.items[0], SUGGEST_ITEM);
         return (DefId){0};
     }
     const Def *module = sema_def(c->sema, id);
@@ -163,6 +166,7 @@ static TypeId resolve_path(Checker *c, const TypeExpr *type) {
     if (id.id == 0) {
         check_error(c, "E0200", type->span, "cannot find type `" SV_FMT "` in this scope",
                     SV_ARG(symbol_name(&c->sema->session->names, name)));
+        suggest_name(c->sema, name, SUGGEST_TYPE);
         return type_id(TID_ERROR);
     }
     return named_type(c, sema_def(c->sema, id), id, type);

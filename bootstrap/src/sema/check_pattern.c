@@ -2,6 +2,7 @@
 // `if let`.
 
 #include "sema/check_internal.h"
+#include "sema/suggest.h"
 
 static StrView name_of(Checker *c, Symbol name) {
     return symbol_name(&c->sema->session->names, name);
@@ -44,6 +45,7 @@ static bool path_def(Checker *c, SymbolList path, Span span, DefId *out) {
     if (out->id == 0) {
         check_error(c, "E0200", span, "cannot find `" SV_FMT "` in this scope",
                     SV_ARG(name_of(c, path.items[0])));
+        suggest_name(c->sema, path.items[0], SUGGEST_ITEM);
         return false;
     }
     return true;
