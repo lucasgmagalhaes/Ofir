@@ -16,6 +16,7 @@
 import base.intern.Symbol
 import base.span.Span
 import diag.noSpan
+import sema.call_args.checkDefaults
 import sema.check_ref.checkBorrowSource
 import sema.check_stmt.checkBlock
 import sema.check_unsafe.checkCSignature
@@ -417,6 +418,11 @@ pub struct Checker {
     pub members: List<List<int>>
     /** The type arguments of each generic call, as a tuple type, by module and `NodeId`. */
     pub callTypeArgs: List<Map<int, int>>
+    /** The parameter each argument of a call gives, by module and `NodeId`: only for the
+     * calls that name arguments or leave parameters to their defaults (spec 3.3). */
+    pub argSlots: List<Map<int, List<int>>>
+    /** The functions whose parameter defaults were checked, by `DefId`. */
+    pub defaultsChecked: Map<int, bool>
     /** The values converted from `List<T>` to `&[T]` (`list.asSlice()`), by module:
      * `NodeId` to the element type. */
     pub sliceCoercions: List<Map<int, int>>
@@ -796,6 +802,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     var adjusted: List<Map<int, int>> = []
     var members: List<List<int>> = []
     var callTypeArgs: List<Map<int, int>> = []
+    var argSlots: List<Map<int, List<int>>> = []
     var sliceCoercions: List<Map<int, int>> = []
     var dynCoercions: List<Map<int, int>> = []
     var moveFlags: List<Map<int, int>> = []
@@ -808,6 +815,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         adjusted.push(Map.new())
         members.push(List.filled(-1, p.modules[m].module.nodeCount))
         callTypeArgs.push(Map.new())
+        argSlots.push(Map.new())
         sliceCoercions.push(Map.new())
         dynCoercions.push(Map.new())
         moveFlags.push(Map.new())
@@ -823,8 +831,8 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     }
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
                    adjusted,
-                   members, callTypeArgs, sliceCoercions, dynCoercions, moveFlags,
-                   fnMoves: Map.new(),
+                   members, callTypeArgs, argSlots, defaultsChecked: Map.new(), sliceCoercions,
+                   dynCoercions, moveFlags, fnMoves: Map.new(),
                    bodyChecked: Map.new(), movesPending: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
@@ -856,6 +864,7 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
     if decl.body.isSome() && c.module() != 0 && moduleInStd(p, c.module()) {
         return   // a program uses few std functions: the lowering checks them
     }
+    checkDefaults(c, p, id)
     checkBody(c, p, id, selfType, false)
 }
 
