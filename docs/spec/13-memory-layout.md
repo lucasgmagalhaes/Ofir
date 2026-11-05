@@ -96,4 +96,7 @@ capacity 0; it is copied to the heap on first modification.
 
 All heap allocation goes through the global allocator in `std.mem`, which
 defaults to the C library's `malloc`/`free`. Allocation failure panics.
+An allocation for a type whose alignment is above 16 (an `@align(N)`
+struct, or a value containing one) is aligned to it: in `Box<T>`,
+`List<T>` and closure environments alike.
 Custom allocators passed explicitly to collections are **[planned]**.
