@@ -872,6 +872,50 @@ fn isIntrinsic(c: Checker, p: Program, id: int) bool {
     }
 }
 
+// The default of parameter `index` of `id`, lowered in its module.
+fn defaultArgument(l: mut Lowerer, c: mut Checker, p: Program, id: int, callee: int,
+                   index: int) Operand {
+    let decl = fnOf(p, c.loc(id))
+    let previous = c.enter(c.def(id).module)
+    let result = match decl.params[index].defaultValue {
+        Option.Some(value) => argument(l, c, p, &value, byAddress(c, p, callee, index),
+                                       Option.None)
+        Option.None => unit()
+    }
+    c.enter(previous)
+    return result
+}
+
+// The arguments of a call that names them or leaves parameters to their
+// defaults (spec 3.3): those written, in the order written, then the
+// defaults of the others, passed in the order of the parameters.
+fn arrangedArguments(l: mut Lowerer, c: mut Checker, p: Program, id: int, callee: int,
+                     args: &List<Arg>, slots: &List<int>, operands: mut List<Operand>) {
+    var given: List<Operand> = []
+    for i in 0..args.len() {
+        var next: Option<&Expr> = Option.None
+        if i + 1 < args.len() {
+            next = Option.Some(&args[i + 1].value)
+        }
+        given.push(argument(l, c, p, &args[i].value, byAddress(c, p, callee, slots[i]), next))
+    }
+    let count = fnOf(p, c.loc(id)).params.len()
+    for j in 0..count {
+        var at = -1
+        for i in 0..slots.len() {
+            if slots[i] == j {
+                at = i
+            }
+        }
+        if at >= 0 {
+            operands.push(given[at].clone())
+        } else {
+            let value = defaultArgument(l, c, p, id, callee, j)
+            operands.push(value)
+        }
+    }
+}
+
 // A call of a user function.
 fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
                 args: &List<Arg>, receiver: Option<&Expr>) Operand {
@@ -912,13 +956,18 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         }
         operands.push(argument(l, c, p, recv, byAddress(c, p, callee, -1), next))
     }
-    for i in 0..args.len() {
-        var next: Option<&Expr> = Option.None
-        if i + 1 < args.len() {
-            next = Option.Some(&args[i + 1].value)
+    match c.argSlots[c.module()].get(e.id.0) {
+        Option.Some(slots) => arrangedArguments(l, c, p, id, callee, args, slots, operands)
+        Option.None => {
+            for i in 0..args.len() {
+                var next: Option<&Expr> = Option.None
+                if i + 1 < args.len() {
+                    next = Option.Some(&args[i + 1].value)
+                }
+                let byRef = i < paramCount && byAddress(c, p, callee, i)
+                operands.push(argument(l, c, p, &args[i].value, byRef, next))
+            }
         }
-        let byRef = i < paramCount && byAddress(c, p, callee, i)
-        operands.push(argument(l, c, p, &args[i].value, byRef, next))
     }
     let ty = c.typeOf(e.id.0)
     var dest = -1
@@ -1254,13 +1303,18 @@ fn dynCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr, id
     let method = tempValue(l, fnSignature(c, p, id), rv)
     var operands = [method]
     let paramCount = fnOf(p, c.loc(id)).params.len()
-    for i in 0..args.len() {
-        var next: Option<&Expr> = Option.None
-        if i + 1 < args.len() {
-            next = Option.Some(&args[i + 1].value)
+    match c.argSlots[c.module()].get(e.id.0) {
+        Option.Some(given) => arrangedArguments(l, c, p, id, id, args, given, operands)
+        Option.None => {
+            for i in 0..args.len() {
+                var next: Option<&Expr> = Option.None
+                if i + 1 < args.len() {
+                    next = Option.Some(&args[i + 1].value)
+                }
+                let byRef = i < paramCount && byAddress(c, p, id, i)
+                operands.push(argument(l, c, p, &args[i].value, byRef, next))
+            }
         }
-        let byRef = i < paramCount && byAddress(c, p, id, i)
-        operands.push(argument(l, c, p, &args[i].value, byRef, next))
     }
     let ty = c.typeOf(e.id.0)
     var dest = -1
