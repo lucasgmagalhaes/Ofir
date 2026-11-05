@@ -66,6 +66,17 @@ static void size_of(Gen *g, TypeId type, Value *result) {
     out_fmt(&g->out, "  %s = ptrtoint ptr %s to i64\n", result->text, end);
 }
 
+// The offset of a `T` after an `i1` is its alignment.
+static void align_of(Gen *g, TypeId type, Value *result) {
+    char end[16];
+    next_temp(g, end);
+    const char *t = llvm_type(g, type);
+    t = strcmp(t, "void") ? t : "{}";
+    out_fmt(&g->out, "  %s = getelementptr { i1, %s }, ptr null, i32 0, i32 1\n", end, t);
+    next_temp(g, result->text);
+    out_fmt(&g->out, "  %s = ptrtoint ptr %s to i64\n", result->text, end);
+}
+
 void gen_misc(Gen *g, const Rvalue *rv, Value *result) {
     switch (rv->kind) {
     case RV_PTR_ADD: {
@@ -78,6 +89,7 @@ void gen_misc(Gen *g, const Rvalue *rv, Value *result) {
     }
     case RV_AGGREGATE: aggregate(g, rv, result); break;
     case RV_SIZE_OF: size_of(g, rv->to, result); break;
+    case RV_ALIGN_OF: align_of(g, rv->to, result); break;
     case RV_STR_LEN: {
         Value s = gen_operand(g, rv->a);
         next_temp(g, result->text);
