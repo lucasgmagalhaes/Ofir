@@ -39,8 +39,8 @@ import syntax.token.TokenValue
  */
 pub fn atLiteral(p: Parser) bool {
     return match p.peek() {
-        TokenKind.Int | TokenKind.Float | TokenKind.Byte | TokenKind.Str | TokenKind.True |
-        TokenKind.False => true
+        TokenKind.Int | TokenKind.Float | TokenKind.Byte | TokenKind.Str | TokenKind.ByteStr |
+        TokenKind.True | TokenKind.False => true
         TokenKind.Minus => p.peekAt(1) == TokenKind.Int || p.peekAt(1) == TokenKind.Float
         _ => false
     }
@@ -52,7 +52,11 @@ fn literalToken(p: mut Parser) Expr {
         TokenValue.Int(v) => ExprKind.Int(v)
         TokenValue.Float(v) => ExprKind.Float(v)
         TokenValue.Byte(v) => ExprKind.Byte(v)
-        TokenValue.Str(text) => ExprKind.Str(text.toOwned())
+        TokenValue.Str(text) => if t.kind == TokenKind.ByteStr {
+            ExprKind.ByteStr(text.toOwned())
+        } else {
+            ExprKind.Str(text.toOwned())
+        }
         _ => ExprKind.Bool(t.kind == TokenKind.True)
     }
     let start = p.advance()
@@ -274,8 +278,8 @@ fn structLiteral(p: mut Parser, typeName: move Expr) Expr {
 pub fn parsePrimary(p: mut Parser) Expr {
     let start = p.here()
     return match p.peek() {
-        TokenKind.Int | TokenKind.Float | TokenKind.Byte | TokenKind.Str | TokenKind.True |
-        TokenKind.False => literalToken(p)
+        TokenKind.Int | TokenKind.Float | TokenKind.Byte | TokenKind.Str | TokenKind.ByteStr |
+        TokenKind.True | TokenKind.False => literalToken(p)
         TokenKind.StrStart => interpolation(p)
         TokenKind.Ident => if closureAt(p) { closure(p) } else { name(p) }
         TokenKind.SelfValue => {

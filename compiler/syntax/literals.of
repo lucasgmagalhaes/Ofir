@@ -292,3 +292,160 @@ fn skipToQuote(cur: mut Cursor, src: str) {
     }
     cur.eat(src, b'\'')
 }
+
+// ---------------------------------------------------------------------------
+// Raw, multi-line and byte strings (stage 1)
+
+/**
+ * A raw string, `r"..."`: no escapes and no interpolation, on one line.
+ *
+ * @param cur the cursor, at the `r`
+ * @param src the source
+ * @param diags where errors go
+ * @returns a `Str` token
+ */
+pub fn scanRawString(cur: mut Cursor, src: str, diags: mut Diagnostics) Token {
+    let start = cur.pos
+    cur.pos += 2                                  // r"
+    let from = cur.pos
+    for !cur.atEnd(src) && src[cur.pos] != b'"' && src[cur.pos] != b'\n' {
+        cur.pos += 1
+    }
+    let text = src[from..cur.pos].toOwned()
+    if !cur.eat(src, b'"') {
+        diags.error("E0002", cur.spanFrom(start), "unterminated string literal")
+    }
+    return cur.tokenWith(TokenKind.Str, start, TokenValue.Str(text))
+}
+
+/**
+ * A multi-line string, `"""` to `"""`: raw, its text starts on the line
+ * after the opening quotes, and the indentation of the closing quotes is
+ * removed from every line. Each line ends with a newline.
+ *
+ * @param cur the cursor, at the opening quotes
+ * @param src the source
+ * @param diags where errors go
+ * @returns a `Str` token
+ */
+pub fn scanMultiline(cur: mut Cursor, src: str, diags: mut Diagnostics) Token {
+    let start = cur.pos
+    cur.pos += 3
+    skipBlanks(cur, src)
+    if !cur.atEnd(src) && src[cur.pos] != b'\n' {
+        diags.error("E0007", cur.spanAt(cur.pos),
+                    "the text of a multi-line string starts on the line after `\"\"\"`")
+        for !cur.atEnd(src) && src[cur.pos] != b'\n' {
+            cur.pos += 1
+        }
+    }
+    var lines: List<int> = []   // the start of each line
+    for {
+        if cur.atEnd(src) {
+            diags.error("E0002", cur.spanFrom(start), "unterminated string literal")
+            return cur.tokenWith(TokenKind.Str, start, TokenValue.Str(str.new()))
+        }
+        cur.pos += 1                              // the newline
+        let line = cur.pos
+        skipBlanks(cur, src)
+        if cur.peek(src, 0) == b'"' && cur.peek(src, 1) == b'"' && cur.peek(src, 2) == b'"' {
+            let text = dedent(cur, src, &lines, line, cur.pos, diags)
+            cur.pos += 3
+            return cur.tokenWith(TokenKind.Str, start, TokenValue.Str(text))
+        }
+        lines.push(line)
+        for !cur.atEnd(src) && src[cur.pos] != b'\n' {
+            cur.pos += 1
+        }
+    }
+}
+
+fn skipBlanks(cur: mut Cursor, src: str) {
+    for !cur.atEnd(src) && (src[cur.pos] == b' ' || src[cur.pos] == b'\t') {
+        cur.pos += 1
+    }
+}
+
+// The lines starting at `lines`, without the indentation `src[from..to]` of
+// the closing quotes; blank lines may be indented less.
+fn dedent(cur: Cursor, src: str, lines: &List<int>, from: int, to: int,
+          diags: mut Diagnostics) str {
+    let indent = src[from..to]
+    var out = str.new()
+    for i in 0..lines.len() {
+        var end = lines[i]
+        for end < src.len() && src[end] != b'\n' {
+            end += 1
+        }
+        var last = end
+        if last > lines[i] && src[last - 1] == b'\r' {
+            last -= 1
+        }
+        let line = src[lines[i]..last]
+        if line.startsWith(indent) {
+            out.push(line.sliceFrom(indent.len()))
+        } else if !isBlank(line) {
+            diags.error("E0007", cur.spanAt(lines[i]),
+                        "this line is indented less than the closing `\"\"\"`")
+        }
+        out.push("\n")
+    }
+    return out
+}
+
+fn isBlank(line: str) bool {
+    for i in 0..line.len() {
+        if line[i] != b' ' && line[i] != b'\t' {
+            return false
+        }
+    }
+    return true
+}
+
+/**
+ * A byte string, `b"GET \xff"`: any byte through `\xHH`, no interpolation.
+ *
+ * @param cur the cursor, at the `b`
+ * @param src the source
+ * @param diags where errors go
+ * @returns a `ByteStr` token; its text may not be valid UTF-8
+ */
+pub fn scanByteString(cur: mut Cursor, src: str, diags: mut Diagnostics) Token {
+    let start = cur.pos
+    cur.pos += 2                                  // b"
+    var text = str.new()
+    for {
+        if cur.atEnd(src) || src[cur.pos] == b'\n' {
+            diags.error("E0002", cur.spanFrom(start), "unterminated string literal")
+            return cur.tokenWith(TokenKind.ByteStr, start, TokenValue.Str(text))
+        }
+        let c = src[cur.pos]
+        if c == b'"' {
+            cur.pos += 1
+            return cur.tokenWith(TokenKind.ByteStr, start, TokenValue.Str(text))
+        }
+        if c != b'\\' {
+            let run = cur.pos
+            for !cur.atEnd(src) && src[cur.pos] != b'"' && src[cur.pos] != b'\\' &&
+                src[cur.pos] != b'\n' {
+                cur.pos += 1
+            }
+            text.push(src[run..cur.pos])
+            continue
+        }
+        let escape = cur.pos
+        cur.pos += 1
+        let value = if cur.peek(src, 0) == b'"' {
+            cur.pos += 1
+            34
+        } else {
+            byteEscape(cur, src)
+        }
+        if value < 0 {
+            diags.error("E0004", cur.spanFrom(escape), "invalid escape sequence")
+        } else {
+            let byte = value as u8
+            text.push(unsafe { str.fromRaw(&byte as *u8, 1) })   // any byte, not only UTF-8
+        }
+    }
+}

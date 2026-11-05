@@ -162,6 +162,8 @@ pub enum ExprKind {
     Byte(value: u8)
     /** A string literal without interpolation. */
     Str(value: str)
+    /** A byte string literal, `b"GET"`: a `&[u8]`. */
+    ByteStr(value: str)
     /** `true` or `false`. */
     Bool(value: bool)
     /** `"a {x} b"`: the parts alternate between strings and expressions. */

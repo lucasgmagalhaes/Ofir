@@ -255,7 +255,7 @@ fn resolveSelfType(r: mut Resolver, e: &Expr) {
 pub fn resolveExpr(r: mut Resolver, e: &Expr) {
     match e.kind {
         ExprKind.Int(_) | ExprKind.Float(_) | ExprKind.Byte(_) | ExprKind.Str(_) |
-        ExprKind.Bool(_) => {}
+        ExprKind.ByteStr(_) | ExprKind.Bool(_) => {}
         ExprKind.SelfType => resolveSelfType(r, e)
         ExprKind.Interp(parts) => resolveExprs(r, &parts)
         ExprKind.Ident(name) => {
