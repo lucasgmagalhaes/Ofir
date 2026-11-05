@@ -1,0 +1,473 @@
+/**
+ * @module
+ * The derived built-in interfaces (spec 9.9): `==` and `!=` through
+ * `eq<T>(a, b) bool`, `<`, `<=`, `>` and `>=` through
+ * `cmp<T>(a, b) i32`, and `Map` keys through `hash<T>(value) u64`, glue
+ * the compiler writes for each struct, enum and tuple type that does not
+ * declare the method. `cmp` returns the tag of an `Ordering`: 0 (`Less`),
+ * 1 (`Equal`) or 2 (`Greater`). Structs compare their fields in order,
+ * enums their variants (by tag), then the fields of the variant.
+ */
+
+import air.air.AirBody
+import air.air.GLUE_CMP
+import air.air.GLUE_EQ
+import air.air.GLUE_HASH
+import air.air.Operand
+import air.air.OperandKind
+import air.lower.Place
+import air.air.Rvalue
+import air.air.RvalueKind
+import air.air.TermKind
+import air.air.VARIANT_STEP
+import air.air.branch
+import air.air.opBool
+import air.air.opCopy
+import air.air.opInt
+import air.air.rvUse
+import air.air.rvalue
+import air.air.terminator
+import air.lower.Lowerer
+import air.lower.emitAssign
+import air.lower.emitCall
+import air.lower.emitGoto
+import air.lower.emitTemp
+import air.lower.emptyBody
+import air.lower.fieldPlace
+import air.lower.localPlace
+import air.lower.methodTargs
+import air.lower.monoBody
+import air.lower.newTemp
+import air.lower.placeOperand
+import air.lower.switchTo
+import air.lower.terminate
+import air.lower.toLocal
+import air.lower_expr.callHash
+import air.lower_expr.equalValues
+import air.lower_expr.hashValue
+import air.lower_expr.lowerBinaryOp
+import air.lower_pattern.isVariant
+import base.intern.Symbol
+import diag.noSpan
+import sema.check.BOUND_EQ
+import sema.check.BOUND_ORD
+import sema.check.Checker
+import sema.check_types.fnSignature
+import sema.def.DefKind
+import sema.derive.comparisonMethod
+import sema.enums.enumVariants
+import sema.enums.variantsOf
+import sema.program.Program
+import sema.structs.fieldsOf
+import sema.structs.structFieldType
+import sema.structs.variantFieldType
+import sema.types.BOOL
+import sema.types.I32
+import sema.types.TyKind
+import sema.types.U64
+import std.mem
+import syntax.ast.Op
+
+const LESS: u64 = 0
+const EQUAL: u64 = 1
+const GREATER: u64 = 2
+
+fn temp(l: mut Lowerer, ty: int, value: move Rvalue) Operand {
+    return opCopy(emitTemp(l, ty, value), ty)
+}
+
+fn isEnum(c: Checker, ty: int) bool {
+    return c.types.kind(ty) == TyKind.Adt && c.def(c.types.get(ty).data).kind == DefKind.Enum
+}
+
+/**
+ * Whether `==` on a type is a call (of its `eq` method or of the glue):
+ * tuples, structs, enums with payloads, and types that declare `eq`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type, concrete
+ * @returns true if it is
+ */
+pub fn equalityCalls(c: mut Checker, p: Program, ty: int) bool {
+    let kind = c.types.kind(ty)
+    if kind == TyKind.Tuple {
+        return true
+    }
+    if kind != TyKind.Adt {
+        return false
+    }
+    if comparisonMethod(c, p, ty, BOUND_EQ) != 0 || !isEnum(c, ty) {
+        return true
+    }
+    let id = c.types.get(ty).data
+    enumVariants(c, p, id)
+    return variantsOf(c, id).hasPayload
+}
+
+/**
+ * Whether `<` on a type is a call: tuples, structs and enums.
+ *
+ * @param c the checker
+ * @param ty the type, concrete
+ * @returns true if it is
+ */
+pub fn orderCalls(c: Checker, ty: int) bool {
+    let kind = c.types.kind(ty)
+    return kind == TyKind.Tuple || kind == TyKind.Adt
+}
+
+/**
+ * `a == b` on a struct or an enum: its `eq` method, or the glue.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param a the left value
+ * @param b the right value
+ * @param ty their type, concrete
+ * @returns the bool
+ */
+pub fn adtEqual(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand, b: move Operand,
+                ty: int) Operand {
+    let dest = newTemp(l, BOOL)
+    let method = comparisonMethod(c, p, ty, BOUND_EQ)
+    if method != 0 {
+        emitCall(l, method, methodTargs(c, ty), [a, b], dest)
+    } else {
+        emitCall(l, GLUE_EQ, c.types.tuple([ty]), [a, b], dest)
+    }
+    return opCopy(dest, BOOL)
+}
+
+/**
+ * The hash of a struct or an enum: the glue.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param value the value
+ * @param ty its type, concrete
+ * @returns the `u64`
+ */
+pub fn adtHash(l: mut Lowerer, c: mut Checker, value: move Operand, ty: int) Operand {
+    let dest = newTemp(l, U64)
+    emitCall(l, GLUE_HASH, c.types.tuple([ty]), [value], dest)
+    return opCopy(dest, U64)
+}
+
+/**
+ * How two values compare, as the tag of an `Ordering`: a call of the
+ * type's `cmp` method or of the glue, or for numbers and `str`, `<` and
+ * `>`.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param a the left value
+ * @param b the right value
+ * @param ty their type, concrete
+ * @returns the `i32`
+ */
+pub fn orderOf(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand, b: move Operand,
+               ty: int) Operand {
+    var x = a
+    var y = b
+    x.ty = ty
+    y.ty = ty
+    if orderCalls(c, ty) {
+        let method = comparisonMethod(c, p, ty, BOUND_ORD)
+        if method == 0 {
+            let dest = newTemp(l, I32)
+            emitCall(l, GLUE_CMP, c.types.tuple([ty]), [x, y], dest)
+            return opCopy(dest, I32)
+        }
+        let ordering = c.types.get(fnSignature(c, p, method)).inner
+        let result = newTemp(l, ordering)
+        emitCall(l, method, methodTargs(c, ty), [x, y], result)
+        let tag = Place{local: result, fields: [0], deref: false}
+        return placeOperand(&tag, OperandKind.Copy, I32)
+    }
+    let dest = emitTemp(l, I32, rvUse(opInt(EQUAL, I32)))
+    let less = l.body.newBlock()
+    let notLess = l.body.newBlock()
+    let greater = l.body.newBlock()
+    let done = l.body.newBlock()
+    let lt = lowerBinaryOp(l, c, Op.Lt, ty, x.clone(), y.clone(), noSpan())
+    terminate(l, branch(lt, less, notLess))
+    switchTo(l, less)
+    emitAssign(l, dest, rvUse(opInt(LESS, I32)))
+    emitGoto(l, done)
+    switchTo(l, notLess)
+    let gt = lowerBinaryOp(l, c, Op.Gt, ty, x, y, noSpan())
+    terminate(l, branch(gt, greater, done))
+    switchTo(l, greater)
+    emitAssign(l, dest, rvUse(opInt(GREATER, I32)))
+    emitGoto(l, done)
+    switchTo(l, done)
+    return opCopy(dest, I32)
+}
+
+/**
+ * `a op b` for `<`, `<=`, `>` and `>=` from how the values compare.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param op the operator
+ * @param a the left value
+ * @param b the right value
+ * @param ty their type, concrete
+ * @returns the bool
+ */
+pub fn orderedBy(l: mut Lowerer, c: mut Checker, p: Program, op: Op, a: move Operand,
+                 b: move Operand, ty: int) Operand {
+    let order = orderOf(l, c, p, a, b, ty)
+    return temp(l, BOOL, rvalue(RvalueKind.Binary, op, order, opInt(EQUAL, I32)))
+}
+
+// ---------------------------------------------------------------------------
+// The glue bodies
+
+// The parts of a struct or a tuple: their places in `value` and types.
+fn partCount(c: mut Checker, ty: int) int {
+    return if c.types.kind(ty) == TyKind.Tuple {
+        c.types.get(ty).args.len()
+    } else {
+        fieldsOf(c, c.types.get(ty).data).types.len()
+    }
+}
+
+fn partType(c: mut Checker, p: Program, ty: int, i: int) int {
+    return if c.types.kind(ty) == TyKind.Tuple {
+        c.types.get(ty).args[i]
+    } else {
+        structFieldType(c, p, ty, i)
+    }
+}
+
+fn part(place: &Place, ty: int) Operand {
+    return placeOperand(place, OperandKind.Copy, ty)
+}
+
+fn startGlue(l: mut Lowerer, c: mut Checker, glue: int, targs: int, ret: int, params: int) {
+    let ty = c.types.get(targs).args[0]
+    l.body = AirBody{def: glue, targs: targs, name: Symbol(0), isMain: false,
+                     paramCount: params, locals: [], blocks: [],
+                     closure: Option.None}
+    l.body.newLocal(ret, Option.None, noSpan())
+    for _ in 0..params {
+        l.body.newLocal(ty, Option.None, noSpan())
+    }
+    l.fnDef = 0
+    l.flags = []
+    l.block = l.body.newBlock()
+}
+
+fn finishGlue(l: mut Lowerer, c: mut Checker, p: Program) {
+    l.body.terminate(l.block, terminator(TermKind.Return))
+    monoBody(l, c, p)
+    l.out.push(mem.replace(l.body, emptyBody()))
+}
+
+// Each pair of fields, in `a` and `b` at `step`: `same` stays true while they
+// are equal.
+fn equalFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int) Operand {
+    let a = localPlace(1)
+    let b = localPlace(2)
+    let count = if variant < 0 { partCount(c, ty) } else {
+        variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
+    }
+    var all = opBool(true, BOOL)
+    for i in 0..count {
+        let step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
+        let field = if variant < 0 { partType(c, p, ty, i) } else {
+            variantFieldType(c, p, ty, variant, i)
+        }
+        let fa = part(&fieldPlace(&a, step, i), field)
+        let fb = part(&fieldPlace(&b, step, i), field)
+        let same = equalValues(l, c, p, fa, fb, field)
+        all = temp(l, BOOL, rvalue(RvalueKind.Binary, Op.And, all, same))
+    }
+    return all
+}
+
+/**
+ * Lowers `eq<T>(a: T, b: T) bool`.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param targs `(T,)`
+ */
+pub fn lowerEqGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
+    startGlue(l, c, GLUE_EQ, targs, BOOL, 2)
+    let ty = c.types.get(targs).args[0]
+    if !isEnum(c, ty) {
+        emitAssign(l, 0, rvUse(equalFields(l, c, p, ty, -1)))
+        finishGlue(l, c, p)
+        return
+    }
+    let id = c.types.get(ty).data
+    enumVariants(c, p, id)
+    emitAssign(l, 0, rvUse(opBool(false, BOOL)))
+    let tagA = part(&Place{local: 1, fields: [0], deref: false}, I32)
+    let tagB = part(&Place{local: 2, fields: [0], deref: false}, I32)
+    let sameTag = temp(l, BOOL, rvalue(RvalueKind.Binary, Op.Eq, tagA.clone(), tagB))
+    let done = l.body.newBlock()
+    let fields = l.body.newBlock()
+    terminate(l, branch(sameTag, fields, done))
+    switchTo(l, fields)
+    let count = variantsOf(c, id).variants.len()
+    for v in 0..count {
+        if variantsOf(c, id).variants[v].types.len() == 0 {
+            continue
+        }
+        let body = l.body.newBlock()
+        let next = l.body.newBlock()
+        let is = isVariant(l, c, p, &localPlace(1), ty, v)
+        terminate(l, branch(is, body, next))
+        switchTo(l, body)
+        emitAssign(l, 0, rvUse(equalFields(l, c, p, ty, v)))
+        emitGoto(l, done)
+        switchTo(l, next)
+    }
+    emitAssign(l, 0, rvUse(opBool(true, BOOL)))   // a variant without fields
+    emitGoto(l, done)
+    switchTo(l, done)
+    finishGlue(l, c, p)
+}
+
+fn hashFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int,
+              start: move Operand) Operand {
+    let value = localPlace(1)
+    let count = if variant < 0 { partCount(c, ty) } else {
+        variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
+    }
+    var h = start
+    for i in 0..count {
+        let step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
+        let field = if variant < 0 { partType(c, p, ty, i) } else {
+            variantFieldType(c, p, ty, variant, i)
+        }
+        let one = hashValue(l, c, p, part(&fieldPlace(&value, step, i), field), field)
+        h = combine(l, c, p, h, one)
+    }
+    return h
+}
+
+fn combine(l: mut Lowerer, c: mut Checker, p: Program, h: move Operand,
+           one: move Operand) Operand {
+    return callHash(l, c, p, "hashCombine", [h, one])
+}
+
+/**
+ * Lowers `hash<T>(value: T) u64`: the fields' hashes combined in order,
+ * after the tag of an enum.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param targs `(T,)`
+ */
+pub fn lowerHashGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
+    startGlue(l, c, GLUE_HASH, targs, U64, 1)
+    let ty = c.types.get(targs).args[0]
+    if !isEnum(c, ty) {
+        emitAssign(l, 0, rvUse(hashFields(l, c, p, ty, -1, opInt(0, U64))))
+        finishGlue(l, c, p)
+        return
+    }
+    let id = c.types.get(ty).data
+    enumVariants(c, p, id)
+    let tag = part(&Place{local: 1, fields: [0], deref: false}, I32)
+    let start = toLocal(l, hashValue(l, c, p, tag.clone(), I32))
+    emitAssign(l, 0, rvUse(opCopy(start, U64)))
+    let done = l.body.newBlock()
+    let count = variantsOf(c, id).variants.len()
+    for v in 0..count {
+        if variantsOf(c, id).variants[v].types.len() == 0 {
+            continue
+        }
+        let body = l.body.newBlock()
+        let next = l.body.newBlock()
+        let is = isVariant(l, c, p, &localPlace(1), ty, v)
+        terminate(l, branch(is, body, next))
+        switchTo(l, body)
+        emitAssign(l, 0, rvUse(hashFields(l, c, p, ty, v, opCopy(start, U64))))
+        emitGoto(l, done)
+        switchTo(l, next)
+    }
+    emitGoto(l, done)
+    switchTo(l, done)
+    finishGlue(l, c, p)
+}
+
+// Compares the fields in order: the first that differ decide, into local 0.
+fn cmpFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int, done: int) {
+    let a = localPlace(1)
+    let b = localPlace(2)
+    let count = if variant < 0 { partCount(c, ty) } else {
+        variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
+    }
+    for i in 0..count {
+        let step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
+        let field = if variant < 0 { partType(c, p, ty, i) } else {
+            variantFieldType(c, p, ty, variant, i)
+        }
+        let fa = part(&fieldPlace(&a, step, i), field)
+        let fb = part(&fieldPlace(&b, step, i), field)
+        let order = orderOf(l, c, p, fa, fb, field)
+        decide(l, order, done)
+    }
+}
+
+// `order` into local 0; on to `done` unless it is `Equal`.
+fn decide(l: mut Lowerer, order: move Operand, done: int) {
+    emitAssign(l, 0, rvUse(order))
+    let equal = temp(l, BOOL, rvalue(RvalueKind.Binary, Op.Eq, opCopy(0, I32),
+                                     opInt(EQUAL, I32)))
+    let next = l.body.newBlock()
+    terminate(l, branch(equal, next, done))
+    switchTo(l, next)
+}
+
+/**
+ * Lowers `cmp<T>(a: T, b: T) i32`.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param targs `(T,)`
+ */
+pub fn lowerCmpGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
+    startGlue(l, c, GLUE_CMP, targs, I32, 2)
+    let ty = c.types.get(targs).args[0]
+    emitAssign(l, 0, rvUse(opInt(EQUAL, I32)))
+    let done = l.body.newBlock()
+    if !isEnum(c, ty) {
+        cmpFields(l, c, p, ty, -1, done)
+    } else {
+        let id = c.types.get(ty).data
+        enumVariants(c, p, id)
+        let tagA = part(&Place{local: 1, fields: [0], deref: false}, I32)
+        let tagB = part(&Place{local: 2, fields: [0], deref: false}, I32)
+        decide(l, orderOf(l, c, p, tagA.clone(), tagB, I32), done)
+        let count = variantsOf(c, id).variants.len()
+        for v in 0..count {
+            if variantsOf(c, id).variants[v].types.len() == 0 {
+                continue
+            }
+            let body = l.body.newBlock()
+            let next = l.body.newBlock()
+            let is = isVariant(l, c, p, &localPlace(1), ty, v)
+            terminate(l, branch(is, body, next))
+            switchTo(l, body)
+            cmpFields(l, c, p, ty, v, done)
+            emitGoto(l, done)
+            switchTo(l, next)
+        }
+    }
+    emitGoto(l, done)
+    switchTo(l, done)
+    finishGlue(l, c, p)
+}

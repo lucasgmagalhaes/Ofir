@@ -59,10 +59,6 @@ fn tupleArity() {
     let (a, b) = (1, 2, 3)    // error[E0302]: wrong number of fields in the pattern: expected 3, found 2
 }
 
-fn noComparison(s: Shape) {
-    let same = s == s         // error[E0313]: operator cannot be applied to type `Shape`
-}
-
 fn fallsThrough(r: Shape) {
     let Shape.Circle(x) = r else {   // error[E0307]: the `else` block of `let ... else` must not fall through: end it with `return`, `break`, `continue` or a panic
         println("no")

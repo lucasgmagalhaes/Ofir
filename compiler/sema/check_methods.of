@@ -306,7 +306,7 @@ pub fn checkUserMethod(c: mut Checker, p: Program, call: &Expr, field: &Expr, ba
     c.setMember(field.id.0, id)
     let ret = methodArgs(c, p, call, field, explicit, args, id, selfType, expected)
     if owner == c.r.langItems[1] && c.text(name) == "sort" {
-        checkListSort(c, call)
+        checkListSort(c, p, call)
     }
     checkMutArgs(c, p, id, field, args)
     if !viaType && isClone {

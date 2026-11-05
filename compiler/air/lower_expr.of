@@ -31,6 +31,11 @@ import air.air.rvalue
 import air.air.terminator
 import air.lower.LoopTarget
 import air.lower.localPlace
+import air.lower_derive.adtEqual
+import air.lower_derive.adtHash
+import air.lower_derive.equalityCalls
+import air.lower_derive.orderCalls
+import air.lower_derive.orderedBy
 import air.lower_pattern.boxRest
 import air.lower_pattern.buildVariant
 import air.lower_pattern.isVariant
@@ -624,6 +629,9 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         var b = lowerExpr(l, c, p, &args[1].value)
         a.ty = elem
         b.ty = elem
+        if orderCalls(c, elem) {
+            return orderedBy(l, c, p, Op.Lt, a, b, elem)
+        }
         return lowerBinaryOp(l, c, Op.Lt, elem, a, b, e.span)
     }
     if name == "dropInPlace" || name == "forget" {
@@ -652,7 +660,7 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         let first = lowerExpr(l, c, p, &args[0].value)
         let a = settle(l, first, &args[1].value)
         let b = lowerExpr(l, c, p, &args[1].value)
-        return equalValues(l, c, a, b, concreteType(l, c, callTypeArg(c, e)))
+        return equalValues(l, c, p, a, b, concreteType(l, c, callTypeArg(c, e)))
     }
     let Option.Some(op) = intrinsicOp(name) else {
         c.error("E0805", fnOf(p, c.loc(id)).span, "unknown intrinsic".toOwned())
@@ -704,8 +712,18 @@ fn stdFn(c: mut Checker, p: Program, module: str, name: str) int {
     panic("lowering: the standard library has no `{module}.{name}`")
 }
 
-fn callHash(l: mut Lowerer, c: mut Checker, p: Program, name: str,
-            args: move List<Operand>) Operand {
+/**
+ * A call of a function of `std.core.hash`.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param name the function
+ * @param args its arguments
+ * @returns the `u64`
+ */
+pub fn callHash(l: mut Lowerer, c: mut Checker, p: Program, name: str,
+                args: move List<Operand>) Operand {
     let dest = newTemp(l, U64)
     emitCall(l, stdFn(c, p, "std.core.hash", name), UNIT, args, dest)
     return opCopy(dest, U64)
@@ -716,11 +734,25 @@ fn tupleElement(l: mut Lowerer, c: Checker, value: move Operand, ty: int, i: int
     return placeOperand(&place, OperandKind.Copy, c.types.get(ty).args[i])
 }
 
-fn hashValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand,
-             ty: int) Operand {
+/**
+ * The hash of a value (spec 9.9): its bits for numbers and `bool`, a call
+ * for `str`, the elements combined for tuples, the glue for structs and enums.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param value the value
+ * @param ty its type, concrete
+ * @returns the `u64`
+ */
+pub fn hashValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand,
+                 ty: int) Operand {
     var v = value
     v.ty = ty
     let kind = c.types.kind(ty)
+    if kind == TyKind.Adt {
+        return adtHash(l, c, v, ty)
+    }
     if kind == TyKind.Str {
         return callHash(l, c, p, "hashStr", [v])
     }
@@ -740,12 +772,27 @@ fn hashValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand,
     return callHash(l, c, p, "hashU64", [bits])
 }
 
-fn equalValues(l: mut Lowerer, c: Checker, a: move Operand, b: move Operand,
-               ty: int) Operand {
+/**
+ * `a == b` (spec 9.9): inline for tuples, a call for structs and enums
+ * with payloads or their own `eq`, the operator otherwise.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param a the left value
+ * @param b the right value
+ * @param ty their type, concrete
+ * @returns the bool
+ */
+pub fn equalValues(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand,
+                   b: move Operand, ty: int) Operand {
     var x = a
     var y = b
     x.ty = ty
     y.ty = ty
+    if c.types.kind(ty) == TyKind.Adt && equalityCalls(c, p, ty) {
+        return adtEqual(l, c, p, x, y, ty)
+    }
     if c.types.kind(ty) != TyKind.Tuple {
         return lowerBinaryOp(l, c, Op.Eq, ty, x, y, noSpan())
     }
@@ -754,7 +801,7 @@ fn equalValues(l: mut Lowerer, c: Checker, a: move Operand, b: move Operand,
     for i in 0..elems.len() {
         let ea = tupleElement(l, c, x.clone(), ty, i)
         let eb = tupleElement(l, c, y.clone(), ty, i)
-        let same = equalValues(l, c, ea, eb, elems[i])
+        let same = equalValues(l, c, p, ea, eb, elems[i])
         all = tempValue(l, BOOL, rvalue(RvalueKind.Binary, Op.And, all, same))
     }
     return all
@@ -1691,19 +1738,24 @@ fn binary(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, op: Op, lhs: &Ex
     let a = settle(l, first, rhs)
     let b = lowerExpr(l, c, p, rhs)
     let ty = c.typeOf(lhs.id.0)
-    if !c.types.get(ty).hasParam {
+    let concrete = concreteType(l, c, ty)   // a bounded parameter (spec 8.1)
+    let equality = op == Op.Eq || op == Op.Ne
+    let order = op == Op.Lt || op == Op.Le || op == Op.Gt || op == Op.Ge
+    if order && orderCalls(c, concrete) {   // derived or declared `cmp` (spec 9.9)
+        return orderedBy(l, c, p, op, a, b, concrete)
+    }
+    let calls = equality && equalityCalls(c, p, concrete)
+    if !calls && !c.types.get(ty).hasParam {
         return lowerBinaryOp(l, c, op, ty, a, b, e.span)
     }
-    let concrete = concreteType(l, c, ty)   // a bounded parameter (spec 8.1)
-    let tuple = c.types.kind(concrete) == TyKind.Tuple
-    if !tuple || (op != Op.Eq && op != Op.Ne) {
+    if !calls {
         var x = a
         var y = b
         x.ty = concrete
         y.ty = concrete
         return lowerBinaryOp(l, c, op, concrete, x, y, e.span)
     }
-    let same = equalValues(l, c, a, b, concrete)
+    let same = equalValues(l, c, p, a, b, concrete)
     if op == Op.Eq {
         return same
     }

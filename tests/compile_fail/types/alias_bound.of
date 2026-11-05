@@ -3,7 +3,7 @@ struct Ordered<T: Ord> {
     value: T
 }
 struct Unordered {
-    value: int
+    value: bool
 }
 type Sorted<T> = Ordered<T> // error[E0332]: the type `Unordered` does not satisfy the bound `Ord` of `T`
 fn valid(x: Sorted<int>) {}

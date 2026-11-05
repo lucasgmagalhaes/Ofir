@@ -17,7 +17,11 @@ import air.air.FieldPath
 import air.air.CALL_VALUE
 import air.air.FloatFn
 import air.air.GLUE_CLONE
+import air.air.GLUE_CMP
 import air.air.GLUE_DROP
+import air.air.GLUE_EQ
+import air.air.GLUE_HASH
+import air.air.glueName
 import air.air.Operand
 import air.air.OperandKind
 import air.air.PanicKind
@@ -51,11 +55,13 @@ import sema.structs.fieldsOf
 import sema.structs.structFieldType
 import sema.structs.structFields
 import sema.structs.variantFieldType
+import sema.types.BOOL
 import sema.types.ERROR
 import sema.types.I32
 import sema.types.NEVER
 import sema.types.STR
 import sema.types.TyKind
+import sema.types.U64
 import sema.types.UNIT
 import syntax.ast.ItemKind
 import syntax.ast.Op
@@ -458,8 +464,8 @@ fn functionName(c: mut Checker, p: Program, id: int, targs: int, isMain: bool) s
     if isMain {
         return "@ofir_main".toOwned()
     }
-    if isGlue(id) {   // `ofir.drop<T>`, `ofir.clone<T>`
-        let glue = if id == GLUE_DROP { "drop" } else { "clone" }
+    if isGlue(id) {   // `ofir.drop<T>`, `ofir.clone<T>`, `ofir.eq<T>`, ...
+        let glue = glueName(id)
         return "@\"ofir.{glue}{typeArgsText(c, targs)}\""
     }
     if isCFunction(c, p, id) {   // a C function keeps its name
@@ -1283,6 +1289,12 @@ fn userCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt)
     var retType = UNIT
     if s.callee == GLUE_CLONE {
         retType = c.types.get(s.targs).args[0]   // clone<T> returns T
+    } else if s.callee == GLUE_EQ {
+        retType = BOOL
+    } else if s.callee == GLUE_HASH {
+        retType = U64
+    } else if s.callee == GLUE_CMP {
+        retType = I32   // the tag of an `Ordering`
     } else if !glue {
         let sig = c.info[s.callee].ty
         let args = c.types.get(s.targs).args.clone()

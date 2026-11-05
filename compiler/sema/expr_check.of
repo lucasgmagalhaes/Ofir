@@ -43,8 +43,6 @@ import sema.check_unsafe.requireUnsafe
 import sema.const_eval.constEval
 import sema.def.DefKind
 import sema.def.Res
-import sema.enums.enumOf
-import sema.enums.variantsOf
 import sema.program.Program
 import sema.struct_exprs.checkConstructor
 import sema.struct_exprs.checkStructLiteral
@@ -60,7 +58,6 @@ import sema.types.STR
 import sema.types.TyKind
 import sema.types.U8
 import sema.types.UNIT
-import sema.types.kindNumber
 import sema.variant_exprs.checkPreludeVariant
 import sema.variant_exprs.checkVariantShorthand
 import syntax.ast.Arg
@@ -265,14 +262,14 @@ fn unary(c: mut Checker, p: Program, e: &Expr, op: Op, operand: &Expr, expected:
 }
 
 // Which operand types an operator accepts.
-fn operandOk(c: Checker, ty: int, op: Op) bool {
+fn operandOk(c: mut Checker, p: Program, ty: int, op: Op) bool {
     let kind = c.types.kind(ty)
     return match op {
         Op.Add => kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Str
         Op.Sub | Op.Mul | Op.Div | Op.Rem => kind == TyKind.Int || kind == TyKind.Float
         Op.And | Op.Or | Op.Xor | Op.Shl | Op.Shr => kind == TyKind.Int
-        Op.Eq | Op.Ne => kindNumber(kind) <= 6 || kind == TyKind.Ptr
-        Op.Lt | Op.Le | Op.Gt | Op.Ge => orderable(c, ty)
+        Op.Eq | Op.Ne => equatable(c, p, ty)   // derived for tuples, structs, enums (spec 9.9)
+        Op.Lt | Op.Le | Op.Gt | Op.Ge => orderable(c, p, ty)
         Op.LogicalAnd | Op.LogicalOr => kind == TyKind.Bool
         _ => false
     }
@@ -307,14 +304,7 @@ pub fn checkBinary(c: mut Checker, p: Program, span: Span, op: Op, lhs: &Expr, r
     let second = if swap { lhs } else { rhs }
     let ty = checkExpr(c, p, first, hint)
     coerce(c, p, second, ty)
-    var fieldless = false
-    if op == Op.Eq || op == Op.Ne {
-        if let Option.Some(id) = enumOf(c, p, ty) {
-            fieldless = !variantsOf(c, id).hasPayload   // enums without payloads compare tags
-        }
-    }
-    let generic = c.types.get(ty).hasParam && (op == Op.Eq || op == Op.Ne) && equatable(c, p, ty)
-    if !fieldless && !generic && !operandOk(c, ty, op) && ty != ERROR {
+    if !operandOk(c, p, ty, op) && ty != ERROR {
         return operatorError(c, span, ty)
     }
     return if compares { BOOL } else { ty }
