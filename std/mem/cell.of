@@ -1,0 +1,123 @@
+/**
+ * @module
+ * `std.mem.cell`: interior mutability (spec 5.8), mutation through a shared
+ * borrow.
+ *
+ * Stage 0 cannot read bounds, so only stage 1 compiles this module.
+ */
+// requires: stage1 (bounds, roadmap 5.2)
+
+/**
+ * A value that can be changed through a shared borrow: the one primitive
+ * of interior mutability. A type that holds an `UnsafeCell` by value has
+ * interior mutability, and its borrows are passed by address (spec 13.5).
+ * `get` gives a `*mut T`; keeping the accesses through it from overlapping
+ * is the caller's job. Safe code uses `Cell`.
+ *
+ * @typeParam T the type of the value
+ */
+@lang("unsafe_cell")
+pub struct UnsafeCell<T> {
+    value: T
+
+    /**
+     * Wraps a value.
+     *
+     * @param value the value
+     * @returns the cell
+     */
+    pub fn new(value: move T) UnsafeCell<T> {
+        return UnsafeCell{value}
+    }
+
+    /**
+     * A pointer to the value, writable although the cell is only borrowed.
+     *
+     * @returns the pointer; reading or writing through it requires `unsafe`
+     */
+    pub fn get(self) *mut T {
+        return unsafe { &self.value as *T as *mut T }
+    }
+
+    /**
+     * Unwraps the value.
+     *
+     * @returns the value
+     */
+    pub fn intoInner(move self) T {
+        return self.value
+    }
+}
+
+/**
+ * A Copy value that can be read and replaced through a shared borrow:
+ * counters and flags shared by several owners.
+ *
+ * @typeParam T the type of the value, Copy
+ * @example
+ * ```ofir
+ * import std.mem.cell.Cell
+ *
+ * fn bump(hits: &Cell<int>) {
+ *     hits.set(hits.get() + 1)
+ * }
+ *
+ * let hits = Cell.new(0)
+ * bump(&hits)
+ * bump(&hits)   // hits.get() == 2
+ * ```
+ */
+pub struct Cell<T: Copy> {
+    cell: UnsafeCell<T>
+
+    /**
+     * A cell holding a value.
+     *
+     * @param value the value
+     * @returns the cell
+     */
+    pub fn new(value: T) Cell<T> {
+        return Cell{cell: UnsafeCell.new(value)}
+    }
+
+    /**
+     * The value.
+     *
+     * @returns a copy of it
+     */
+    pub fn get(self) T {
+        return unsafe { *self.cell.get() }
+    }
+
+    /**
+     * Replaces the value.
+     *
+     * @param value the new value
+     */
+    pub fn set(self, value: T) {
+        unsafe {
+            *self.cell.get() = value
+        }
+    }
+
+    /**
+     * Replaces the value and returns the old one.
+     *
+     * @param value the new value
+     * @returns the value it held
+     */
+    pub fn replace(self, value: T) T {
+        let old = self.get()
+        self.set(value)
+        return old
+    }
+
+    /**
+     * Unwraps the value.
+     *
+     * @returns the value
+     */
+    pub fn intoInner(move self) T {
+        return self.cell.intoInner()
+    }
+}
