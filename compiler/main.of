@@ -10,6 +10,7 @@
  */
 
 import air.air_print.AirPrinter
+import air.fold.foldChecks
 import air.lower.lowerProgram
 import base.intern.Interner
 import base.span.SourceMap
@@ -279,10 +280,13 @@ fn build(given: move Options) int {
 // LLVM IR and links it with clang. Returns false if a step failed.
 fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     let opts = pipeline.opts.clone()
-    let l = lowerProgram(c, program)
+    var l = lowerProgram(c, program)
     if l.unsupported {
         driverError(opts.format, "E0901", "stage 1 does not compile {l.missing} yet")
         return false
+    }
+    for i in 0..l.out.len() {
+        foldChecks(c, l.out[i])
     }
     for i in 0..l.tests.len() {
         let def = c.def(l.tests[i])
