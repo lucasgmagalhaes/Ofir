@@ -58,6 +58,7 @@ import sema.types.I64
 import air.air.opInt
 import air.air.rvalue
 import sema.types.TyKind
+import syntax.ast.FnDecl
 import syntax.ast.ItemKind
 import sema.resolve.findAttribute
 import sema.check.skippedTest
@@ -71,6 +72,8 @@ import sema.moves.Part
 import sema.program.Program
 import sema.resolve.moduleInStd
 import sema.structs.fieldsOf
+import sema.moves_match.patternLocals
+import sema.structs.hasInteriorMutability
 import sema.structs.structFieldType
 import sema.structs.structFields
 import sema.structs.variantFieldType
@@ -83,6 +86,7 @@ import sema.types.UNIT
 import std.mem
 import syntax.ast.Mode
 import syntax.ast.Op
+import syntax.ast.Pattern
 
 /** Where `break` and `continue` go in a loop. */
 pub copy struct LoopTarget {
@@ -876,8 +880,8 @@ pub fn tempScopeLeave(l: mut Lowerer, c: mut Checker, p: Program) {
 
 /**
  * Whether parameter `index` of a function (-1 for `self`) is passed by
- * address: a `mut` parameter, or the borrowed value a returned reference
- * points into.
+ * address: a `mut` parameter, the borrowed value a returned reference
+ * points into, or a borrowed value with interior mutability.
  *
  * @param c the checker
  * @param p the program
@@ -890,7 +894,71 @@ pub fn byAddress(c: Checker, p: Program, id: int, index: int) bool {
     let mode = if index < 0 { decl.selfMode } else { decl.params[index].mode }
     let info = &c.info[id]
     return mode == Mode.Mut || (info.returnsBorrow && info.sourceByRef &&
-                                info.borrowSource == index)
+                                info.borrowSource == index) ||
+           info.cellParams & (1 << (index + 1)) != 0
+}
+
+// Bindings and `for` variables that borrow a value with interior
+// mutability hold its address, so that changes through them reach it
+// (spec 5.8); parameters follow `byAddress`.
+fn markCellBindings(l: mut Lowerer, c: mut Checker, p: Program, decl: &FnDecl) {
+    var params: List<bool> = List.filled(false, l.borrowed.len())
+    if decl.hasSelf && params.len() > 0 {
+        params[0] = true
+    }
+    for i in 0..decl.params.len() {
+        let local = c.localAt(decl.params[i].id.0)
+        if local >= 0 && local < params.len() {
+            params[local] = true
+        }
+    }
+    for i in 0..l.borrowed.len() {
+        if l.borrowed[i] && !params[i] && i + 1 < l.body.locals.len() {
+            let ty = localType(l, c, i + 1)
+            if hasInteriorMutability(c, p, ty) {
+                l.body.locals[i + 1].byRef = true
+            }
+        }
+    }
+}
+
+/**
+ * Assigns a binding the value at `place`, or its address when the binding
+ * holds one (`markCellBindings`).
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param local the AIR local
+ * @param place the value
+ * @param ty its type
+ */
+pub fn bindPlace(l: mut Lowerer, c: mut Checker, local: int, place: &Place, ty: int) {
+    if l.body.locals[local].byRef {
+        let address = placeOperand(place, OperandKind.Addr, c.types.ref(ty, false))
+        emitStore(l, &localPlace(local), address)
+        return
+    }
+    emitStore(l, &localPlace(local), placeOperand(place, OperandKind.Copy, ty))
+}
+
+/**
+ * Whether a pattern binds a local that holds an address
+ * (`markCellBindings`): its value must then be matched in place.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param pattern the pattern
+ * @returns true if it does
+ */
+pub fn bindsAddress(l: Lowerer, c: Checker, pattern: &Pattern) bool {
+    var locals: List<int> = []
+    patternLocals(c, pattern, locals)
+    for i in 0..locals.len() {
+        if locals[i] >= 0 && l.body.locals[locals[i] + 1].byRef {
+            return true
+        }
+    }
+    return false
 }
 
 const DEPTH_LIMIT: int = 64   // spec 8.6
@@ -1133,6 +1201,7 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
     l.fnDef = id
     l.block = l.body.newBlock()
     ownParams(l, c, p, id, locals.len())
+    markCellBindings(l, c, p, decl)
     match decl.body {
         Option.Some(block) => {
             let _ = lowerBlock(l, c, p, &block, false)
