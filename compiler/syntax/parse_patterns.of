@@ -10,6 +10,7 @@ import syntax.ast.Pattern
 import syntax.ast.PatternKind
 import syntax.parse_primary.atLiteral
 import syntax.parse_primary.parseLiteral
+import syntax.parse_types.parseType
 import syntax.parser.Parser
 import syntax.token.TokenKind
 
@@ -106,6 +107,14 @@ fn named(p: mut Parser, start: Span) Pattern {
     }
     let name = path[0]
     let wildcard = p.words.wildcard.isSome() && (p.words.wildcard ?? Symbol(0)).0 == name.0
+    if p.typeTests && p.accept(TokenKind.Colon) {
+        var bound: Option<Symbol> = Option.None
+        if !wildcard {
+            bound = Option.Some(name)
+        }
+        let ty = parseType(p)
+        return newPattern(p, PatternKind.TypeTest(bound, ty), start)
+    }
     if wildcard {
         return newPattern(p, PatternKind.Wildcard, start)
     }
@@ -134,6 +143,21 @@ fn atom(p: mut Parser) Pattern {
             newPattern(p, PatternKind.Wildcard, start)
         }
     }
+}
+
+/**
+ * The pattern of a `match` arm or an `if let`, where `name: T` is a type
+ * test (spec 9.8).
+ *
+ * @param p the parser
+ * @returns the pattern
+ */
+pub fn parseTestPattern(p: mut Parser) Pattern {
+    let saved = p.typeTests
+    p.typeTests = true
+    let pattern = parsePattern(p)
+    p.typeTests = saved
+    return pattern
 }
 
 /**

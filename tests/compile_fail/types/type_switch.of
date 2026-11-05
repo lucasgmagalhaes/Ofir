@@ -1,0 +1,56 @@
+// requires: stage1
+// Type switches (spec 9.8): a type test needs a `dyn` value, a type that
+// satisfies the interface, and a `_` arm.
+
+interface Shape {
+    fn area(self) int
+}
+
+struct Square {
+    side: int
+
+    fn area(self) int {
+        return self.side
+    }
+}
+
+struct Point {
+    x: int
+}
+
+fn open(s: &dyn Shape) int {
+    return match s {            // error[E0500]: non-exhaustive `match`: `_` is not covered
+        q: Square => q.side
+    }
+}
+
+fn never(s: &dyn Shape) int {
+    return match s {
+        p: Point => p.x         // error[E0354]: the type test can never match: Point does not satisfy Shape: missing method `area`
+        _ => 0
+    }
+}
+
+fn unsized(s: &dyn Shape) int {
+    return match s {
+        _: dyn Shape => 1       // error[E0354]: a type test cannot name the `dyn` type dyn Shape: it names a concrete type
+        _ => 0
+    }
+}
+
+fn notDyn(x: int) int {
+    return match x {
+        n: int => n             // error[E0300]: mismatched types: a type test pattern for a value of type int
+        _ => 0
+    }
+}
+
+fn stored(v: &dyn Any) int {
+    return match v {
+        r: &int => *r           // error[E0354]: the type test can never match: &int does not satisfy Any: it holds a reference
+        _ => 0
+    }
+}
+
+fn main() {
+}

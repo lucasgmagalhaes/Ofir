@@ -1,0 +1,36 @@
+/**
+ * @module
+ * `Any`: a value of any type, through `dyn Any` (spec 9.8, ADR 0024).
+ *
+ * Stage 0 cannot read interfaces, so this module is not imported by
+ * `std.core`: stage 1 loads it into every program, as part of the prelude.
+ */
+
+// requires: stage1 (interfaces, roadmap 5.3; loaded by stage 1 only)
+
+/**
+ * A value of any type.
+ *
+ * Every type satisfies `Any`, except the types that hold references. The
+ * compiler provides `typeName` for every type; a type cannot declare its
+ * own. The value is recovered with a type switch, which needs a `_` arm.
+ *
+ * @example
+ * ```ofir
+ * fn describe(v: dyn Any) str {
+ *     return match v {
+ *         n: int => "the int {n}"
+ *         s: str => "the str {s}"
+ *         _ => "a {v.typeName()}"
+ *     }
+ * }
+ * ```
+ */
+pub interface Any {
+    /**
+     * The type's name, as written in messages.
+     *
+     * @returns the name: `"int"`, `"List<str>"`, `"app.Config"`
+     */
+    fn typeName(self) str
+}

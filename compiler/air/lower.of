@@ -71,6 +71,7 @@ import sema.structs.structFields
 import sema.structs.variantFieldType
 import sema.check_box.boxInner
 import sema.interfaces.dynMethods
+import sema.interfaces.isAnyMethod
 import sema.types.BOOL
 import sema.types.FN_OWNED
 import sema.types.UNIT
@@ -998,6 +999,9 @@ pub fn monoBody(l: mut Lowerer, c: mut Checker, p: Program) {
                 let iface = c.types.get(dynObject(c, s.value.to)).data
                 let slots = dynMethods(c, p, iface)
                 for k in 0..slots.len() {
+                    if isAnyMethod(c, slots[k]) {
+                        continue   // `typeName`: the compiler provides it
+                    }
                     let target = dynSlotTarget(c, p, concrete, slots[k])
                     reach(l, c, p, target.def, target.targs)
                 }

@@ -9,6 +9,8 @@
 import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
+import sema.check_box.boxInner
+import sema.check_types.resolveType
 import sema.check_types.moduleType
 import sema.def.DefKind
 import sema.def.Res
@@ -16,6 +18,7 @@ import sema.enums.enumOf
 import sema.enums.variantIndex
 import sema.enums.variantsOf
 import sema.expr_check.coerce
+import sema.interfaces.unsatisfied
 import sema.program.Program
 import sema.structs.fieldsOf
 import sema.structs.structFieldType
@@ -27,6 +30,7 @@ import sema.types.UNIT
 import sema.variant_exprs.unqualifiedVariant
 import syntax.ast.Pattern
 import syntax.ast.PatternKind
+import syntax.ast.TypeExpr
 
 fn mismatch(c: mut Checker, span: Span, what: str, ty: int) {
     if ty != ERROR {
@@ -246,6 +250,57 @@ pub fn checkPattern(c: mut Checker, p: Program, pat: &Pattern, ty: int) {
                 checkPattern(c, p, &alternatives[i], ty)
             }
         }
+        PatternKind.TypeTest(_, target) => typeTest(c, p, pat, &target, ty)
+    }
+}
+
+/**
+ * The `dyn I` behind a value that a type test can look into: `&dyn I`
+ * (a `dyn I` parameter), `*dyn I` or `Box<dyn I>`.
+ *
+ * @param c the checker
+ * @param ty the value's type
+ * @returns the `dyn` type, or -1
+ */
+pub fn testedDyn(c: Checker, ty: int) int {
+    if c.types.isFat(ty) {
+        return c.types.get(ty).inner
+    }
+    if let Option.Some(inner) = boxInner(c, ty) {
+        if c.types.kind(inner) == TyKind.Dyn {
+            return inner
+        }
+    }
+    return -1
+}
+
+// `c: Circle`: the binding gets the concrete type, recorded as the
+// pattern's member.
+fn typeTest(c: mut Checker, p: Program, pat: &Pattern, target: &TypeExpr, ty: int) {
+    let concrete = resolveType(c, p, target)
+    c.setMember(pat.id.0, concrete)
+    let local = c.localAt(pat.id.0)
+    if local >= 0 {
+        c.localTypes[local] = concrete
+    }
+    let object = testedDyn(c, ty)
+    if object < 0 {
+        mismatch(c, pat.span, "a type test", ty)
+        return
+    }
+    if concrete == ERROR {
+        return
+    }
+    let iface = c.types.get(object).data
+    if c.types.kind(concrete) == TyKind.Dyn {
+        c.error("E0354", pat.span, "a type test cannot name the `dyn` type "
+                + "{c.typeName(concrete)}: it names a concrete type")
+        return
+    }
+    let why = unsatisfied(c, p, concrete, iface)
+    if why.len() > 0 {
+        c.error("E0354", pat.span, "the type test can never match: {c.typeName(concrete)} does "
+                + "not satisfy {c.text(c.def(iface).name)}: {why}")
     }
 }
 

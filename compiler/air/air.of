@@ -220,6 +220,8 @@ pub copy enum RvalueKind {
      * value whose environment is the data pointer
      */
     DynFn
+    /** the type id in the vtable of the fat pointer a, an `i64` (spec 9.8) */
+    TypeId
 }
 
 /** The float functions of `RvalueKind.FloatFn`. */
@@ -295,6 +297,8 @@ pub copy enum RuntimeFn {
     StrCmp
     /** The test `ofir test` asked for, or -1. */
     TestIndex
+    /** Frees heap memory: the box a type test takes the value out of. */
+    Free
 }
 
 /**
@@ -322,6 +326,7 @@ pub fn runtimeName(f: RuntimeFn) str {
         RuntimeFn.StrEq => "ofir_str_eq"
         RuntimeFn.StrCmp => "ofir_str_cmp"
         RuntimeFn.TestIndex => "ofir_test_index"
+        RuntimeFn.Free => "ofir_free"
     }
 }
 

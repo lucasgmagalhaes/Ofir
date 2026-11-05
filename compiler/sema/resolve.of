@@ -244,7 +244,9 @@ pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagno
     var r = newResolver(program, names, diags, map, trace)
     r.testing = testing
     for m in 0..program.modules.len() {
-        r.trace.line("module {m} {program.modules[m].name}")
+        if program.modules[m].name != "std.core.any" {   // stage 0 does not load it
+            r.trace.line("module {m} {program.modules[m].name}")
+        }
     }
     for pass in 0..3 {
         for m in 0..program.modules.len() {

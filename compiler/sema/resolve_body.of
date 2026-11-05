@@ -187,6 +187,11 @@ fn declarePattern(r: mut Resolver, p: &Pattern, reuse: bool) {
                 declarePattern(r, &alternatives[i], reuse || i > 0)
             }
         }
+        PatternKind.TypeTest(name, _) => {
+            if let Option.Some(n) = name {
+                declareBinding(r, p.id.0, n, p.span, false, reuse)
+            }
+        }
         PatternKind.Wildcard => {}
     }
 }

@@ -12,6 +12,7 @@ import sema.check.interfaceOf
 import sema.check.itemOf
 import sema.check_methods.methodAt
 import sema.check_methods.methodCount
+import sema.check_ref.holdsRef
 import sema.check_types.fnSignature
 import sema.program.Program
 import sema.types.TyKind
@@ -228,6 +229,12 @@ pub fn unsatisfied(c: mut Checker, p: Program, ty: int, iface: int) str {
     if kind == TyKind.Error || kind == TyKind.Never {
         return ""
     }
+    if isAny(c, iface) && kind != TyKind.Dyn {   // the compiler provides `typeName`
+        if holdsRef(c, p, ty) {
+            return "it holds a reference"
+        }
+        return ""
+    }
     if kind == TyKind.Dyn {   // `dyn I` satisfies `I` and the interfaces `I` embeds
         if contains(&interfaceClosure(c, p, c.types.get(ty).data), iface) {
             return ""
@@ -339,4 +346,31 @@ pub fn assertedDefault(c: mut Checker, p: Program, owner: int, name: Symbol) int
         }
     }
     return 0
+}
+
+/**
+ * Whether an interface is `Any` (spec 9.8), whose `typeName` the compiler
+ * provides for every type.
+ *
+ * @param c the checker
+ * @param iface the interface's `DefId`
+ * @returns true if it is
+ */
+pub fn isAny(c: Checker, iface: int) bool {
+    let d = c.def(iface)
+    return c.text(d.name) == "Any" && c.r.moduleNames[d.module] == "std.core.any"
+}
+
+/**
+ * Whether a method is `typeName` of `Any`, which the compiler provides for
+ * every type (spec 9.8).
+ *
+ * @param c the checker
+ * @param id the method's `DefId`
+ * @returns true if it is
+ */
+pub fn isAnyMethod(c: Checker, id: int) bool {
+    let d = c.def(id)
+    return d.member >= 0 && c.text(d.name) == "typeName" &&
+           c.r.moduleNames[d.module] == "std.core.any"
 }

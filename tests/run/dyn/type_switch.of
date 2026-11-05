@@ -1,0 +1,109 @@
+// requires: stage1
+// Type switches (spec 9.8): `name: T` patterns on `dyn` values, `if let`,
+// `Box<dyn Any>` taken apart by move, and `typeName`.
+
+interface Shape {
+    fn area(self) float
+}
+
+struct Circle {
+    radius: float
+
+    fn area(self) float {
+        return 3.0 * self.radius * self.radius
+    }
+}
+
+struct Square {
+    side: float
+
+    fn area(self) float {
+        return self.side * self.side
+    }
+}
+
+struct Config {
+    name: str
+
+    fn drop(mut self) {
+        println("drop config {self.name}")
+    }
+}
+
+struct Point {
+    x: int
+    y: int
+}
+
+fn kind(s: dyn Shape) str {
+    return match s {
+        c: Circle => "circle of radius {c.radius}"
+        _: Square => "a square"
+        _ => "another shape"
+    }
+}
+
+fn describe(v: dyn Any) str {
+    return match v {
+        n: int => "the int {n}"
+        s: str => "the str {s}"
+        p: Point => "a point at {p.x}, {p.y}"
+        _ => "a {v.typeName()}"
+    }
+}
+
+fn takeConfig(value: move Box<dyn Any>) Option<Config> {
+    return match value {
+        c: Config => Option.Some(c)
+        _ => Option.None
+    }
+}
+
+fn takePoint(value: move Box<dyn Any>) Option<Point> {
+    return match value {
+        p: Point => Option.Some(p)
+        _ => Option.None   // the box is dropped with its value
+    }
+}
+
+fn isType<T>(v: dyn Any) bool {
+    return match v {
+        _: T => true
+        _ => false
+    }
+}
+
+fn main() {
+    println(kind(Circle{radius: 2.0}))
+    println(kind(Square{side: 1.0}))
+    let r: &dyn Shape = &Circle{radius: 1.0}
+    if let c: Circle = r {
+        println("if let: {c.area()}")
+    }
+    if let _: Square = r {
+        println("unreachable")
+    } else {
+        println("not a square")
+    }
+    println(describe(7))
+    println(describe("text"))
+    println(describe(Point{x: 1, y: 2}))
+    println(describe(2.5))
+    println(describe([1, 2]))
+    let some = takeConfig(Box.new(Config{name: "a".toOwned()}))
+    if let Option.Some(c) = some {
+        println("took {c.name}")
+    }
+    let other = takeConfig(Box.new(3))
+    println("other: {other.isNone()}")
+    let miss = takePoint(Box.new(Config{name: "d".toOwned()}))
+    println("miss: {miss.isNone()}")
+    let one: &dyn Any = &1
+    let origin: &dyn Any = &Point{x: 0, y: 0}
+    println("isType: {isType<int>(one)} {isType<str>(one)} {isType<Point>(origin)}")
+    let boxed: Box<dyn Any> = Box.new(Config{name: "c".toOwned()})
+    if let n: int = boxed {
+        println("unreachable {n}")
+    }
+    println("end")
+}

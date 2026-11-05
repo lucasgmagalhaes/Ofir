@@ -14,6 +14,8 @@ import sema.borrows.carriedSince
 import sema.borrows.dropCarry
 import sema.borrows.killHolder
 import sema.check.Checker
+import sema.check_dyn.boxesDyn
+import sema.check_pattern.testedDyn
 import sema.moves.MOVES
 import sema.moves.Moves
 import sema.moves.Part
@@ -78,6 +80,9 @@ pub fn bindsByMove(c: Checker, p: Program, pattern: &Pattern) bool {
             }
             false
         }
+        // `c: Config` on a `Box<dyn I>` takes the value out of the box
+        PatternKind.TypeTest(_, _) => c.localAt(pattern.id.0) >= 0 &&
+                          boxesDyn(c, c.typeOf(pattern.id.0))
         _ => false
     }
 }
@@ -110,7 +115,7 @@ fn listLocals(c: Checker, list: &List<Pattern>, out: mut List<int>) {
  */
 pub fn patternLocals(c: Checker, pattern: &Pattern, out: mut List<int>) {
     match pattern.kind {
-        PatternKind.Binding(_, _) => {
+        PatternKind.Binding(_, _) | PatternKind.TypeTest(_, _) => {
             let local = c.localAt(pattern.id.0)
             if local >= 0 {
                 out.push(local)
@@ -155,7 +160,9 @@ fn initList(m: mut Moves, c: Checker, list: &List<Pattern>, s: mut State, borrow
  */
 pub fn patternInit(m: mut Moves, c: Checker, pattern: &Pattern, s: mut State, borrowed: bool) {
     match pattern.kind {
-        PatternKind.Binding(_, _) => initLocal(m, c.localAt(pattern.id.0), s, borrowed)
+        PatternKind.Binding(_, _) | PatternKind.TypeTest(_, _) => {
+            initLocal(m, c.localAt(pattern.id.0), s, borrowed)
+        }
         PatternKind.Variant(_, _, args, _) => initList(m, c, &args, s, borrowed)
         PatternKind.Tuple(items) => initList(m, c, &items, s, borrowed)
         PatternKind.TupleStruct(_, args) => initList(m, c, &args, s, borrowed)
@@ -203,7 +210,8 @@ fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
         loans.push(Loan{holder: -1, part: place.part.clone(), mutable: false, span: e.span})
     }
     m.binding = loans
-    return borrows
+    let ty = c.typeOf(e.id.0)
+    return borrows || (testedDyn(c, ty) >= 0 && !boxesDyn(c, ty))   // a `&dyn I` lends its value
 }
 
 /**

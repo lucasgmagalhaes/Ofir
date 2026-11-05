@@ -85,7 +85,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0351 | type `T` cannot be a member of a union (spec 17) | planned |
 | E0352 | `T` is not a member of the union `U` (spec 17) | planned |
 | E0353 | the branches have different types: write the union type expected (spec 17) | planned |
-| E0354 | a type test names a type that does not satisfy the interface of the `dyn` value (spec 9.8) | planned |
+| E0354 | a type test names a type that does not satisfy the interface of the `dyn` value (spec 9.8) | stage 1 |
 | E0355 | `dyn I` has no size known at compile time: store a `Box<dyn I>` (spec 9.7) | stage 1 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0501 | refutable pattern in `let` | stage 0 |

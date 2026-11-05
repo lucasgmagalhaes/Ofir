@@ -31,6 +31,7 @@ import air.air.rvalue
 import air.air.terminator
 import air.lower.LoopTarget
 import air.lower.localPlace
+import air.lower_pattern.boxRest
 import air.lower_pattern.buildVariant
 import air.lower_pattern.isVariant
 import air.lower_pattern.variantValue
@@ -41,6 +42,7 @@ import sema.check_methods.methodCount
 import air.lower_pattern.enumEquality
 import air.lower_pattern.lowerMatch
 import air.lower_pattern.lowerPattern
+import air.lower_pattern.ownsBox
 import air.lower.Lowerer
 import air.lower_closure.lowerClosure
 import air.lower.Place
@@ -1614,9 +1616,12 @@ fn lowerIf(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
             let thenBlock = l.body.newBlock()
             let other = l.body.newBlock()
             let join = l.body.newBlock()
+            var place = localPlace(0)
+            let owned = letPattern.isSome() && ownsBox(c, &*condBox)
+            let boxType = c.typeOf(condBox.id.0)
             match letPattern {
                 Option.Some(pattern) => {   // the pattern's tests jump to `else` on a mismatch
-                    let place = localPlace(toLocal(l, cond))
+                    place = localPlace(toLocal(l, cond))
                     lowerPattern(l, c, p, &pattern, &place, other)
                     emitGoto(l, thenBlock)
                 }
@@ -1626,12 +1631,18 @@ fn lowerIf(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
             dropScopeEnter(l)   // the bindings of `if let` live in the `then` block
             if let Option.Some(pattern) = letPattern {
                 ownBindings(l, c, p, &pattern)
+                if owned {
+                    boxRest(l, c, p, Option.Some(&pattern), &place, boxType)
+                }
             }
             let thenValue = lowerBlock(l, c, p, &then, hasValue)
             store(l, dest, hasValue, thenValue)
             dropScopeLeave(l, c, p)
             emitGoto(l, join)
             switchTo(l, other)
+            if owned {   // `if let c: T = box` failed: the box is dropped with its value
+                boxRest(l, c, p, Option.None, &place, boxType)
+            }
             if let Option.Some(branchBox) = otherwise {
                 let other = &*branchBox
                 let value = match other.kind {
@@ -1976,7 +1987,7 @@ pub fn assignOperand(l: mut Lowerer, dest: int, value: move Operand) {
  */
 pub fn ownBindings(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern) {
     match pattern.kind {
-        PatternKind.Binding(_, _) => {
+        PatternKind.Binding(_, _) | PatternKind.TypeTest(_, _) => {
             let local = c.localAt(pattern.id.0)
             if local >= 0 {
                 ownLocal(l, c, p, local + 1, true)

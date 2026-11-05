@@ -286,6 +286,7 @@ pub struct AirPrinter {
             RvalueKind.Unsize => self.operands(c, "unsize {c.typeName(rv.to)}", &rv.a,
                                                Option.Some(&rv.b))
             RvalueKind.DynFn => self.operands(c, "dyn_fn {rv.flag}", &rv.a, Option.None)
+            RvalueKind.TypeId => self.operands(c, "type_id", &rv.a, Option.None)
             RvalueKind.Aggregate => {
                 self.out.push("\{")
                 for i in 0..rv.items.len() {

@@ -4,7 +4,7 @@ interface Shape {
     fn name(self) str
 
     fn describe(self) str {
-        return "{self.name()} with area {self.area():.2}"
+        return "{self.name()} with area {self.area()}"
     }
 }
 
@@ -32,6 +32,23 @@ struct Square: Shape {
     }
 }
 
+// A type switch (spec 9.8): the concrete type behind a `dyn` value.
+fn kind(shape: dyn Shape) str {
+    return match shape {
+        c: Circle => "a circle of radius {c.radius}"
+        _ => "another shape"
+    }
+}
+
+// `Any` holds a value of any type; a type test recovers it.
+fn show(value: dyn Any) str {
+    return match value {
+        n: int => "the int {n}"
+        s: str => "the str {s}"
+        _ => "a {value.typeName()}"
+    }
+}
+
 // Static dispatch: one specialized copy per shape type.
 fn printArea<S: Shape>(shape: S) {
     println(shape.describe())
@@ -48,4 +65,10 @@ fn main() {
     for s in shapes {
         println(s.describe())
     }
+
+    println(kind(Circle{radius: 0.5}))
+    println(kind(Square{side: 1.0}))
+    println(show(42))
+    println(show("hello"))
+    println(show(Square{side: 1.0}))
 }
