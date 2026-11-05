@@ -68,9 +68,10 @@ fn ruleArgs(rule: int) int {
 }
 
 // The attributes this compiler implements: `@inline`, `@cold`, `@test`, `@lang`,
-// `@deprecated`, `@cfg` (driver/cfg.of), `@allow`.
+// `@repr`, `@packed`, `@align` (sema/layout_attrs.of), `@deprecated`, `@cfg`
+// (driver/cfg.of), `@allow`.
 fn ruleSupported(rule: int) bool {
-    return rule < 4 || rule == 9 || rule == 11 || rule == 12
+    return rule < 7 || rule == 9 || rule == 11 || rule == 12
 }
 
 fn ruleUsage(rule: int) str {
