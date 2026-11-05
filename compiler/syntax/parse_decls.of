@@ -132,12 +132,42 @@ fn whereClause(p: mut Parser, preds: mut List<WherePred>) {
 // ---------------------------------------------------------------------------
 // Struct and enum bodies
 
+// After the attributes `@name(...)` that start at token `start`.
+fn skipAttributes(p: Parser, start: int) int {
+    var i = start
+    for p.peekAt(i) == TokenKind.At {
+        i += 2   // @name
+        if p.peekAt(i) == TokenKind.LParen {
+            var depth = 0
+            for {
+                let k = p.peekAt(i)
+                i += 1
+                if k == TokenKind.Eof {
+                    return i - 1
+                }
+                if k == TokenKind.LParen {
+                    depth += 1
+                } else if k == TokenKind.RParen {
+                    depth -= 1
+                }
+                if depth == 0 {
+                    break
+                }
+            }
+        }
+        for p.peekAt(i) == TokenKind.Newline {
+            i += 1
+        }
+    }
+    return i
+}
+
 fn atMethod(p: Parser) bool {
-    var i = 0
+    var i = skipAttributes(p, 0)
     for p.peekAt(i) == TokenKind.Pub || p.peekAt(i) == TokenKind.Unsafe {
         i += 1
     }
-    return p.peekAt(i) == TokenKind.Fn || p.peekAt(i) == TokenKind.At
+    return p.peekAt(i) == TokenKind.Fn
 }
 
 fn method(p: mut Parser) FnDecl {
@@ -214,7 +244,8 @@ fn tupleStructBody(p: mut Parser, fields: mut List<FieldDecl>, methods: mut List
     for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
         let header = parseItemHeader(p)
         let ty = parseType(p)
-        fields.push(FieldDecl{name: Option.None, attributes: [], isPub: header.isPub, ty,
+        fields.push(FieldDecl{name: Option.None, attributes: header.attributes.clone(),
+                              isPub: header.isPub, ty,
                               defaultValue: Option.None, span: header.span})
         if !p.accept(TokenKind.Comma) {
             break
