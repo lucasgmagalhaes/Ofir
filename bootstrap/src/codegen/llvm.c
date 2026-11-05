@@ -280,6 +280,7 @@ void llvm_end(Gen *g) {
     out_free(&g->type_defs);
     out_free(&g->fn_text);
     free(g->adt_types);
+    free(g->slots);
     out_free(&g->path);
     out_free(&g->globals);
     VEC_FREE(g->files_emitted);

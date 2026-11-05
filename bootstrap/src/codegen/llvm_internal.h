@@ -26,7 +26,8 @@ struct Gen {
     Out type_defs;           // struct type definitions not written yet
     Out fn_text;             // the function being generated (llvm_function)
     const char **adt_types;  // the LLVM name of each struct or enum, by TypeId (NULL until used)
-    size_t adt_count;
+    const uint32_t **slots;  // by TypeId: the slot of each field of a struct (field_slots)
+    size_t adt_count;        // the length of both tables
     Vec(bool) c_used;        // by DefId: functions of extern blocks to declare
     TypeId niche_tag;        // the enum whose tag the last place_address named...
     bool has_niche_tag;      // ...when it has a niche (spec 13.3)
@@ -55,6 +56,10 @@ const char *adt_type(Gen *g, TypeId type);          // defined at its first use
 const char *variant_type(Gen *g, TypeId adt, uint32_t v);
 // The variant of a niche enum that holds a pointer, or -1 (spec 13.3).
 int niche_variant(Gen *g, TypeId adt);
+// The slot of each field of a struct in its LLVM type (spec 13.2).
+const uint32_t *field_slots(Gen *g, TypeId type);
+// A struct or tuple value: insertvalue of each field into poison.
+void gen_aggregate(Gen *g, const Rvalue *rv, TypeId type, Value *result);
 // Reads and writes the tag of the niche enum `g->niche_tag` at `at`.
 void niche_tag_value(Gen *g, const char *at, Value *v);
 void niche_tag_store(Gen *g, const char *at, Value v);

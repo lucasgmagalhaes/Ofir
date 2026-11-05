@@ -39,6 +39,29 @@ static const TypeId *field_types(Gen *g, TypeId adt, int64_t v, uint32_t count) 
     return types;
 }
 
+// Whether a struct keeps its fields in declaration order (spec 13.2):
+// `@repr(C)`, `@packed`, `@lang` or without a declaration.
+static bool fixed_order(Gen *g, const Def *def) {
+    if (!def->item) {
+        return true;
+    }
+    AttributeList attributes = def->item->attributes;
+    return find_attribute(g->sema, attributes, "repr") ||
+           find_attribute(g->sema, attributes, "packed") ||
+           find_attribute(g->sema, attributes, "lang");
+}
+
+// The field types of a struct in the order of its LLVM type.
+static const TypeId *slot_types(Gen *g, TypeId type, uint32_t count) {
+    const TypeId *declared = field_types(g, type, -1, count);
+    const uint32_t *slots = field_slots(g, type);
+    TypeId *types = ARENA_ARRAY(&g->sema->session->arena, TypeId, count + 1);
+    for (uint32_t i = 0; i < count; i++) {
+        types[slots[i]] = declared[i];
+    }
+    return types;
+}
+
 // The payload words of an enum: enough for its largest variant.
 static uint64_t payload_words(Gen *g, TypeId adt, const EnumInfo *info) {
     uint64_t largest = 0;
@@ -83,7 +106,7 @@ static Layout layout(Gen *g, TypeId type) {
         const Def *def = sema_def(g->sema, (DefId){ty->data});
         if (def->kind == DEF_STRUCT) {
             uint32_t count = def->fields->count;
-            return fields_layout(g, field_types(g, type, -1, count), count);
+            return fields_layout(g, slot_types(g, type, count), count);
         }
         int niche = niche_variant(g, type);
         if (niche >= 0) {   // the pointer alone
@@ -165,12 +188,48 @@ static const char **slot(Gen *g, TypeId type) {
     if (type.id >= g->adt_count) {
         size_t count = g->types->count > type.id ? g->types->count : type.id + 1;
         g->adt_types = xrealloc(g->adt_types, count * sizeof(char *));
+        g->slots = xrealloc(g->slots, count * sizeof(uint32_t *));
         for (size_t i = g->adt_count; i < count; i++) {
             g->adt_types[i] = NULL;
+            g->slots[i] = NULL;
         }
         g->adt_count = count;
     }
     return &g->adt_types[type.id];
+}
+
+// The fields go by descending alignment, stable, unless their order is
+// fixed.
+const uint32_t *field_slots(Gen *g, TypeId type) {
+    slot(g, type);
+    if (g->slots[type.id]) {
+        return g->slots[type.id];
+    }
+    const Def *def = sema_def(g->sema, (DefId){type_get(g->types, type)->data});
+    uint32_t count = def->fields ? def->fields->count : 0;
+    const TypeId *types = field_types(g, type, -1, count);
+    uint32_t *slots = ARENA_ARRAY(&g->sema->session->arena, uint32_t, count + 1);
+    uint64_t *aligns = ARENA_ARRAY(&g->sema->session->arena, uint64_t, count + 1);
+    bool *placed = ARENA_ARRAY(&g->sema->session->arena, bool, count + 1);
+    for (uint32_t i = 0; i < count; i++) {
+        slots[i] = i;
+        aligns[i] = layout(g, types[i]).align;
+        placed[i] = false;
+    }
+    bool fixed = fixed_order(g, def);
+    for (uint32_t k = 0; k < count && !fixed; k++) {
+        uint32_t best = count;
+        for (uint32_t i = 0; i < count; i++) {
+            if (!placed[i] && (best == count || aligns[i] > aligns[best])) {
+                best = i;
+            }
+        }
+        placed[best] = true;
+        slots[best] = k;
+    }
+    slot(g, type);   // layout may have grown the type table
+    g->slots[type.id] = slots;
+    return slots;
 }
 
 // The LLVM type of the variant `v` of an enum.
@@ -212,7 +271,7 @@ const char *adt_type(Gen *g, TypeId type) {
         return define_enum(g, type, name);
     }
     uint32_t count = d->fields ? d->fields->count : 0;
-    define(g, name, field_types(g, type, -1, count), count);
+    define(g, name, slot_types(g, type, count), count);
     return name;
 }
 
@@ -265,8 +324,11 @@ static void step(Gen *g, Cursor *cur, uint32_t entry, char base[16]) {
     }
     const char *container = cur->variant ? variant_type(g, cur->type, cur->index)
                                          : llvm_type(g, cur->type);
+    ty = type_get(g->types, cur->type);
+    bool is_struct = ty->kind == TY_ADT && sema_def(g->sema, (DefId){ty->data})->kind == DEF_STRUCT;
+    uint32_t at = !cur->variant && is_struct ? field_slots(g, cur->type)[entry] : entry;
     out_fmt(&g->out, "  %s = getelementptr inbounds %s, ptr %s, i32 0, i32 %u\n", next,
-            container, base, entry);
+            container, base, at);
     ty = type_get(g->types, cur->type);   // llvm_type may have grown the type table
     bool is_enum = ty->kind == TY_ADT && sema_def(g->sema, (DefId){ty->data})->kind == DEF_ENUM;
     if (cur->variant) {
