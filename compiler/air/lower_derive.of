@@ -259,7 +259,7 @@ fn startGlue(l: mut Lowerer, c: mut Checker, glue: int, targs: int, ret: int, pa
     let ty = c.types.get(targs).args[0]
     l.body = AirBody{def: glue, targs: targs, name: Symbol(0), isMain: false,
                      paramCount: params, locals: [], blocks: [],
-                     closure: Option.None}
+                     closure: Option.None, span: noSpan(), at: noSpan()}
     l.body.newLocal(ret, Option.None, noSpan())
     for _ in 0..params {
         l.body.newLocal(ty, Option.None, noSpan())

@@ -39,7 +39,9 @@ import air.air.runtimeName
 import air.lower.byAddress
 import air.lower.dynObject
 import air.lower.dynSlotTarget
+import base.span.FileId
 import base.span.Span
+import codegen.debug.DebugInfo
 import sema.c_symbols.cSymbol
 import sema.check.Checker
 import sema.check.fnOf
@@ -69,6 +71,8 @@ import sema.types.U64
 import sema.types.UNIT
 import syntax.ast.ItemKind
 import syntax.ast.Op
+import std.mem
+import std.os
 
 /** A generated value: its LLVM type and its text (`%t3`, `42`, `true`, ...). */
 pub struct Value {
@@ -122,6 +126,14 @@ pub struct Gen {
     pub vtIds: Map<int, int>
     /** Whether the last `placeAddress` went through a `@packed` struct. */
     pub packedPlace: bool
+    /** `-g`: whether to write debug info. */
+    pub debug: bool
+    /** The debug metadata. */
+    pub di: DebugInfo
+    /** The `DISubprogram` of the function being generated, 0 for none. */
+    pub scope: int
+    /** The working directory, escaped, for the `DIFile`s. */
+    pub dir: str
 }
 
 fn hexDigit(n: u64) str {
@@ -183,7 +195,8 @@ pub fn newGen() Gen {
                overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
                temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
                formats: false, packedPlace: false, alignedHeap: false,
-               fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new()}
+               fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new(),
+               debug: false, di: DebugInfo.new(), scope: 0, dir: ""}
 }
 
 fn nextTemp(g: mut Gen) str {
@@ -1532,6 +1545,62 @@ fn localType(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, i: int) str
     return if local.byRef { "ptr".toOwned() } else { llvmType(g, c, p, local.ty) }
 }
 
+// ---------------------------------------------------------------------------
+// Debug info (codegen/debug.of)
+
+// The `DIFile` of a source file.
+fn debugFile(g: mut Gen, c: Checker, id: FileId) int {
+    var path = ""
+    escapedBytes(path, c.r.map.file(id).path)
+    return g.di.file(id.0, path, g.dir)
+}
+
+// The `DISubprogram` of `body`, `define`d as `@symbol(...`: named as in the
+// source, except a closure.
+fn subprogram(g: mut Gen, c: Checker, body: &AirBody, header: str) int {
+    var symbol = header.slice(1, header.find("(") ?? header.len())   // without `@`
+    if symbol.startsWith("\"") {
+        symbol = symbol.slice(1, symbol.len() - 1)
+    }
+    var name = symbol.toOwned()
+    if body.isMain {
+        name = "main".toOwned()
+    } else if body.closure.isNone() {
+        name = ""
+        escapedBytes(name, c.text(body.name))
+    }
+    let line = c.r.map.file(body.span.file).lineCol(body.span.start).line
+    let file = debugFile(g, c, body.span.file)
+    return g.di.subprogram(name, file, line)
+}
+
+// With debug info, starts collecting the instructions of a statement:
+// returns the function so far.
+fn tagStart(g: mut Gen) str {
+    if g.scope == 0 {
+        return ""
+    }
+    return mem.replace(g.out, "")
+}
+
+// With debug info, appends the instructions collected since `tagStart` to
+// `held`, each with the location of `span`.
+fn tagEnd(g: mut Gen, c: Checker, held: move str, span: Span) {
+    if g.scope == 0 {
+        return
+    }
+    let text = mem.replace(g.out, held)
+    let pos = c.r.map.file(span.file).lineCol(span.start)
+    let loc = g.di.location(pos.line, pos.column, g.scope)
+    for line in text.lines() {
+        g.out.push(line)
+        if line.startsWith("  ") {   // not a label
+            g.out.push(", !dbg !{loc}")
+        }
+        g.out.push("\n")
+    }
+}
+
 fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     g.temp = 0
     let ret = body.locals[0].ty
@@ -1540,6 +1609,7 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     let linkage = if body.isMain || cfn { "" } else { "internal fastcc " }
     let retType = if body.isMain { "void".toOwned() } else { llvmType(g, c, p, ret) }
     g.out.push("define {linkage}{retType} ")
+    let nameAt = g.out.len()
     var params: List<int> = []
     if let Option.Some(info) = body.closure {
         let name = closureName(c, p, body.def, body.targs, info.id)
@@ -1570,7 +1640,13 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     if !closure && !isGlue(body.def) {
         g.out.push(hints(c, p, body.def))
     }
+    g.scope = 0
+    if g.debug && body.span.end > 0 {   // glue has no debug info
+        g.scope = subprogram(g, c, body, g.out.sliceFrom(nameAt))
+        g.out.push(" !dbg !{g.scope}")
+    }
     g.out.push(" \{\nstart:\n")
+    let prologue = tagStart(g)
     for i in 0..body.locals.len() {
         let local = &body.locals[i]
         if local.byRef || hasValue(local.ty) {
@@ -1615,13 +1691,18 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
         dropDyn(g)
     }
     g.out.push("  br label %bb0\n")
+    tagEnd(g, c, prologue, body.span)
     for b in 0..body.blocks.len() {
         g.out.push("bb{b}:\n")
         let block = &body.blocks[b]
         for i in 0..block.stmts.len() {
+            let held = tagStart(g)
             statement(g, c, p, body, &block.stmts[i])
+            tagEnd(g, c, held, block.stmts[i].span)
         }
+        let held = tagStart(g)
         terminator(g, c, p, body, &block.term, b)
+        tagEnd(g, c, held, block.at)
     }
     g.out.push("\}\n\n")
 }
@@ -1781,10 +1862,17 @@ fn heapDecl(g: mut Gen, c: mut Checker, name: str, decl: str) {
  * @param c the checker
  * @param p the program
  * @param bodies the bodies, in the order the lowering reached them
+ * @param debug `-g`: with debug info, which stage 0 does not write
  * @returns the module's text
  */
-pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>) str {
+pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>, debug: bool) str {
     var g = newGen()
+    g.debug = debug
+    var root = 0
+    if debug {
+        escapedBytes(g.dir, os.currentDir().ok() ?? "")
+        root = debugFile(g, c, p.modules[0].module.file)
+    }
     begin(g, c, p)
     for i in 0..bodies.len() {
         function(g, c, p, &bodies[i])
@@ -1803,5 +1891,9 @@ pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>) str {
     cDecls(g, c, p)
     g.module.push("\n")
     g.module.push(g.globals)
+    if debug {
+        g.module.push("\n")
+        g.module.push(g.di.finish(root))
+    }
     return g.module
 }

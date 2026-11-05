@@ -171,6 +171,24 @@ against the default, and `--fix` applies it.
 Safety checks are never disabled by a profile. The optimizer removes the
 checks it can prove unnecessary.
 
+### Debug info
+
+`-g` makes the compiler emit DWARF (functions and line tables, no
+variables or types yet) and passes `-g` to clang, so a debugger (`lldb`,
+`gdb`) can set breakpoints on functions and source lines and step
+through them:
+
+- each user function, closure included, gets a `DISubprogram` at the
+  line of its declaration;
+- each instruction gets the line and column of the statement it was
+  lowered from, the `return` or the tail expression included;
+- compiler-generated functions (drop and clone glue, thunks, vtables)
+  have no debug info, so stepping skips them.
+
+Until projects exist the flag is opt-in, and it is stage 1's: without
+it the `.ll` is the one stage 0 writes. The `debug` profile will turn
+it on.
+
 ## 4. Build steps
 
 ```
