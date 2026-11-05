@@ -39,7 +39,7 @@ pub fn isPacked(c: Checker, p: Program, id: int) bool {
  * @param id the struct's `DefId`
  * @returns it, 0 without the attribute
  */
-pub fn alignOf(c: Checker, p: Program, id: int) int {
+pub fn alignAttr(c: Checker, p: Program, id: int) int {
     if c.def(id).kind != DefKind.Struct || c.def(id).item < 0 {
         return 0
     }
@@ -77,7 +77,7 @@ pub fn checkStructAttrs(c: mut Checker, p: Program, id: int) {
         let span = item.attributes[at].span
         if isPacked(c, p, id) {
             c.error("E0808", span, "`@align` does not apply to a `@packed` struct".toOwned())
-        } else if alignOf(c, p, id) > 16 {
+        } else if alignAttr(c, p, id) > 16 {
             c.unsupported(span, "alignments above 16 are")
         }
     }

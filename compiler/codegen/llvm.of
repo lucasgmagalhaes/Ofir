@@ -48,7 +48,7 @@ import sema.check_box.boxInner
 import sema.def.DefKind
 import sema.interfaces.dynMethods
 import sema.interfaces.isAnyMethod
-import sema.layout_attrs.alignOf
+import sema.layout_attrs.alignAttr
 import sema.layout_attrs.isPacked
 import sema.enums.enumVariants
 import sema.enums.variantsOf
@@ -275,7 +275,7 @@ fn structLayout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
         return Layout{size: size, align: 1}
     }
     let l = fieldsLayout(g, c, p, &types)
-    let align = alignOf(c, p, id)
+    let align = alignAttr(c, p, id)
     if align <= l.align {
         return l
     }
@@ -438,7 +438,7 @@ fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
     if c.info[id].fields.isSome() {
         types = fieldTypes(c, p, ty, -1)
     }
-    define(g, c, p, name.clone(), &types, isPacked(c, p, id), alignOf(c, p, id))
+    define(g, c, p, name.clone(), &types, isPacked(c, p, id), alignAttr(c, p, id))
     return name
 }
 
