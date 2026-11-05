@@ -21,6 +21,9 @@ with clang.
 - Talk to the user in Portuguese. Code, docs, commits and PRs in English.
 - Commit as you go, in small commits that each build: Conventional
   Commits (`CONTRIBUTING.md`), messages in English.
+- Keep commits very small: 1-3 files each, one concern per commit (spec,
+  stage 0, stage 1 per call site, tests, each doc separately). Never
+  bundle many changed files into one commit.
 - Git author and committer of every commit: Lucas Gomes
   <lucasgsm88@gmail.com> (`git -c user.name=... -c user.email=...` if the
   config differs).
