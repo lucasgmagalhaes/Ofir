@@ -16,6 +16,7 @@
 import base.intern.Symbol
 import base.span.Span
 import diag.noSpan
+import sema.c_symbols.checkCSymbols
 import sema.call_args.checkDefaults
 import sema.check_ref.checkBorrowSource
 import sema.check_stmt.checkBlock
@@ -1241,6 +1242,7 @@ pub fn checkProgram(p: Program, r: move Resolver) Checker {
         }
     }
     c.enter(0)
+    checkCSymbols(c, p)
     warnUnusedImports(c, p)
     return c
 }
