@@ -1,0 +1,23 @@
+// requires: stage1
+// `@cfg` conditions: `os` and `arch` compared to a listed value, `debug` and
+// `test`, with `&&`, `||` and `!` (spec 12.4).
+
+@cfg(os == "beos")   // error[E0809]: invalid condition for `@cfg`: write `os == "linux"`, `arch == "x86_64"`, `debug` or `test`, combined with `&&`, `||` and `!`
+fn a() {
+}
+
+@cfg(release)   // error[E0809]: invalid condition for `@cfg`: write `os == "linux"`, `arch == "x86_64"`, `debug` or `test`, combined with `&&`, `||` and `!`
+fn b() {
+}
+
+@cfg(debug && arch == 64)   // error[E0809]: invalid condition for `@cfg`: write `os == "linux"`, `arch == "x86_64"`, `debug` or `test`, combined with `&&`, `||` and `!`
+fn c() {
+}
+
+struct S {
+    @cfg(os < "linux")   // error[E0809]: invalid condition for `@cfg`: write `os == "linux"`, `arch == "x86_64"`, `debug` or `test`, combined with `&&`, `||` and `!`
+    x: int
+}
+
+fn main() {
+}
