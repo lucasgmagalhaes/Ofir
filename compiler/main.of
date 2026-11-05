@@ -16,6 +16,7 @@ import base.span.SourceMap
 import codegen.llvm.generate
 import diag.Diagnostics
 import diag.Format
+import driver.cfg.CfgTarget
 import driver.modules.Front
 import driver.modules.loadProgram
 import sema.check.Checker
@@ -213,7 +214,8 @@ fn build(given: move Options) int {
         return finish(front.diags, front.map, &pipeline)
     }
     let testing = opts.command == "test"
-    var program = loadProgram(opts.input, parsed.module, front, testing)
+    let target = CfgTarget{os: os.name(), arch: os.arch(), debug: !opts.release, test: testing}
+    var program = loadProgram(opts.input, parsed.module, front, target)
     if front.diags.hasErrors() {
         return finish(front.diags, front.map, &pipeline)
     }

@@ -18,6 +18,8 @@ import base.intern.Symbol
 import base.span.FileId
 import base.span.SourceMap
 import diag.Diagnostics
+import driver.cfg.CfgTarget
+import driver.cfg.stripCfg
 import sema.program.Program
 import sema.program.ProgramModule
 import std.fs
@@ -89,6 +91,7 @@ struct Loader {
     rootDir: str
     stdDir: Option<str>
     testing: bool
+    target: CfgTarget
 }
 
 // `ofir test` (spec 12.2): the tests of `a/b.of` are in `a/b_test.of`, part
@@ -169,6 +172,7 @@ fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
     if let Option.Some(parsed) = front.parseFile(file) {
         var module = parsed
         addTestFile(ld, front, module, name, path)
+        stripCfg(module, &ld.target, front.names, front.diags)
         ld.modules.push(ProgramModule{name: name.toOwned(), module})
     }
 }
@@ -299,10 +303,12 @@ fn rootModuleName(ld: Loader, input: str, inProject: bool) str {
  * @param input the root file's path, as given
  * @param root its tree
  * @param front the tables, where the other files go
- * @param testing `ofir test`: the test files of the modules are loaded
+ * @param target what `@cfg` conditions are evaluated against; under `ofir test`, the
+ *   test files of the modules are loaded
  * @returns the program, the root first
  */
-pub fn loadProgram(input: str, root: move Module, front: mut Front, testing: bool) Program {
+pub fn loadProgram(input: str, root: move Module, front: mut Front,
+                   target: move CfgTarget) Program {
     let slash = lastSlash(input)
     var rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
     let project = projectDir(input)
@@ -310,10 +316,12 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front, testing: boo
     if let Option.Some(dir) = project {
         rootDir = dir
     }
-    var ld = Loader{modules: [], rootDir, stdDir: findStd(), testing}
+    let testing = target.test
+    var ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, target}
     let name = rootModuleName(ld, input, inProject)
     var module = root
     addTestFile(ld, front, module, name, input)
+    stripCfg(module, &ld.target, front.names, front.diags)
     ld.modules.push(ProgramModule{name, module})
     if !isLoaded(ld, "std.core") {   // the prelude, in every program
         if let Option.Some(core) = moduleFile(ld, "std.core") {
