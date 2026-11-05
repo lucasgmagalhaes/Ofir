@@ -1,0 +1,75 @@
+/**
+ * @module
+ * `ofir explain EXXXX`: prints the explanation of an error or warning code,
+ * the file `EXXXX.md` of docs/errors (docs/design/toolchain.md).
+ */
+
+import std.fs
+import std.os
+
+/**
+ * Whether a string has the shape of a code: `E` or `W` and four digits.
+ *
+ * @param code the string
+ * @returns true if it does
+ */
+pub fn isCode(code: str) bool {
+    if code.len() != 5 || (code[0] != b'E' && code[0] != b'W') {
+        return false
+    }
+    for i in 1..5 {
+        if code[i] < b'0' || code[i] > b'9' {
+            return false
+        }
+    }
+    return true
+}
+
+// The directories that may hold the explanations, in the order they are
+// tried: `OFIR_ERRORS`, then next to an installed compiler, then the
+// repository's docs/errors for a compiler in build/stageN.
+fn places() List<str> {
+    var dirs: List<str> = []
+    if let Option.Some(dir) = os.env("OFIR_ERRORS") {
+        dirs.push(dir)
+    }
+    let Result.Ok(exe) = os.executablePath() else {
+        return dirs
+    }
+    var slash = -1
+    for i in 0..exe.len() {
+        if exe[i] == b'/' {
+            slash = i
+        }
+    }
+    let dir = if slash >= 0 { exe.slice(0, slash).toOwned() } else { ".".toOwned() }
+    dirs.push("{dir}/../share/ofir/errors")
+    dirs.push("{dir}/../../docs/errors")
+    return dirs
+}
+
+/**
+ * Prints the explanation of a code to standard output.
+ *
+ * @param code the code, as `E0600`
+ * @returns the exit status: 0, 1 without an explanation, 2 for a malformed
+ * code
+ */
+pub fn explain(code: str) int {
+    if !isCode(code) {
+        eprintln("error: `{code}` is not an error code: write one as `E0600` or `W0001`")
+        return 2
+    }
+    let dirs = places()
+    for i in 0..dirs.len() {
+        let path = "{dirs[i]}/{code}.md"
+        if fs.exists(path) {
+            if let Result.Ok(text) = fs.readToString(path) {
+                print(text)
+                return 0
+            }
+        }
+    }
+    eprintln("error: no explanation for `{code}` (set OFIR_ERRORS to the docs/errors directory)")
+    return 1
+}

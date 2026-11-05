@@ -22,8 +22,8 @@ unit:
 runner-selftest:
 	$(PYTHON) tests/runner/selftest/run_selftest.py
 
-check-codes:
-	$(PYTHON) tools/check_error_codes.py
+check-codes: stage0 runtime
+	$(STAGE_ENV) $(PYTHON) tools/check_error_codes.py --compiler $(BUILD)/stage0/ofir$(EXE)
 
 check-sizes:
 	$(PYTHON) tools/check_sizes.py

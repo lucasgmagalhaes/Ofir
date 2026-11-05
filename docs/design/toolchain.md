@@ -75,6 +75,20 @@ as one JSON object per line, sorted as the human format sorts them:
 
 The format is stage 1's: stage 0 accepts only `short` and `human`.
 
+### `ofir explain`
+
+`ofir explain E0600` prints the explanation of a code: the file
+`E0600.md` of `docs/errors`, with what the rule is, an example that
+triggers it and how to fix it. The file is looked up in, in order:
+
+1. the directory named by the `OFIR_ERRORS` environment variable;
+2. `<prefix>/share/ofir/errors`, next to an installed compiler;
+3. the repository's `docs/errors`, for a compiler in `build/stageN`.
+
+The exit status is 0 when the explanation is printed, 1 when no file
+has it and 2 when the argument is not a code (`E` or `W` and four
+digits). The command is stage 1's.
+
 ## 2. Project layout
 
 ```
@@ -159,9 +173,10 @@ The compiler finds:
 ```
 <prefix>/
 ├── bin/ofir
-└── lib/ofir/
-    ├── std/                 standard library sources
-    └── libofir_rt.a        runtime
+├── lib/ofir/
+│   ├── std/                 standard library sources
+│   └── libofir_rt.a        runtime
+└── share/ofir/errors/       explanations for `ofir explain`
 ```
 
 ## 6. Targets

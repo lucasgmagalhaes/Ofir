@@ -9,6 +9,40 @@ Each code gets its own file, `EXXXX.md`, with a short explanation, an
 example that triggers it and how to fix it. `ofir explain EXXXX` prints
 that file.
 
+## Explanation files
+
+````markdown
+# E0600: use of moved value
+
+What the rule is and why it exists, in a paragraph or two.
+
+## Example
+
+```ofir
+fn main() {
+    ...
+}
+```
+
+## Fix
+
+What to change, with the corrected program:
+
+```ofir
+fn main() {
+    ...
+}
+```
+````
+
+- The title is the code and the message of the registry table, shortened
+  to its fixed part.
+- Every `ofir` block is a whole program. `tools/check_error_codes.py
+  --compiler <ofir>` compiles each one: the blocks under `## Example` must
+  report the code, those under `## Fix` must compile without errors.
+- A code that one file cannot show (a missing module, a failing clang)
+  uses `text` blocks, which are not compiled.
+
 ## Ranges
 
 | Range | Phase |
