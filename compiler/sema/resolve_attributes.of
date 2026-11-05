@@ -76,7 +76,7 @@ fn ruleSupported(rule: int) bool {
 
 fn ruleUsage(rule: int) str {
     let usage = ["`@inline` or `@inline(never)`", "`@cold`", "`@test`", "`@lang(\"type\")`",
-                 "`@repr(C)`", "`@packed`", "`@align(N)`, N a power of two",
+                 "`@repr(C)`", "`@packed`", "`@align(N)`, N a power of two up to 4096",
                  "`@link(\"name\")`", "`@export(\"name\")`",
                  "`@deprecated` or `@deprecated(\"message\")`", "`@bench`", "`@cfg(condition)`",
                  "`@allow(category)`, category `unused`, `unreachable`, `deprecated` or `naming`",
@@ -156,10 +156,10 @@ fn isStr(e: &Expr) bool {
     }
 }
 
-// A power of two: `@align(8)`.
+// A power of two up to the page size: `@align(8)`.
 fn isAlignment(e: &Expr) bool {
     return match e.kind {
-        ExprKind.Int(value) => value > 0 && (value & (value - 1)) == 0
+        ExprKind.Int(value) => value > 0 && value <= 4096 && (value & (value - 1)) == 0
         _ => false
     }
 }
