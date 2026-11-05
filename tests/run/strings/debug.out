@@ -1,0 +1,15 @@
+42 "a\"b\n\tc" true 1.5
+Point { x: 1, y: 2 }
+Meters(5)
+Empty {}
+(1, "x") (7,)
+Circle(2.5) Rect(3, 4) Dot
+Some(3)
+Secret(***)
+generic Point { x: 1, y: 2 }
+generic "hi"
+[1, 2, 3] ["a", "b"] [[1], [], [2, 3]] Point { x: 5, y: 6 } [Some(1), None] [1, 2, 3]
+[] ()
+[1, 2, 3]!
+{"a": [1], "b": []}
+Node(Leaf, 1, Node(Leaf, 2, Leaf)) "\x01\x7f\r\0\\"

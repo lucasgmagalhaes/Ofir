@@ -83,6 +83,8 @@ void ofir_str_push_fixed(OfirStr *s, double value, int64_t digits);
 void ofir_str_push_radix(OfirStr *s, uint64_t value, int64_t format);
 // `padding`: the width, bit 32 for left aligned, bit 33 for zero padded.
 void ofir_str_push_padded(OfirStr *s, const OfirStr *part, int64_t padding);
+// `part` quoted, with escapes: its debug representation (`{x:?}`).
+void ofir_str_push_debug(OfirStr *s, const OfirStr *part);
 void ofir_str_drop(OfirStr *s);
 
 void ofir_str_concat(OfirStr *out, const OfirStr *a, const OfirStr *b);

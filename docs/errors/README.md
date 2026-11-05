@@ -57,7 +57,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0311 | expression of type `T` is not a function | stage 0 |
 | E0312 | integer literal out of range for `T` | stage 0 |
 | E0313 | operator cannot be applied to type `T` | stage 0 |
-| E0314 | a value of type `T` cannot be interpolated into a string | stage 0 |
+| E0314 | a value of type `T` cannot be interpolated into a string, or has no debug representation (`Debug`, `{x:?}`) | stage 0 |
 | E0315 | this value cannot be modified: declare it with `var` (or take it as `mut`) | stage 0 |
 | E0316 | no field `f` on type `T` | stage 0 |
 | E0317 | a `copy struct` can only have fields of Copy types | stage 0 |

@@ -10,6 +10,7 @@ import air.air.Operand
 import air.air.FloatFn
 import air.air.CALL_VALUE
 import air.air.GLUE_CLONE
+import air.air.GLUE_DEBUG
 import air.air.GLUE_DROP
 import air.air.OperandKind
 import air.air.Rvalue
@@ -655,6 +656,12 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         }
         let place = Place{local: toLocal(l, value), fields: [], deref: true}
         emitDrop(l, c, p, &place, elem)
+        return unit()
+    }
+    if name == "debugOf" {
+        let value = lowerExpr(l, c, p, &args[0].value)
+        let out = placeOperand(&lowerPlace(l, c, p, &args[1].value), OperandKind.Addr, STR)
+        debugValue(l, c, p, value, concreteType(l, c, callTypeArg(c, e)), &out)
         return unit()
     }
     if name == "cloneOf" {
@@ -2041,7 +2048,10 @@ fn pushFormatted(l: mut Lowerer, c: mut Checker, p: Program, dest: int, part: mo
                  f: FormatSpec) {
     let target = if f.width > 0 { emitTemp(l, STR, rvUse(opStr("", STR))) } else { dest }
     var value = part
-    if f.precision >= 0 {
+    if f.debug {
+        let ty = concreteType(l, c, value.ty)
+        debugValue(l, c, p, value, ty, &opAddr(target, STR))
+    } else if f.precision >= 0 {
         let wide = lowerCast(l, c, value, F64, noSpan())
         let digits = opInt(f.precision as u64, I64)
         emitRuntime(l, RuntimeFn.StrPushFixed, [opAddr(target, STR), wide, digits], -1)
@@ -2060,6 +2070,56 @@ fn pushFormatted(l: mut Lowerer, c: mut Checker, p: Program, dest: int, part: mo
                     -1)
         emitDrop(l, c, p, &localPlace(target), STR)
     }
+}
+
+/**
+ * Appends the debug representation of a value (`{x:?}`, spec 9.9): numbers
+ * and `bool` as they print, a `str` quoted, through a reference its target,
+ * anything else through its debug glue.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param value the value
+ * @param ty its type
+ * @param out the address of the str written to
+ */
+pub fn debugValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand, ty: int,
+                  out: &Operand) {
+    let kind = c.types.kind(ty)
+    if kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool {
+        var part = value
+        part.ty = ty
+        let push = partFn(l, c, part, false)
+        emitRuntime(l, push, [out.clone(), part], -1)
+    } else if kind == TyKind.Str {
+        var text = value
+        text.ty = STR
+        let addr = address(l, text)
+        emitRuntime(l, RuntimeFn.StrPushDebug, [out.clone(), addr], -1)
+    } else if kind == TyKind.Unit {
+        pushText(l, out, "()")
+    } else if kind == TyKind.Ref {
+        let inner = c.types.get(ty).inner
+        let place = Place{local: toLocal(l, value), fields: [], deref: true}
+        debugValue(l, c, p, placeOperand(&place, OperandKind.Copy, inner), inner, out)
+    } else if kind != TyKind.Never && kind != TyKind.Error {
+        var arg = value
+        arg.ty = ty
+        emitCall(l, GLUE_DEBUG, c.types.tuple([ty]), [arg, out.clone()], -1)
+    }
+}
+
+/**
+ * Appends a constant text.
+ *
+ * @param l the lowering
+ * @param out the address of the str written to
+ * @param text the text
+ */
+pub fn pushText(l: mut Lowerer, out: &Operand, text: str) {
+    let addr = address(l, opStr(text, STR))
+    emitRuntime(l, RuntimeFn.StrPushStr, [out.clone(), addr], -1)
 }
 
 fn hasSpec(specs: &List<str>) bool {

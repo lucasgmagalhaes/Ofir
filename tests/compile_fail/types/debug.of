@@ -1,0 +1,29 @@
+// requires: stage1
+struct Handler {
+    run: *mut u8
+}
+
+struct Odd {
+    n: int
+
+    fn debug(self) str {
+        return "odd"
+    }
+}
+
+fn noBound<T>(x: T) {
+    println("{x:?}") // error[E0314]: a value of type `T` has no debug representation (`Debug`)
+}
+
+fn needs<T: Debug>(_x: T) {}
+
+fn main() {
+    let f = main
+    let h = Handler{run: unsafe { 0 as *mut u8 }}
+    let o = Odd{n: 1}
+    println("{f:?}") // error[E0314]: a value of type `fn()` has no debug representation (`Debug`)
+    println("{h:?}") // error[E0314]: a value of type `Handler` has no debug representation (`Debug`)
+    println("{o:?}") // error[E0314]: a value of type `Odd` has no debug representation (`Debug`)
+    needs(h) // error[E0332]: the type `Handler` does not satisfy the bound `Debug` of `T`
+    needs([1, 2])
+}

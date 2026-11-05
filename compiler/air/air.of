@@ -295,6 +295,7 @@ pub copy enum RuntimeFn {
     StrPushFixed
     StrPushRadix
     StrPushPadded
+    StrPushDebug
     StrConcat
     StrEq
     StrCmp
@@ -328,6 +329,7 @@ pub fn runtimeName(f: RuntimeFn) str {
         RuntimeFn.StrPushFixed => "ofir_str_push_fixed"
         RuntimeFn.StrPushRadix => "ofir_str_push_radix"
         RuntimeFn.StrPushPadded => "ofir_str_push_padded"
+        RuntimeFn.StrPushDebug => "ofir_str_push_debug"
         RuntimeFn.StrConcat => "ofir_str_concat"
         RuntimeFn.StrEq => "ofir_str_eq"
         RuntimeFn.StrCmp => "ofir_str_cmp"
@@ -348,6 +350,8 @@ pub const GLUE_EQ: int = -4
 pub const GLUE_HASH: int = -5
 /** The `fn` of a call to the derived `cmp` of the type in `targs`: an `Ordering` tag. */
 pub const GLUE_CMP: int = -6
+/** The `fn` of a call to the debug glue of the type in `targs`: `debug<T>(value, out)`. */
+pub const GLUE_DEBUG: int = -7
 
 /**
  * Whether a function of a call or a body is glue.
@@ -357,14 +361,14 @@ pub const GLUE_CMP: int = -6
  */
 pub fn isGlue(def: int) bool {
     return def == GLUE_DROP || def == GLUE_CLONE || def == GLUE_EQ || def == GLUE_HASH ||
-           def == GLUE_CMP
+           def == GLUE_CMP || def == GLUE_DEBUG
 }
 
 /**
  * The name of a glue function.
  *
  * @param def a glue constant
- * @returns `drop`, `clone`, `eq`, `hash` or `cmp`
+ * @returns `drop`, `clone`, `eq`, `hash`, `cmp` or `debug`
  */
 pub fn glueName(def: int) str {
     return if def == GLUE_DROP {
@@ -375,8 +379,10 @@ pub fn glueName(def: int) str {
         "eq"
     } else if def == GLUE_HASH {
         "hash"
-    } else {
+    } else if def == GLUE_CMP {
         "cmp"
+    } else {
+        "debug"
     }
 }
 

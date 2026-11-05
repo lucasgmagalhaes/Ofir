@@ -11,6 +11,7 @@
 
 import air.air.AirBody
 import air.air.GLUE_CMP
+import air.air.GLUE_DEBUG
 import air.air.GLUE_EQ
 import air.air.GLUE_HASH
 import air.air.Operand
@@ -43,9 +44,11 @@ import air.lower.switchTo
 import air.lower.terminate
 import air.lower.toLocal
 import air.lower_expr.callHash
+import air.lower_expr.debugValue
 import air.lower_expr.equalValues
 import air.lower_expr.hashValue
 import air.lower_expr.lowerBinaryOp
+import air.lower_expr.pushText
 import air.lower_pattern.isVariant
 import base.intern.Symbol
 import diag.noSpan
@@ -55,6 +58,7 @@ import sema.check.Checker
 import sema.check_types.fnSignature
 import sema.def.DefKind
 import sema.derive.comparisonMethod
+import sema.derive.debugMethod
 import sema.enums.enumVariants
 import sema.enums.variantsOf
 import sema.program.Program
@@ -63,8 +67,10 @@ import sema.structs.structFieldType
 import sema.structs.variantFieldType
 import sema.types.BOOL
 import sema.types.I32
+import sema.types.STR
 import sema.types.TyKind
 import sema.types.U64
+import sema.types.UNIT
 import std.mem
 import syntax.ast.Op
 
@@ -469,5 +475,103 @@ pub fn lowerCmpGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     }
     emitGoto(l, done)
     switchTo(l, done)
+    finishGlue(l, c, p)
+}
+
+// The fields of a struct, a tuple or a variant: `{ a: 1, b: 2 }` for a
+// struct with named fields, `(1, 2)` otherwise (as a variant is built).
+fn debugFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int,
+               out: &Operand) {
+    let value = localPlace(1)
+    let isTuple = c.types.kind(ty) == TyKind.Tuple
+    var names: List<str> = []
+    var count = 0
+    if variant >= 0 {
+        count = variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
+    } else if isTuple {
+        count = partCount(c, ty)
+    } else {
+        let info = fieldsOf(c, c.types.get(ty).data)
+        count = info.types.len()
+        if !info.isTuple {
+            for i in 0..count {
+                names.push(c.text(info.names[i]).toOwned())
+            }
+        }
+    }
+    let named = names.len() == count && count > 0
+    if count == 0 {
+        if isTuple {
+            pushText(l, out, "()")
+        } else if variant < 0 {
+            pushText(l, out, " \{\}")
+        }
+        return
+    }
+    pushText(l, out, if named { " \{ " } else { "(" })
+    for i in 0..count {
+        if i > 0 {
+            pushText(l, out, ", ")
+        }
+        if named {
+            pushText(l, out, "{names[i]}: ")
+        }
+        let step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
+        let field = if variant < 0 { partType(c, p, ty, i) } else {
+            variantFieldType(c, p, ty, variant, i)
+        }
+        debugValue(l, c, p, part(&fieldPlace(&value, step, i), field), field, out)
+    }
+    if isTuple && count == 1 {
+        pushText(l, out, ",")
+    }
+    pushText(l, out, if named { " \}" } else { ")" })
+}
+
+/**
+ * Lowers `debug<T>(value: T, out: mut str)`: the debug representation of a
+ * value (spec 9.9), its `debug` method or its fields.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param targs `(T,)`
+ */
+pub fn lowerDebugGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
+    startGlue(l, c, GLUE_DEBUG, targs, UNIT, 2)
+    l.body.locals[2].ty = STR
+    l.body.locals[2].byRef = true
+    let ty = c.types.get(targs).args[0]
+    let out = placeOperand(&Place{local: 2, fields: [], deref: true}, OperandKind.Addr, STR)
+    let kind = c.types.kind(ty)
+    let method = if kind == TyKind.Adt { debugMethod(c, p, ty) } else { 0 }
+    if method != 0 {
+        emitCall(l, method, methodTargs(c, ty), [opCopy(1, ty), out], -1)
+    } else if kind == TyKind.Tuple {
+        debugFields(l, c, p, ty, -1, &out)
+    } else if !isEnum(c, ty) && kind == TyKind.Adt {
+        pushText(l, &out, c.text(c.def(c.types.get(ty).data).name))
+        debugFields(l, c, p, ty, -1, &out)
+    } else if kind == TyKind.Adt {
+        let id = c.types.get(ty).data
+        enumVariants(c, p, id)
+        let done = l.body.newBlock()
+        let count = variantsOf(c, id).variants.len()
+        for v in 0..count {
+            let body = l.body.newBlock()
+            let next = l.body.newBlock()
+            let is = isVariant(l, c, p, &localPlace(1), ty, v)
+            terminate(l, branch(is, body, next))
+            switchTo(l, body)
+            pushText(l, &out, c.text(variantsOf(c, id).variants[v].name))
+            debugFields(l, c, p, ty, v, &out)
+            emitGoto(l, done)
+            switchTo(l, next)
+        }
+        emitGoto(l, done)
+        switchTo(l, done)
+    } else {
+        debugValue(l, c, p, opCopy(1, ty), ty, &out)
+    }
     finishGlue(l, c, p)
 }

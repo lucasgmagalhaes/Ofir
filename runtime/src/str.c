@@ -120,6 +120,26 @@ void ofir_str_push_padded(OfirStr *s, const OfirStr *part, int64_t padding) {
     }
 }
 
+void ofir_str_push_debug(OfirStr *s, const OfirStr *part) {
+    static const char hex[] = "0123456789abcdef";
+    ofir_str_push_bytes(s, (const uint8_t *)"\"", 1);
+    for (int64_t i = 0; i < part->len; i++) {
+        uint8_t c = part->ptr[i];
+        char esc = c == '"' ? '"' : c == '\\' ? '\\' : c == '\n' ? 'n' : c == '\t' ? 't'
+                 : c == '\r' ? 'r' : c == 0 ? '0' : 0;
+        if (esc) {
+            uint8_t pair[2] = {'\\', (uint8_t)esc};
+            ofir_str_push_bytes(s, pair, 2);
+        } else if (c < 0x20 || c == 0x7f) {
+            uint8_t code[4] = {'\\', 'x', (uint8_t)hex[c >> 4], (uint8_t)hex[c & 15]};
+            ofir_str_push_bytes(s, code, 4);
+        } else {
+            ofir_str_push_bytes(s, &c, 1);
+        }
+    }
+    ofir_str_push_bytes(s, (const uint8_t *)"\"", 1);
+}
+
 void ofir_str_drop(OfirStr *s) {
     if (s->cap > 0) {
         ofir_free(s->ptr);

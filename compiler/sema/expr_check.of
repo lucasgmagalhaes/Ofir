@@ -44,6 +44,7 @@ import sema.check_unsafe.requireUnsafe
 import sema.const_eval.constEval
 import sema.def.DefKind
 import sema.def.Res
+import sema.derive.debuggable
 import sema.program.Program
 import sema.struct_exprs.checkConstructor
 import sema.struct_exprs.checkStructLiteral
@@ -132,6 +133,13 @@ fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>, specs: &List<st
         let found = checkExpr(c, p, &parts[i], ERROR)
         let ty = autoDeref(c, p, &parts[i], found)   // `"{r}"` shows `*r`
         let kind = c.types.kind(ty)
+        if specs[i] == "?" {   // the debug representation (spec 9.9)
+            if !debuggable(c, p, ty) {
+                c.error("E0314", parts[i].span, "a value of type `{c.typeName(ty)}` has no "
+                        + "debug representation (`Debug`)")
+            }
+            continue
+        }
         let printable = kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool ||
                         kind == TyKind.Str ||
                         kind == TyKind.Error
@@ -151,10 +159,6 @@ fn checkFormatSpec(c: mut Checker, part: &Expr, ty: int, text: str) {
     let f = parseFormatSpec(text)
     if !f.valid {
         c.error("E0357", part.span, "invalid format specifier `{text}`")
-        return
-    }
-    if f.debug {
-        let _ = c.unsupported(part.span, "the debug format `?` is")
         return
     }
     let kind = c.types.kind(ty)

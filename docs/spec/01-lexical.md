@@ -195,8 +195,10 @@ type (`{-1 as i8:x}` → `ff`), and the width counts Unicode scalar values. A
 malformed specifier, or one that does not apply to the type, is an error
 (E0357).
 
-Format specifiers are implemented by stage 1 only. `?` waits for the
-derived `Debug` interface (roadmap 5.5).
+`?` shows the value as written in code (chapter 9.9): a string quoted,
+with escapes. The type must satisfy `Debug` (E0314).
+
+Format specifiers are implemented by stage 1 only.
 
 ### Raw strings
 

@@ -16,6 +16,8 @@ extern "intrinsic" {
     fn forget<T>(value: move T)
     // What `value.clone()` does for any `T` (roadmap 3.3).
     fn cloneOf<T>(value: T) T
+    // Appends the debug representation of `value` (`{x:?}`, spec 9.9).
+    fn debugOf<T>(value: T, out: mut str)
 
     /**
      * The size in bytes of a value of type `T`, as laid out in memory
@@ -112,6 +114,18 @@ pub struct Box<T> {
      */
     pub fn clone(self) Box<T> {
         return unsafe { Box.new(cloneOf(*self.ptr)) }
+    }
+
+    /**
+     * Appends the debug representation of the value in the box: what
+     * `{b:?}` shows (spec 9.9).
+     *
+     * @param out the string written to
+     */
+    pub fn debug(self, out: mut str) {
+        unsafe {
+            debugOf(*self.ptr, out)
+        }
     }
 
     // Drops the value, then frees the memory (spec 5.2).

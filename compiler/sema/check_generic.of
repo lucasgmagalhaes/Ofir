@@ -11,6 +11,7 @@
 
 import base.span.Span
 import sema.check.BOUND_CLONE
+import sema.check.BOUND_DEBUG
 import sema.check.BOUND_EQ
 import sema.check.BOUND_HASH
 import sema.check.BOUND_ORD
@@ -26,6 +27,7 @@ import sema.check_list.hashable
 import sema.check_methods.isCloneable
 import sema.check_types.resolveType
 import sema.derive.adtSatisfies
+import sema.derive.debuggable
 import sema.expr_check.checkExpr
 import sema.expr_check.requireType
 import sema.interfaces.implementedSigs
@@ -456,6 +458,8 @@ pub fn satisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
         hashable(c, p, ty)
     } else if bit == BOUND_CLONE {
         isCloneable(c, p, ty)
+    } else if bit == BOUND_DEBUG {
+        debuggable(c, p, ty)
     } else {
         isCopy(c, p, ty)
     }
@@ -470,6 +474,8 @@ fn boundName(bit: int) str {
         "Hash"
     } else if bit == BOUND_CLONE {
         "Clone"
+    } else if bit == BOUND_DEBUG {
+        "Debug"
     } else {
         "Copy"
     }
@@ -493,7 +499,7 @@ pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<in
             return
         }
         let bits = params.bounds[i]
-        for b in 0..5 {
+        for b in 0..6 {
             let bit = 1 << b
             if bits & bit == 0 || satisfies(c, p, args[i], bit) {
                 continue

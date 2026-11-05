@@ -38,8 +38,10 @@ import air.air.terminator
 import air.air.CALL_VALUE
 import air.air.GLUE_CLONE
 import air.air.GLUE_EQ
+import air.air.GLUE_DEBUG
 import air.air.GLUE_HASH
 import air.lower_derive.lowerCmpGlue
+import air.lower_derive.lowerDebugGlue
 import air.lower_derive.lowerEqGlue
 import air.lower_derive.lowerHashGlue
 import air.lower_expr.cloneValue
@@ -1529,6 +1531,8 @@ pub fn lowerProgram(c: mut Checker, p: Program) Lowerer {
                 lowerEqGlue(l, c, p, inst.targs)
             } else if inst.glue == GLUE_HASH {
                 lowerHashGlue(l, c, p, inst.targs)
+            } else if inst.glue == GLUE_DEBUG {
+                lowerDebugGlue(l, c, p, inst.targs)
             } else {
                 lowerCmpGlue(l, c, p, inst.targs)
             }
