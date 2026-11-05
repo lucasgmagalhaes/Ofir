@@ -1,0 +1,55 @@
+// requires: stage1
+// Uses of a `@deprecated` declaration are warnings, except inside deprecated
+// declarations and under `@allow(deprecated)` (spec 12.1).
+
+@deprecated("use `parse`")
+fn atoi(s: str) int {
+    return s.len()
+}
+
+@deprecated
+const LIMIT: int = 10
+
+@deprecated("use `Point`")
+struct Pair {
+    a: int
+    b: int
+}
+
+struct Counter {
+    n: int
+
+    @deprecated("use `bump`")
+    fn inc(mut self) {
+        self.n = self.n + 1
+    }
+
+    fn bump(mut self) {
+        self.n = self.n + 1
+    }
+}
+
+@deprecated
+fn legacy() int {
+    return atoi("ab") + LIMIT   // no warning inside a deprecated declaration
+}
+
+@allow(deprecated)
+fn tolerant() int {
+    return atoi("abc")
+}
+
+fn first(p: Pair) int {   // warning[W0006]: `Pair` is deprecated: use `Point`
+    return p.a
+}
+
+fn main() {
+    let n = atoi("12")   // warning[W0006]: `atoi` is deprecated: use `parse`
+    let m = LIMIT   // warning[W0006]: `LIMIT` is deprecated
+    var c = Counter{n: 0}
+    c.inc()   // warning[W0006]: `inc` is deprecated: use `bump`
+    c.bump()
+    let p = Pair{a: 1, b: 2}   // warning[W0006]: `Pair` is deprecated: use `Point`
+    println("{n} {m} {c.n} {first(p)} {tolerant()}")
+    println("{legacy()}")   // warning[W0006]: `legacy` is deprecated
+}
