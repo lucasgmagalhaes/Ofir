@@ -1,7 +1,7 @@
 // Check elimination (air/fold.h). Within a block, a temporary assigned from
 // constants is known until the block ends; an assertion on a condition known
-// to be false cannot fail and becomes a goto. Locals whose address is taken
-// are never tracked: a call could write them.
+// to be false cannot fail and becomes a goto. Named locals and locals whose
+// address is taken are never tracked: a call or a closure could write them.
 
 #include "air/fold.h"
 
@@ -165,7 +165,7 @@ static void step(Folder *f, const AirStmt *s) {
     uint64_t v;
     TypeId type = f->body->locals.data[s->dest.id].type;
     if (s->dest_path.len || s->dest_path.deref || f->escaped[s->dest.id] ||
-        !eval(f, &s->as.rvalue, type, &v)) {
+        f->body->locals.data[s->dest.id].name.id || !eval(f, &s->as.rvalue, type, &v)) {
         forget(f, s->dest);
         return;
     }
