@@ -1,0 +1,44 @@
+// requires: stage1
+// Interfaces as parameter types (spec 9.6, ADR 0029): an interface named
+// alone anywhere else, explicit type arguments for anonymous parameters,
+// and anonymous parameters that are not inferred or not satisfied.
+
+interface Shape {
+    fn area(self) int
+}
+
+struct Rect {
+    w: int
+
+    fn area(self) int {
+        return self.w
+    }
+}
+
+struct Holder {
+    s: Shape                    // error[E0356]: `Shape` is an interface
+}
+
+fn make() Shape {               // error[E0356]: `Shape` is an interface
+    return Rect{w: 1}
+}
+
+fn takesFn(f: fn(Shape) int) int {   // error[E0356]: `Shape` is an interface
+    return 0
+}
+
+fn area(s: Shape) int {
+    return s.area()
+}
+
+fn pair<T>(x: T, s: Shape) int {
+    return s.area()
+}
+
+fn main() {
+    let r: Shape = Rect{w: 2}   // error[E0356]: `Shape` is an interface
+    let a = area(3)             // error[E0332]: the type `int` does not satisfy the bound `Shape` of `Shape`
+    let b = area<Rect>(Rect{w: 2})   // error[E0302]: wrong number of type arguments: expected 0, found 1
+    let c = pair<int>(1, Rect{w: 2})
+    let d = pair<int, Rect>(1, Rect{w: 2})   // error[E0302]: wrong number of type arguments: expected 1, found 2
+}

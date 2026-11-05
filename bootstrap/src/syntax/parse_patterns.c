@@ -110,6 +110,9 @@ static Pattern *named(Parser *p, Span start) {
         Symbol name = path.data[0];
         VEC_FREE(path);
         bool wildcard = symbol_eq(name, p->words.wildcard);
+        if (p->type_tests && at(p, TOK_COLON)) {
+            syntax_error(p, peek_token(p, 0)->span, "type tests are not supported by stage 0");
+        }
         pat = new_pattern(p, wildcard ? PAT_WILDCARD : PAT_BINDING, start);
         pat->as.binding.name = name;
     }
@@ -160,5 +163,13 @@ Pattern *parse_pattern(Parser *p) {
     }
     Pattern *pat = new_pattern(p, PAT_OR, start);
     TO_LIST(p, alternatives, pat->as.alternatives);
+    return pat;
+}
+
+Pattern *parse_test_pattern(Parser *p) {
+    bool saved = p->type_tests;
+    p->type_tests = true;
+    Pattern *pat = parse_pattern(p);
+    p->type_tests = saved;
     return pat;
 }

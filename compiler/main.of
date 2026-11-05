@@ -20,6 +20,7 @@ import driver.modules.Front
 import driver.modules.loadProgram
 import sema.check.Checker
 import sema.check.checkProgram
+import sema.interface_params.desugarInterfaceParams
 import sema.program.Program
 import sema.resolve.resolveProgram
 import sema.type_trace.traceTypes
@@ -212,11 +213,11 @@ fn build(given: move Options) int {
         return finish(front.diags, front.map, &pipeline)
     }
     let testing = opts.command == "test"
-    let program = loadProgram(opts.input, parsed.module, front, testing)
+    var program = loadProgram(opts.input, parsed.module, front, testing)
     if front.diags.hasErrors() {
         return finish(front.diags, front.map, &pipeline)
     }
-    let r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
+    var r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
                            testing)
     if opts.emit == "names" {
         print(r.trace.out)
@@ -225,6 +226,7 @@ fn build(given: move Options) int {
     if r.diags.hasErrors() {
         return finish(r.diags, r.map, &pipeline)
     }
+    desugarInterfaceParams(program, r)
     var c = checkProgram(program, r)
     if opts.emit == "types" {
         print(traceTypes(c, program))

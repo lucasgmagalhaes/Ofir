@@ -407,6 +407,21 @@ pub struct Checker {
     }
 
     /**
+     * The name of a type parameter as written: an anonymous one
+     * (`Shape 1`, ADR 0029) prints as its interface.
+     *
+     * @param name the parameter's name
+     * @returns the text
+     */
+    pub fn paramText(self, name: Symbol) str {
+        let text = self.r.names.name(name)
+        if let Option.Some(at) = text.find(" ") {
+            return text.slice(0, at)
+        }
+        return text
+    }
+
+    /**
      * A declaration.
      *
      * @param id its `DefId`
@@ -598,7 +613,7 @@ pub struct Checker {
                     out.push(">")
                 }
             }
-            TyKind.Param => out.push(self.text(Symbol(t.inner)))
+            TyKind.Param => out.push(self.paramText(Symbol(t.inner)))
         }
     }
 }

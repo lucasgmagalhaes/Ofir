@@ -1,0 +1,109 @@
+// requires: stage1
+// Interfaces as parameter types (spec 9.6, ADR 0029): `s: Shape` is an
+// anonymous type parameter bound by `Shape`, one for each occurrence.
+
+interface Shape {
+    fn area(self) int
+    fn name(self) str
+}
+
+struct Rect {
+    w: int
+    h: int
+
+    fn area(self) int {
+        return self.w * self.h
+    }
+
+    fn name(self) str {
+        return "rect"
+    }
+
+    fn grow(mut self, by: int) {
+        self.w += by
+    }
+}
+
+struct Square {
+    side: int
+
+    fn area(self) int {
+        return self.side * self.side
+    }
+
+    fn name(self) str {
+        return "square"
+    }
+}
+
+fn describe(s: Shape) str {
+    return "{s.name()} {s.area()}"
+}
+
+fn total(shapes: [Shape]) int {
+    var sum = 0
+    for s in shapes {
+        sum += s.area()
+    }
+    return sum
+}
+
+fn bigger(a: Shape, b: Shape) str {   // two parameters: a Rect and a Square
+    return if a.area() >= b.area() { a.name() } else { b.name() }
+}
+
+interface Growable {
+    fn grow(mut self, by: int)
+}
+
+fn enlarge(s: mut Growable, by: int) {
+    s.grow(by)
+}
+
+fn largest(shapes: List<Shape>) int {
+    var best = 0
+    for s in shapes {
+        if s.area() > best {
+            best = s.area()
+        }
+    }
+    return best
+}
+
+fn first(found: Option<Shape>) str {
+    return match found {
+        Option.Some(s) => s.name()
+        Option.None => "none"
+    }
+}
+
+fn scaled<T>(factor: T, s: &Shape) str {   // named parameters first, then anonymous
+    return "{s.name()}"
+}
+
+struct Board {
+    count: int
+
+    fn place(mut self, s: Shape) int {
+        self.count += 1
+        return s.area()
+    }
+}
+
+fn main() {
+    var r = Rect{w: 2, h: 3}
+    let q = Square{side: 4}
+    println(describe(r))
+    println(describe(q))
+    let rects = [Rect{w: 1, h: 1}, Rect{w: 2, h: 2}]
+    println("{total(rects)}")
+    println(bigger(r, q))
+    enlarge(r, 5)
+    println(bigger(r, q))
+    println("{largest([Square{side: 1}, Square{side: 3}])}")
+    println(first(Option.Some(Square{side: 5})))
+    println(scaled<int>(2, &r))
+    var b = Board{count: 0}
+    println("{b.place(q) + b.place(r)}")
+    println("{b.count}")
+}
