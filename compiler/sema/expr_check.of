@@ -69,6 +69,7 @@ import syntax.ast.ItemKind
 import syntax.ast.Mode
 import syntax.ast.Op
 import syntax.ast.TypeExpr
+import syntax.format_spec.parseFormatSpec
 
 /**
  * What a name expression resolves to: an identifier, `self`, `Name<T>`, or
@@ -126,7 +127,7 @@ fn intLiteral(c: mut Checker, e: &Expr, value: u64, expected: int, negative: boo
     return ty
 }
 
-fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>) int {
+fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>, specs: &List<str>) int {
     for i in 0..parts.len() {
         let found = checkExpr(c, p, &parts[i], ERROR)
         let ty = autoDeref(c, p, &parts[i], found)   // `"{r}"` shows `*r`
@@ -137,9 +138,33 @@ fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>) int {
         if !printable {
             c.error("E0314", parts[i].span, "a value of type `{c.typeName(ty)}` cannot be "
                     + "interpolated into a string")
+        } else if specs[i].len() > 0 && kind != TyKind.Error {
+            checkFormatSpec(c, &parts[i], ty, specs[i])
         }
     }
     return STR
+}
+
+// `{x:spec}` (spec 1.7): a precision needs a float, a radix an integer and
+// zero padding a number.
+fn checkFormatSpec(c: mut Checker, part: &Expr, ty: int, text: str) {
+    let f = parseFormatSpec(text)
+    if !f.valid {
+        c.error("E0357", part.span, "invalid format specifier `{text}`")
+        return
+    }
+    if f.debug {
+        let _ = c.unsupported(part.span, "the debug format `?` is")
+        return
+    }
+    let kind = c.types.kind(ty)
+    let number = kind == TyKind.Int || kind == TyKind.Float
+    let fits = (f.precision < 0 || kind == TyKind.Float) &&
+               (f.radix == 10 || kind == TyKind.Int) && (!f.zero || number)
+    if !fits {
+        c.error("E0357", part.span, "the format specifier `{text}` does not apply to a value of "
+                + "type `{c.typeName(ty)}`")
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -484,7 +509,7 @@ fn synthesize(c: mut Checker, p: Program, e: &Expr, expected: int) int {
         ExprKind.Bool(_) => BOOL
         ExprKind.Str(_) => STR
         ExprKind.ByteStr(_) => sliceOf(c, U8, e.span)
-        ExprKind.Interp(parts) => interpolation(c, p, &parts)
+        ExprKind.Interp(parts, specs) => interpolation(c, p, &parts, &specs)
         ExprKind.Ident(_) | ExprKind.SelfValue => nameValue(c, p, e, expected)
         ExprKind.Unary(op, operand) => unary(c, p, e, op, &*operand, expected)
         ExprKind.Binary(op, lhs, rhs) => checkBinary(c, p, e.span, op, &*lhs, &*rhs, expected)

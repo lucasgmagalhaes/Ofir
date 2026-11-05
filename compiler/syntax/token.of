@@ -9,7 +9,7 @@ import base.span.Span
 pub copy enum TokenKind {
     // literals, names and layout
     Ident, Int, Float, Byte, Str, StrStart, StrMid, StrEnd
-    ByteStr, DocComment, ModuleDoc, Newline, Invalid, Eof
+    ByteStr, FormatSpec, DocComment, ModuleDoc, Newline, Invalid, Eof
 
     // reserved keywords (contextual keywords are lexed as Ident)
     As, Break, Const, Continue, Copy, Dyn, Else, Enum, Extern, False, Fn, For

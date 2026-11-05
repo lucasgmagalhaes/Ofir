@@ -125,7 +125,17 @@ struct Printer {
             ExprKind.Ident(name) => self.line("ident {names.name(name)}")
             ExprKind.SelfValue => self.line("self")
             ExprKind.SelfType => self.line("Self")
-            ExprKind.Interp(parts) => self.sequence("interp", parts, names)
+            ExprKind.Interp(parts, specs) => {
+                self.line("interp")
+                self.depth += 1
+                for i in 0..parts.len() {
+                    self.expr(&parts[i], names)
+                    if specs[i].len() > 0 {
+                        self.line("format {specs[i]}")
+                    }
+                }
+                self.depth -= 1
+            }
             ExprKind.Generic(name, args) => {
                 self.line("generic {names.name(name)}<{typesText(args, names)}>")
             }

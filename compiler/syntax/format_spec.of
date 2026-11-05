@@ -1,0 +1,109 @@
+/** @module Format specifiers of string interpolation, `{x:spec}` (spec 1.7). */
+
+/** A parsed format specifier. */
+pub copy struct FormatSpec {
+    /** False if the text is not a format specifier. */
+    pub valid: bool
+    /** `?`: the debug representation. */
+    pub debug: bool
+    /** `<`: left aligned. */
+    pub left: bool
+    /** A leading `0`: zero padded. */
+    pub zero: bool
+    /** The minimum width, or 0. */
+    pub width: int
+    /** The digits after the decimal point, or -1. */
+    pub precision: int
+    /** 10, 16 or 2. */
+    pub radix: int
+    /** `X`: upper case hexadecimal digits. */
+    pub upper: bool
+}
+
+/** The largest width or precision a specifier may ask for. */
+pub const MAX_FORMAT_WIDTH: int = 1000
+
+/**
+ * Parses the text of a format specifier: `?`, or
+ * `[<][0][width][.precision][x|X|b]`.
+ *
+ * @param text the text after the `:`
+ * @returns the specifier, `valid` false if the text is malformed
+ */
+pub fn parseFormatSpec(text: str) FormatSpec {
+    var f = FormatSpec{valid: true, debug: false, left: false, zero: false, width: 0,
+                       precision: -1, radix: 10, upper: false}
+    if text == "?" {
+        f.debug = true
+        return f
+    }
+    var i = 0
+    let n = text.len()
+    if i < n && text[i] == b'<' {
+        f.left = true
+        i += 1
+    }
+    if i < n && text[i] == b'0' && !f.left {
+        f.zero = true
+        i += 1
+    }
+    let widthStart = i
+    for i < n && text[i] >= b'0' && text[i] <= b'9' && f.width <= MAX_FORMAT_WIDTH {
+        f.width = f.width * 10 + (text[i] - b'0') as int
+        i += 1
+    }
+    if f.left && i == widthStart {   // `<` needs a width
+        f.valid = false
+    }
+    if i < n && text[i] == b'.' {
+        i += 1
+        let start = i
+        f.precision = 0
+        for i < n && text[i] >= b'0' && text[i] <= b'9' && f.precision <= MAX_FORMAT_WIDTH {
+            f.precision = f.precision * 10 + (text[i] - b'0') as int
+            i += 1
+        }
+        if i == start {
+            f.valid = false
+        }
+    }
+    if i < n && (text[i] == b'x' || text[i] == b'X' || text[i] == b'b') {
+        f.radix = if text[i] == b'b' { 2 } else { 16 }
+        f.upper = text[i] == b'X'
+        i += 1
+    }
+    if i != n || n == 0 || f.width > MAX_FORMAT_WIDTH || f.precision > MAX_FORMAT_WIDTH {
+        f.valid = false
+    }
+    return f
+}
+
+/**
+ * The padding of a specifier as the runtime takes it (ofir_str_push_padded):
+ * the width, bit 32 for left aligned, bit 33 for zero padded.
+ *
+ * @param f the specifier
+ * @returns the packed padding
+ */
+pub fn paddingBits(f: FormatSpec) int {
+    var bits = f.width
+    if f.left {
+        bits += 1 << 32
+    }
+    if f.zero {
+        bits += 1 << 33
+    }
+    return bits
+}
+
+/**
+ * The radix of a specifier as the runtime takes it (ofir_str_push_radix):
+ * the radix, the bits of the type shifted by 8, bit 16 for upper case.
+ *
+ * @param f the specifier
+ * @param bits the bits of the integer type
+ * @returns the packed radix
+ */
+pub fn radixBits(f: FormatSpec, bits: int) int {
+    return f.radix + (bits << 8) + if f.upper { 1 << 16 } else { 0 }
+}

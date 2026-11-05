@@ -722,7 +722,7 @@ fn borrow(m: mut Moves, c: mut Checker, p: Program, operand: &Expr, s: mut State
 
 fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
     match e.kind {
-        ExprKind.Interp(parts) => each(m, c, p, &parts, s, Use.Read)
+        ExprKind.Interp(parts, _) => each(m, c, p, &parts, s, Use.Read)
         ExprKind.Unary(op, operand) => {
             if op == Op.Ref || op == Op.RefMut {   // a borrow
                 borrow(m, c, p, &*operand, s, op == Op.RefMut)

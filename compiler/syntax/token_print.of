@@ -154,6 +154,7 @@ pub fn kindText(kind: TokenKind) str {
         TokenKind.Byte => "byte"
         TokenKind.Str => "str"
         TokenKind.ByteStr => "byte_str"
+        TokenKind.FormatSpec => "format_spec"
         TokenKind.StrStart => "str_start"
         TokenKind.StrMid => "str_mid"
         TokenKind.StrEnd => "str_end"

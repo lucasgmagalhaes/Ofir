@@ -2,6 +2,8 @@
 
 #include "ofir_rt.h"
 
+#include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 static void reserve(OfirStr *s, int64_t extra) {
@@ -60,6 +62,62 @@ void ofir_str_push_f32(OfirStr *s, float value) {
 
 void ofir_str_push_bool(OfirStr *s, bool value) {
     ofir_str_push_bytes(s, (const uint8_t *)(value ? "true" : "false"), value ? 4 : 5);
+}
+
+void ofir_str_push_fixed(OfirStr *s, double value, int64_t digits) {
+    if (isnan(value) || isinf(value)) {
+        ofir_str_push_float(s, value);
+        return;
+    }
+    int n = snprintf(NULL, 0, "%.*f", (int)digits, value);
+    char small[OFIR_FORMAT_SIZE];
+    char *text = n < OFIR_FORMAT_SIZE ? small : ofir_alloc(n + 1);
+    snprintf(text, (size_t)n + 1, "%.*f", (int)digits, value);
+    ofir_str_push_bytes(s, (const uint8_t *)text, n);
+    if (text != small) {
+        ofir_free(text);
+    }
+}
+
+void ofir_str_push_radix(OfirStr *s, uint64_t value, int64_t format) {
+    uint64_t base = (uint64_t)(format & 0xff);
+    int64_t bits = (format >> 8) & 0xff;
+    if (bits < 64) {
+        value &= ((uint64_t)1 << bits) - 1;
+    }
+    const char *digits = (format >> 16) & 1 ? "0123456789ABCDEF" : "0123456789abcdef";
+    char text[64];
+    int n = 0;
+    do {
+        text[63 - n++] = digits[value % base];
+        value /= base;
+    } while (value != 0);
+    ofir_str_push_bytes(s, (const uint8_t *)text + 64 - n, n);
+}
+
+void ofir_str_push_padded(OfirStr *s, const OfirStr *part, int64_t padding) {
+    int64_t width = padding & 0xffffffff;
+    bool left = (padding >> 32) & 1;
+    bool zero = (padding >> 33) & 1;
+    int64_t count = 0;   // the width counts Unicode scalar values
+    for (int64_t i = 0; i < part->len; i++) {
+        count += (part->ptr[i] & 0xc0) != 0x80;
+    }
+    int64_t pad = width > count ? width - count : 0;
+    int64_t sign = zero && part->len > 0 && (part->ptr[0] == '-' || part->ptr[0] == '+');
+    if (left) {
+        ofir_str_push_bytes(s, part->ptr, part->len);
+    } else {
+        ofir_str_push_bytes(s, part->ptr, sign);
+    }
+    if (pad > 0) {
+        reserve(s, pad);
+        memset(s->ptr + s->len, zero ? '0' : ' ', (size_t)pad);
+        s->len += pad;
+    }
+    if (!left) {
+        ofir_str_push_bytes(s, part->ptr + sign, part->len - sign);
+    }
 }
 
 void ofir_str_drop(OfirStr *s) {

@@ -187,6 +187,9 @@ struct Lexer {
             self.stringPart(src, start, false, diags)
             return
         }
+        if c == b':' && self.atInterpolationDepth() && self.formatSpec(src, start) {
+            return
+        }
         let kind = self.punctKind(src, c, start, diags)
         self.out.push(self.cur.token(kind, start))
     }
@@ -261,6 +264,31 @@ struct Lexer {
     fn close(mut self, kind: TokenKind) TokenKind {
         let _ = self.brackets.pop()
         return kind
+    }
+
+    fn atInterpolationDepth(self) bool {
+        let Option.Some(depth) = self.interpolations.last() else {
+            return false
+        }
+        return *depth == self.brackets.len()
+    }
+
+    // `{x:spec}` (spec 1.7): the text after the `:` up to the `}`, which then
+    // closes the interpolation as usual. Text with a blank or a quote before
+    // the `}` is not a specifier: the `:` is then an ordinary token.
+    fn formatSpec(mut self, src: str, start: int) bool {
+        var end = self.cur.pos
+        for end < src.len() && src[end] != b'}' && src[end] != b'"' && src[end] != b' ' &&
+            src[end] != b'\t' && src[end] != b'\r' && src[end] != b'\n' {
+            end += 1
+        }
+        if end >= src.len() || src[end] != b'}' {
+            return false
+        }
+        let text = src.slice(self.cur.pos, end).toOwned()
+        self.cur.pos = end
+        self.out.push(self.cur.tokenWith(TokenKind.FormatSpec, start, TokenValue.Str(text)))
+        return true
     }
 
     fn closesInterpolation(mut self) bool {
