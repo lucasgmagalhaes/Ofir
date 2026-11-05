@@ -40,7 +40,7 @@ static Expr *if_expr(Parser *p) {
     Span start = advance(p)->span;
     Expr *e = new_expr(p, EXPR_IF, start);
     if (accept(p, TOK_KW_LET)) {
-        e->as.if_.let_pattern = parse_pattern(p);
+        e->as.if_.let_pattern = parse_test_pattern(p);
         expect(p, TOK_EQ, "`=` after the pattern");
     }
     e->as.if_.cond = parse_expr_no_struct(p);
@@ -54,7 +54,7 @@ static Expr *if_expr(Parser *p) {
 }
 
 static MatchArm match_arm(Parser *p) {
-    MatchArm arm = {.pattern = parse_pattern(p)};
+    MatchArm arm = {.pattern = parse_test_pattern(p)};
     if (accept(p, TOK_KW_IF)) {
         arm.guard = parse_expr_no_struct(p);
     }
