@@ -632,18 +632,6 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         rv.to = callTypeArg(c, e)
         return tempValue(l, I64, rv)
     }
-    if name == "lessThan" {
-        let elem = concreteType(l, c, callTypeArg(c, e))
-        let first = lowerExpr(l, c, p, &args[0].value)
-        var a = settle(l, first, &args[1].value)
-        var b = lowerExpr(l, c, p, &args[1].value)
-        a.ty = elem
-        b.ty = elem
-        if orderCalls(c, elem) {
-            return orderedBy(l, c, p, Op.Lt, a, b, elem)
-        }
-        return lowerBinaryOp(l, c, Op.Lt, elem, a, b, e.span)
-    }
     if name == "dropInPlace" || name == "forget" {
         let value = lowerExpr(l, c, p, &args[0].value)
         if name == "forget" {
@@ -671,12 +659,6 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
     if name == "hashOf" {
         let value = lowerExpr(l, c, p, &args[0].value)
         return hashValue(l, c, p, value, concreteType(l, c, callTypeArg(c, e)))
-    }
-    if name == "equals" {
-        let first = lowerExpr(l, c, p, &args[0].value)
-        let a = settle(l, first, &args[1].value)
-        let b = lowerExpr(l, c, p, &args[1].value)
-        return equalValues(l, c, p, a, b, concreteType(l, c, callTypeArg(c, e)))
     }
     let Option.Some(op) = intrinsicOp(name) else {
         c.error("E0805", fnOf(p, c.loc(id)).span, "unknown intrinsic".toOwned())

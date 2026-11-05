@@ -85,7 +85,7 @@ static bool adt_cloneable(Checker *c, TypeId type, Visiting *v) {
 static bool cloneable_in(Checker *c, TypeId type, Visiting *v) {
     const Ty *ty = type_get(c->types, type);
     if (ty->kind == TY_PARAM) {
-        return false;   // no bounds yet (roadmap 5.2)
+        return false;   // `Clone` is not a stage 0 bound (docs/bootstrap.md)
     }
     if (ty->kind == TY_STR || type_is_copy(c, type)) {
         return true;

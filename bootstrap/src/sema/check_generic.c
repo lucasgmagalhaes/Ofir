@@ -14,7 +14,8 @@ static StrView name_of(Checker *c, Symbol name) {
 
 Generics fn_generics(const Def *fn) {
     return (Generics){.owner = fn->item ? item_type_params(fn->item) : (SymbolList){0},
-                      .fn = fn->fn->type_params};
+                      .owner_bounds = fn->item ? fn->item->bounds : (WhereList){0},
+                      .fn = fn->fn->type_params, .fn_bounds = fn->fn->bounds};
 }
 
 Infer infer_new(Checker *c, Generics params) {
@@ -115,6 +116,7 @@ void infer_finish(Checker *c, Infer *inf, Span span) {
         inf->args[i] = type_id(TID_ERROR);
         inf->known[i] = true;
     }
+    check_bounds(c, inf->params, inf->args, inf->count, span);
 }
 
 TypeId check_generic_args(Checker *c, Expr *call, const Ty *signature, Infer *inf,
@@ -141,7 +143,5 @@ TypeId check_generic_args(Checker *c, Expr *call, const Ty *signature, Infer *in
         require_type(c, arg, arg->type, infer_apply(c, inf, sig.args[i]));
     }
     call->as.call.type_args = type_tuple(c->types, inf->args, inf->count);
-    TypeId ret = infer_apply(c, inf, sig.inner);
-    check_map_key(c, ret, call->span);
-    return ret;
+    return infer_apply(c, inf, sig.inner);
 }

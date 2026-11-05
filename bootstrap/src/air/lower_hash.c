@@ -1,7 +1,7 @@
-// The intrinsics `hashOf<K>(k)` and `equals<K>(a, b)` of std/core/map.at.
-// Map keys have no bounds yet (roadmap 5.2), so the code is chosen here
-// for the instance's concrete key type, which the checker restricts to
-// integers, bool, str and tuples of them: integers and bools are hashed by
+// The intrinsic `hashOf<K: Hash>(k)` of std/core/map.of and `==` on
+// bounded parameters: the code is chosen for the instance's concrete type,
+// which stage 0 restricts to integers, bool, str and tuples of them (and,
+// for `==`, the other types it compares): integers and bools are hashed by
 // `hashU64`, strings by `hashStr`, tuples by combining their elements'
 // hashes with `hashCombine`, all in std/core/hash.of (deterministic, ADR
 // 0011).
@@ -57,7 +57,7 @@ static Operand hash_value(Lowerer *l, Operand value, TypeId type) {
     return call_hash(l, "hashU64", &bits, 1);
 }
 
-static Operand equal_values(Lowerer *l, Operand a, Operand b, TypeId type) {
+Operand lower_equal_values(Lowerer *l, Operand a, Operand b, TypeId type) {
     a.type = b.type = type;
     const Ty *ty = type_get(l->types, type);
     if (ty->kind != TY_TUPLE) {
@@ -66,7 +66,7 @@ static Operand equal_values(Lowerer *l, Operand a, Operand b, TypeId type) {
     Operand all = op_bool(true);
     for (uint32_t i = 0; i < ty->arg_count; i++) {
         TypeId elem = type_get(l->types, type)->args[i];
-        Operand same = equal_values(l, element(l, a, type, i), element(l, b, type, i), elem);
+        Operand same = lower_equal_values(l, element(l, a, type, i), element(l, b, type, i), elem);
         Rvalue both = {.kind = RV_BINARY, .op = OP_AND, .a = all, .b = same};
         all = op_copy(emit_temp(l, type_id(TID_BOOL), both), type_id(TID_BOOL));
     }
@@ -75,11 +75,4 @@ static Operand equal_values(Lowerer *l, Operand a, Operand b, TypeId type) {
 
 Operand lower_hash_of(Lowerer *l, Expr *call) {
     return hash_value(l, lower_expr(l, call->as.call.args.items[0].value), concrete(l, call));
-}
-
-Operand lower_equals(Lowerer *l, Expr *call) {
-    ArgList args = call->as.call.args;
-    Operand a = settle(l, lower_expr(l, args.items[0].value), args.items[1].value);
-    Operand b = lower_expr(l, args.items[1].value);
-    return equal_values(l, a, b, concrete(l, call));
 }

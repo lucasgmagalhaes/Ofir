@@ -1,0 +1,62 @@
+// Bounds that stage 0 checks (spec 8.1): `Eq`, `Ord` and `Hash` on the
+// parameters of functions and types, and `where` on a method.
+
+struct Bag<T: Eq> {
+    items: List<T>
+
+    fn count(self, item: T) int {
+        var n = 0
+        for i in 0..self.items.len() {
+            if self.items[i] == item {
+                n += 1
+            }
+        }
+        return n
+    }
+}
+
+struct Stack<T> {
+    items: List<T>
+
+    fn top(self) int where T: Ord {
+        var best = 0
+        for i in 1..self.items.len() {
+            if self.items[best] < self.items[i] {
+                best = i
+            }
+        }
+        return best
+    }
+}
+
+fn smaller<T: Ord>(a: move T, b: move T) T {
+    return if b < a { b } else { a }
+}
+
+fn differ<T>(a: T, b: T) bool where T: Eq {
+    return a != b
+}
+
+fn record<K: Eq + Hash>(m: mut Map<K, int>, key: move K) {
+    let at = m.len()
+    m.insert(key, at)
+}
+
+fn main() {
+    let bag = Bag{items: [1, 2, 1, 3]}
+    println("{bag.count(1)}")
+    let stack = Stack{items: [4, 9, 2]}
+    println("{stack.top()}")
+    println("{smaller("pear", "apple")} {smaller(2.5, 1.5)}")
+    println("{differ((1, "a"), (1, "a"))} {differ((1, "a"), (2, "a"))}")
+    var m = Map<(int, bool), int>.new()
+    record(m, (1, true))
+    record(m, (2, false))
+    record(m, (1, true))
+    if let Option.Some(at) = m.get((2, false)) {
+        println("{m.len()} {*at}")
+    }
+    var words = ["mia", "ana", "bob"]
+    words.sort()
+    println("{words[0]} {words[2]}")
+}

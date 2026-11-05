@@ -1,8 +1,8 @@
-fn generic<K>(m: Map<K, int>) {     // error[E0313]: `Map` keys must satisfy `Hash`: `K` does not
+fn generic<K>(m: Map<K, int>) {     // error[E0332]: the type `K` does not satisfy the bound `Eq` of `K`
 }
 
 fn main() {
-    let a: Map<float, int> = Map.new()   // error[E0313]: `Map` keys must satisfy `Hash`: `float` does not
+    let a: Map<float, int> = Map.new()   // error[E0332]: the type `float` does not satisfy the bound `Hash` of `K`
     let c = Map<str, int>.new()
     for key in c {                       // error[E0300]: iterate a map with two variables: `for key, value in map`
     }

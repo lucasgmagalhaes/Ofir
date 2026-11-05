@@ -11,10 +11,9 @@
 import std.mem
 
 extern "intrinsic" {
-    // The hash of a key and the equality of keys, for the instance's key
-    // type: int, bool, str or tuples of them until bounds (roadmap 5.2).
-    fn hashOf<K>(key: K) u64
-    fn equals<K>(a: K, b: K) bool
+    // The hash of a key, for the instance's key type (`std.core.hash`),
+    // until `Hasher` lets `Hash` declare `hash` (spec 9.9).
+    fn hashOf<K: Hash>(key: K) u64
     // Appends the debug representation of `value` (`{x:?}`, spec 9.9).
     fn debugOf<T>(value: T, out: mut str)
 }
@@ -38,8 +37,8 @@ struct Entry<K, V> {
  * time (they keep the order of the other entries). The hash
  * function is deterministic, so a program's output never depends on hash
  * values. `for key, value in map` visits the entries in insertion order.
- * Stage 0 accepts keys of type int (and the other integers), bool, str and
- * tuples of them (E0313 otherwise), until bounds (roadmap 5.2).
+ * The keys must satisfy `Eq` and `Hash` (spec 8.1); stage 0 hashes the
+ * integers, bool, str and tuples of them.
  *
  * @typeParam K the type of the keys
  * @typeParam V the type of the values
@@ -57,7 +56,7 @@ struct Entry<K, V> {
  * ```
  */
 @lang("map")
-pub struct Map<K, V> {
+pub struct Map<K: Eq + Hash, V> {
     entries: List<Entry<K, V>>
     slots: List<int>
     gone: int   // GONE slots, which count as used until the table is rebuilt
@@ -252,7 +251,7 @@ pub struct Map<K, V> {
             if at == EMPTY {
                 return -1
             }
-            if at >= 0 && self.entries[at].hash == hash && equals(self.entries[at].key, key) {
+            if at >= 0 && self.entries[at].hash == hash && self.entries[at].key == key {
                 return slot
             }
             slot = (slot + 1) & mask

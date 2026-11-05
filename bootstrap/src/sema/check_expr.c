@@ -154,7 +154,10 @@ static TypeId binary(Checker *c, Expr *e, TypeId expected) {
     DefId id;
     const EnumInfo *info = (op == OP_EQ || op == OP_NE) ? enum_of(c, type, &id) : NULL;
     bool fieldless = info && !info->has_payload;   // enums without payloads compare tags
-    if (!fieldless && !operand_ok(type_get(c->types, type), op) && type.id != TID_ERROR) {
+    uint32_t wanted = op == OP_EQ || op == OP_NE ? BOUND_EQ : compares ? BOUND_ORD : 0;
+    bool bounded = wanted && (param_bounds(c, type) & wanted);   // spec 8.1
+    if (!fieldless && !bounded && !operand_ok(type_get(c->types, type), op) &&
+            type.id != TID_ERROR) {
         TyKind kind = type_get(c->types, type)->kind;
         if (compares && (kind == TY_ADT || kind == TY_TUPLE)) {   // derived `Eq`, `Ord` (9.9)
             check_error(c, "E0901", e->span, "comparing `%s` is not supported by stage 0",

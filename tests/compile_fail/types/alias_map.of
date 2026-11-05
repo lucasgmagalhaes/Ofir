@@ -1,2 +1,2 @@
-type Table<K> = Map<K, int> // error[E0313]: `Map` keys must satisfy `Hash`: `List<int>` does not
+type Table<K> = Map<K, int> // error[E0332]: the type `List<int>` does not satisfy the bound `Eq` of `K`
 fn use(x: Table<List<int>>) {}

@@ -221,9 +221,10 @@ Operand own_temp(Lowerer *l, const Expr *e, Operand value);
 // lower_intrinsic.c
 Operand lower_intrinsic(Lowerer *l, Expr *call, FnDecl *fn);
 
-// lower_hash.c: `hashOf<K>` and `equals<K>` for the instance's key type
+// lower_hash.c: `hashOf<K>` and `==` on tuples, for the instance's type
 Operand lower_hash_of(Lowerer *l, Expr *call);
-Operand lower_equals(Lowerer *l, Expr *call);
+// `a == b` for a concrete type: element by element for tuples.
+Operand lower_equal_values(Lowerer *l, Operand a, Operand b, TypeId type);
 
 // lower_struct.c
 Place lower_place(Lowerer *l, Expr *e);

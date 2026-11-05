@@ -1,6 +1,6 @@
 fn sortAny<T>(values: List<T>) {
     var sorted = values
-    sorted.sort()                // error[E0313]: `sort` needs elements of type int, float or str in stage 0, not `T`
+    sorted.sort()                // error[E0332]: the type `T` does not satisfy the bound `Ord` of `T`
 }
 
 fn main() {
@@ -15,7 +15,7 @@ fn main() {
     }
     let d: str = xs[0]           // error[E0300]: mismatched types: expected str, found int
     var bools = [true]
-    bools.sort()                 // error[E0313]: `sort` needs elements of type int, float or str in stage 0, not `bool`
+    bools.sort()                 // error[E0332]: the type `bool` does not satisfy the bound `Ord` of `T`
 }
 
 copy enum Token {

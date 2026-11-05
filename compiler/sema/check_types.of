@@ -16,7 +16,6 @@ import sema.check.noGenerics
 import sema.check.typeGenerics
 import sema.check.typeGenericsOf
 import sema.check_generic.checkBounds
-import sema.check_list.checkMapKey
 import sema.check_ref.checkInstanceStorable
 import sema.def.DefKind
 import sema.interfaces.dynIncompatible
@@ -153,7 +152,6 @@ pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span)
     }
     checkBounds(c, p, &generics, &list, span)
     checkInstanceStorable(c, p, ty, span)
-    checkMapKey(c, p, ty, span)
     return ty
 }
 

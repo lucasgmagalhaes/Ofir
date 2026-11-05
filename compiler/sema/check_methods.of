@@ -24,7 +24,6 @@ import sema.check_generic.inferExplicit
 import sema.check_generic.inferFromSelf
 import sema.check_generic.inferNew
 import sema.check_generic.paramBounds
-import sema.check_list.checkListSort
 import sema.check_list.checkRangeIndex
 import sema.check_list.sequenceElem
 import sema.check_place.requireMutable
@@ -317,9 +316,6 @@ pub fn checkUserMethod(c: mut Checker, p: Program, call: &Expr, field: &Expr, ba
     let id = methodDef(c, p, owner, index)
     c.setMember(field.id.0, id)
     let ret = methodArgs(c, p, call, field, explicit, args, id, selfType, expected)
-    if owner == c.r.langItems[1] && c.text(name) == "sort" {
-        checkListSort(c, p, call)
-    }
     checkMutArgs(c, p, id, field, args)
     if !viaType && isClone {
         checkStdClone(c, p, field, owner, decl.hasSelf, selfType)

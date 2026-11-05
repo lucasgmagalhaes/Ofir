@@ -21,7 +21,6 @@ import sema.check.fnGenericsIn
 import sema.check.fnOf
 import sema.check.noGenerics
 import sema.check.typeGenericsOf
-import sema.check_list.checkMapKey
 import sema.check_list.coerceToSlice
 import sema.check_list.hashable
 import sema.check_methods.isCloneable
@@ -354,7 +353,6 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
         c.callTypeArgs[c.module()].insert(callId, targs)
     }
     let result = inferApply(c, &inf, ret)
-    checkMapKey(c, p, result, span)
     return result
 }
 

@@ -156,7 +156,7 @@ def check_fn(problems, path, lines, i, m):
             problems.append(f"{path}:{i + 1}: public function `{m.group(3)}` has no /** */ "
                             "documentation")
         return
-    ret = m.group(7).strip()
+    ret = re.split(r"\bwhere\b", m.group(7))[0].strip()
     returns = bool(ret) and ret != "()"
     check_tags(problems, path, doc, Expected(split_params(m.group(6)), type_params(m.group(5)),
                                              returns, bool(m.group(2)), body_panics(lines, i)))
