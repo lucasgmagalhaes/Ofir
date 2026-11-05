@@ -1,0 +1,32 @@
+// requires: stage1
+// `@repr(C)` and `@packed` structs keep their fields in declaration order
+// (spec 13.2); the default layout reorders them.
+
+@repr(C)
+struct Ordered {
+    a: u8
+    b: int
+    c: u8
+}
+
+@packed
+struct Wire {
+    a: u8
+    b: i32
+    c: u8
+}
+
+struct Free {
+    a: u8
+    b: int
+    c: u8
+}
+
+fn main() {
+    let o = Ordered{a: 5, b: 6, c: 7}
+    let w = Wire{a: 1, b: 2, c: 3}
+    let f = Free{a: 8, b: 9, c: 10}
+    println("{o.a} {o.b} {o.c} {sizeOf<Ordered>()}")
+    println("{w.a} {w.b} {w.c} {sizeOf<Wire>()}")
+    println("{f.a} {f.b} {f.c} {sizeOf<Free>()}")
+}

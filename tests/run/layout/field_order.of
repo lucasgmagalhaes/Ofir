@@ -1,0 +1,41 @@
+// Field reordering (spec 13.2): a struct with the default layout keeps its
+// fields by descending alignment.
+// Construction, field access, update, clone and generics see the declared
+// fields.
+
+struct Mixed {
+    a: u8
+    b: int
+    c: u8
+    d: i32
+}
+
+struct Pair<T> {
+    flag: bool
+    value: T
+    other: bool
+}
+
+struct Tagged(u8, int, u16)
+
+fn bump(m: mut Mixed) {
+    m.a += 1
+    m.b += 10
+    m.d -= 1
+}
+
+fn main() {
+    var m = Mixed{a: 1, b: 2, c: 3, d: 4}
+    bump(m)
+    println("{m.a} {m.b} {m.c} {m.d}")
+    println("{sizeOf<Mixed>()}")
+    let p = Pair{flag: true, value: 9, other: false}
+    let q = Pair{flag: false, value: 2 as u8, other: true}
+    println("{p.flag} {p.value} {p.other} {sizeOf<Pair<int>>()}")
+    println("{q.flag} {q.value} {q.other} {sizeOf<Pair<u8>>()}")
+    let t = Tagged(1, 2, 3)
+    println("{t.0} {t.1} {t.2} {sizeOf<Tagged>()}")
+    let list = [Mixed{a: 7, b: 8, c: 9, d: 10}]
+    let twin = list.clone()
+    println("{twin[0].a} {twin[0].b} {twin[0].c} {twin[0].d}")
+}
