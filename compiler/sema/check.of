@@ -40,6 +40,7 @@ import sema.resolve.findAttribute
 import sema.resolve.moduleInStd
 import sema.structs.StructInfo
 import sema.structs.checkStructLayouts
+import sema.structs.hasInteriorMutability
 import sema.structs.structFields
 import sema.types.ERROR
 import sema.types.NEVER
@@ -78,6 +79,11 @@ pub struct DefInfo {
     pub borrowSource: int
     /** That parameter is borrowed, not a reference itself. */
     pub sourceByRef: bool
+    /**
+     * The borrowed parameters with interior mutability, passed by address
+     * (spec 13.5): bit 0 for `self`, bit `i + 1` for parameter `i`.
+     */
+    pub cellParams: int
 }
 
 /**
@@ -114,13 +120,15 @@ pub const BOUND_ORD: int = 2
 pub const BOUND_HASH: int = 4
 /** `Clone`: `.clone()`. */
 pub const BOUND_CLONE: int = 8
+/** `Copy`: the arguments are Copy types (spec 2.9). */
+pub const BOUND_COPY: int = 16
 
 /**
  * The bit of the built-in interface a bound names, or 0.
  *
  * @param c the checker
  * @param t the bound
- * @returns `BOUND_EQ`, `BOUND_ORD`, `BOUND_HASH`, `BOUND_CLONE` or 0
+ * @returns `BOUND_EQ`, `BOUND_ORD`, `BOUND_HASH`, `BOUND_CLONE`, `BOUND_COPY` or 0
  */
 pub fn boundBit(c: Checker, t: &TypeExpr) int {
     let name = match t.kind {
@@ -142,6 +150,8 @@ pub fn boundBit(c: Checker, t: &TypeExpr) int {
         BOUND_HASH
     } else if text == "Clone" {
         BOUND_CLONE
+    } else if text == "Copy" {
+        BOUND_COPY
     } else {
         0
     }
@@ -687,7 +697,8 @@ pub fn fnOf(p: Program, def: Loc) &FnDecl {
 fn emptyInfo() DefInfo {
     return DefInfo{ty: ERROR, typed: false, checking: false, fields: Option.None,
                    variants: Option.None,
-                   value: Option.None, returnsBorrow: false, borrowSource: -1, sourceByRef: false}
+                   value: Option.None, returnsBorrow: false, borrowSource: -1, sourceByRef: false,
+                   cellParams: 0}
 }
 
 /**
@@ -760,11 +771,29 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
     checkDeclBounds(c, &decl.bounds)
     let sig = fnSignature(c, p, id)
     checkBorrowSource(c, p, id, sig, selfType)   // what callers need, now
+    c.info[id].cellParams = cellParams(c, p, decl, sig, selfType)
     c.enterGenerics(outer)
     if decl.body.isSome() && c.module() != 0 && moduleInStd(p, c.module()) {
         return   // a program uses few std functions: the lowering checks them
     }
     checkBody(c, p, id, selfType, false)
+}
+
+// The `cellParams` of a function: its borrowed parameters whose types have
+// interior mutability.
+fn cellParams(c: mut Checker, p: Program, decl: &FnDecl, sig: int, selfType: int) int {
+    var bits = 0
+    if decl.hasSelf && decl.selfMode == Mode.Borrow && hasInteriorMutability(c, p, selfType) {
+        bits = 1
+    }
+    let params = c.types.get(sig).args.clone()
+    for i in 0..decl.params.len() {
+        if i < params.len() && decl.params[i].mode == Mode.Borrow &&
+           hasInteriorMutability(c, p, params[i]) {
+            bits = bits | (1 << (i + 1))
+        }
+    }
+    return bits
 }
 
 /**
@@ -785,26 +814,34 @@ pub fn checkLate(c: mut Checker, p: Program, id: int) {
         return
     }
     let module = c.def(id).module
-    let member = c.def(id).member
     let previous = c.enter(module)
-    var selfType = ERROR
-    var owner = noGenerics()
-    if member >= 0 {
-        let item = itemOf(p, c.loc(id))
-        let isType = match item.kind {
-            ItemKind.Struct(_, _, _, _, _, _) | ItemKind.Enum(_, _, _, _) |
-            ItemKind.Interface(_, _, _) => true
-            _ => false
-        }
-        if isType {
-            selfType = ownerTypeOf(c, p, module, c.def(id).item)
-            owner = typeGenerics(c, itemOf(p, c.loc(id)))
-        }
+    let selfType = if isTypeMember(c, p, id) {
+        ownerTypeOf(c, p, module, c.def(id).item)
+    } else {
+        ERROR
     }
+    let owner = ownerGenerics(c, p, id)
     let outer = c.enterGenerics(owner)
     checkBody(c, p, id, selfType, true)
     c.enterGenerics(outer)
     c.enter(previous)
+}
+
+// Whether a function is a method of a struct, an enum or an interface.
+fn isTypeMember(c: Checker, p: Program, id: int) bool {
+    if c.def(id).member < 0 {
+        return false
+    }
+    return match itemOf(p, c.loc(id)).kind {
+        ItemKind.Struct(_, _, _, _, _, _) | ItemKind.Enum(_, _, _, _) |
+        ItemKind.Interface(_, _, _) => true
+        _ => false
+    }
+}
+
+// The type parameters of the type declaring a method, or none; in the module.
+fn ownerGenerics(c: mut Checker, p: Program, id: int) Generics {
+    return if isTypeMember(c, p, id) { typeGenerics(c, itemOf(p, c.loc(id))) } else { noGenerics() }
 }
 
 // The move analysis of a std function checked with the root module (stage
@@ -823,7 +860,11 @@ fn lateMoves(c: mut Checker, p: Program, id: int) {
     }
     c.fnNode = decl.id.0
     c.fnDef = id
+    let owner = ownerGenerics(c, p, id)   // a `Copy` bound makes a parameter Copy
+    let inner = fnGenericsIn(c, &owner, decl)
+    let outer = c.enterGenerics(inner)
     checkMoves(c, p, id)
+    c.enterGenerics(outer)
     c.enter(previous)
 }
 

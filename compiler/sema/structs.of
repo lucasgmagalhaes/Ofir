@@ -6,10 +6,12 @@
 
 import base.intern.Symbol
 import base.span.Span
+import sema.check.BOUND_COPY
 import sema.check.Checker
 import sema.check.Loc
 import sema.check.itemOf
 import sema.check.typeGenerics
+import sema.check_generic.paramBounds
 import sema.check_ref.checkStorable
 import sema.check_types.ownerType
 import sema.check_types.resolveType
@@ -71,7 +73,7 @@ pub fn fieldDeclAt(p: Program, at: Loc, i: int) &FieldDecl {
 /**
  * Whether a type is Copy (spec 2.9): Option and Result when their
  * arguments are, other structs and enums when declared `copy`. A type
- * parameter without bounds may stand for any type, so it is not Copy.
+ * parameter is Copy only when bound by `Copy`.
  *
  * @param c the checker
  * @param p the program
@@ -93,7 +95,8 @@ pub fn isCopy(c: Checker, p: Program, ty: int) bool {
         }
         TyKind.Tuple => argsAreCopy(c, p, &t.args)
         TyKind.Array => isCopy(c, p, t.inner)
-        TyKind.Str | TyKind.Param | TyKind.Slice => false
+        TyKind.Param => paramBounds(c, ty) & BOUND_COPY != 0
+        TyKind.Str | TyKind.Slice => false
         TyKind.Fn => t.data != FN_OWNED   // a `move fn` owns its captured values
         _ => true
     }
@@ -197,6 +200,62 @@ pub fn variantFieldType(c: mut Checker, p: Program, ty: int, v: int, i: int) int
     }
     let args = c.types.get(ty).args.clone()
     return c.types.subst(field, args)
+}
+
+/**
+ * Whether a type has interior mutability (spec 5.8): it holds an
+ * `UnsafeCell` by value, directly or through its fields, variants, tuple
+ * elements or array elements. What a pointer or a reference points to is
+ * not looked into.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param ty the type
+ * @returns true if it does
+ */
+pub fn hasInteriorMutability(c: mut Checker, p: Program, ty: int) bool {
+    let kind = c.types.kind(ty)
+    if kind == TyKind.Tuple {
+        let parts = c.types.get(ty).args.clone()
+        for i in 0..parts.len() {
+            if hasInteriorMutability(c, p, parts[i]) {
+                return true
+            }
+        }
+        return false
+    }
+    if kind == TyKind.Array {
+        return hasInteriorMutability(c, p, c.types.get(ty).inner)
+    }
+    if kind != TyKind.Adt {
+        return false
+    }
+    let def = c.types.get(ty).data
+    if def == c.r.langItems[6] {
+        return true
+    }
+    if c.def(def).kind == DefKind.Struct {
+        if !structFields(c, p, def) {
+            return false
+        }
+        for i in 0..fieldsOf(c, def).types.len() {
+            if hasInteriorMutability(c, p, structFieldType(c, p, ty, i)) {
+                return true
+            }
+        }
+        return false
+    }
+    if c.def(def).kind != DefKind.Enum || !enumVariants(c, p, def) {
+        return false
+    }
+    for v in 0..variantCount(c, def) {
+        for i in 0..variantFieldCount(c, def, v) {
+            if hasInteriorMutability(c, p, variantFieldType(c, p, ty, v, i)) {
+                return true
+            }
+        }
+    }
+    return false
 }
 
 /**
