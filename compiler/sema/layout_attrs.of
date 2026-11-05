@@ -53,6 +53,26 @@ pub fn alignAttr(c: Checker, p: Program, id: int) int {
     }
 }
 
+/**
+ * Whether a struct keeps its fields in declaration order (spec 13.2):
+ * `@repr(C)`, `@packed`, `@lang` or without a declaration. Others are
+ * reordered by code generation.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the struct's `DefId`
+ * @returns true if it does
+ */
+pub fn fixedOrder(c: Checker, p: Program, id: int) bool {
+    if c.def(id).kind != DefKind.Struct || c.def(id).item < 0 {
+        return true
+    }
+    let attributes = &itemOf(p, c.loc(id)).attributes
+    return findAttribute(c.r, attributes.clone(), "repr").isSome() ||
+           findAttribute(c.r, attributes.clone(), "packed").isSome() ||
+           findAttribute(c.r, attributes.clone(), "lang").isSome()
+}
+
 // The types a field of a `@packed` struct may have.
 fn packable(c: Checker, p: Program, ty: int) bool {
     let t = c.types.get(ty)
