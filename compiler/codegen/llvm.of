@@ -52,6 +52,7 @@ import sema.def.DefKind
 import sema.interfaces.dynMethods
 import sema.interfaces.isAnyMethod
 import sema.layout_attrs.alignAttr
+import sema.layout_attrs.fixedOrder
 import sema.layout_attrs.isPacked
 import sema.enums.enumVariants
 import sema.enums.variantsOf
@@ -131,6 +132,8 @@ pub struct Gen {
     pub nicheTag: int
     /** By enum type: the variant `nicheVariant` found. */
     pub niches: Map<int, int>
+    /** By struct type: the slot of each field in its LLVM type (`fieldSlots`). */
+    pub slots: Map<int, List<int>>
     /** `-g`: whether to write debug info. */
     pub debug: bool
     /** The debug metadata. */
@@ -202,6 +205,7 @@ pub fn newGen() Gen {
                overflowUsed: List.filled(false, 24), floatFnUsed: List.filled(false, 12),
                temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
                formats: false, packedPlace: false, nicheTag: -1, niches: Map.new(),
+               slots: Map.new(),
                alignedHeap: false,
                fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new(),
                debug: false, di: DebugInfo.new(), scope: 0, dir: "", optimize: false}
@@ -335,11 +339,62 @@ fn fieldTypes(c: mut Checker, p: Program, adt: int, v: int) List<int> {
     return types
 }
 
+// The slot of each field of a struct in its LLVM type: the fields go by
+// descending alignment, stable, unless their order is fixed (spec 13.2).
+fn fieldSlots(g: mut Gen, c: mut Checker, p: Program, ty: int) List<int> {
+    if let Option.Some(known) = g.slots.get(ty) {
+        return known.clone()
+    }
+    let id = c.types.get(ty).data
+    var types: List<int> = []
+    if c.info[id].fields.isSome() {
+        types = fieldTypes(c, p, ty, -1)
+    }
+    var slots: List<int> = []
+    var aligns: List<int> = []
+    for i in 0..types.len() {
+        slots.push(i)
+        aligns.push(layout(g, c, p, types[i]).align)
+    }
+    if !fixedOrder(c, p, id) {
+        var placed = List.filled(false, types.len())
+        for k in 0..types.len() {
+            var best = -1
+            for i in 0..types.len() {
+                if !placed[i] && (best < 0 || aligns[i] > aligns[best]) {
+                    best = i
+                }
+            }
+            placed[best] = true
+            slots[best] = k
+        }
+    }
+    g.slots.insert(ty, slots.clone())
+    return slots
+}
+
+// The field types of a struct in the order of its LLVM type.
+fn slotTypes(g: mut Gen, c: mut Checker, p: Program, ty: int, types: &List<int>) List<int> {
+    let slots = fieldSlots(g, c, p, ty)
+    var out = types.clone()
+    for i in 0..types.len() {
+        out[slots[i]] = types[i]
+    }
+    return out
+}
+
+// Whether a type is a struct.
+fn isStruct(c: Checker, ty: int) bool {
+    let t = c.types.get(ty)
+    return t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Struct
+}
+
 // The layout of a struct: `@packed` has no padding, `@align(N)` raises its
 // alignment (spec 13.2).
 fn structLayout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
     let id = c.types.get(ty).data
-    let types = fieldTypes(c, p, ty, -1)
+    let declared = fieldTypes(c, p, ty, -1)
+    let types = slotTypes(g, c, p, ty, &declared)
     if isPacked(c, p, id) {
         var size = 0
         for i in 0..types.len() {
@@ -516,7 +571,8 @@ fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
     }
     var types: List<int> = []
     if c.info[id].fields.isSome() {
-        types = fieldTypes(c, p, ty, -1)
+        let declared = fieldTypes(c, p, ty, -1)
+        types = slotTypes(g, c, p, ty, &declared)
     }
     define(g, c, p, name.clone(), &types, isPacked(c, p, id), alignAttr(c, p, id))
     return name
@@ -577,8 +633,13 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
         let container = if variant { variantType(c, current, index) } else {
             llvmType(g, c, p, current)
         }
+        let slot = if !variant && isStruct(c, current) {
+            fieldSlots(g, c, p, current)[entry]
+        } else {
+            entry
+        }
         g.out.push("  {next} = getelementptr inbounds {container}, ptr {base}, i32 0, "
-                   + "i32 {entry}\n")
+                   + "i32 {slot}\n")
         let t = c.types.get(current)
         let isEnum = t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Enum
         if !variant && t.kind == TyKind.Adt && isPacked(c, p, t.data) {
@@ -1105,13 +1166,19 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
         }
         RvalueKind.Aggregate => {   // insertvalue of each field into poison
             var current = "poison".toOwned()
+            var slots: List<int> = []
+            if isStruct(c, destType) {
+                slots = fieldSlots(g, c, p, destType)
+            }
             for i in 0..rv.items.len() {
                 let field = operand(g, c, p, body, &rv.items[i])
                 if field.ty == "void" {
                     continue   // a field of type (): nothing to store
                 }
                 let next = nextTemp(g)
-                g.out.push("  {next} = insertvalue {ty} {current}, {field.ty} {field.text}, {i}\n")
+                let slot = if i < slots.len() { slots[i] } else { i }
+                g.out.push("  {next} = insertvalue {ty} {current}, {field.ty} {field.text}, "
+                           + "{slot}\n")
                 current = next
             }
             return Value{ty: ty, text: current}

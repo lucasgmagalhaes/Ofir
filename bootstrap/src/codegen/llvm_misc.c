@@ -38,8 +38,11 @@ void gen_float_decls(Gen *g) {
     }
 }
 
-// A struct value: insertvalue of each field into poison.
-static void aggregate(Gen *g, const Rvalue *rv, Value *result) {
+void gen_aggregate(Gen *g, const Rvalue *rv, TypeId type, Value *result) {
+    const Ty *ty = type_get(g->types, type);
+    bool is_struct = ty->kind == TY_ADT &&
+                     sema_def(g->sema, (DefId){ty->data})->kind == DEF_STRUCT;
+    const uint32_t *slots = is_struct ? field_slots(g, type) : NULL;
     char current[16] = "poison";
     for (uint32_t i = 0; i < rv->count; i++) {
         Value field = gen_operand(g, rv->items[i]);
@@ -49,7 +52,7 @@ static void aggregate(Gen *g, const Rvalue *rv, Value *result) {
         char next[16];
         next_temp(g, next);
         out_fmt(&g->out, "  %s = insertvalue %s %s, %s %s, %u\n", next, result->type, current,
-                field.type, field.text, i);
+                field.type, field.text, slots ? slots[i] : i);
         memcpy(current, next, sizeof next);
     }
     memcpy(result->text, current, sizeof current);
@@ -87,7 +90,6 @@ void gen_misc(Gen *g, const Rvalue *rv, Value *result) {
                 llvm_type(g, ptr->inner), p.text, n.text);
         break;
     }
-    case RV_AGGREGATE: aggregate(g, rv, result); break;
     case RV_SIZE_OF: size_of(g, rv->to, result); break;
     case RV_ALIGN_OF: align_of(g, rv->to, result); break;
     case RV_STR_LEN: {

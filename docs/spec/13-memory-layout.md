@@ -20,6 +20,8 @@ properties stated as **guaranteed** can be relied on.
 ## 13.2 Structs and tuples
 
 - The compiler may reorder fields to minimize padding (default layout).
+  Version 1 orders them by descending alignment, keeping declaration
+  order among fields of equal alignment; this is not guaranteed.
 - `@repr(C)` structs use C layout: declaration order, C padding rules.
   **Guaranteed.**
 - `@packed` structs have no padding: each field starts right after the
