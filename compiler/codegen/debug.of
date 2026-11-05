@@ -1,0 +1,115 @@
+/**
+ * @module
+ * DWARF debug info (docs/design/toolchain.md, Debug info), written with
+ * `-g`: functions and line tables, no variables or types yet. The metadata
+ * of the compile unit, of a `DIFile` per source file, of a `DISubprogram`
+ * per function and of a `DILocation` per statement. The strings it is
+ * given are already escaped for LLVM. Stage 1 only.
+ */
+
+/** The debug metadata of a module, numbered as it is created. */
+pub struct DebugInfo {
+    /** The nodes created so far, after the fixed ones. */
+    nodes: str
+    /** The next node number. */
+    count: int
+    /** By `FileId`: the number of its `DIFile`. */
+    files: Map<int, int>
+    /** The line, column and scope of the last location. */
+    lastLine: int
+    lastColumn: int
+    lastScope: int
+    /** The number of the last location, 0 for none. */
+    lastNode: int
+
+    /**
+     * No metadata yet. Nodes 0 to 3 are written by `finish`: the compile
+     * unit, the module flag and the subroutine type every function shares.
+     *
+     * @returns the empty metadata
+     */
+    pub fn new() DebugInfo {
+        return DebugInfo{nodes: "", count: 4, files: Map.new(), lastLine: 0, lastColumn: 0,
+                         lastScope: 0, lastNode: 0}
+    }
+
+    // A new node number.
+    fn next(mut self) int {
+        let n = self.count
+        self.count += 1
+        return n
+    }
+
+    /**
+     * The `DIFile` of a source file, created the first time.
+     *
+     * @param id its `FileId`
+     * @param path its path, escaped
+     * @param dir the directory a relative path is in, escaped
+     * @returns its node number
+     */
+    pub fn file(mut self, id: int, path: str, dir: str) int {
+        if let Option.Some(n) = self.files.get(id) {
+            return *n
+        }
+        let n = self.next()
+        self.files.insert(id, n)
+        self.nodes.push("!{n} = !DIFile(filename: \"{path}\", directory: \"{dir}\")\n")
+        return n
+    }
+
+    /**
+     * A `DISubprogram`: the debug info of a function.
+     *
+     * @param name its name in the source, escaped
+     * @param file the node of its file
+     * @param line the line of its declaration
+     * @returns its node number
+     */
+    pub fn subprogram(mut self, name: str, file: int, line: int) int {
+        let n = self.next()
+        self.nodes.push("!{n} = distinct !DISubprogram(name: \"{name}\", scope: !{file}, ")
+        self.nodes.push("file: !{file}, line: {line}, type: !2, scopeLine: {line}, ")
+        self.nodes.push("spFlags: DISPFlagDefinition, unit: !0)\n")
+        return n
+    }
+
+    /**
+     * A `DILocation`; consecutive statements on one position share it.
+     *
+     * @param line its line
+     * @param column its column
+     * @param scope the node of its function
+     * @returns its node number
+     */
+    pub fn location(mut self, line: int, column: int, scope: int) int {
+        if self.lastNode != 0 && line == self.lastLine && column == self.lastColumn &&
+           scope == self.lastScope {
+            return self.lastNode
+        }
+        let n = self.next()
+        self.nodes.push("!{n} = !DILocation(line: {line}, column: {column}, scope: !{scope})\n")
+        self.lastLine = line
+        self.lastColumn = column
+        self.lastScope = scope
+        self.lastNode = n
+        return n
+    }
+
+    /**
+     * The metadata, to write at the end of the module.
+     *
+     * @param root the node of the root module's file
+     * @returns the named metadata and every node
+     */
+    pub fn finish(self, root: int) str {
+        var out = "!llvm.dbg.cu = !\{!0\}\n!llvm.module.flags = !\{!1\}\n\n"
+        out.push("!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !{root}, ")
+        out.push("producer: \"ofir\", isOptimized: false, runtimeVersion: 0, ")
+        out.push("emissionKind: FullDebug)\n")
+        out.push("!1 = !\{i32 2, !\"Debug Info Version\", i32 3\}\n")
+        out.push("!2 = !DISubroutineType(types: !3)\n!3 = !\{\}\n")
+        out.push(self.nodes)
+        return out
+    }
+}
