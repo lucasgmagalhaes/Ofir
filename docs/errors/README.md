@@ -90,6 +90,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0355 | `dyn I` has no size known at compile time: store a `Box<dyn I>` (spec 9.7) | stage 1 |
 | E0356 | `I` is an interface: only a parameter type can name it alone; write `dyn I` or a type parameter (spec 9.6) | stage 1 |
 | E0357 | invalid format specifier, or one that does not apply to the type of the value (spec 1.7) | stage 1 |
+| E0358 | a parameter without a default follows one with a default (spec 3.3) | stage 1 |
+| E0359 | a default value must be a constant expression, `[]` or a call to an associated function without arguments (spec 3.3) | stage 1 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0501 | refutable pattern in `let` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
