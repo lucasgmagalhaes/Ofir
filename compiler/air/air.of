@@ -418,6 +418,8 @@ pub struct AirStmt {
     pub targs: int
     /** The arguments. */
     pub args: List<Operand>
+    /** The statement it was lowered from (debug info). */
+    pub span: Span
 }
 
 /** Why a check panics. */
@@ -513,6 +515,8 @@ pub struct AirBlock {
     pub stmts: List<AirStmt>
     /** How it ends. */
     pub term: Terminator
+    /** The statement its terminator was lowered from (debug info). */
+    pub at: Span
 }
 
 /** A local of a body. */
@@ -565,6 +569,10 @@ pub struct AirBody {
     pub blocks: List<AirBlock>
     /** The closure it is the body of; `def` is then the enclosing function. */
     pub closure: Option<ClosureBody>
+    /** Where the function or closure is declared; `noSpan()` for glue. */
+    pub span: Span
+    /** The statement being lowered, recorded on what is pushed (debug info). */
+    pub at: Span
 
     /**
      * Adds a block.
@@ -572,7 +580,7 @@ pub struct AirBody {
      * @returns its number
      */
     pub fn newBlock(mut self) int {
-        self.blocks.push(AirBlock{stmts: [], term: terminator(TermKind.None)})
+        self.blocks.push(AirBlock{stmts: [], term: terminator(TermKind.None), at: self.at})
         return self.blocks.len() - 1
     }
 
@@ -596,7 +604,9 @@ pub struct AirBody {
      * @param s the statement
      */
     pub fn push(mut self, block: int, s: move AirStmt) {
-        self.blocks[block].stmts.push(s)
+        var stmt = s
+        stmt.span = self.at
+        self.blocks[block].stmts.push(stmt)
     }
 
     /**
@@ -607,5 +617,6 @@ pub struct AirBody {
      */
     pub fn terminate(mut self, block: int, t: move Terminator) {
         self.blocks[block].term = t
+        self.blocks[block].at = self.at
     }
 }
