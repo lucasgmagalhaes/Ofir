@@ -34,6 +34,33 @@ const uint8_t *ofir_arg(int64_t i, int64_t *len) {
     return (const uint8_t *)arg_values[i];
 }
 
+// The target the program was compiled for, as `@cfg` names it (spec 12.4).
+const uint8_t *ofir_os_name(int64_t *len) {
+#if defined(__APPLE__)
+    const char *name = "macos";
+#elif defined(_WIN32)
+    const char *name = "windows";
+#elif defined(__linux__)
+    const char *name = "linux";
+#else
+    const char *name = "unknown";
+#endif
+    *len = (int64_t)strlen(name);
+    return (const uint8_t *)name;
+}
+
+const uint8_t *ofir_arch_name(int64_t *len) {
+#if defined(__x86_64__) || defined(_M_X64)
+    const char *name = "x86_64";
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    const char *name = "aarch64";
+#else
+    const char *name = "unknown";
+#endif
+    *len = (int64_t)strlen(name);
+    return (const uint8_t *)name;
+}
+
 // A NUL-terminated copy of `len` bytes, or NULL if they contain a NUL.
 char *ofir_c_string(const uint8_t *ptr, int64_t len) {
     if (memchr(ptr, 0, (size_t)len)) {
