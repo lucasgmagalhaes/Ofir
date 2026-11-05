@@ -257,7 +257,7 @@ pub fn resolveExpr(r: mut Resolver, e: &Expr) {
         ExprKind.Int(_) | ExprKind.Float(_) | ExprKind.Byte(_) | ExprKind.Str(_) |
         ExprKind.ByteStr(_) | ExprKind.Bool(_) => {}
         ExprKind.SelfType => resolveSelfType(r, e)
-        ExprKind.Interp(parts) => resolveExprs(r, &parts)
+        ExprKind.Interp(parts, _) => resolveExprs(r, &parts)
         ExprKind.Ident(name) => {
             let res = lookup(r, name, e.span)
             r.setRes(e.id.0, res)

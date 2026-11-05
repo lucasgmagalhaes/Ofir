@@ -166,8 +166,11 @@ pub enum ExprKind {
     ByteStr(value: str)
     /** `true` or `false`. */
     Bool(value: bool)
-    /** `"a {x} b"`: the parts alternate between strings and expressions. */
-    Interp(parts: List<Expr>)
+    /**
+     * `"a {x} b"`: the parts alternate between strings and expressions;
+     * `specs[i]` is the format specifier of `parts[i]` (`{x:5}`), or "".
+     */
+    Interp(parts: List<Expr>, specs: List<str>)
     /** A name. */
     Ident(name: Symbol)
     /** `self` */

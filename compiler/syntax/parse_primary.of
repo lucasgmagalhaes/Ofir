@@ -86,12 +86,14 @@ pub fn parseLiteral(p: mut Parser) Expr {
 fn interpolation(p: mut Parser) Expr {
     let start = p.here()
     var parts: List<Expr> = []
+    var specs: List<str> = []
     for {
         let kind = p.peek()
         let text = textOf(p.token(0)).toOwned()
         let span = p.advance()
         if text.len() > 0 {   // "{x}" has empty text around `x`
             parts.push(Expr{id: p.newId(), kind: ExprKind.Str(text), span})
+            specs.push("")
         }
         if kind == TokenKind.StrEnd || kind == TokenKind.Eof {
             break
@@ -100,12 +102,18 @@ fn interpolation(p: mut Parser) Expr {
         p.noStructLiteral = false
         parts.push(parseExpr(p))
         p.noStructLiteral = saved
+        if p.at(TokenKind.FormatSpec) {
+            specs.push(textOf(p.token(0)).toOwned())
+            let _ = p.advance()
+        } else {
+            specs.push("")
+        }
         if !p.at(TokenKind.StrMid) && !p.at(TokenKind.StrEnd) {
             p.unexpected("`\}` to close the interpolation")
             break
         }
     }
-    return newExpr(p, ExprKind.Interp(parts), start)
+    return newExpr(p, ExprKind.Interp(parts, specs), start)
 }
 
 // ---------------------------------------------------------------------------

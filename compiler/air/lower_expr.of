@@ -140,6 +140,11 @@ import syntax.ast.Pattern
 import syntax.ast.PatternKind
 import syntax.ast.Stmt
 import syntax.ast.StmtKind
+import sema.types.F64
+import syntax.format_spec.FormatSpec
+import syntax.format_spec.paddingBits
+import syntax.format_spec.parseFormatSpec
+import syntax.format_spec.radixBits
 
 /**
  * Whether a type has values: false for (), ! and the error type.
@@ -361,7 +366,7 @@ fn settle(l: mut Lowerer, value: move Operand, next: &Expr) Operand {
 // of their last expression: `if`, `match`, blocks).
 fn makesValue(c: Checker, e: &Expr) bool {
     return match e.kind {
-        ExprKind.Call(_, _) | ExprKind.Interp(_) | ExprKind.Struct(_, _, _) | ExprKind.Array(_) |
+        ExprKind.Call(_, _) | ExprKind.Interp(_, _) | ExprKind.Struct(_, _, _) | ExprKind.Array(_) |
         ExprKind.Repeat(_, _) |
         ExprKind.Tuple(_) | ExprKind.Variant(_, _, _) | ExprKind.Try(_) | ExprKind.If(_, _, _, _) |
         ExprKind.Match(_, _) |
@@ -454,7 +459,7 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
         ExprKind.Byte(value) => opInt(value as u64, ty)
         ExprKind.Bool(value) => opBool(value, BOOL)
         ExprKind.Str(value) | ExprKind.ByteStr(value) => opStr(value, ty)
-        ExprKind.Interp(parts) => interpolation(l, c, p, &parts)
+        ExprKind.Interp(parts, specs) => interpolation(l, c, p, &parts, &specs)
         ExprKind.Ident(_) | ExprKind.SelfValue => name(l, c, p, e, ty)
         ExprKind.Unary(op, operand) => unary(l, c, p, e, op, &*operand, ty)
         ExprKind.Binary(op, lhs, rhs) => binary(l, c, p, e, op, &*lhs, &*rhs)
@@ -2015,20 +2020,71 @@ fn partFn(l: mut Lowerer, c: Checker, part: mut Operand, print: bool) RuntimeFn 
 }
 
 // The value of "a {x} b": an empty str that each part is appended to.
-fn interpolation(l: mut Lowerer, c: mut Checker, p: Program, parts: &List<Expr>) Operand {
+fn interpolation(l: mut Lowerer, c: mut Checker, p: Program, parts: &List<Expr>,
+                 specs: &List<str>) Operand {
     let dest = emitTemp(l, STR, rvUse(opStr("", STR)))
     for i in 0..parts.len() {
         var part = lowerExpr(l, c, p, &parts[i])
-        let f = partFn(l, c, part, false)
-        emitRuntime(l, f, [opAddr(dest, STR), part], -1)
+        if specs[i].len() == 0 {
+            let f = partFn(l, c, part, false)
+            emitRuntime(l, f, [opAddr(dest, STR), part], -1)
+        } else {
+            pushFormatted(l, c, p, dest, part, parseFormatSpec(specs[i]))
+        }
     }
     return opCopy(dest, STR)
 }
 
-// print("a {x}") writes each part directly, without building the string.
+// `{x:spec}` (spec 1.7): a padded part is formatted into a str of its own,
+// which is then appended with its padding.
+fn pushFormatted(l: mut Lowerer, c: mut Checker, p: Program, dest: int, part: move Operand,
+                 f: FormatSpec) {
+    let target = if f.width > 0 { emitTemp(l, STR, rvUse(opStr("", STR))) } else { dest }
+    var value = part
+    if f.precision >= 0 {
+        let wide = lowerCast(l, c, value, F64, noSpan())
+        let digits = opInt(f.precision as u64, I64)
+        emitRuntime(l, RuntimeFn.StrPushFixed, [opAddr(target, STR), wide, digits], -1)
+    } else if f.radix != 10 {
+        let t = c.types.get(value.ty)
+        let format = opInt(radixBits(f, intBits(t.data)) as u64, I64)
+        let wide = lowerCast(l, c, value, if t.data <= 3 { I64 } else { U64 }, noSpan())
+        emitRuntime(l, RuntimeFn.StrPushRadix, [opAddr(target, STR), wide, format], -1)
+    } else {
+        let push = partFn(l, c, value, false)
+        emitRuntime(l, push, [opAddr(target, STR), value], -1)
+    }
+    if f.width > 0 {
+        let padding = opInt(paddingBits(f) as u64, I64)
+        emitRuntime(l, RuntimeFn.StrPushPadded, [opAddr(dest, STR), opAddr(target, STR), padding],
+                    -1)
+        emitDrop(l, c, p, &localPlace(target), STR)
+    }
+}
+
+fn hasSpec(specs: &List<str>) bool {
+    for i in 0..specs.len() {
+        if specs[i].len() > 0 {
+            return true
+        }
+    }
+    return false
+}
+
+// print("a {x}") writes each part directly, without building the string;
+// with a format specifier, it prints the built string.
 fn lowerPrint(l: mut Lowerer, c: mut Checker, p: Program, arg: &Expr, newline: bool) {
     match arg.kind {
-        ExprKind.Interp(parts) => {
+        ExprKind.Interp(parts, specs) => {
+            if hasSpec(&specs) {
+                let text = interpolation(l, c, p, &parts, &specs)
+                emitRuntime(l, RuntimeFn.PrintStr, [opAddr(text.local, STR)], -1)
+                emitDrop(l, c, p, &localPlace(text.local), STR)
+                if newline {
+                    emitRuntime(l, RuntimeFn.PrintNewline, [], -1)
+                }
+                return
+            }
             for i in 0..parts.len() {
                 var part = lowerExpr(l, c, p, &parts[i])
                 let f = partFn(l, c, part, true)
