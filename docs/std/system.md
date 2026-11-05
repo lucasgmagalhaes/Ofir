@@ -59,6 +59,8 @@ pub copy enum IoErrorKind {
 | `fn spawn(program: str, args: [str]) Result<Child, IoError>` | | |
 | `fn currentDir() Result<str, IoError>` | | ✓ |
 | `fn executablePath() Result<str, IoError>` | locates `OFIR_HOME` | ✓ |
+| `fn name() str` | the target operating system: `"linux"`, `"macos"` or `"windows"` | ✓ |
+| `fn arch() str` | the target architecture: `"x86_64"` or `"aarch64"` | ✓ |
 
 ```ofir
 pub struct Output {

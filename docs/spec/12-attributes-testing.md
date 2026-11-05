@@ -144,6 +144,17 @@ Available conditions: `os` (`"linux"`, `"macos"`, `"windows"`), `arch`
 (`"x86_64"`, `"aarch64"`), `debug`, `test`, and combinations with `&&`,
 `||`, `!`.
 
+`os` and `arch` are compared with `==` or `!=` to one of the values
+listed; `debug` holds when the program is built without `--release`, and
+`test` under `ofir test`. Any other condition, or a value that is not
+listed, is an error (E0809).
+
+A declaration whose condition is false is removed right after parsing,
+before names are resolved: it declares nothing and is not checked, so
+two declarations of one name may exist under conditions that exclude each
+other. This holds for top-level declarations, imports, fields, methods and
+the functions of an `extern` block.
+
 ## 12.5 Documentation comments
 
 A `/** ... */` comment documents the next declaration; one whose text

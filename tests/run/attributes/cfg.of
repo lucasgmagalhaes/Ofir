@@ -1,0 +1,70 @@
+// requires: stage1
+// `@cfg` removes the declarations whose condition is false (spec 12.4).
+
+import std.os
+
+@cfg(os == "linux" || os == "macos")
+fn family() str {
+    return "unix"
+}
+
+@cfg(os == "windows")
+fn family() str {
+    return "windows"
+}
+
+@cfg(os == "windows")
+import std.missing.module
+
+@cfg(arch == "x86_64" || arch == "aarch64")
+const KNOWN_ARCH: bool = true
+
+@cfg(!(arch == "x86_64" || arch == "aarch64"))
+const KNOWN_ARCH: bool = false
+
+@cfg(debug)
+fn mode() str {
+    return "debug"
+}
+
+@cfg(!debug)
+fn mode() str {
+    return "release"
+}
+
+@cfg(test)
+fn undefinedOutsideTests() int {
+    return missing()
+}
+
+struct Config {
+    name: str
+    @cfg(os == "windows")
+    drive: str
+    @cfg(os != "windows")
+    root: str
+
+    @cfg(os != "windows")
+    fn path(self) str {
+        return "{self.root}{self.name}"
+    }
+
+    @cfg(os == "windows")
+    fn path(self) str {
+        return "{self.drive}:\\{self.name}"
+    }
+}
+
+@cfg(os == "windows")
+extern "C" {
+    fn GetTickCount() u32
+}
+
+fn main() {
+    println(family())
+    println("{KNOWN_ARCH} {mode()}")
+    let matches = os.name() == "linux" || os.name() == "macos"
+    println("{matches}")
+    let c = Config{name: "etc", root: "/"}
+    println(c.path())
+}

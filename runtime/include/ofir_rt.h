@@ -109,6 +109,8 @@ typedef struct {
 void ofir_set_args(int argc, char **argv);
 int64_t ofir_arg_count(void);
 const uint8_t *ofir_arg(int64_t i, int64_t *len);
+const uint8_t *ofir_os_name(int64_t *len);     // "linux", "macos", "windows"
+const uint8_t *ofir_arch_name(int64_t *len);   // "x86_64", "aarch64"
 const uint8_t *ofir_env(const uint8_t *name, int64_t len, int64_t *value_len);   // NULL: unset
 _Noreturn void ofir_exit(int64_t code);
 int64_t ofir_test_index(void);   // the test `ofir test` asked for, or -1

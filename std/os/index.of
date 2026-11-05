@@ -11,6 +11,8 @@ import std.io
 extern "C" {
     fn ofir_arg_count() int
     fn ofir_arg(i: int, len: *mut int) *u8
+    fn ofir_os_name(len: *mut int) *u8
+    fn ofir_arch_name(len: *mut int) *u8
     fn ofir_env(name: *u8, len: int, value_len: *mut int) *u8
     fn ofir_exit(code: int) !
     fn ofir_run(args: *u8, len: int, count: int, out: *mut Captured) i32
@@ -146,4 +148,26 @@ pub fn executablePath() Result<str, IoError> {
     var out = Buffer.new()
     io.check(unsafe { ofir_executable_path(&mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoStr() })
+}
+
+/**
+ * The operating system the program was compiled for.
+ *
+ * @returns `"linux"`, `"macos"` or `"windows"`
+ */
+pub fn name() str {
+    var len = 0
+    let ptr = unsafe { ofir_os_name(&mut len as *mut int) }
+    return unsafe { str.fromRaw(ptr, len) }
+}
+
+/**
+ * The processor architecture the program was compiled for.
+ *
+ * @returns `"x86_64"` or `"aarch64"`
+ */
+pub fn arch() str {
+    var len = 0
+    let ptr = unsafe { ofir_arch_name(&mut len as *mut int) }
+    return unsafe { str.fromRaw(ptr, len) }
 }
