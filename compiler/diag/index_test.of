@@ -38,6 +38,25 @@ fn shortFormatIsSortedAndDeduplicated() {
 }
 
 @test
+fn jsonFormatHasOneObjectPerLine() {
+    var diags = Diagnostics.new()
+    let span = Span{file: FileId(0), start: 22, end: 23}
+    diags.error("E0101", span, "expected an expression".toOwned())
+    let text = diags.render(sample(), Format.Json)
+    let expected = "\{\"severity\":\"error\",\"code\":\"E0101\"," +
+        "\"message\":\"expected an expression\",\"file\":\"a.of\",\"line\":2," +
+        "\"column\":11,\"endLine\":2,\"endColumn\":12\}\n"
+    assert(text == expected)
+}
+
+@test
+fn jsonStringEscapes() {
+    assert(jsonString("a\"b\\c\nd\te") == "\"a\\\"b\\\\c\\nd\\te\"")
+    assert(jsonString("\x01\x1f") == "\"\\u0001\\u001f\"")
+    assert(jsonString("") == "\"\"")
+}
+
+@test
 fn denyWarningsMakesErrors() {
     var diags = Diagnostics.new()
     diags.denyWarnings = true
