@@ -19,6 +19,7 @@ import diag.Format
 import diag.Severity
 import diag.jsonNoSource
 import driver.cfg.CfgTarget
+import driver.explain.explain
 import driver.modules.Front
 import driver.modules.loadProgram
 import sema.c_symbols.linkLibraries
@@ -43,6 +44,7 @@ fn printUsage() {
              + "  build <file.of>   compile a program\n"
              + "  run <file.of>     compile and run a program\n"
              + "  test <file.of>    compile and run the `@test` functions\n"
+             + "  explain <code>    explain an error or warning code, as E0600\n"
              + "  version           print the compiler version\n\noptions:\n"
              + "  -o <path>                 output path\n"
              + "  --emit=tokens             print the tokens and stop\n"
@@ -145,6 +147,13 @@ fn main() {
     if command == "version" {
         println("ofir {VERSION} (stage 1)")
         return
+    }
+    if command == "explain" {
+        if args.len() != 3 {
+            eprintln("error: `explain` needs one code, as `ofir explain E0600`")
+            os.exit(2)
+        }
+        os.exit(explain(args[2]))
     }
     if command == "help" {
         printUsage()
