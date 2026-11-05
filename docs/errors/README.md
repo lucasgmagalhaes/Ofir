@@ -42,6 +42,8 @@ fn main() {
   report the code, those under `## Fix` must compile without errors.
 - A code that one file cannot show (a missing module, a failing clang)
   uses `text` blocks, which are not compiled.
+- Every code that is not `planned` has a file; `make check-codes` fails
+  otherwise.
 
 ## Ranges
 
@@ -162,10 +164,10 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 |------|---------|-------|
 | W0001 | unused variable `x` | stage 0 |
 | W0002 | unused import | stage 0 |
-| W0003 | unused private item | stage 1 |
+| W0003 | unused private item | planned |
 | W0004 | unreachable code | stage 0 |
-| W0005 | variable does not need to be `var` | stage 1 |
+| W0005 | variable does not need to be `var` | planned |
 | W0006 | use of deprecated item | stage 1 |
-| W0007 | name does not follow the naming convention | stage 1 |
+| W0007 | name does not follow the naming convention | planned |
 
 New codes are added to these tables in the same commit as the diagnostic.

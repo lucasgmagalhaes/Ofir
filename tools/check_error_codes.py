@@ -4,7 +4,8 @@
 - every code in the registry table appears once;
 - every code annotated in tests/ (`// error[E0300]: ...`) is registered;
 - every explanation file (docs/errors/EXXXX.md) is for a registered code,
-  starts with `# EXXXX: ` and has `## Example` and `## Fix` sections.
+  starts with `# EXXXX: ` and has `## Example` and `## Fix` sections;
+- every registered code that is not `planned` has an explanation file.
 
 With `--compiler <ofir>` the `ofir` blocks of the explanation files are
 compiled: those under `## Example` must report their code, those under
@@ -27,6 +28,7 @@ ROW_RE = re.compile(r"^\|\s*([EW]\d{4})\s*\|", re.MULTILINE)
 USE_RE = re.compile(r"(?:error|warning)\[([EW]\d{4})\]")
 FILE_RE = re.compile(r"^[EW]\d{4}\.md$")
 BLOCK_RE = re.compile(r"^```ofir\n(.*?)^```$", re.MULTILINE | re.DOTALL)
+PLANNED_RE = re.compile(r"^\|\s*([EW]\d{4})\s*\|.*\|\s*planned\s*\|\s*$", re.MULTILINE)
 
 
 def unknown_codes(known: set) -> list[str]:
@@ -109,6 +111,10 @@ def main() -> int:
     files = explanation_files()
     for path in files:
         problems += explanation_problems(path, known)
+    explained = {path.stem for path in files}
+    planned = set(PLANNED_RE.findall(REGISTRY.read_text()))
+    problems += [f"{code} has no explanation file docs/errors/{code}.md"
+                 for code in sorted(known - planned - explained)]
     if args.compiler and not problems:
         with tempfile.TemporaryDirectory() as tmp:
             for path in files:
