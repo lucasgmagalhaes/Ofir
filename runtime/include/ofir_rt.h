@@ -48,6 +48,8 @@ void ofir_stack_guard_init(void *top);
 
 void *ofir_alloc(int64_t size);
 void *ofir_realloc(void *ptr, int64_t size);
+void *ofir_alloc_aligned(int64_t size, int64_t align);      // align > 16
+void *ofir_realloc_aligned(void *ptr, int64_t size, int64_t align);
 void ofir_free(void *ptr);
 
 // ---------------------------------------------------------------------------
