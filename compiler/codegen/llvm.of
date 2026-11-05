@@ -991,6 +991,14 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {result} = ptrtoint ptr {end} to i64\n")
             return Value{ty: ty, text: result}
         }
+        RvalueKind.AlignOf => {   // the offset of a `T` after an `i1` is its alignment
+            let end = nextTemp(g)
+            let t = fieldType(g, c, p, rv.to)
+            g.out.push("  {end} = getelementptr \{ i1, {t} \}, ptr null, i32 0, i32 1\n")
+            let result = nextTemp(g)
+            g.out.push("  {result} = ptrtoint ptr {end} to i64\n")
+            return Value{ty: ty, text: result}
+        }
         RvalueKind.StrLen => {
             let s = operand(g, c, p, body, &rv.a)
             let t = nextTemp(g)
