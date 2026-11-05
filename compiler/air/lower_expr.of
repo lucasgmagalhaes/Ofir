@@ -107,7 +107,9 @@ import sema.check.itemTypeParams
 import sema.interfaces.isInterfaceMethod
 import sema.interfaces.dynMethods
 import sema.check_box.adjustedType
+import sema.check_types.compatible
 import sema.check_types.fnSignature
+import sema.derive.fromMethod
 import sema.check_dyn.dynBorrowed
 import sema.check_dyn.dynSourceType
 import sema.check_methods.typeNameOf
@@ -1584,7 +1586,15 @@ fn lowerTry(l: mut Lowerer, c: mut Checker, p: Program, inner: &Expr, ty: int) O
     let error = if args.len() > 1 { args[1] } else { UNIT }
     var fields: List<Operand> = []
     if !option {
-        fields.push(payload(&value, bad, 0, error))
+        let target = c.types.get(ret).args[1]
+        let from = if compatible(error, target) { 0 } else { fromMethod(c, p, target, error) }
+        if from == 0 {
+            fields.push(payload(&value, bad, 0, error))
+        } else {
+            let converted = newTemp(l, target)
+            emitCall(l, from, methodTargs(c, target), [payload(&value, bad, 0, error)], converted)
+            fields.push(opCopy(converted, target))
+        }
     }
     let returnedVariant = variantNamed(c, p, ret, if option { "None" } else { "Err" })
     let returned = variantValue(l, c, p, ret, returnedVariant, fields)

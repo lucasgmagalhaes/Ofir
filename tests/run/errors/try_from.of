@@ -1,0 +1,44 @@
+// requires: stage1
+// `?` converts the error with the function error type's `from` (spec 6.2).
+
+enum ParseError {
+    Empty
+    BadDigit(str)
+}
+
+struct AppError {
+    message: str
+    code: int
+
+    fn from(value: move ParseError) AppError {
+        return match value {
+            ParseError.Empty => AppError{message: "empty input", code: 1}
+            ParseError.BadDigit(d) => AppError{message: "bad digit {d}", code: 2}
+        }
+    }
+}
+
+fn digit(text: str) Result<int, ParseError> {
+    if text.len() == 0 {
+        return Result.Err(ParseError.Empty)
+    }
+    if text == "7" {
+        return Result.Ok(7)
+    }
+    return Result.Err(ParseError.BadDigit(text.clone()))
+}
+
+fn run(text: str) Result<int, AppError> {
+    let n = digit(text)?
+    return Result.Ok(n * 2)
+}
+
+fn main() {
+    let inputs = ["7", "", "x"]
+    for text in inputs {
+        match run(text) {
+            Result.Ok(n) => println("ok {n}")
+            Result.Err(e) => println("error {e.code}: {e.message}")
+        }
+    }
+}

@@ -16,6 +16,19 @@ fn otherError() Result<int, int> {
     return Result.Ok(n)
 }
 
+struct Borrowing {
+    code: int
+
+    fn from(value: str) Borrowing {   // `from` must take its value by `move`
+        return Borrowing{code: value.len()}
+    }
+}
+
+fn wrongFrom() Result<int, Borrowing> {
+    let n = parse("1")?          // error[E0300]: mismatched types: `?` returns the error `str`, but the function returns errors of type `Borrowing`
+    return Result.Ok(n)
+}
+
 fn optionInResult() Result<int, str> {
     let n = maybe()?             // error[E0300]: `?` on an Option needs the function to return an Option, not `Result<int, str>`
     return Result.Ok(n)

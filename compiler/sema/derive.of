@@ -189,3 +189,43 @@ fn fieldSatisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
         hashable(c, p, ty)
     }
 }
+
+/**
+ * The conversion `?` calls when the error types differ (spec 6.2): the
+ * function's error type declares `fn from(value: move E) Self`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param target the function's error type
+ * @param source the error type `?` returns
+ * @returns the `DefId` of `from`, or 0 when the type declares none of that shape
+ */
+pub fn fromMethod(c: mut Checker, p: Program, target: int, source: int) int {
+    if c.types.kind(target) != TyKind.Adt {
+        return 0
+    }
+    let owner = c.types.get(target).data
+    if c.def(owner).item < 0 {
+        return 0
+    }
+    let loc = c.loc(owner)
+    var id = 0
+    for i in 0..methodCount(p, loc) {
+        let decl = methodAt(p, loc, i)
+        if !decl.hasSelf && c.text(decl.name) == "from" {
+            id = c.r.tables[c.def(owner).module].fnDefs[decl.id.0]
+        }
+    }
+    if id == 0 {
+        return 0
+    }
+    let decl = fnOf(p, c.loc(id))
+    if decl.params.len() != 1 || decl.params[0].mode != Mode.Move || decl.typeParams.len() != 0 {
+        return 0
+    }
+    let sig = fnSignature(c, p, id)
+    let args = c.types.get(target).args.clone()
+    let value = c.types.subst(c.types.get(sig).args[0], args.clone())
+    let ret = c.types.subst(c.types.get(sig).inner, args)
+    return if value == source && ret == target { id } else { 0 }
+}
