@@ -1,0 +1,58 @@
+// requires: stage1
+// Named arguments (spec 3.3): after the positional ones, in any order; the
+// arguments are evaluated in the order written.
+
+fn connect(host: str, port: int = 443, timeout: int = 30, verbose: bool = false) str {
+    return "{host}:{port} timeout={timeout} verbose={verbose}"
+}
+
+fn trace(label: str, value: int) int {
+    println("eval {label}")
+    return value
+}
+
+fn pair(a: int, b: int) str {
+    return "a={a} b={b}"
+}
+
+fn first<T: Clone>(items: List<T>, fallback: T, skip: int = 0) T {
+    if skip < items.len() {
+        return items[skip].clone()
+    }
+    return fallback.clone()
+}
+
+fn bump(n: mut int, by: int = 1) {
+    n = n + by
+}
+
+interface Shape {
+    fn area(self, scale: int = 1) int
+}
+
+struct Square {
+    side: int
+
+    fn area(self, scale: int = 1) int {
+        return self.side * self.side * scale
+    }
+}
+
+fn describe(s: &dyn Shape) str {
+    return "{s.area()} {s.area(scale: 3)}"
+}
+
+fn main() {
+    println(connect("example.com", timeout: 5, verbose: true))
+    println(connect("example.com", verbose: true))
+    println(connect(host: "h", port: 1))
+    println(pair(b: trace("b", 2), a: trace("a", 1)))
+    println("{first([1, 2, 3], 0)} {first([1, 2, 3], 0, skip: 2)}")
+    println("{first(fallback: "none", items: ["x"], skip: 4)}")
+    var n = 1
+    bump(n)
+    bump(by: 10, n: n)
+    println("{n}")
+    let sq = Square{side: 2}
+    println("{sq.area()} {sq.area(scale: 2)} {describe(&sq)}")
+}
