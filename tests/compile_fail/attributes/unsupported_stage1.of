@@ -1,7 +1,7 @@
 // requires: stage1
 // Attributes that stage 1 checks but does not implement yet (roadmap 5.11e).
 
-@align(3)   // error[E0809]: invalid arguments for `@align`: write `@align(N)`, N a power of two
+@align(3)   // error[E0809]: invalid arguments for `@align`: write `@align(N)`, N a power of two up to 4096
 struct Block {
     x: int
 }

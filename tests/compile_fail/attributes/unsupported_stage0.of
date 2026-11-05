@@ -6,8 +6,13 @@ struct Header {
     magic: u32
 }
 
-@align(3)   // error[E0809]: invalid arguments for `@align`: write `@align(N)`, N a power of two
+@align(3)   // error[E0809]: invalid arguments for `@align`: write `@align(N)`, N a power of two up to 4096
 struct Block {
+    x: int
+}
+
+@align(8192)   // error[E0809]: invalid arguments for `@align`: write `@align(N)`, N a power of two up to 4096
+struct Huge {
     x: int
 }
 
