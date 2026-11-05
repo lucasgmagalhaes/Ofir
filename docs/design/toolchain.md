@@ -71,8 +71,9 @@ error[E0200]: cannot find `cuont` in this scope
   module's declarations, its imports and the prelude) for a name, the
   type's declared names for a type, the struct's fields for a field and
   the type's methods for a method.
-- Closeness is the edit distance between the bytes of the two names
-  (insertions, deletions and substitutions). A candidate is close enough
+- Closeness is the edit distance between the bytes of the two names:
+  the insertions, deletions, substitutions and swaps of two adjacent
+  bytes that turn one into the other. A candidate is close enough
   when the distance is at most a third of the unknown name's length,
   rounded down, so names shorter than three bytes get no suggestion.
 - The closest candidate wins; between equally close ones, the name
