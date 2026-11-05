@@ -35,6 +35,54 @@ static void float_text(char *out, size_t size, double value, bool is_f32) {
     fmt_into(out, size, "0x%016" PRIX64, bits);
 }
 
+// The discriminants of the niche enum `g->niche_tag`: the variant without
+// a payload, then the one with it.
+static void niche_discriminants(Gen *g, int64_t *none, int64_t *some) {
+    int v = niche_variant(g, g->niche_tag);
+    const Def *def = sema_def(g->sema, (DefId){type_get(g->types, g->niche_tag)->data});
+    *none = def->variants->variants[1 - v].discriminant;
+    *some = def->variants->variants[v].discriminant;
+}
+
+void niche_tag_value(Gen *g, const char *at, Value *v) {
+    int64_t none, some;
+    niche_discriminants(g, &none, &some);
+    char word[16], is_null[16];
+    next_temp(g, word);
+    out_fmt(&g->out, "  %s = load ptr, ptr %s\n", word, at);
+    next_temp(g, is_null);
+    out_fmt(&g->out, "  %s = icmp eq ptr %s, null\n", is_null, word);
+    next_temp(g, v->text);
+    out_fmt(&g->out, "  %s = select i1 %s, i32 %" PRId64 ", i32 %" PRId64 "\n", v->text,
+            is_null, none, some);
+    v->type = "i32";
+}
+
+// A null pointer for the variant without a payload; the other variant's
+// payload is already there.
+void niche_tag_store(Gen *g, const char *at, Value v) {
+    int64_t none, some;
+    niche_discriminants(g, &none, &some);
+    char text[32];
+    fmt_into(text, sizeof text, "%" PRId64, none);
+    if (strcmp(v.text, text) == 0) {
+        out_fmt(&g->out, "  store ptr null, ptr %s\n", at);
+        return;
+    }
+    fmt_into(text, sizeof text, "%" PRId64, some);
+    if (strcmp(v.text, text) == 0) {
+        return;
+    }
+    char word[16], is_none[16], kept[16];   // not a constant
+    next_temp(g, word);
+    out_fmt(&g->out, "  %s = load ptr, ptr %s\n", word, at);
+    next_temp(g, is_none);
+    out_fmt(&g->out, "  %s = icmp eq i32 %s, %" PRId64 "\n", is_none, v.text, none);
+    next_temp(g, kept);
+    out_fmt(&g->out, "  %s = select i1 %s, ptr null, ptr %s\n", kept, is_none, word);
+    out_fmt(&g->out, "  store ptr %s, ptr %s\n", kept, at);
+}
+
 Value gen_operand(Gen *g, Operand o) {
     Value v = {.type = llvm_type(g, o.type)};
     switch (o.kind) {
@@ -44,6 +92,10 @@ Value gen_operand(Gen *g, Operand o) {
         }
         char at[16];
         place_address(g, o.as.local, o.path, at);
+        if (g->has_niche_tag) {   // the tag of a niche enum: whether the pointer is null
+            niche_tag_value(g, at, &v);
+            break;
+        }
         next_temp(g, v.text);
         out_fmt(&g->out, "  %s = load %s, ptr %s\n", v.text, v.type, at);
         break;
