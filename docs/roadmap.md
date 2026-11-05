@@ -195,7 +195,9 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.8 | Iterator interface and `for` over iterators | M | **done** (stage 1): generic interfaces (bounds, assertions, inference from the bounded type), `Iterator<T>` in the prelude, `for` over bounded parameters; `dyn` of generic interfaces and embedding them are not supported yet (E0901) |
 | 5.9 | Interior mutability: `UnsafeCell`, `Cell` | S | **done** (stage 1): `std/mem/cell.of`, the `Copy` bound, borrowed values with interior mutability passed and bound by address; `tests/run/cells/cell.of` passes; E0332 with `Copy` tested |
 | 5.10 | Format specifiers, raw strings, multi-line strings, byte strings | M | tests pass; **done** in stage 1: raw, multi-line and byte strings (`compiler/syntax/literals.of`, E0007), format specifiers (`compiler/syntax/format_spec.of`, runtime `ofir_str_push_fixed`/`radix`/`padded`, E0357) and `?` with `Debug` (5.5) |
-| 5.11 | Attributes: `@inline`, `@cold`, `@repr(C)`, `@cfg`, `@deprecated`, `@export`, `@link`, `@allow` | M | tests pass |
+| 5.11a | Attributes checked in both stages (E0807-E0810: name, target, arguments, duplicates); `@inline`, `@inline(never)` and `@cold` become LLVM function attributes | S | **done**: `tests/compile_fail/attributes/*` and `tests/codegen/hints.of` pass in both stages; the other attributes report E0901 |
+| 5.11b | `@deprecated` (W0006) and `@allow(category)` | S | tests pass |
+| 5.11c | `@repr(C)`, `@packed`, `@align(N)`, `@export`, `@link`, `@cfg` | M | tests pass |
 | 5.12a | Default parameter values and named arguments | M | `tests/run/calls/*` pass |
 | 5.12 | Diagnostics: notes and help messages, `ofir explain`, JSON output; an explanation file for every registry code | M | every error code has `docs/errors/EXXXX.md` |
 | 5.13 | Debug info (DWARF) | M | stepping through code in `lldb` works |
