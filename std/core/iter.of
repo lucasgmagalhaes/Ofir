@@ -17,7 +17,7 @@
  * @example
  * ```ofir
  * fn total<I: Iterator<int>>(it: mut I) int {
- *     var sum = 0
+ *     let sum = 0
  *     for x in it {
  *         sum += x
  *     }

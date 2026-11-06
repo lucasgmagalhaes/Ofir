@@ -2,7 +2,7 @@
 
 @test
 fn splitKeepsEmptyParts() {
-    var parts = "a,,b".split(",")
+    let parts = "a,,b".split(",")
     assert((parts.next() ?? "?") == "a")
     assert((parts.next() ?? "?") == "")
     assert((parts.next() ?? "?") == "b")
@@ -11,11 +11,11 @@ fn splitKeepsEmptyParts() {
 
 @test
 fn linesDropTheCarriageReturn() {
-    var lines = "one\r\ntwo\n".lines()
+    let lines = "one\r\ntwo\n".lines()
     assert((lines.next() ?? "?") == "one")
     assert((lines.next() ?? "?") == "two")
     assert(lines.next().isNone())
-    var words = "  a  bc ".splitWhitespace()
+    let words = "  a  bc ".splitWhitespace()
     assert((words.next() ?? "?") == "a" && (words.next() ?? "?") == "bc")
     assert(words.next().isNone())
 }

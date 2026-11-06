@@ -18,7 +18,7 @@ fn fromUtf8RejectsInvalidSequences() {
 
 @test
 fn builderCollectsPieces() {
-    var b = Builder.new()
+    let b = Builder.new()
     b.push("n = ")
     b.pushChar(0x31)
     b.pushChar(0x20AC)

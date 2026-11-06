@@ -2,7 +2,7 @@
 
 @test
 fn removeAndInsertShiftElements() {
-    var l = [1, 2, 3, 4]
+    let l = [1, 2, 3, 4]
     assert(l.remove(1) == 2)
     l.insert(0, 9)
     assert(l.len() == 4 && l[0] == 9 && l[1] == 1 && l[3] == 4)
@@ -14,14 +14,14 @@ fn removeAndInsertShiftElements() {
 @test
 fn iterBorrowsEachElement() {
     const words = ["a", "bc", "def"]
-    var total = 0
-    var count = 0
+    let total = 0
+    let count = 0
     for w in words.iter() {
         total += w.len()
         count += 1
     }
     assert(count == 3 && total == 6)
     const empty: List<str> = []
-    var it = empty.iter()
+    let it = empty.iter()
     assert(it.next().isNone())
 }

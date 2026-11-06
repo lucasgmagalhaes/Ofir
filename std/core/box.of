@@ -56,7 +56,7 @@ extern "intrinsic" {
  * A type cannot contain itself by value (its size would be infinite), so
  * recursive types hold their children in boxes. `*b` reads the value, and
  * the fields and methods of the value are reached through the box:
- * `b.x`, `b.area()`, `b.x = 1` (the box must then be `var`). Methods of
+ * `b.x`, `b.area()`, `b.x = 1` (the box must then be `let`). Methods of
  * `Box` itself (`unbox`) come first; `(*b).m()` calls the value's.
  *
  * Stage 0 frees a box only in `unbox`; drops come with roadmap 3.2.

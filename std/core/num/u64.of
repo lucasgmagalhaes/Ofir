@@ -131,7 +131,7 @@ pub copy struct u64 {
         if start == text.len() || negative {
             return Result.Err(ParseError{})
         }
-        var value: u64 = 0
+        let value: u64 = 0
         for i in start..text.len() {
             const c = text[i]
             if c < b'0' || c > b'9' {
@@ -209,9 +209,9 @@ pub copy struct u64 {
      * ```
      */
     pub fn pow(self, exp: u32) u64 {
-        var result: u64 = 1
-        var base = self
-        var e = exp
+        let result: u64 = 1
+        let base = self
+        let e = exp
         for e > 0 {
             if e & 1 == 1 {
                 result *= base

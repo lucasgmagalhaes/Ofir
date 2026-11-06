@@ -36,7 +36,7 @@ extern "intrinsic" {
  * @typeParam T the type of the elements
  * @example
  * ```ofir
- * var scores = [70, 95, 82]
+ * let scores = [70, 95, 82]
  * scores.push(64)
  * scores.sort()
  * println("{scores[0]} {scores[scores.len() - 1]}")   // 64 95
@@ -82,7 +82,7 @@ pub struct List<T> {
      * @panics when the system is out of memory
      */
     pub fn withCapacity(n: int) List<T> {
-        var list: List<T> = List.new()
+        let list: List<T> = List.new()
         list.reserve(n)
         return list
     }
@@ -97,7 +97,7 @@ pub struct List<T> {
      * @panics when the system is out of memory
      */
     pub fn filled(value: T, count: int) List<T> {
-        var list: List<T> = List.withCapacity(count)
+        let list: List<T> = List.withCapacity(count)
         for i in 0..count {
             unsafe {
                 *list.ptr.add(i) = *(&value as *T)   // a copy: the literal needs Copy values
@@ -146,7 +146,7 @@ pub struct List<T> {
         if needed <= self.cap {
             return
         }
-        var cap = if self.cap == 0 { 4 } else { self.cap * 2 }
+        let cap = if self.cap == 0 { 4 } else { self.cap * 2 }
         if cap < needed {
             cap = needed
         }
@@ -169,7 +169,7 @@ pub struct List<T> {
      * @panics when the system is out of memory
      * @example
      * ```ofir
-     * var xs: List<int> = []
+     * let xs: List<int> = []
      * xs.push(1)   // [1]
      * ```
      */
@@ -212,7 +212,7 @@ pub struct List<T> {
      * outside `0..len()`
      * @example
      * ```ofir
-     * var xs = [1, 2]
+     * let xs = [1, 2]
      * if const Some(x) = xs.getMut(0) {
      *     *x = 10   // xs is [10, 2]
      * }
@@ -315,7 +315,7 @@ pub struct List<T> {
      * @returns `Some` with the last element, or `None` for an empty list
      * @example
      * ```ofir
-     * var stack = [1, 2]
+     * let stack = [1, 2]
      * assert(stack.pop() ?? 0 == 2)
      * ```
      */
@@ -335,7 +335,7 @@ pub struct List<T> {
      * @panics when `i` is negative or greater than `len()`
      * @example
      * ```ofir
-     * var xs = ["b", "c"]
+     * let xs = ["b", "c"]
      * xs.insert(0, "a")   // ["a", "b", "c"]
      * ```
      */
@@ -401,12 +401,12 @@ pub struct List<T> {
      * @example
      * ```ofir
      * const names = ["ada".toOwned(), "alan".toOwned()]
-     * var copy = names.clone()
+     * let copy = names.clone()
      * copy.push("grace".toOwned())   // names keeps 2 elements
      * ```
      */
     pub fn clone(self) List<T> {
-        var out: List<T> = List.withCapacity(self.len)
+        let out: List<T> = List.withCapacity(self.len)
         for i in 0..self.len {
             unsafe {
                 out.push(cloneOf(*self.ptr.add(i)))
@@ -456,7 +456,7 @@ pub struct List<T> {
      * @panics when the system is out of memory
      * @example
      * ```ofir
-     * var xs = [1, 2]
+     * let xs = [1, 2]
      * xs.extend([3, 4])   // [1, 2, 3, 4]
      * ```
      */
@@ -476,8 +476,8 @@ pub struct List<T> {
      * Reverses the order of the elements, in place.
      */
     pub fn reverse(mut self) {
-        var i = 0
-        var j = self.len - 1
+        let i = 0
+        let j = self.len - 1
         for i < j {
             unsafe {
                 const a = *self.ptr.add(i)
@@ -500,7 +500,7 @@ pub struct List<T> {
      * @panics when the system is out of memory
      * @example
      * ```ofir
-     * var names = ["mia", "ana", "bob"]
+     * let names = ["mia", "ana", "bob"]
      * names.sort()   // ["ana", "bob", "mia"]
      * ```
      */
@@ -508,18 +508,18 @@ pub struct List<T> {
         if self.len < 2 {
             return
         }
-        var src = self.ptr
+        let src = self.ptr
         const size = self.len * sizeOf<T>()
-        var dst = unsafe {
+        let dst = unsafe {
             if alignOf<T>() > 16 {
                 ofir_alloc_aligned(size, alignOf<T>()) as *mut T
             } else {
                 ofir_alloc(size) as *mut T
             }
         }
-        var width = 1
+        let width = 1
         for width < self.len {
-            var lo = 0
+            let lo = 0
             for lo < self.len {
                 const mid = (lo + width).min(self.len)
                 const hi = (lo + 2 * width).min(self.len)
@@ -591,8 +591,8 @@ unsafe fn shift<T>(dst: *mut T, src: *T, count: int) {
 // Merges the sorted runs src[lo..mid] and src[mid..hi] into dst[lo..hi];
 // on ties the left run comes first, so the sort is stable.
 fn mergeRuns<T: Ord>(src: *mut T, dst: *mut T, lo: int, mid: int, hi: int) {
-    var i = lo
-    var j = mid
+    let i = lo
+    let j = mid
     for k in lo..hi {
         unsafe {
             const takeLeft = i < mid && (j >= hi || !(*src.add(j) < *src.add(i)))

@@ -2,15 +2,15 @@
 
 @test
 fn replaceReturnsTheOldValue() {
-    var names = ["ana".toOwned(), "bob".toOwned()]
+    let names = ["ana".toOwned(), "bob".toOwned()]
     const old = replace(names[0], "cy".toOwned())
     assert(old == "ana" && names[0] == "cy")
 }
 
 @test
 fn swapExchangesTheValues() {
-    var a = "ana".toOwned()
-    var b = "bob".toOwned()
+    let a = "ana".toOwned()
+    let b = "bob".toOwned()
     swap(a, b)
     assert(a == "bob" && b == "ana")
 }

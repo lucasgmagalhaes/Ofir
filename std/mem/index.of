@@ -17,7 +17,7 @@
  * ```ofir
  * import std.mem
  *
- * var names = ["ana", "bob"]
+ * let names = ["ana", "bob"]
  * const old = mem.replace(names[0], "cy")   // old is "ana"; names is ["cy", "bob"]
  * ```
  */

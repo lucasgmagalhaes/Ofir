@@ -440,7 +440,7 @@ pub struct Arc<T: Send + Sync> {
  *
  * const names = Mutex.new(List<str>.new())
  * {
- *     var guard = names.lock()
+ *     let guard = names.lock()
  *     guard.getMut().push("ana")
  * }   // unlocked here
  * println("{names.lock().get().len()}")   // 1
@@ -526,7 +526,7 @@ pub ref struct MutexGuard<T> {
  *
  * const config = RwLock.new("fast")
  * {
- *     var w = config.write()
+ *     let w = config.write()
  *     *w.getMut() = "safe"
  * }
  * println("{config.read().get()}")   // safe

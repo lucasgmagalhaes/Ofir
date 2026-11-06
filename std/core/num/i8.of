@@ -148,7 +148,7 @@ pub copy struct i8 {
         if start == text.len() {
             return Result.Err(ParseError{})
         }
-        var value: i8 = 0
+        let value: i8 = 0
         for i in start..text.len() {
             const c = text[i]
             if c < b'0' || c > b'9' {
@@ -226,9 +226,9 @@ pub copy struct i8 {
      * ```
      */
     pub fn pow(self, exp: u32) i8 {
-        var result: i8 = 1
-        var base = self
-        var e = exp
+        let result: i8 = 1
+        let base = self
+        let e = exp
         for e > 0 {
             if e & 1 == 1 {
                 result *= base

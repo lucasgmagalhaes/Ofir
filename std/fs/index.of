@@ -32,7 +32,7 @@ extern "C" {
  * ```
  */
 pub fn read(path: str) Result<List<u8>, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_read_file(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoList() })
 }
@@ -50,7 +50,7 @@ pub fn read(path: str) Result<List<u8>, IoError> {
  * ```
  */
 pub fn readToString(path: str) Result<str, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_read_file(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoStr() })
 }
@@ -111,7 +111,7 @@ pub fn exists(path: str) bool {
  * ```
  */
 pub fn canonicalize(path: str) Result<str, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_canonicalize(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoStr() })
 }
@@ -162,10 +162,10 @@ pub struct DirEntry {
  * ```
  */
 pub fn readDir(path: str) Result<List<DirEntry>, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_read_dir(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
     const names = unsafe { out.intoStr() }
-    var entries: List<DirEntry> = []
+    let entries: List<DirEntry> = []
     for name in names.split("\0") {
         if name.len() > 0 {
             entries.push(DirEntry{name: name.toOwned(), path: "{path}/{name}"})

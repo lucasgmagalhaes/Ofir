@@ -17,7 +17,7 @@
  * @example
  * ```ofir
  * fn sum(xs: [int]) int {
- *     var total = 0
+ *     let total = 0
  *     for x in xs {
  *         total += x
  *     }

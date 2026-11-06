@@ -10,7 +10,7 @@
  *
  * @example
  * ```ofir
- * var parts = "x=1".split("=")
+ * let parts = "x=1".split("=")
  * const key = parts.next() ?? ""   // "x"
  * ```
  */
@@ -83,7 +83,7 @@ pub struct StrSplit {
 
     // The first `n` bytes of the rest, which keeps the bytes after them.
     fn cut(mut self, n: int) str {
-        var hi = n
+        let hi = n
         if self.lines && hi > 0 && self.rest[hi - 1] == b'\r' {
             hi -= 1
         }
@@ -93,11 +93,11 @@ pub struct StrSplit {
     }
 
     fn nextWord(mut self) Option<str> {
-        var lo = 0
+        let lo = 0
         for lo < self.rest.len() && isSpace(self.rest[lo]) {
             lo += 1
         }
-        var hi = lo
+        let hi = lo
         for hi < self.rest.len() && !isSpace(self.rest[hi]) {
             hi += 1
         }

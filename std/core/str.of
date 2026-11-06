@@ -22,7 +22,7 @@ extern "C" {
  *
  * @example
  * ```ofir
- * var greeting = "hello"
+ * let greeting = "hello"
  * greeting.push(", world")
  * println("{greeting.len()} {greeting.toUpper()}")   // 12 HELLO, WORLD
  * ```
@@ -52,7 +52,7 @@ pub struct str {
      * @panics when the system is out of memory
      */
     pub fn withCapacity(n: int) str {
-        var s = ""
+        let s = ""
         if n > 0 {
             s.reserve(n)
         }
@@ -75,7 +75,7 @@ pub struct str {
             ofir_free(ptr)
             return ""
         }
-        var s = ""
+        let s = ""
         s.ptr = ptr as *u8
         s.len = len
         s.cap = cap
@@ -91,7 +91,7 @@ pub struct str {
      * @safety `ptr` must point to `len` readable bytes of valid UTF-8
      */
     pub unsafe fn fromRaw(ptr: *u8, len: int) str {
-        var s = str.withCapacity(len)
+        let s = str.withCapacity(len)
         if len > 0 {
             memcpy(s.ptr as *mut u8, ptr, len as u64)
         }
@@ -123,7 +123,7 @@ pub struct str {
      * ```
      */
     pub fn toCString(self) CString {
-        var bytes = str.withCapacity(self.len + 1)
+        let bytes = str.withCapacity(self.len + 1)
         for i in 0..self.len {
             if unsafe { *self.ptr.add(i) } == 0 {
                 panic("toCString: the string contains a NUL byte at {i}")
@@ -160,7 +160,7 @@ pub struct str {
      * @panics when the system is out of memory
      * @example
      * ```ofir
-     * var s = "a"
+     * let s = "a"
      * s.push("bc")   // "abc"
      * ```
      */
@@ -183,7 +183,7 @@ pub struct str {
      * `0xDFFF`)
      * @example
      * ```ofir
-     * var s = "caf"
+     * let s = "caf"
      * s.pushChar(0xE9)   // "café", 5 bytes
      * ```
      */
@@ -280,7 +280,7 @@ pub struct str {
      * ```
      */
     pub fn repeat(self, n: int) str {
-        var out = ""
+        let out = ""
         if n > 0 && self.len > 0 {
             out.reserve(self.len * n)
         }
@@ -310,7 +310,7 @@ pub struct str {
         if !self.isBoundary(lo) || !self.isBoundary(hi) {
             panic("byte range {lo}..{hi} is not on character boundaries")
         }
-        var view = ""
+        let view = ""
         view.ptr = unsafe { self.ptr.add(lo) }
         view.len = hi - lo
         return view
@@ -362,7 +362,7 @@ pub struct str {
      * @returns the trimmed bytes, borrowed from this string
      */
     pub fn trimStart(self) str {
-        var lo = 0
+        let lo = 0
         for lo < self.len && isSpace(self[lo]) {
             lo += 1
         }
@@ -375,7 +375,7 @@ pub struct str {
      * @returns the trimmed bytes, borrowed from this string
      */
     pub fn trimEnd(self) str {
-        var hi = self.len
+        let hi = self.len
         for hi > 0 && isSpace(self[hi - 1]) {
             hi -= 1
         }
@@ -395,8 +395,8 @@ pub struct str {
      * ```
      */
     pub fn replace(self, from: str, to: str) str {
-        var out = ""
-        var at = 0
+        let out = ""
+        let at = 0
         for from.len > 0 {
             const Option.Some(i) = findFrom(self, from, at) else {
                 break
@@ -464,7 +464,7 @@ pub struct str {
      * @returns an iterator over the bytes
      * @example
      * ```ofir
-     * var sum = 0
+     * let sum = 0
      * for b in "abc".bytes() {
      *     sum += b as int   // 97 + 98 + 99
      * }
@@ -504,7 +504,7 @@ pub struct str {
      * @returns the new string
      */
     pub fn toOwned(self) str {
-        var out = ""
+        let out = ""
         out.push(self)
         return out
     }
@@ -548,7 +548,7 @@ pub struct str {
         if needed <= self.cap {
             return
         }
-        var cap = if self.cap > 0 { self.cap * 2 } else { 16 }
+        let cap = if self.cap > 0 { self.cap * 2 } else { 16 }
         for cap < needed {
             cap *= 2
         }
@@ -568,7 +568,7 @@ pub struct str {
 
     // A copy where the bytes in `from..=to` have their ASCII case flipped.
     fn mapAscii(self, from: u8, to: u8) str {
-        var out = self.toOwned()
+        let out = self.toOwned()
         for i in 0..out.len {
             unsafe {
                 const at = out.ptr.add(i) as *mut u8

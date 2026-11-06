@@ -44,7 +44,7 @@ struct Entry<K, V> {
  * @typeParam V the type of the values
  * @example
  * ```ofir
- * var ages = Map<str, int>.new()
+ * let ages = Map<str, int>.new()
  * ages.insert("ana", 31)
  * ages.insert("bob", 27)
  * if const Some(age) = ages.get("ana") {
@@ -127,7 +127,7 @@ pub struct Map<K: Eq + Hash, V> {
      * @panics when the system is out of memory
      * @example
      * ```ofir
-     * var m = Map<str, int>.new()
+     * let m = Map<str, int>.new()
      * assert(m.insert("a", 1).isNone())
      * assert(m.insert("a", 2) ?? 0 == 1)
      * ```
@@ -188,7 +188,7 @@ pub struct Map<K: Eq + Hash, V> {
      * @panics when the system is out of memory
      * @example
      * ```ofir
-     * var counts = Map<str, int>.new()
+     * let counts = Map<str, int>.new()
      * for word in words {
      *     *counts.getOrInsert(word, 0) += 1
      * }
@@ -245,7 +245,7 @@ pub struct Map<K: Eq + Hash, V> {
         }
         const hash = hashOf(key)
         const mask = self.slots.len() - 1
-        var slot = (hash & (mask as u64)) as int
+        let slot = (hash & (mask as u64)) as int
         for {
             const at = self.slots[slot]
             if at == EMPTY {
@@ -269,7 +269,7 @@ pub struct Map<K: Eq + Hash, V> {
     // Puts entry `at` in the first empty slot of its probe sequence.
     fn place(mut self, hash: u64, at: int) {
         const mask = self.slots.len() - 1
-        var slot = (hash & (mask as u64)) as int
+        let slot = (hash & (mask as u64)) as int
         for self.slots[slot] != EMPTY {
             slot = (slot + 1) & mask
         }
@@ -283,7 +283,7 @@ pub struct Map<K: Eq + Hash, V> {
         if (self.entries.len() + self.gone + 1) * 2 <= self.slots.len() {
             return
         }
-        var size = 8
+        let size = 8
         for size < (self.entries.len() + 1) * 4 {
             size *= 2
         }

@@ -120,9 +120,9 @@ pub copy struct f32 {
         if text.len() == 0 || text[0] == b' ' || (text[0] >= 9 && text[0] <= 13) {
             return Result.Err(ParseError{})
         }
-        var terminated = text.toOwned()
+        let terminated = text.toOwned()
         terminated.push("\0")
-        var end = terminated.asPtr()
+        let end = terminated.asPtr()
         const value = unsafe { strtof(terminated.asPtr(), &mut end as *mut *u8) }
         const used = unsafe { end as u64 } - unsafe { terminated.asPtr() as u64 }
         if used != text.len() as u64 {

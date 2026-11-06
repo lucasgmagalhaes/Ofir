@@ -2,7 +2,7 @@
 
 @test
 fn insertReplacesAndReturnsTheOldValue() {
-    var ages: Map<str, int> = Map.new()
+    let ages: Map<str, int> = Map.new()
     assert(ages.insert("ada".toOwned(), 36).isNone())
     assert(ages.insert("ada".toOwned(), 37).unwrapOr(0) == 36)
     assert(ages.len() == 1 && ages.contains("ada"))
@@ -11,7 +11,7 @@ fn insertReplacesAndReturnsTheOldValue() {
 
 @test
 fn removeKeepsTheOtherEntries() {
-    var m: Map<int, int> = Map.new()
+    let m: Map<int, int> = Map.new()
     for i in 0..100 {
         m.insert(i, i * i)
     }

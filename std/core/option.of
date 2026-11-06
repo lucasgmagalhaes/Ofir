@@ -117,7 +117,7 @@ pub enum Option<T> {
      * @returns the previous value: `Some` with the content, or `None`
      * @example
      * ```ofir
-     * var slot = Some("token")
+     * let slot = Some("token")
      * const taken = slot.take()   // Some("token"); slot is now None
      * ```
      */

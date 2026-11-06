@@ -11,7 +11,7 @@ fn unwrapOrGivesTheValueOrTheFallback() {
 
 @test
 fn takeLeavesNone() {
-    var name: Option<str> = Option.Some("ada".toOwned())
+    let name: Option<str> = Option.Some("ada".toOwned())
     const taken = name.take()
     assert(name.isNone())
     assert((taken ?? "") == "ada")
