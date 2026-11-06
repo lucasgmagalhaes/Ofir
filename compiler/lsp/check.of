@@ -15,6 +15,7 @@ import driver.modules.loadProgram
 import sema.check.checkProgram
 import sema.interface_params.desugarInterfaceParams
 import sema.resolve.resolveProgram
+import sema.trace.Completion
 import sema.trace.Link
 import std.mem
 import std.os
@@ -31,6 +32,8 @@ pub struct Checked {
     pub diags: List<Diagnostic>
     /** The names used in the root file and the declarations they refer to. */
     pub links: List<Link>
+    /** The names visible at the probe, when it was reached. */
+    pub completions: List<Completion>
 }
 
 /**
@@ -38,17 +41,17 @@ pub struct Checked {
  *
  * @param path the root file
  * @param overlays the texts of the files an editor has open
- * @returns the files, the diagnostics and the links
+ * @returns the files, the diagnostics, the links and the completions
  */
 pub fn checkFile(path: str, overlays: &Map<str, str>) Checked {
     let front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new(),
                       overlays: overlays.clone()}
     const Option.Some(file) = front.load(path) else {
-        return Checked{map: front.map, diags: [], links: []}
+        return Checked{map: front.map, diags: [], links: [], completions: []}
     }
     const tokens = tokenize(front.map.file(file).text, file, front.names, front.diags)
     if front.diags.hasErrors() {
-        return Checked{map: front.map, diags: front.diags.reported(), links: []}
+        return Checked{map: front.map, diags: front.diags.reported(), links: [], completions: []}
     }
     const names = mem.replace(front.names, Interner.new())
     const diags = mem.replace(front.diags, Diagnostics.new())
@@ -56,22 +59,26 @@ pub fn checkFile(path: str, overlays: &Map<str, str>) Checked {
     front.names = parsed.names
     front.diags = parsed.diags
     if front.diags.hasErrors() {
-        return Checked{map: front.map, diags: front.diags.reported(), links: []}
+        return Checked{map: front.map, diags: front.diags.reported(), links: [], completions: []}
     }
     const target = CfgTarget{os: os.name(), arch: os.arch(), debug: true, test: false,
                              bench: false}
     let program = loadProgram(path, parsed.module, front, target)
     if front.diags.hasErrors() {
-        return Checked{map: front.map, diags: front.diags.reported(), links: []}
+        return Checked{map: front.map, diags: front.diags.reported(), links: [], completions: []}
     }
-    let r = resolveProgram(program, front.names, front.diags, front.map, false, false, false, true)
+    let r = resolveProgram(program, front.names, front.diags, front.map, false, false, false, true,
+                           "")
     if r.diags.hasErrors() {
         const links = mem.replace(r.trace.links, [])
-        return Checked{map: r.map, diags: r.diags.reported(), links}
+        const completions = mem.replace(r.trace.completions, [])
+        return Checked{map: r.map, diags: r.diags.reported(), links, completions}
     }
     desugarInterfaceParams(program, r)
     let c = checkProgram(program, r)
     const found = c.r.diags.reported()
     const links = mem.replace(c.r.trace.links, [])
-    return Checked{map: mem.replace(c.r.map, SourceMap.new()), diags: found, links}
+    const completions = mem.replace(c.r.trace.completions, [])
+    return Checked{map: mem.replace(c.r.map, SourceMap.new()), diags: found, links,
+                   completions}
 }
