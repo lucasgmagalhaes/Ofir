@@ -50,7 +50,7 @@ pub fn parseBlock(p: mut Parser) Block {
 fn ifExpr(p: mut Parser) Expr {
     let start = p.advance()
     var letPattern: Option<Pattern> = Option.None
-    if p.accept(TokenKind.Let) {
+    if p.accept(TokenKind.Let) || p.accept(TokenKind.Const) {
         letPattern = Option.Some(parseTestPattern(p))
         p.expect(TokenKind.Eq, "`=` after the pattern")
     }

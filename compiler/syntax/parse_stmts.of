@@ -153,7 +153,7 @@ fn exprStmt(p: mut Parser, start: Span) Stmt {
 pub fn parseStmt(p: mut Parser) Stmt {
     let start = p.here()
     return match p.peek() {
-        TokenKind.Let => {
+        TokenKind.Let | TokenKind.Const => {
             p.advance()
             letStmt(p, start)
         }
