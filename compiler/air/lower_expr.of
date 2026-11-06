@@ -504,10 +504,7 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
         ExprKind.Ident(_) | ExprKind.SelfValue => name(l, c, p, e, ty)
         ExprKind.Unary(op, operand) => unary(l, c, p, e, op, &*operand, ty)
         ExprKind.Binary(op, lhs, rhs) => binary(l, c, p, e, op, &*lhs, &*rhs)
-        ExprKind.Cast(value, _) => {
-            let v = lowerExpr(l, c, p, &*value)
-            lowerCast(l, c, v, ty, e.span)
-        }
+        ExprKind.Cast(value, _) => castExpr(l, c, p, &*value, ty, e.span)
         ExprKind.Call(callee, args) => call(l, c, p, e, &*callee, &args)
         ExprKind.If(_, _, _, _) => lowerIf(l, c, p, e)
         ExprKind.Block(block) | ExprKind.Unsafe(block) => lowerBlock(l, c, p, &block,
@@ -2238,6 +2235,24 @@ fn castNeedsCheck(c: Checker, from: int, to: int) bool {
  * @param span where a failed check is reported
  * @returns the converted value
  */
+// `value as T`. `&s as *str` is the address of `s`, not a view of it.
+fn castExpr(l: mut Lowerer, c: mut Checker, p: Program, value: &Expr, ty: int,
+            span: Span) Operand {
+    if c.types.kind(ty) == TyKind.Ptr {
+        if let ExprKind.Unary(op, operand) = value.kind {
+            let isRef = op == Op.Ref || op == Op.RefMut
+            if isRef && concreteType(l, c, c.typeOf(operand.id.0)) == STR {
+                let refType = c.typeOf(value.id.0)   // `&str` is `str`: a view
+                let from = if concreteType(l, c, refType) == STR { ty } else { refType }
+                let addr = placeOperand(&lowerPlace(l, c, p, &*operand), OperandKind.Addr, from)
+                return lowerCast(l, c, addr, ty, span)
+            }
+        }
+    }
+    let v = lowerExpr(l, c, p, value)
+    return lowerCast(l, c, v, ty, span)
+}
+
 pub fn lowerCast(l: mut Lowerer, c: Checker, value: move Operand, to: int, span: Span) Operand {
     if value.ty == to {
         return value
