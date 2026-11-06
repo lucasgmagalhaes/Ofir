@@ -10,7 +10,7 @@ import syntax.ast.Pattern
 import syntax.ast.PatternKind
 import syntax.parse_primary.atLiteral
 import syntax.parse_primary.parseLiteral
-import syntax.parse_types.parseType
+import syntax.parse_types.parseSimpleType
 import syntax.parser.Parser
 import syntax.token.TokenKind
 
@@ -112,7 +112,7 @@ fn named(p: mut Parser, start: Span) Pattern {
         if !wildcard {
             bound = Option.Some(name)
         }
-        let ty = parseType(p)
+        let ty = parseSimpleType(p)
         return newPattern(p, PatternKind.TypeTest(bound, ty), start)
     }
     if wildcard {
