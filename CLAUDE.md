@@ -13,8 +13,8 @@ with clang.
   `docs/bootstrap.md`).
 - `std/`, `runtime/`, `tests/`, `tools/`, `docs/` (spec, ADRs, roadmap).
 - Manifest: `ofir.json` (JSONC, camelCase keys; ADR 0026).
-- Work follows `docs/roadmap.md`; next item (phase 5): 5.19 `comptime for`
-  over keys and the standard aliases in `std.core` (spec 16.6-16.7).
+- Work follows `docs/roadmap.md`; next item (phase 5): 5.20 union types
+  (spec 17.1-17.3, ADR 0022).
 
 ## Working rules
 
