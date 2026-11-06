@@ -129,8 +129,7 @@ Stmt *parse_stmt(Parser *p) {
     Span start = peek_token(p, 0)->span;
     switch (peek(p)) {
     case TOK_KW_CONST: advance(p); return let_stmt(p, start);
-    case TOK_KW_LET:
-    case TOK_KW_VAR: advance(p); return var_stmt(p, start);
+    case TOK_KW_LET: advance(p); return var_stmt(p, start);
     case TOK_KW_FOR: advance(p); return for_stmt(p, start);
     case TOK_KW_BREAK: advance(p); return new_stmt(p, STMT_BREAK, start);
     case TOK_KW_CONTINUE: advance(p); return new_stmt(p, STMT_CONTINUE, start);
