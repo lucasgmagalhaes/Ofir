@@ -55,6 +55,19 @@ void note_signature(Checker *c, const FnDecl *fn, const Ty *sig, TypeId self_typ
 void check_error(Checker *c, const char *code, Span span, const char *format, ...)
     __attribute__((format(printf, 4, 5)));
 
+// Branches of `if` or `match` of different types: E0353 when no type is
+// expected (a union is never inferred, spec 17.3), else E0300.
+static inline void mismatched_branches(Checker *c, Span span, TypeId expected, const char *first,
+                                       const char *other) {
+    if (expected.id == TID_ERROR) {
+        check_error(c, "E0353", span,
+                    "the branches have different types, `%s` and `%s`: write the union type "
+                    "expected", first, other);
+    } else {
+        check_error(c, "E0300", span, "mismatched types: expected %s, found %s", first, other);
+    }
+}
+
 // Reports E0901 for a construct the stage 0 checker does not implement yet.
 TypeId unsupported(Checker *c, Span span, const char *what);
 

@@ -210,15 +210,14 @@ TypeId check_block(Checker *c, Block *block, TypeId expected, bool as_value) {
     return diverges ? type_id(TID_NEVER) : type_id(TID_UNIT);
 }
 
-static TypeId join(Checker *c, Expr *e, TypeId then, TypeId else_) {
+static TypeId join(Checker *c, Expr *e, TypeId expected, TypeId then, TypeId else_) {
     if (then.id == TID_NEVER) {
         return else_;
     }
     if (else_.id != TID_NEVER && !types_compatible(else_, then)) {
         char then_name[64];
         snprintf(then_name, sizeof then_name, "%s", type_name(c, then));
-        check_error(c, "E0300", e->as.if_.else_->span,
-                    "mismatched types: expected %s, found %s", then_name, type_name(c, else_));
+        mismatched_branches(c, e->as.if_.else_->span, expected, then_name, type_name(c, else_));
     }
     return then;
 }
@@ -241,5 +240,5 @@ TypeId check_if(Checker *c, Expr *e, TypeId expected, bool as_value) {
         return then.id == TID_NEVER && other.id == TID_NEVER ? type_id(TID_NEVER)
                                                              : type_id(TID_UNIT);
     }
-    return join(c, e, then, other);
+    return join(c, e, expected, then, other);
 }

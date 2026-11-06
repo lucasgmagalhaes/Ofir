@@ -3,15 +3,14 @@
 #include "sema/check_internal.h"
 
 // The type of the arms, like the branches of `if` (spec 4.3).
-static TypeId join_arm(Checker *c, Expr *body, TypeId result, TypeId arm) {
+static TypeId join_arm(Checker *c, Expr *body, TypeId expected, TypeId result, TypeId arm) {
     if (result.id == TID_NEVER) {
         return arm;
     }
     if (arm.id != TID_NEVER && !types_compatible(arm, result)) {
-        char expected[64];
-        snprintf(expected, sizeof expected, "%s", type_name(c, result));
-        check_error(c, "E0300", body->span, "mismatched types: expected %s, found %s",
-                    expected, type_name(c, arm));
+        char first[64];
+        snprintf(first, sizeof first, "%s", type_name(c, result));
+        mismatched_branches(c, body->span, expected, first, type_name(c, arm));
     }
     return result;
 }
@@ -43,7 +42,7 @@ TypeId check_match(Checker *c, Expr *e, TypeId expected, bool as_value) {
             coerce(c, arm->guard, type_id(TID_BOOL));
         }
         TypeId hint = result.id == TID_NEVER ? expected : result;
-        result = join_arm(c, arm->body, result, arm_body(c, arm->body, hint, as_value));
+        result = join_arm(c, arm->body, expected, result, arm_body(c, arm->body, hint, as_value));
     }
     check_exhaustive(c, e, type);
     return as_value ? result : (result.id == TID_NEVER ? result : type_id(TID_UNIT));
