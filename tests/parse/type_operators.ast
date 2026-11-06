@@ -1,0 +1,24 @@
+module
+  struct Point
+    field x: float
+    field y: float
+  type Partial
+    type_params T
+    = { [K in keyof T]?: T[K] }
+  type Record
+    type_params K, V
+    = { [P in K]: V }
+  type Ints
+    type_params T
+    = { [K in keyof T if T[K] is int]: T[K] }
+  type Unwrap
+    type_params T
+    = if T is Option<infer U> { U } else { T }
+  type IsInt
+    type_params T
+    = if T is int { true } else { if T is bool { false } else { false } }
+  type Flat
+    type_params T
+    = { [K in (keyof T - .y) if IsInt<T[K]>]: Unwrap<T[K]> }
+  fn main
+    body
