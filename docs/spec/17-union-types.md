@@ -103,6 +103,13 @@ interfaces `Eq`, `Hash`, `Clone`, `Debug` and `Display` when every member
 does; the operation dispatches on the tag. Two unions are equal when they
 hold the same member and the members are equal.
 
+- `"{u}"` interpolates the member it holds; it is valid when every member
+  can be interpolated, and takes no format specifier.
+- `{u:?}` shows the debug representation of the member, without a variant
+  name: `3`, `"hi"`, `Point { x: 1 }`.
+- A union has no order: `<`, `<=`, `>`, `>=` and `Ord` bounds do not apply
+  to it (E0313).
+
 ## 17.6 Layout
 
 A union is laid out as an enum with one variant per member, in the

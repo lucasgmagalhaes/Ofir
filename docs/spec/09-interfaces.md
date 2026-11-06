@@ -314,6 +314,7 @@ debug representation, close to how the value is written in code:
 | tuple | `(1, "a")`, `(7,)` |
 | struct | `Point { x: 1, y: 2 }`; empty: `Empty {}`; tuple struct: `Meters(5)` |
 | enum | the variant and its fields in order: `Some(3)`, `Rect(3, 4)`, `None` |
+| union | the member it holds: `3`, `"hi"` (chapter 17) |
 | `List`, array | `[1, 2, 3]` |
 | `Map` | `{"a": 1, "b": 2}`, in insertion order |
 | `Box<T>`, `&T` | the value it points to |
