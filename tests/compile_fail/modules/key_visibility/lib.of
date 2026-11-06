@@ -1,0 +1,10 @@
+pub struct Account {
+    pub owner: str
+    balance: int
+}
+
+pub type Own = keyof Account   // inside its module, private fields are keys
+
+pub fn ownKeys(k: Own) Own {
+    return k
+}
