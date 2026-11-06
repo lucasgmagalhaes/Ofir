@@ -72,9 +72,9 @@ W0003), `unreachable` (W0004), `deprecated` (W0006) and `naming` (W0007);
 another identifier is an error (E0809).
 
 Stage 0 and stage 1 implement `@inline`, `@cold`, `@test` and `@lang`;
-stage 1 implements `@deprecated` and `@allow`, which stage 0 accepts and
-ignores. The other attributes of the table are checked, then reported as
-not supported yet (E0901) until roadmap 5.11c.
+stage 1 also implements `@deprecated`, `@allow`, `@cfg`, `@repr(C)`,
+`@packed`, `@align`, `@export` and `@link`. `@bench` and `@tag` are checked,
+then reported as not supported yet (E0901).
 
 ## 12.2 Tests
 
