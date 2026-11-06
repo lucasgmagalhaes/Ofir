@@ -1,0 +1,431 @@
+/**
+ * @module
+ * JSON for the language server (RFC 8259): a parser into a flat tree of
+ * nodes, and the lookups the server needs. Values are written with
+ * `diag.jsonString` and string interpolation.
+ */
+
+import diag.jsonString
+
+/**
+ * The kind of a JSON value.
+ */
+pub copy enum JsonKind {
+    /** `null`. */
+    Null
+    /** `true` or `false`. */
+    Bool
+    /** A number. */
+    Number
+    /** A string. */
+    String
+    /** An array. */
+    Array
+    /** An object. */
+    Object
+}
+
+/**
+ * A value of a JSON document.
+ */
+pub struct JsonNode {
+    /** What it is. */
+    pub kind: JsonKind
+    /** A string's decoded text, a number's digits, or `true`/`false`. */
+    pub text: str
+    /** Its key, when it is a member of an object. */
+    pub key: str
+    /** Its first element or member, or -1. */
+    pub child: int
+    /** The next element or member of its parent, or -1. */
+    pub next: int
+}
+
+/**
+ * A parsed JSON document: node 0 is its value.
+ */
+pub struct JsonDoc {
+    /** The values, parents before their children. */
+    pub nodes: List<JsonNode>
+
+    /**
+     * The member `key` of an object.
+     *
+     * @param node an object node
+     * @param key the member's key
+     * @returns its node, or -1 when the node is not an object or has no such member
+     */
+    pub fn field(self, node: int, key: str) int {
+        if node < 0 || self.nodes[node].kind != JsonKind.Object {
+            return -1
+        }
+        let c = self.nodes[node].child
+        for c >= 0 {
+            if self.nodes[c].key == key {
+                return c
+            }
+            c = self.nodes[c].next
+        }
+        return -1
+    }
+
+    /**
+     * The value at a path of keys from the root.
+     *
+     * @param keys the keys, outermost first
+     * @returns its node, or -1
+     */
+    pub fn at(self, keys: [str]) int {
+        let node = 0
+        for i in 0..keys.len() {
+            node = self.field(node, keys[i])
+        }
+        return node
+    }
+
+    /**
+     * The elements of an array.
+     *
+     * @param node an array node
+     * @returns their nodes, in order: none when the node is not an array
+     */
+    pub fn elements(self, node: int) List<int> {
+        let out: List<int> = []
+        if node < 0 || self.nodes[node].kind != JsonKind.Array {
+            return out
+        }
+        let c = self.nodes[node].child
+        for c >= 0 {
+            out.push(c)
+            c = self.nodes[c].next
+        }
+        return out
+    }
+
+    /**
+     * The text of a string.
+     *
+     * @param node a node, or -1
+     * @returns the text: empty when the node is not a string
+     */
+    pub fn text(self, node: int) str {
+        if node < 0 || self.nodes[node].kind != JsonKind.String {
+            return ""
+        }
+        return self.nodes[node].text.clone()
+    }
+
+    /**
+     * The value of an integer.
+     *
+     * @param node a node, or -1
+     * @returns the integer: 0 when the node is not a number
+     */
+    pub fn int(self, node: int) int {
+        if node < 0 || self.nodes[node].kind != JsonKind.Number {
+            return 0
+        }
+        return digitsValue(self.nodes[node].text)
+    }
+
+    /**
+     * A value as JSON text, for an `id` sent back as it came.
+     *
+     * @param node a number or string node, or -1
+     * @returns the JSON text: `null` for other nodes
+     */
+    pub fn raw(self, node: int) str {
+        if node < 0 {
+            return "null"
+        }
+        if self.nodes[node].kind == JsonKind.Number {
+            return self.nodes[node].text.clone()
+        }
+        if self.nodes[node].kind == JsonKind.String {
+            return jsonString(self.nodes[node].text)
+        }
+        return "null"
+    }
+}
+
+/**
+ * Parses a JSON document.
+ *
+ * @param text the document
+ * @returns its tree, or `None` when it is not valid JSON
+ */
+pub fn parseJson(text: str) Option<JsonDoc> {
+    let p = JsonParser{text: text.toOwned(), pos: 0, doc: JsonDoc{nodes: []}, ok: true}
+    p.value("")
+    p.space()
+    if !p.ok || p.pos != p.text.len() {
+        return Option.None
+    }
+    return Option.Some(p.doc)
+}
+
+struct JsonParser {
+    text: str
+    pos: int
+    doc: JsonDoc
+    ok: bool
+
+    fn space(mut self) {
+        for self.pos < self.text.len() {
+            const b = self.text[self.pos]
+            if b != b' ' && b != b'\t' && b != b'\n' && b != b'\r' {
+                return
+            }
+            self.pos += 1
+        }
+    }
+
+    fn peek(self) u8 {
+        if self.pos < self.text.len() {
+            return self.text[self.pos]
+        }
+        return 0
+    }
+
+    fn add(mut self, kind: JsonKind, text: move str, key: str) int {
+        self.doc.nodes.push(JsonNode{kind, text, key: key.toOwned(), child: -1, next: -1})
+        return self.doc.nodes.len() - 1
+    }
+
+    // Parses a value; returns its node.
+    fn value(mut self, key: str) int {
+        self.space()
+        const b = self.peek()
+        if b == b'{' {
+            return self.object(key)
+        } else if b == b'[' {
+            return self.array(key)
+        } else if b == b'"' {
+            const s = self.string()
+            return self.add(JsonKind.String, s, key)
+        } else if b == b'-' || (b >= b'0' && b <= b'9') {
+            const start = self.pos
+            self.pos += 1
+            for self.pos < self.text.len() && numberByte(self.text[self.pos]) {
+                self.pos += 1
+            }
+            const digits = self.text.slice(start, self.pos).toOwned()
+            return self.add(JsonKind.Number, digits, key)
+        }
+        return self.word(key)
+    }
+
+    fn word(mut self, key: str) int {
+        const rest = self.text.sliceFrom(self.pos)
+        if rest.startsWith("true") || rest.startsWith("false") {
+            const n = if rest.startsWith("true") { 4 } else { 5 }
+            self.pos += n
+            return self.add(JsonKind.Bool, rest.slice(0, n).toOwned(), key)
+        } else if rest.startsWith("null") {
+            self.pos += 4
+            return self.add(JsonKind.Null, "", key)
+        }
+        self.ok = false
+        self.pos = self.text.len()
+        return self.add(JsonKind.Null, "", key)
+    }
+
+    fn array(mut self, key: str) int {
+        const node = self.add(JsonKind.Array, "", key)
+        self.pos += 1
+        self.space()
+        if self.peek() == b']' {
+            self.pos += 1
+            return node
+        }
+        let last = -1
+        for self.ok {
+            const item = self.value("")
+            self.link(node, last, item)
+            last = item
+            self.space()
+            if !self.close(b']') {
+                return node
+            }
+        }
+        return node
+    }
+
+    fn object(mut self, key: str) int {
+        const node = self.add(JsonKind.Object, "", key)
+        self.pos += 1
+        self.space()
+        if self.peek() == b'}' {
+            self.pos += 1
+            return node
+        }
+        let last = -1
+        for self.ok {
+            self.space()
+            if self.peek() != b'"' {
+                self.ok = false
+                return node
+            }
+            const name = self.string()
+            self.space()
+            if self.peek() != b':' {
+                self.ok = false
+                return node
+            }
+            self.pos += 1
+            const member = self.value(name)
+            self.link(node, last, member)
+            last = member
+            self.space()
+            if !self.close(b'}') {
+                return node
+            }
+        }
+        return node
+    }
+
+    // After an element: true when a `,` follows, false at `end` or an error.
+    fn close(mut self, end: u8) bool {
+        const b = self.peek()
+        if b == b',' {
+            self.pos += 1
+            return true
+        }
+        if b != end {
+            self.ok = false
+        }
+        self.pos += 1
+        return false
+    }
+
+    fn link(mut self, parent: int, last: int, node: int) {
+        if last < 0 {
+            self.doc.nodes[parent].child = node
+        } else {
+            self.doc.nodes[last].next = node
+        }
+    }
+
+    // A string literal at `pos`, decoded.
+    fn string(mut self) str {
+        let out = ""
+        self.pos += 1
+        let copied = self.pos
+        for self.pos < self.text.len() {
+            const b = self.text[self.pos]
+            if b == b'"' {
+                out.push(self.text.slice(copied, self.pos))
+                self.pos += 1
+                return out
+            }
+            if b == b'\\' {
+                out.push(self.text.slice(copied, self.pos))
+                self.escape(out)
+                copied = self.pos
+            } else {
+                self.pos += 1
+            }
+        }
+        self.ok = false
+        return out
+    }
+
+    // The escape at `pos`, a `\`, appended to `out`.
+    fn escape(mut self, out: mut str) {
+        if self.pos + 1 >= self.text.len() {
+            self.ok = false
+            self.pos = self.text.len()
+            return
+        }
+        const e = self.text[self.pos + 1]
+        self.pos += 2
+        if e == b'n' {
+            out.push("\n")
+        } else if e == b't' {
+            out.push("\t")
+        } else if e == b'r' {
+            out.push("\r")
+        } else if e == b'b' {
+            out.pushChar(8)
+        } else if e == b'f' {
+            out.pushChar(12)
+        } else if e == b'u' {
+            self.unicode(out)
+        } else if e == b'"' || e == b'\\' || e == b'/' {
+            out.pushChar(e as u32)
+        } else {
+            self.ok = false
+        }
+    }
+
+    // `\uXXXX`, with `pos` after the `u`; a surrogate pair is one character.
+    fn unicode(mut self, out: mut str) {
+        let c = self.hex4()
+        if c >= 0xD800 && c < 0xDC00 && self.text.sliceFrom(self.pos).startsWith("\\u") {
+            self.pos += 2
+            const low = self.hex4()
+            if low >= 0xDC00 && low < 0xE000 {
+                c = 0x10000 + (c - 0xD800) * 0x400 + (low - 0xDC00)
+            } else {
+                c = 0xFFFD
+            }
+        }
+        if c >= 0xD800 && c < 0xE000 {
+            c = 0xFFFD   // an unpaired surrogate
+        }
+        if self.ok {
+            out.pushChar(c as u32)
+        }
+    }
+
+    fn hex4(mut self) int {
+        if self.pos + 4 > self.text.len() {
+            self.ok = false
+            self.pos = self.text.len()
+            return 0
+        }
+        let v = 0
+        for i in 0..4 {
+            const d = hexDigit(self.text[self.pos + i])
+            if d < 0 {
+                self.ok = false
+            }
+            v = v * 16 + d
+        }
+        self.pos += 4
+        return v
+    }
+}
+
+fn numberByte(b: u8) bool {
+    return (b >= b'0' && b <= b'9') || b == b'.' || b == b'e' || b == b'E' || b == b'+' ||
+           b == b'-'
+}
+
+fn hexDigit(b: u8) int {
+    if b >= b'0' && b <= b'9' {
+        return (b - b'0') as int
+    } else if b >= b'a' && b <= b'f' {
+        return (b - b'a') as int + 10
+    } else if b >= b'A' && b <= b'F' {
+        return (b - b'A') as int + 10
+    }
+    return -1
+}
+
+// The integer part of a JSON number, saturated rather than overflowing.
+fn digitsValue(text: str) int {
+    let v = 0
+    let i = 0
+    const negative = text.len() > 0 && text[0] == b'-'
+    if negative {
+        i = 1
+    }
+    for i < text.len() && text[i] >= b'0' && text[i] <= b'9' {
+        if v < 100000000000000000 {
+            v = v * 10 + (text[i] - b'0') as int
+        }
+        i += 1
+    }
+    return if negative { -v } else { v }
+}
