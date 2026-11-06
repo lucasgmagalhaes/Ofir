@@ -43,6 +43,7 @@ extern "intrinsic" {
  * ```
  */
 @lang("list")
+@threadsafe
 pub struct List<T> {
     ptr: *mut T
     len: int
