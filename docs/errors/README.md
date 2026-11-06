@@ -87,7 +87,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0304 | cannot assign twice to immutable variable `x` | stage 0 |
 | E0305 | unused `Result` that must be used | stage 0 |
 | E0306 | unknown, duplicate or misplaced named argument | stage 1 |
-| E0307 | the `else` block of `let ... else` must not fall through | stage 0 |
+| E0307 | the `else` block of `const ... else` must not fall through | stage 0 |
 | E0308 | missing value for a field or parameter without a default | stage 0 |
 | E0309 | `break` or `continue` outside of a loop | stage 0 |
 | E0310 | expected a value, found type `T` (or a type, found value `x`) | stage 0 |
@@ -132,7 +132,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0359 | a default value must be a constant expression, `[]` or a call to an associated function without arguments (spec 3.3) | stage 1 |
 | E0360 | the closure captures a value that is not `Send` (a `move` closure) or not `Sync` (a borrowing one), so it cannot be a `+ Send` function (spec 14.3) | stage 1 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
-| E0501 | refutable pattern in `let` | stage 0 |
+| E0501 | refutable pattern in `const` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
 | E0601 | use of possibly uninitialized variable `x` | stage 0 |
 | E0602 | cannot move out of a borrowed or indexed place | stage 0 |
