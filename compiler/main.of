@@ -91,11 +91,11 @@ struct Options {
 }
 
 fn parseOptions(args: &List<str>) Option<Options> {
-    var opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
+    let opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
                        stopAfter: "", release: false, debugInfo: false, deny: false,
                        format: Format.Human}
-    var hasInput = false
-    var i = 2
+    let hasInput = false
+    let i = 2
     for i < args.len() {
         const arg = args[i].clone()
         if arg.startsWith("-") {
@@ -170,7 +170,7 @@ fn main() {
         os.exit(explain(args[2]))
     }
     if command == "fmt" {
-        var rest: List<str> = []
+        let rest: List<str> = []
         for i in 2..args.len() {
             rest.push(args[i].clone())
         }
@@ -230,10 +230,10 @@ fn driverError(format: Format, code: str, message: str) {
 // Runs the phases in order, then the program or its tests. Returns the
 // exit status.
 fn build(given: move Options) int {
-    var opts = given
+    let opts = given
     opts.input = testRoot(&opts)
-    var pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
-    var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
+    let pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
+    let front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
     front.diags.denyWarnings = opts.deny
     const Option.Some(file) = front.load(opts.input) else {
         driverError(opts.format, "E0900", "cannot read `{opts.input}`")
@@ -263,11 +263,11 @@ fn build(given: move Options) int {
     const benching = opts.command == "bench"
     const target = CfgTarget{os: os.name(), arch: os.arch(), debug: !opts.release, test: testing,
                              bench: benching}
-    var program = loadProgram(opts.input, parsed.module, front, target)
+    let program = loadProgram(opts.input, parsed.module, front, target)
     if front.diags.hasErrors() {
         return finish(front.diags, front.map, &pipeline)
     }
-    var r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
+    let r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
                            testing || benching, benching)
     if opts.emit == "names" {
         print(r.trace.out)
@@ -277,7 +277,7 @@ fn build(given: move Options) int {
         return finish(r.diags, r.map, &pipeline)
     }
     desugarInterfaceParams(program, r)
-    var c = checkProgram(program, r)
+    let c = checkProgram(program, r)
     if opts.emit == "types" {
         print(traceTypes(c, program))
         return finish(c.r.diags, c.r.map, &pipeline)
@@ -297,7 +297,7 @@ fn build(given: move Options) int {
 // LLVM IR and links it with clang. Returns false if a step failed.
 fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     const opts = pipeline.opts.clone()
-    var l = lowerProgram(c, program)
+    let l = lowerProgram(c, program)
     if l.unsupported {
         driverError(opts.format, "E0901", "stage 1 does not compile {l.missing} yet")
         return false
@@ -310,7 +310,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
         pipeline.tests.push("{c.r.moduleNames[def.module]}.{c.text(def.name)}")
     }
     if opts.emit == "air" {
-        var printer = AirPrinter{out: ""}
+        let printer = AirPrinter{out: ""}
         for i in 0..l.out.len() {
             printer.body(c, &l.out[i])
         }
@@ -346,13 +346,13 @@ fn outputPath(opts: &Options) str {
         return output.clone()
     }
     const input = opts.input.clone()
-    var slash = -1
+    let slash = -1
     for i in 0..input.len() {
         if input[i] == b'/' {
             slash = i
         }
     }
-    var base = input.sliceFrom(slash + 1).toOwned()
+    let base = input.sliceFrom(slash + 1).toOwned()
     if base.len() > 3 && base.endsWith(".of") {
         base = base.slice(0, base.len() - 3).toOwned()
     }
@@ -363,7 +363,7 @@ fn outputPath(opts: &Options) str {
         Result.Ok(path) => path
         Result.Err(_) => input.clone()
     }
-    var name = ""
+    let name = ""
     for i in 0..full.len() {
         const b = full[i]
         const letter = (b >= b'a' && b <= b'z') || (b >= b'A' && b <= b'Z')
@@ -402,7 +402,7 @@ fn runtimeLibrary() Option<str> {
     const Result.Ok(exe) = os.executablePath() else {
         return Option.None
     }
-    var slash = -1
+    let slash = -1
     for i in 0..exe.len() {
         if exe[i] == b'/' {
             slash = i
@@ -427,14 +427,14 @@ fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
         driverError(opts.format, "E0902", message)
         return false
     }
-    var clang = "clang".toOwned()
+    let clang = "clang".toOwned()
     if const Option.Some(name) = os.env("OFIR_CLANG") {
         if name.len() > 0 {
             clang = name
         }
     }
     const level = if opts.release { "-O2" } else { "-O0" }
-    var args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime]
+    let args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime]
     for i in 0..libraries.len() {
         args.push("-l{libraries[i]}")
     }
@@ -485,7 +485,7 @@ fn runProgram(exe: str, args: [str]) int {
 // Each test runs in its own process: the program runs the test whose
 // index it is given.
 fn runTests(exe: str, tests: &List<str>) int {
-    var failed = 0
+    let failed = 0
     for i in 0..tests.len() {
         print("test {tests[i]} ... ")
         const status = runProgram(exe, ["{i}"])
@@ -503,7 +503,7 @@ fn runTests(exe: str, tests: &List<str>) int {
 // `ofir bench` (spec 12.3): each benchmark in its own process, which prints
 // its time.
 fn runBenches(exe: str, benches: &List<str>) int {
-    var failed = 0
+    let failed = 0
     for i in 0..benches.len() {
         print("bench {benches[i]} ... ")
         const status = runProgram(exe, ["{i}"])
@@ -525,7 +525,7 @@ fn finish(diags: Diagnostics, map: SourceMap, pipeline: &Pipeline) int {
     if pipeline.exe.len() == 0 {
         return 0
     }
-    var status = 0
+    let status = 0
     if pipeline.opts.command == "run" {
         const empty: List<str> = []
         status = runProgram(pipeline.exe, empty)
