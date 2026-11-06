@@ -275,7 +275,7 @@ fn build(given: move Options) int {
         return finish(front.diags, front.map, &pipeline)
     }
     let r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
-                           testing || benching, benching)
+                           testing || benching, benching, false)
     if opts.emit == "names" {
         print(r.trace.out)
         return finish(r.diags, r.map, &pipeline)
