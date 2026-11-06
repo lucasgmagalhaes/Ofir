@@ -23,7 +23,6 @@ static const struct {
     {SV_INIT("return"), TOK_KW_RETURN}, {SV_INIT("self"), TOK_KW_SELF_VALUE},
     {SV_INIT("Self"), TOK_KW_SELF_TYPE}, {SV_INIT("struct"), TOK_KW_STRUCT},
     {SV_INIT("true"), TOK_KW_TRUE}, {SV_INIT("unsafe"), TOK_KW_UNSAFE},
-    {SV_INIT("var"), TOK_KW_VAR},
 };
 
 void intern_keywords(Interner *names) {

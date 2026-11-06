@@ -25,7 +25,6 @@
     X(KW_LET, "let") X(KW_MATCH, "match") X(KW_MUT, "mut") X(KW_PUB, "pub")   \
     X(KW_RETURN, "return") X(KW_SELF_VALUE, "self") X(KW_SELF_TYPE, "Self")   \
     X(KW_STRUCT, "struct") X(KW_TRUE, "true") X(KW_UNSAFE, "unsafe")          \
-    X(KW_VAR, "var")                                                          \
     /* punctuation; `>` is never combined (spec 1.6) */                       \
     X(LPAREN, "(") X(RPAREN, ")") X(LBRACE, "{") X(RBRACE, "}")               \
     X(LBRACKET, "[") X(RBRACKET, "]") X(COMMA, ",") X(COLON, ":")             \
