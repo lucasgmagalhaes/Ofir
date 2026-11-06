@@ -162,17 +162,23 @@ fn bracketType(p: mut Parser, start: Span) TypeExpr {
     return newType(p, TypeKind.Slice(elem), start)
 }
 
-// `()`, `(T,)`, `(A, B)`; the `(` is next.
+// `()`, `(T,)`, `(A, B)`, or `(T)`, which is `T` (`(A | B)` in a type
+// test, spec 17.4); the `(` is next.
 fn tupleType(p: mut Parser, start: Span) TypeExpr {
     p.advance()
     var elems: List<TypeExpr> = []
+    var comma = false
     for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
         elems.push(parseType(p))
-        if !p.accept(TokenKind.Comma) {
+        comma = p.accept(TokenKind.Comma)
+        if !comma {
             break
         }
     }
     p.expect(TokenKind.RParen, "`)` to close the tuple type")
+    if elems.len() == 1 && !comma {
+        return elems.remove(0)
+    }
     return newType(p, TypeKind.Tuple(elems), start)
 }
 
