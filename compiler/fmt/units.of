@@ -1,0 +1,142 @@
+/**
+ * @module
+ * The units `ofir fmt` lays out: the tokens of a file and the comments
+ * between them, each with the layout it had in the source.
+ *
+ * A string with interpolations is one unit, from its `StrStart` to its
+ * `StrEnd`, and is copied as written. Newline tokens are dropped: the
+ * formatter reads the line breaks from the source instead.
+ */
+
+import syntax.token.Token
+import syntax.token.TokenKind
+
+/** What a unit is. */
+pub copy enum UnitKind {
+    Code
+    LineComment
+    BlockComment
+}
+
+/** A token or a comment of the source. */
+pub copy struct Unit {
+    /** A token, or one of the two kinds of comments. */
+    pub kind: UnitKind
+    /** The token's kind; `Str` for a whole interpolated string. */
+    pub tok: TokenKind
+    /** The byte offset of the first byte in the source. */
+    pub start: int
+    /** The byte offset after the last byte. */
+    pub end: int
+    /** The newlines between the unit and the one before it. */
+    pub breaks: int
+    /** The spaces before the unit on its line: its indentation at a line start. */
+    pub space: int
+}
+
+/**
+ * The units of a file, in source order.
+ *
+ * @param src the text of the file
+ * @param tokens its tokens, ending with `Eof`
+ * @returns the units
+ */
+pub fn units(src: str, tokens: List<Token>) List<Unit> {
+    var out: List<Unit> = []
+    var gap = Gap{}
+    var i = 0
+    for i < tokens.len() && tokens[i].kind != TokenKind.Eof {
+        let t = &tokens[i]
+        if t.kind == TokenKind.Newline {
+            i += 1
+            continue
+        }
+        gap.scan(src, t.span.start, out)
+        var end = t.span.end
+        var kind = t.kind
+        if t.kind == TokenKind.StrStart {
+            i = stringEnd(tokens, i)
+            end = tokens[i].span.end
+            kind = TokenKind.Str
+        }
+        out.push(gap.unit(UnitKind.Code, kind, t.span.start, end))
+        gap.pos = end
+        i += 1
+    }
+    gap.scan(src, src.len(), out)
+    return out
+}
+
+// The index of the `StrEnd` that closes the `StrStart` at `i`.
+fn stringEnd(tokens: List<Token>, i: int) int {
+    var depth = 0
+    var j = i
+    for j < tokens.len() {
+        let kind = tokens[j].kind
+        if kind == TokenKind.StrStart {
+            depth += 1
+        } else if kind == TokenKind.StrEnd {
+            depth -= 1
+            if depth == 0 {
+                return j
+            }
+        } else if kind == TokenKind.Eof {
+            return j - 1
+        }
+        j += 1
+    }
+    return tokens.len() - 1
+}
+
+// Whether `*/` starts at `pos`.
+fn closes(src: str, pos: int, end: int) bool {
+    return pos + 1 < end && src[pos] == b'*' && src[pos + 1] == b'/'
+}
+
+// The whitespace and comments between two tokens.
+struct Gap {
+    pos: int = 0
+    breaks: int = 0
+    space: int = 0
+
+    fn unit(mut self, kind: UnitKind, tok: TokenKind, start: int, end: int) Unit {
+        let u = Unit{kind, tok, start, end, breaks: self.breaks, space: self.space}
+        self.breaks = 0
+        self.space = 0
+        return u
+    }
+
+    // Reads the source from `pos` up to `end`, pushing its comments.
+    fn scan(mut self, src: str, end: int, out: mut List<Unit>) {
+        for self.pos < end {
+            let c = src[self.pos]
+            let next = if self.pos + 1 < end { src[self.pos + 1] } else { b' ' }
+            if c == b'\n' {
+                self.breaks += 1
+                self.space = 0
+                self.pos += 1
+            } else if c == b'/' && next == b'/' {
+                let start = self.pos
+                for self.pos < end && src[self.pos] != b'\n' {
+                    self.pos += 1
+                }
+                let comment = self.unit(UnitKind.LineComment, TokenKind.Invalid, start, self.pos)
+                out.push(comment)
+            } else if c == b'/' && next == b'*' {
+                let start = self.pos
+                self.pos += 2
+                for self.pos < end && !closes(src, self.pos, end) {
+                    self.pos += 1
+                }
+                self.pos = if self.pos < end { self.pos + 2 } else { end }
+                let comment = self.unit(UnitKind.BlockComment, TokenKind.Invalid, start, self.pos)
+                out.push(comment)
+            } else {
+                if c != b'\r' {
+                    self.space += 1
+                }
+                self.pos += 1
+            }
+        }
+    }
+}
