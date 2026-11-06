@@ -113,9 +113,9 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0337 | `x` is captured by a `move` closure: captured values are immutable (spec 10.3) | stage 1 |
 | E0338 | `dyn I` is not allowed: a method of `I` without a body takes `self` by value, is generic or mentions `Self` (spec 9.7) | stage 1 |
 | E0339 | method `m` cannot be called through `dyn I` (spec 9.7) | stage 1 |
-| E0340 | `keyof` needs a struct or tuple type (spec 16) | planned |
-| E0341 | `T` has no field `.k` (spec 16) | planned |
-| E0342 | the fields of these keys have different types (spec 16) | planned |
+| E0340 | `keyof` and `T[K]` need a struct or tuple type; `&`, `-` and `[K]` need key types (spec 16) | stage 1 |
+| E0341 | `T` has no field `.k` (spec 16) | stage 1 |
+| E0342 | the fields of these keys have different types (spec 16) | stage 1 |
 | E0343 | a key must be known at compile time (spec 16) | planned |
 | E0344 | the condition of a conditional type is not decided for this instantiation (spec 16) | planned |
 | E0350 | the members `A` and `B` of a union can be the same type (spec 17) | planned |

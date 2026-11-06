@@ -16,6 +16,9 @@ import sema.check.noGenerics
 import sema.check.typeGenerics
 import sema.check.typeGenericsOf
 import sema.check_generic.checkBounds
+import sema.check_keys.indexType
+import sema.check_keys.keyOpType
+import sema.check_keys.keyofType
 import sema.check_ref.checkInstanceStorable
 import sema.def.DefKind
 import sema.interfaces.dynIncompatible
@@ -370,9 +373,10 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
         TypeKind.Never => NEVER
         TypeKind.Dyn(inner) => dynType(c, p, &*inner, t.span)
         TypeKind.Optional(_) => c.unsupported(t.span, "optional types (`T?`) are")
-        TypeKind.KeyOf(_) | TypeKind.Key(_) | TypeKind.KeyOp(_, _, _) | TypeKind.Index(_, _) => {
-            c.unsupported(t.span, "key types are")
-        }
+        TypeKind.KeyOf(inner) => keyofType(c, p, &*inner, t.span)
+        TypeKind.Key(name) => c.types.keys([name.0])
+        TypeKind.KeyOp(op, left, right) => keyOpType(c, p, op, &*left, &*right, t.span)
+        TypeKind.Index(base, key) => indexType(c, p, &*base, &*key, t.span)
     }
 }
 

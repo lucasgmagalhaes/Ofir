@@ -45,6 +45,12 @@ pub copy enum TyKind {
     Param
     /** `dyn I`; `data` is the interface's `DefId`, `args` its type arguments. */
     Dyn
+    /**
+     * A key type (spec 16.1). A single key has its name's symbol in `data`;
+     * any other set has `data` -1 and its single keys in `args`, ordered by
+     * symbol.
+     */
+    Key
 }
 
 /**
@@ -291,6 +297,54 @@ pub struct TypeTable {
     }
 
     /**
+     * The key type of a set of names: the single key for one name.
+     *
+     * @param names the names' symbols, in any order, maybe repeated
+     * @returns the type
+     */
+    pub fn keys(mut self, names: [int]) int {
+        var sorted: List<int> = []
+        for i in 0..names.len() {
+            var at = 0
+            for at < sorted.len() && sorted[at] < names[i] {
+                at += 1
+            }
+            if at == sorted.len() {
+                sorted.push(names[i])
+            } else if sorted[at] != names[i] {
+                sorted.insert(at, names[i])
+            }
+        }
+        if sorted.len() == 1 {
+            return self.intern(TyKind.Key, sorted[0], 0, [])
+        }
+        var singles: List<int> = []
+        for i in 0..sorted.len() {
+            singles.push(self.intern(TyKind.Key, sorted[i], 0, []))
+        }
+        return self.intern(TyKind.Key, -1, 0, singles)
+    }
+
+    /**
+     * The names of a key type.
+     *
+     * @param ty a key type
+     * @returns their symbols, ordered
+     */
+    pub fn keyNames(self, ty: int) List<int> {
+        let t = &self.types[ty]
+        var names: List<int> = []
+        if t.data >= 0 {
+            names.push(t.data)
+        } else {
+            for i in 0..t.args.len() {
+                names.push(self.types[t.args[i]].data)
+            }
+        }
+        return names
+    }
+
+    /**
      * Whether a type is a pointer to a `dyn` value: a fat pointer.
      *
      * @param ty a type
@@ -409,6 +463,7 @@ pub fn kindNumber(kind: TyKind) int {
         TyKind.Adt => 13
         TyKind.Param => 14
         TyKind.Dyn => 15
+        TyKind.Key => 16
     }
 }
 

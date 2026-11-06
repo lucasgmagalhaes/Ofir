@@ -1,0 +1,223 @@
+/**
+ * @module
+ * Key types (spec 16.1-16.3): `keyof T`, the key operators and indexed
+ * access types `T[K]` (stage 1 only).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.check.Checker
+import sema.check_methods.checkVisible
+import sema.check_types.resolveType
+import sema.program.Program
+import sema.struct_exprs.fieldIsPub
+import sema.struct_exprs.structDef
+import sema.structs.fieldIndex
+import sema.structs.fieldsOf
+import sema.structs.structFieldType
+import sema.structs.structFields
+import sema.types.ERROR
+import sema.types.TyKind
+import syntax.ast.Op
+import syntax.ast.TypeExpr
+
+/**
+ * `keyof T`: the names of the fields of a struct, or a tuple's indices.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param inner `T`
+ * @param span the whole type, for errors
+ * @returns the key type
+ */
+pub fn keyofType(c: mut Checker, p: Program, inner: &TypeExpr, span: Span) int {
+    let ty = resolveType(c, p, inner)
+    let kind = c.types.kind(ty)
+    if ty == ERROR {
+        return ERROR
+    }
+    if kind == TyKind.Param {
+        return c.unsupported(span, "`keyof` of a type parameter is")
+    }
+    if kind == TyKind.Tuple {
+        return indexKeys(c, c.types.get(ty).args.len())
+    }
+    let id = if kind == TyKind.Adt { structDef(c, ty) } else { 0 }
+    if id == 0 {
+        c.error("E0340", span, "`keyof` needs a struct or tuple type, found `{c.typeName(ty)}`")
+        return ERROR
+    }
+    if !structFields(c, p, id) {
+        return c.unsupported(span, "`keyof` of a struct in its own fields is")
+    }
+    if fieldsOf(c, id).isTuple {
+        return indexKeys(c, fieldsOf(c, id).types.len())
+    }
+    let inside = c.def(id).module == c.module()
+    var names: List<int> = []
+    for i in 0..fieldsOf(c, id).names.len() {
+        if inside || fieldIsPub(c, p, id, i) {
+            names.push(fieldsOf(c, id).names[i].0)
+        }
+    }
+    return c.types.keys(names)
+}
+
+// The keys `.0` to `.(count - 1)`.
+fn indexKeys(c: mut Checker, count: int) int {
+    var names: List<int> = []
+    for i in 0..count {
+        names.push(c.r.names.intern("{i}").0)
+    }
+    return c.types.keys(names)
+}
+
+/**
+ * `A | B`, `A & B` or `A - B`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param op the operator
+ * @param left `A`
+ * @param right `B`
+ * @param span the whole type, for errors
+ * @returns the key type
+ */
+pub fn keyOpType(c: mut Checker, p: Program, op: Op, left: &TypeExpr, right: &TypeExpr,
+                 span: Span) int {
+    let a = resolveType(c, p, left)
+    let b = resolveType(c, p, right)
+    if a == ERROR || b == ERROR {
+        return ERROR
+    }
+    let keysA = c.types.kind(a) == TyKind.Key
+    let keysB = c.types.kind(b) == TyKind.Key
+    if !keysA || !keysB {
+        if op == Op.Or {
+            return c.unsupported(span, "union types are")
+        }
+        let found = if keysA { b } else { a }
+        let symbol = if op == Op.And { "&" } else { "-" }
+        c.error("E0340", span, "`{symbol}` needs key types, found `{c.typeName(found)}`")
+        return ERROR
+    }
+    let namesA = c.types.keyNames(a)
+    let namesB = c.types.keyNames(b)
+    var names: List<int> = []
+    if op == Op.Or {
+        names = namesA.clone()
+        for i in 0..namesB.len() {
+            names.push(namesB[i])
+        }
+    } else {
+        for i in 0..namesA.len() {
+            if contains(&namesB, namesA[i]) == (op == Op.And) {
+                names.push(namesA[i])
+            }
+        }
+    }
+    return c.types.keys(names)
+}
+
+fn contains(names: &List<int>, name: int) bool {
+    for i in 0..names.len() {
+        if names[i] == name {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * `T[K]`: the type of the fields `K` of `T`, which must all be the same.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param baseExpr `T`
+ * @param keyExpr `K`
+ * @param span the whole type, for errors
+ * @returns the field type
+ */
+pub fn indexType(c: mut Checker, p: Program, baseExpr: &TypeExpr, keyExpr: &TypeExpr,
+                 span: Span) int {
+    let base = resolveType(c, p, baseExpr)
+    let key = resolveType(c, p, keyExpr)
+    if base == ERROR || key == ERROR {
+        return ERROR
+    }
+    if c.types.kind(key) != TyKind.Key {
+        c.error("E0340", keyExpr.span, "an indexed access type needs a key type, "
+                + "found `{c.typeName(key)}`")
+        return ERROR
+    }
+    if c.types.kind(base) == TyKind.Param {
+        return c.unsupported(span, "indexing a type parameter is")
+    }
+    let names = c.types.keyNames(key)
+    if names.len() == 0 {
+        c.error("E0341", keyExpr.span, "`{c.typeName(base)}` has no field for the empty key "
+                + "type `keyof ()`")
+        return ERROR
+    }
+    var result = ERROR
+    for i in 0..names.len() {
+        let field = fieldType(c, p, base, names[i], keyExpr.span)
+        if field == ERROR {
+            return ERROR
+        }
+        if i > 0 && field != result {
+            c.error("E0342", span, "the fields of these keys have different types: "
+                    + "`{c.typeName(result)}` and `{c.typeName(field)}`")
+            return ERROR
+        }
+        result = field
+    }
+    return result
+}
+
+// The type of field `name` of `base`, or ERROR after an error.
+fn fieldType(c: mut Checker, p: Program, base: int, name: int, span: Span) int {
+    if c.types.kind(base) == TyKind.Tuple {
+        let count = c.types.get(base).args.len()
+        let index = tupleIndex(c, count, name)
+        if index >= 0 {
+            return c.types.get(base).args[index]
+        }
+        return noField(c, base, name, span)
+    }
+    let isAdt = c.types.kind(base) == TyKind.Adt
+    let id = if isAdt { structDef(c, base) } else { 0 }
+    if id == 0 {
+        c.error("E0340", span, "an indexed access type needs a struct or tuple type, "
+                + "found `{c.typeName(base)}`")
+        return ERROR
+    }
+    if !structFields(c, p, id) {
+        return c.unsupported(span, "indexing a struct in its own fields is")
+    }
+    let index = if fieldsOf(c, id).isTuple {
+        tupleIndex(c, fieldsOf(c, id).types.len(), name)
+    } else {
+        fieldIndex(fieldsOf(c, id), Symbol(name))
+    }
+    if index < 0 {
+        return noField(c, base, name, span)
+    }
+    checkVisible(c, c.def(id).module, fieldIsPub(c, p, id, index), Symbol(name), span)
+    return structFieldType(c, p, base, index)
+}
+
+// The index of the key `name` among `.0` to `.(count - 1)`, or -1.
+fn tupleIndex(c: mut Checker, count: int, name: int) int {
+    for i in 0..count {
+        if c.r.names.intern("{i}").0 == name {
+            return i
+        }
+    }
+    return -1
+}
+
+fn noField(c: mut Checker, base: int, name: int, span: Span) int {
+    c.error("E0341", span, "`{c.typeName(base)}` has no field `.{c.text(Symbol(name))}`")
+    return ERROR
+}

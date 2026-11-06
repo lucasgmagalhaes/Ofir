@@ -392,6 +392,22 @@ fn leadingNumber(text: str) u64 {
     return value
 }
 
+// `[.name]` or `[.0]`: a single key literal as the index (spec 16.2).
+fn atKeyIndex(p: Parser) bool {
+    let key = p.peekAt(2)
+    return p.peekAt(1) == TokenKind.Dot && (key == TokenKind.Ident || key == TokenKind.Int) &&
+           p.peekAt(3) == TokenKind.RBracket
+}
+
+// `a[.name]` is the field `a.name`, and `a[.0]` is `a.0`.
+fn keyIndex(p: mut Parser, base: move Expr) Expr {
+    p.advance()
+    p.advance()
+    let e = member(p, base)
+    p.advance()
+    return e
+}
+
 fn postfixOnce(p: mut Parser, base: move Expr) (Expr, bool) {
     let start = base.span
     return match p.peek() {
@@ -401,6 +417,9 @@ fn postfixOnce(p: mut Parser, base: move Expr) (Expr, bool) {
             (newExpr(p, ExprKind.Call(Box.new(base), args), start), true)
         }
         TokenKind.LBracket => {
+            if atKeyIndex(p) {
+                return (keyIndex(p, base), true)
+            }
             p.advance()
             let index = parseExpr(p)
             p.expect(TokenKind.RBracket, "`]` after the index")

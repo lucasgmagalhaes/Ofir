@@ -712,6 +712,16 @@ pub struct Checker {
                 }
             }
             TyKind.Param => out.push(self.paramText(Symbol(t.inner)))
+            TyKind.Key => {
+                let names = self.types.keyNames(ty)
+                if names.len() == 0 {
+                    out.push("keyof ()")
+                }
+                for i in 0..names.len() {
+                    out.push(if i > 0 { " | ." } else { "." })
+                    out.push(self.text(Symbol(names[i])))
+                }
+            }
         }
     }
 }
