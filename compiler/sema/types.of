@@ -112,6 +112,8 @@ pub const BUILTIN_COUNT: int = 15
 pub const FN_BORROWED: int = 1
 /** `data` of a written `move fn(A) R`: an owned function value. */
 pub const FN_OWNED: int = 2
+/** Added to `data` by `+ Send`: the function value may move to another task (spec 14.3). */
+pub const FN_SEND: int = 4
 
 /**
  * The fields of a struct, for `keyof T` and `T[K]` after substitution.
@@ -298,6 +300,19 @@ pub struct TypeTable {
      */
     pub fn fnValueType(mut self, params: [int], ret: int, owned: bool) int {
         return self.intern(TyKind.Fn, if owned { FN_OWNED } else { FN_BORROWED }, ret, params)
+    }
+
+    /**
+     * A function value type with `data` given: `FN_BORROWED` or `FN_OWNED`,
+     * plus `FN_SEND` for `+ Send`.
+     *
+     * @param params its parameters
+     * @param ret its result
+     * @param data its `data`
+     * @returns the type
+     */
+    pub fn fnValueTypeWith(mut self, params: [int], ret: int, data: int) int {
+        return self.intern(TyKind.Fn, data, ret, params)
     }
 
     /**
