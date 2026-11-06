@@ -117,6 +117,12 @@ const uint8_t *ofir_env(const uint8_t *name, int64_t len, int64_t *value_len);  
 _Noreturn void ofir_exit(int64_t code);
 int64_t ofir_test_index(void);   // the test `ofir test` asked for, or -1
 int64_t ofir_now_ns(void);       // a monotonic clock, in nanoseconds
+
+// Tasks (task.c, spec 14.2): std.task defines ofir_task_entry.
+void *ofir_task_spawn(void *job);   // starts a thread that runs the job
+void ofir_task_join(void *thread);  // waits for it and frees the handle
+void ofir_tasks_started(void);      // from now on stdout takes a lock
+void ofir_stdout_publish(void);     // this thread's pending line to the buffer
 int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run);
 char *ofir_c_string(const uint8_t *ptr, int64_t len);   // NULL if it holds a NUL
 
