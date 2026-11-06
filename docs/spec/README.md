@@ -43,7 +43,7 @@ Related: the [standard library reference](../std/README.md) and the
 3. **No hidden control flow.** No exceptions, no implicit allocations behind
    operators other than those documented, no garbage collector.
 4. **No null.** Absence is expressed with `Option<T>`.
-5. **Explicit mutability.** Bindings are immutable unless declared with `var`.
+5. **Explicit mutability.** Bindings are immutable unless declared with `let`.
 6. **Readable errors.** Every compile error points to a line and column and
    explains how to fix it.
 

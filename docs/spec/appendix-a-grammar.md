@@ -83,7 +83,7 @@ IfaceMember   = TypeRef NL                                 (* embedding *)
                 ( Block | NL ) .                           (* default body optional *)
 
 ConstDecl     = "const" identifier [ ":" Type ] "=" Expr NL .
-GlobalDecl    = "var" identifier ":" Type "=" Expr NL .
+GlobalDecl    = "let" identifier ":" Type "=" Expr NL .
 TypeAlias     = "type" identifier [ TypeParams ] "=" Type NL .
 
 ExternBlock   = "extern" string_lit "{" { { Attribute } FnSignature NL } "}" .
@@ -141,8 +141,8 @@ Type          = ...
 
 ```ebnf
 Block         = "{" { Statement } "}" .
-Statement     = ( LetStmt
-                | VarStmt
+Statement     = ( ConstStmt
+                | LetStmt
                 | ConstDecl
                 | AssignStmt
                 | ForStmt
@@ -151,8 +151,8 @@ Statement     = ( LetStmt
                 | "continue"
                 | ExprStmt ) [ NL ] .
 
-LetStmt       = "let" Pattern [ ":" Type ] "=" Expr [ "else" Block ] .
-VarStmt       = "var" identifier [ ":" Type ] [ "=" Expr ] .
+ConstStmt     = "const" Pattern [ ":" Type ] "=" Expr [ "else" Block ] .
+LetStmt       = "let" identifier [ ":" Type ] [ "=" Expr ] .
 AssignStmt    = Expr AssignOp Expr .
 AssignOp      = "=" | "+=" | "-=" | "*=" | "/=" | "%="
               | "&=" | "|=" | "^=" | "<<=" | ">>=" .
@@ -210,7 +210,7 @@ FieldInit     = identifier [ ":" Expr ] .          (* `x` is short for `x: x` *)
 Sep           = "," | NL .
 
 IfExpr        = "if" Cond Block [ "else" ( IfExpr | Block ) ] .
-Cond          = Expr | "let" Pattern "=" Expr .
+Cond          = Expr | "const" Pattern "=" Expr .
 MatchExpr     = "match" Expr "{" { MatchArm } "}" .
 MatchArm      = Pattern [ "if" Expr ] "=>" ( Expr | Block ) ( "," | NL ) .
 
@@ -248,11 +248,11 @@ FieldPat      = identifier [ ":" Pattern ] .
 
 ## A.8 Rules not expressed by the grammar
 
-- `var x` must have a type, a value, or both (`var x: int`, `var x = 0`).
+- `let x` must have a type, a value, or both (`let x: int`, `let x = 0`).
 - A closure is recognized by bounded lookahead (chapter 10.1): an
   identifier followed by `=>`, or `( ... )` followed by `=>` or by a type
   and `=>`. In a `match` guard, a closure is written in parentheses.
-- A `let` pattern must be irrefutable (it cannot fail to match).
+- A `const` pattern must be irrefutable (it cannot fail to match).
 - `Variant = int_lit` (explicit discriminant) is allowed only in enums with
   no payloads; values must be distinct. With `@repr(C)`, they define the C
   enum values.
