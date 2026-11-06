@@ -59,7 +59,7 @@ pub fn parseMode(p: mut Parser) Mode {
  * @returns the types
  */
 pub fn parseTypeArgs(p: mut Parser) List<TypeExpr> {
-    var args: List<TypeExpr> = []
+    let args: List<TypeExpr> = []
     p.skipNewlines()
     for !p.at(TokenKind.Gt) && !p.at(TokenKind.Eof) {
         args.push(parseType(p))
@@ -80,7 +80,7 @@ pub fn parseTypeArgs(p: mut Parser) List<TypeExpr> {
  * @returns them
  */
 pub fn parseBounds(p: mut Parser) List<TypeExpr> {
-    var bounds = [parseType(p)]
+    let bounds = [parseType(p)]
     for p.accept(TokenKind.Plus) {
         bounds.push(parseType(p))
     }
@@ -95,7 +95,7 @@ pub fn parseBounds(p: mut Parser) List<TypeExpr> {
  * @returns their names
  */
 pub fn parseTypeParams(p: mut Parser, preds: mut List<WherePred>) List<Symbol> {
-    var params: List<Symbol> = []
+    let params: List<Symbol> = []
     if p.accept(TokenKind.Lt) {
         for p.at(TokenKind.Ident) {
             const start = p.here()
@@ -117,12 +117,12 @@ pub fn parseTypeParams(p: mut Parser, preds: mut List<WherePred>) List<Symbol> {
 
 fn pathType(p: mut Parser) TypeExpr {
     const start = p.here()
-    var segments = [p.takeName()]
+    let segments = [p.takeName()]
     for p.at(TokenKind.Dot) && p.peekAt(1) == TokenKind.Ident {
         p.advance()
         segments.push(p.takeName())
     }
-    var args: List<TypeExpr> = []
+    let args: List<TypeExpr> = []
     if p.accept(TokenKind.Lt) {
         args = parseTypeArgs(p)
     }
@@ -133,8 +133,8 @@ fn pathType(p: mut Parser) TypeExpr {
 fn fnType(p: mut Parser, start: Span, owned: bool) TypeExpr {
     p.advance()
     p.expect(TokenKind.LParen, "`(` after `fn`")
-    var params: List<TypeExpr> = []
-    var modes: List<Mode> = []
+    let params: List<TypeExpr> = []
+    let modes: List<Mode> = []
     for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
         modes.push(parseMode(p))
         params.push(parseType(p))
@@ -143,7 +143,7 @@ fn fnType(p: mut Parser, start: Span, owned: bool) TypeExpr {
         }
     }
     p.expect(TokenKind.RParen, "`)` to close the parameter types")
-    var ret: Option<Box<TypeExpr>> = Option.None
+    let ret: Option<Box<TypeExpr>> = Option.None
     if canStartType(p) {
         ret = Option.Some(Box.new(parseType(p)))
     }
@@ -174,8 +174,8 @@ fn bracketType(p: mut Parser, start: Span) TypeExpr {
 // test, spec 17.4); the `(` is next.
 fn tupleType(p: mut Parser, start: Span) TypeExpr {
     p.advance()
-    var elems: List<TypeExpr> = []
-    var comma = false
+    let elems: List<TypeExpr> = []
+    let comma = false
     for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
         elems.push(parseType(p))
         comma = p.accept(TokenKind.Comma)
@@ -214,7 +214,7 @@ fn atKeyOf(p: Parser) bool {
 // `.x` or `.0`; the `.` is next.
 fn keyLiteral(p: mut Parser, start: Span) TypeExpr {
     p.advance()
-    var name = Symbol(0)
+    let name = Symbol(0)
     if p.at(TokenKind.Int) {
         const index: u64 = match p.token(0).value {
             TokenValue.Int(value) => value
@@ -236,7 +236,7 @@ fn mappedType(p: mut Parser, start: Span) TypeExpr {
     const param = p.expectName("the key parameter of the mapped type") ?? Symbol(0)
     p.expect(TokenKind.In, "`in` after the key parameter")
     const keys = Box.new(parseType(p))
-    var filter: Option<Box<TypeExpr>> = Option.None
+    let filter: Option<Box<TypeExpr>> = Option.None
     if p.accept(TokenKind.If) {
         filter = Option.Some(Box.new(condition(p)))
     }
@@ -355,7 +355,7 @@ fn baseType(p: mut Parser, ops: bool) TypeExpr {
 
 // A type with its postfix `?` and, with `ops`, `[K]` (spec 16.3).
 fn postfixType(p: mut Parser, ops: bool) TypeExpr {
-    var t = baseType(p, ops)
+    let t = baseType(p, ops)
     for {
         const start = t.span
         if p.accept(TokenKind.Question) {
@@ -382,7 +382,7 @@ fn startsOperand(kind: TokenKind) bool {
 
 // `&` and `-` on key types, left-associative and tighter than `|`.
 fn keyTerm(p: mut Parser) TypeExpr {
-    var t = postfixType(p, true)
+    let t = postfixType(p, true)
     for (p.at(TokenKind.Amp) || p.at(TokenKind.Minus)) && startsOperand(p.peekAt(1)) {
         const start = t.span
         const op = if p.at(TokenKind.Amp) { Op.And } else { Op.Sub }
@@ -397,7 +397,7 @@ fn typeIn(p: mut Parser, ops: bool) TypeExpr {
     if !ops {
         return postfixType(p, false)
     }
-    var t = keyTerm(p)
+    let t = keyTerm(p)
     for p.at(TokenKind.Pipe) && startsOperand(p.peekAt(1)) {
         p.advance()
         const start = t.span

@@ -295,7 +295,7 @@ pub struct Parser {
      * brackets, or the `}` that closes the enclosing block (not consumed).
      */
     pub fn synchronize(mut self) {
-        var depth = 0
+        let depth = 0
         for !self.at(TokenKind.Eof) {
             const k = self.peek()
             if depth == 0 && (k == TokenKind.Newline || k == TokenKind.RBrace) {
@@ -405,8 +405,8 @@ pub fn parse(file: FileId, src: str, tokens: move List<Token>, names: move Inter
  */
 pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move Interner,
                  diags: move Diagnostics, firstId: int) ParseResult {
-    var docs: List<str> = []
-    var kept: List<Token> = []
+    let docs: List<str> = []
+    let kept: List<Token> = []
     for i in 0..tokens.len() {
         const kind = tokens[i].kind
         if kind == TokenKind.ModuleDoc {
@@ -419,7 +419,7 @@ pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move I
                         where: names.find("where"), wildcard: names.find("_"),
                         keyof: names.find("keyof"), is: names.find("is"),
                         infer: names.find("infer"), send: names.find("Send")}
-    var p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
+    let p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
                    typeTests: false, recovering: false, names, diags, words, nextId: firstId,
                    typeBounds: [], typeAsserts: []}
     const items = moduleItems(p)

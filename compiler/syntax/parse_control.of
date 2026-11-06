@@ -31,7 +31,7 @@ pub fn parseBlock(p: mut Parser) Block {
     }
     const saved = p.noStructLiteral
     p.noStructLiteral = false
-    var stmts: List<Stmt> = []
+    let stmts: List<Stmt> = []
     p.skipNewlines()
     for !p.at(TokenKind.RBrace) && !p.at(TokenKind.Eof) {
         stmts.push(parseStmt(p))
@@ -49,14 +49,14 @@ pub fn parseBlock(p: mut Parser) Block {
 // `if cond { } else if ... else { }` and `if const pattern = value { }`.
 fn ifExpr(p: mut Parser) Expr {
     const start = p.advance()
-    var letPattern: Option<Pattern> = Option.None
+    let letPattern: Option<Pattern> = Option.None
     if p.accept(TokenKind.Const) {
         letPattern = Option.Some(parseTestPattern(p))
         p.expect(TokenKind.Eq, "`=` after the pattern")
     }
     const cond = parseExprNoStruct(p)
     const then = parseBlock(p)
-    var otherwise: Option<Box<Expr>> = Option.None
+    let otherwise: Option<Box<Expr>> = Option.None
     if p.accept(TokenKind.Else) {
         const elseStart = p.here()
         if p.at(TokenKind.If) {
@@ -71,7 +71,7 @@ fn ifExpr(p: mut Parser) Expr {
 
 fn matchArm(p: mut Parser) MatchArm {
     const pattern = parseTestPattern(p)
-    var guard: Option<Expr> = Option.None
+    let guard: Option<Expr> = Option.None
     if p.accept(TokenKind.If) {
         guard = Option.Some(parseExprNoStruct(p))
     }
@@ -83,7 +83,7 @@ fn matchArm(p: mut Parser) MatchArm {
 fn matchExpr(p: mut Parser) Expr {
     const start = p.advance()
     const scrutinee = parseExprNoStruct(p)
-    var arms: List<MatchArm> = []
+    let arms: List<MatchArm> = []
     if p.expect(TokenKind.LBrace, "`\{` after the matched value") {
         p.skipNewlines()
         for !p.at(TokenKind.RBrace) && !p.at(TokenKind.Eof) {

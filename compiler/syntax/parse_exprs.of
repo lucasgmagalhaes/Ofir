@@ -84,7 +84,7 @@ fn gtLevel(p: Parser) (int, Op, int) {
 }
 
 fn castExpr(p: mut Parser) Expr {
-    var e = unary(p)
+    let e = unary(p)
     for p.accept(TokenKind.As) {
         const start = e.span
         const to = parseSimpleType(p)
@@ -95,7 +95,7 @@ fn castExpr(p: mut Parser) Expr {
 
 // Precedence climbing: the operators of level `min` and above.
 fn binaryExpr(p: mut Parser, min: int) Expr {
-    var lhs = castExpr(p)
+    let lhs = castExpr(p)
     for {
         const found = operatorAt(p)
         if found.0 == 0 || found.0 < min {
@@ -138,7 +138,7 @@ fn canEndRange(p: Parser) bool {
 pub fn parseExpr(p: mut Parser) Expr {
     const start = p.here()
     const atRange = p.at(TokenKind.DotDot) || p.at(TokenKind.DotDotEq)
-    var lo: Option<Box<Expr>> = Option.None
+    let lo: Option<Box<Expr>> = Option.None
     if !atRange {
         const first = coalesce(p)
         if !p.at(TokenKind.DotDot) && !p.at(TokenKind.DotDotEq) {
@@ -148,7 +148,7 @@ pub fn parseExpr(p: mut Parser) Expr {
     }
     const inclusive = p.peek() == TokenKind.DotDotEq
     p.advance()
-    var hi: Option<Box<Expr>> = Option.None
+    let hi: Option<Box<Expr>> = Option.None
     if !canEndRange(p) {
         hi = Option.Some(Box.new(coalesce(p)))
     }

@@ -25,7 +25,7 @@ import syntax.token.TokenKind
 import syntax.token.TokenValue
 
 pub fn tokenize(src: str, file: FileId, names: mut Interner, diags: mut Diagnostics) List<Token> {
-    var lx = Lexer.new(file)
+    let lx = Lexer.new(file)
     for !lx.cur.atEnd(src) {
         if !lx.skipTrivia(src, diags) {
             lx.tokenAt(src, names, diags)
@@ -124,7 +124,7 @@ struct Lexer {
         const third = self.cur.peek(src, 3)
         const doc = self.cur.peek(src, 2) == b'*' && third != b'/' && third != b'*'
         self.cur.pos += 2
-        var newline = false
+        let newline = false
         for {
             if self.cur.atEnd(src) {
                 const message = "unterminated block comment".toOwned()
@@ -150,7 +150,7 @@ struct Lexer {
     fn docComment(mut self, src: str, start: int) {
         const text = docText(src, start + 3, self.cur.pos - 2)
         const module = text.startsWith("@module")
-        var from = 0
+        let from = 0
         if module {
             for from < text.len() && (text[from] == b'@' || text[from] > b' ') {
                 from += 1
@@ -277,7 +277,7 @@ struct Lexer {
     // closes the interpolation as usual. Text with a blank or a quote before
     // the `}` is not a specifier: the `:` is then an ordinary token.
     fn formatSpec(mut self, src: str, start: int) bool {
-        var end = self.cur.pos
+        let end = self.cur.pos
         for end < src.len() && src[end] != b'}' && src[end] != b'"' && src[end] != b' ' &&
             src[end] != b'\t' && src[end] != b'\r' && src[end] != b'\n' {
             end += 1
@@ -306,14 +306,14 @@ struct Lexer {
 // The text of a documentation comment (spec 1.8): each line without its
 // indentation and leading `*`, blank lines at both ends removed.
 fn docText(src: str, start: int, end: int) str {
-    var text = ""
-    var pos = start
+    let text = ""
+    let pos = start
     for pos < end {
-        var lineEnd = pos
+        let lineEnd = pos
         for lineEnd < end && src[lineEnd] != b'\n' {
             lineEnd += 1
         }
-        var from = pos
+        let from = pos
         for from < lineEnd && (src[from] == b' ' || src[from] == b'\t') {
             from += 1
         }
@@ -327,7 +327,7 @@ fn docText(src: str, start: int, end: int) str {
         }
         pos = lineEnd + 1
     }
-    var keep = text.len()
+    let keep = text.len()
     for keep > 0 && text[keep - 1] == b'\n' {   // nor at the end
         keep -= 1
     }
@@ -336,11 +336,11 @@ fn docText(src: str, start: int, end: int) str {
 
 // `src[start..end]` without spaces and tabs before it, nor spaces and `\r` after.
 fn trimmed(src: str, start: int, end: int) str {
-    var lo = start
+    let lo = start
     for lo < end && (src[lo] == b' ' || src[lo] == b'\t') {
         lo += 1
     }
-    var hi = end
+    let hi = end
     for hi > lo && (src[hi - 1] == b' ' || src[hi - 1] == b'\r') {
         hi -= 1
     }
@@ -348,7 +348,7 @@ fn trimmed(src: str, start: int, end: int) str {
 }
 
 fn keywordTable() Map<str, TokenKind> {
-    var k = Map<str, TokenKind>.new()
+    let k = Map<str, TokenKind>.new()
     k.insert("as", TokenKind.As)
     k.insert("break", TokenKind.Break)
     k.insert("const", TokenKind.Const)

@@ -20,7 +20,7 @@ fn newPattern(p: mut Parser, kind: move PatternKind, start: Span) Pattern {
 
 // `(p, q)` after the `(`; also the arguments of variants and tuple structs.
 fn patternList(p: mut Parser) List<Pattern> {
-    var items: List<Pattern> = []
+    let items: List<Pattern> = []
     for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
         items.push(parsePattern(p))
         if !p.accept(TokenKind.Comma) {
@@ -50,7 +50,7 @@ fn literalOrRange(p: mut Parser, start: Span) Pattern {
 fn variantShorthand(p: mut Parser, start: Span) Pattern {
     p.advance()
     const name = p.expectName("a variant name after `.`") ?? Symbol(0)
-    var args: List<Pattern> = []
+    let args: List<Pattern> = []
     const hasArgs = p.accept(TokenKind.LParen)
     if hasArgs {
         args = patternList(p)
@@ -60,11 +60,11 @@ fn variantShorthand(p: mut Parser, start: Span) Pattern {
 
 // `Point{x, y: 0, ..}` after the `{`.
 fn structPattern(p: mut Parser, path: move List<Symbol>, start: Span) Pattern {
-    var fields: List<FieldPattern> = []
+    let fields: List<FieldPattern> = []
     p.skipNewlines()
     for p.at(TokenKind.Ident) {
         const name = p.takeName()
-        var pattern: Option<Pattern> = Option.None
+        let pattern: Option<Pattern> = Option.None
         if p.accept(TokenKind.Colon) {
             pattern = Option.Some(parsePattern(p))
         }
@@ -84,7 +84,7 @@ fn structPattern(p: mut Parser, path: move List<Symbol>, start: Span) Pattern {
 // A pattern starting with a name: a binding, `Enum.Variant(...)`,
 // `TupleStruct(...)` or `Struct{...}`.
 fn named(p: mut Parser, start: Span) Pattern {
-    var path = [p.takeName()]
+    let path = [p.takeName()]
     for p.at(TokenKind.Dot) && p.peekAt(1) == TokenKind.Ident {
         p.advance()
         path.push(p.takeName())
@@ -99,7 +99,7 @@ fn named(p: mut Parser, start: Span) Pattern {
     if path.len() > 1 {
         const name = path.pop() ?? Symbol(0)
         const hasArgs = p.accept(TokenKind.LParen)
-        var args: List<Pattern> = []
+        let args: List<Pattern> = []
         if hasArgs {
             args = patternList(p)
         }
@@ -108,7 +108,7 @@ fn named(p: mut Parser, start: Span) Pattern {
     const name = path[0]
     const wildcard = p.words.wildcard.isSome() && (p.words.wildcard ?? Symbol(0)).0 == name.0
     if p.typeTests && p.accept(TokenKind.Colon) {
-        var bound: Option<Symbol> = Option.None
+        let bound: Option<Symbol> = Option.None
         if !wildcard {
             bound = Option.Some(name)
         }
@@ -172,7 +172,7 @@ pub fn parsePattern(p: mut Parser) Pattern {
     if !p.at(TokenKind.Pipe) {
         return first
     }
-    var alternatives = [first]
+    let alternatives = [first]
     for p.accept(TokenKind.Pipe) {
         p.skipNewlines()
         alternatives.push(atom(p))

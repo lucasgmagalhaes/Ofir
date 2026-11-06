@@ -25,7 +25,7 @@ import syntax.token_print.formatG
  * @returns the text
  */
 pub fn symbolsText(path: List<Symbol>, names: Interner) str {
-    var out = ""
+    let out = ""
     for i in 0..path.len() {
         if i > 0 {
             out.push(".")
@@ -36,7 +36,7 @@ pub fn symbolsText(path: List<Symbol>, names: Interner) str {
 }
 
 fn typeListText(types: List<TypeExpr>, names: Interner) str {
-    var out = ""
+    let out = ""
     for i in 0..types.len() {
         if i > 0 {
             out.push(", ")
@@ -85,7 +85,7 @@ pub fn typeText(t: &TypeExpr, names: Interner) str {
             "({typeListText(items, names)}{if items.len() == 1 { ",)" } else { ")" }}"
         }
         TypeKind.Fn(params, modes, ret, owned, send) => {
-            var out = fnTypeText(params, modes, ret, owned, names)
+            let out = fnTypeText(params, modes, ret, owned, names)
             if send {
                 out.push(" + Send")
             }
@@ -128,7 +128,7 @@ pub fn typeText(t: &TypeExpr, names: Interner) str {
 
 fn fnTypeText(params: List<TypeExpr>, modes: List<Mode>, ret: Option<Box<TypeExpr>>,
               owned: bool, names: Interner) str {
-    var out = if owned { "move fn(" } else { "fn(" }
+    let out = if owned { "move fn(" } else { "fn(" }
     for i in 0..params.len() {
         if i > 0 {
             out.push(", ")
@@ -152,8 +152,8 @@ fn fnTypeText(params: List<TypeExpr>, modes: List<Mode>, ret: Option<Box<TypeExp
  * @returns the text
  */
 pub fn escapedText(s: str) str {
-    var out = "\""
-    var run = 0
+    let out = "\""
+    let run = 0
     for i in 0..s.len() {
         const c = s[i]
         const escape = if c == b'\n' {
@@ -183,8 +183,8 @@ fn hex(d: u8) str {
 // The shortest decimal form that reads back as the same value, with `.0`
 // when it would look like an integer.
 fn floatText(value: float) str {
-    var text = formatG(value)
-    var plain = true
+    let text = formatG(value)
+    let plain = true
     for i in 0..text.len() {
         const c = text[i]
         if c == b'.' || c == b'e' || c == b'E' || c == b'n' || c == b'i' {
@@ -224,7 +224,7 @@ pub fn literalText(e: &Expr, names: Interner) str {
 }
 
 fn patternListText(list: List<Pattern>, names: Interner) str {
-    var out = ""
+    let out = ""
     for i in 0..list.len() {
         if i > 0 {
             out.push(", ")
@@ -271,7 +271,7 @@ pub fn patternText(p: &Pattern, names: Interner) str {
 }
 
 fn orText(alternatives: List<Pattern>, names: Interner) str {
-    var out = ""
+    let out = ""
     for i in 0..alternatives.len() {
         if i > 0 {
             out.push(" | ")
@@ -283,7 +283,7 @@ fn orText(alternatives: List<Pattern>, names: Interner) str {
 
 fn structPatternText(path: List<Symbol>, fields: List<FieldPattern>, rest: bool,
                      names: Interner) str {
-    var out = symbolsText(path, names)
+    let out = symbolsText(path, names)
     out.push("\{")
     for i in 0..fields.len() {
         if i > 0 {

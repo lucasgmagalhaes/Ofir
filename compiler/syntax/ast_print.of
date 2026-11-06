@@ -41,7 +41,7 @@ import syntax.ast_text.typeText
  * @returns the text
  */
 pub fn printModule(module: Module, names: Interner) str {
-    var p = Printer{out: "", depth: 0}
+    let p = Printer{out: "", depth: 0}
     p.line("module")
     p.depth += 1
     for i in 0..module.docs.len() {
@@ -162,7 +162,7 @@ struct Printer {
             ExprKind.Index(base, index) => self.withChildren("index", &*base, Option.Some(&*index),
                                                              names)
             ExprKind.Field(base, name, typeArgs) => {
-                var args = ""
+                let args = ""
                 if typeArgs.len() > 0 {
                     args = "<{typesText(typeArgs, names)}>"
                 }
@@ -330,7 +330,7 @@ struct Printer {
         } else if kind == ForKind.Cond {
             self.line("for cond")
         } else {
-            var text = "for {if mutable { "mut " } else { "" }}{nameOf(first, names)}"
+            let text = "for {if mutable { "mut " } else { "" }}{nameOf(first, names)}"
             if const Option.Some(s) = second {
                 text.push(", {names.name(s)}")
             }
@@ -350,7 +350,7 @@ struct Printer {
 
     fn attributes(mut self, attrs: List<Attribute>, names: Interner) {
         for i in 0..attrs.len() {
-            var text = names.name(attrs[i].name).toOwned()
+            let text = names.name(attrs[i].name).toOwned()
             for j in 0..attrs[i].args.len() {
                 text.push(if j == 0 { "(" } else { ", " })
                 text.push(literalText(&attrs[i].args[j], names))
@@ -364,7 +364,7 @@ struct Printer {
 
     fn bounds(mut self, preds: &List<WherePred>, names: Interner) {
         for i in 0..preds.len() {
-            var text = "bound {typeText(&preds[i].ty, names)}:"
+            let text = "bound {typeText(&preds[i].ty, names)}:"
             for j in 0..preds[i].bounds.len() {
                 text.push(if j > 0 { " + " } else { " " })
                 text.push(typeText(&preds[i].bounds[j], names))
@@ -383,7 +383,7 @@ struct Printer {
         if list.len() == 0 {
             return
         }
-        var text = "{label} "
+        let text = "{label} "
         for i in 0..list.len() {
             if i > 0 {
                 text.push(sep)
@@ -410,7 +410,7 @@ struct Printer {
     }
 
     fn fnDecl(mut self, f: &FnDecl, names: Interner) {
-        var flags = if f.isPub { " pub" } else { "" }
+        let flags = if f.isPub { " pub" } else { "" }
         flags.push(if f.isUnsafe { " unsafe" } else { "" })
         flags.push(if f.abi.len() > 0 { " extern" } else { "" })
         self.line("fn {names.name(f.name)}{flags}")
@@ -451,7 +451,7 @@ struct Printer {
     fn variants(mut self, variants: List<Variant>, names: Interner) {
         for i in 0..variants.len() {
             const v = &variants[i]
-            var text = names.name(v.name).toOwned()
+            let text = names.name(v.name).toOwned()
             for j in 0..v.fields.len() {
                 text.push(if j == 0 { "(" } else { ", " })
                 if const Option.Some(name) = v.fields[j].name {
@@ -534,7 +534,7 @@ struct Printer {
                 self.line("interface {name}{isPub}")
                 self.depth += 1
                 self.attributes(it.attributes, names)
-                var declared: List<Symbol> = []
+                let declared: List<Symbol> = []
                 for i in 1..typeParams.len() {   // after the implicit `Self`
                     declared.push(typeParams[i])
                 }
@@ -560,7 +560,7 @@ struct Printer {
 }
 
 fn typesText(types: List<TypeExpr>, names: Interner) str {
-    var out = ""
+    let out = ""
     for i in 0..types.len() {
         if i > 0 {
             out.push(", ")

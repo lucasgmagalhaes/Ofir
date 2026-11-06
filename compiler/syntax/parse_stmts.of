@@ -41,12 +41,12 @@ fn missingValue(p: mut Parser) Expr {
 fn letStmt(p: mut Parser, start: Span) Stmt {
     const pattern = parsePattern(p)
     const ty = optionalType(p)
-    var value = missingValue(p)
+    let value = missingValue(p)
     if p.expect(TokenKind.Eq, "`=` in `const`") {
         p.skipNewlines()
         value = parseExpr(p)
     }
-    var otherwise: Option<Block> = Option.None
+    let otherwise: Option<Block> = Option.None
     if p.accept(TokenKind.Else) {
         otherwise = Option.Some(parseBlock(p))
     }
@@ -56,7 +56,7 @@ fn letStmt(p: mut Parser, start: Span) Stmt {
 fn varStmt(p: mut Parser, start: Span) Stmt {
     const name = p.expectName("a variable name after `let`") ?? Symbol(0)
     const ty = optionalType(p)
-    var value: Option<Expr> = Option.None
+    let value: Option<Expr> = Option.None
     if p.accept(TokenKind.Eq) {
         p.skipNewlines()
         value = Option.Some(parseExpr(p))
@@ -77,11 +77,11 @@ fn atForIn(p: Parser) bool {
 }
 
 fn forStmt(p: mut Parser, start: Span) Stmt {
-    var kind: ForKind = ForKind.Cond
-    var mutable = false
-    var first: Option<Symbol> = Option.None
-    var second: Option<Symbol> = Option.None
-    var expr: Option<Expr> = Option.None
+    let kind: ForKind = ForKind.Cond
+    let mutable = false
+    let first: Option<Symbol> = Option.None
+    let second: Option<Symbol> = Option.None
+    let expr: Option<Expr> = Option.None
     if p.at(TokenKind.LBrace) {
         kind = ForKind.Infinite
     } else if atForIn(p) {
@@ -175,7 +175,7 @@ pub fn parseStmt(p: mut Parser) Stmt {
         }
         TokenKind.Return => {
             p.advance()
-            var value: Option<Expr> = Option.None
+            let value: Option<Expr> = Option.None
             if !atStatementEnd(p) {
                 value = Option.Some(parseExpr(p))
             }
