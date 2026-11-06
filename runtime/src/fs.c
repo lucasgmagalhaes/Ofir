@@ -241,6 +241,24 @@ int32_t ofir_read_line(OfirBuf *out) {
     return 0;
 }
 
+// Up to `n` bytes of standard input: fewer only at the end of the input.
+int32_t ofir_read_bytes(int64_t n, OfirBuf *out) {
+    ofir_stdout_flush();
+    *out = (OfirBuf){0};
+    if (n <= 0) {
+        return 0;
+    }
+    uint8_t *bytes = ofir_alloc(n);
+    size_t got = fread(bytes, 1, (size_t)n, stdin);
+    if (got == 0) {
+        ofir_free(bytes);
+        return ferror(stdin) ? errno : 0;
+    }
+    out->ptr = bytes;
+    out->len = (int64_t)got;
+    return 0;
+}
+
 int32_t ofir_read_stdin(OfirBuf *out) {
     ofir_stdout_flush();
     return read_fd(0, out);
