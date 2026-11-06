@@ -46,7 +46,7 @@ fn first(p: Pair) int {   // warning[W0006]: `Pair` is deprecated: use `Point`
 fn main() {
     const n = atoi("12")   // warning[W0006]: `atoi` is deprecated: use `parse`
     const m = LIMIT   // warning[W0006]: `LIMIT` is deprecated
-    var c = Counter{n: 0}
+    let c = Counter{n: 0}
     c.inc()   // warning[W0006]: `inc` is deprecated: use `bump`
     c.bump()
     const p = Pair{a: 1, b: 2}   // warning[W0006]: `Pair` is deprecated: use `Point`

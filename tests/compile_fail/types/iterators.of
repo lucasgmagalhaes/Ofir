@@ -15,10 +15,10 @@ struct NotIter {
 
 fn main() {
     const fixed = Numbers{n: 3}
-    for x in fixed {             // error[E0315]: this value cannot be modified: declare it with `var`
+    for x in fixed {             // error[E0315]: this value cannot be modified: declare it with `let`
         println("{x}")
     }
-    var pairs = Numbers{n: 2}
+    let pairs = Numbers{n: 2}
     for i, x in pairs {          // error[E0300]: an iterator gives one value at a time: `for item in iterator`
         println("{i + x}")
     }

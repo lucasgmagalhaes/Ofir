@@ -14,7 +14,7 @@ struct Point {
     }
 
     fn broken(self) {
-        self.x = 1           // error[E0315]: this value cannot be modified: declare it with `var`
+        self.x = 1           // error[E0315]: this value cannot be modified: declare it with `let`
     }
 }
 
@@ -36,12 +36,12 @@ fn onValue(p: Point) {
 
 fn immutableReceiver() {
     const p = Point.origin()
-    p.set(2)                 // error[E0315]: this value cannot be modified: declare it with `var`
+    p.set(2)                 // error[E0315]: this value cannot be modified: declare it with `let`
 }
 
 fn immutableArgument() {
     const n = 0
-    change(n)                // error[E0315]: this value cannot be modified: declare it with `var`
+    change(n)                // error[E0315]: this value cannot be modified: declare it with `let`
 }
 
 fn temporaryArgument() {
@@ -50,9 +50,9 @@ fn temporaryArgument() {
 
 // Accepted.
 fn fine() {
-    var p = Point.origin()
+    let p = Point.origin()
     p.set(3)
-    var n = p.get()
+    let n = p.get()
     change(n)
     change(p.x)
 }

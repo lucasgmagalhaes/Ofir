@@ -30,7 +30,7 @@ fn bump(n: mut u32) {
 }
 
 fn main() {
-    var x = Inner{a: 1, b: 2}
+    let x = Inner{a: 1, b: 2}
     const r = &x.b   // error[E0812]: cannot borrow a field of a `@packed` struct: its address may not be aligned
     bump(x.b)   // error[E0812]: cannot borrow a field of a `@packed` struct: its address may not be aligned
     const whole = &x

@@ -8,11 +8,11 @@ fn wrongReceiver(flag: bool) {
 
 fn immutable() {
     const s = "a"
-    s.push("b")               // error[E0315]: this value cannot be modified: declare it with `var`
+    s.push("b")               // error[E0315]: this value cannot be modified: declare it with `let`
 }
 
 fn borrowedParameter(s: str) {
-    s.clear()                 // error[E0315]: this value cannot be modified: declare it with `var`
+    s.clear()                 // error[E0315]: this value cannot be modified: declare it with `let`
 }
 
 fn typeArguments(n: int) {
@@ -35,9 +35,9 @@ fn constants() {
     const e = i32.LARGEST       // error[E0301]: no constant `LARGEST` on type `i32`
 }
 
-// Accepted: a `mut` parameter and a `var` can be modified.
+// Accepted: a `mut` parameter and a `let` can be modified.
 fn modify(s: mut str) {
     s.push("!")
-    var t = "x"
+    let t = "x"
     t.clear()
 }

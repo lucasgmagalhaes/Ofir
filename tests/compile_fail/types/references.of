@@ -45,8 +45,8 @@ fn element(w: &Wrapped) &int {
 
 fn main() {
     const n = 1
-    const r = &mut n               // error[E0315]: this value cannot be modified: declare it with `var`
-    var m = 2
+    const r = &mut n               // error[E0315]: this value cannot be modified: declare it with `let`
+    let m = 2
     const shared = &m
     *shared = 3                  // error[E0315]: this value cannot be modified: it is reached through a `&T`, not a `&mut T`
     const xs = [1, 2, 3]

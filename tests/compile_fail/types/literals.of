@@ -21,7 +21,7 @@ fn inferred(small: u8, ratio: float) {
     const a = small + 1
     const b = 2 * small
     const c = ratio * 2
-    var total: float = 0
+    let total: float = 0
     const d: i16 = -300
 }
 

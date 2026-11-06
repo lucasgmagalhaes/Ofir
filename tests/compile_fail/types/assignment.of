@@ -19,13 +19,13 @@ fn constant() {
 }
 
 fn wrongType() {
-    var name = "a"
+    let name = "a"
     name = 1                // error[E0300]: mismatched types: expected str, found int
 }
 
 // Accepted.
 fn mutable(count: mut int) {
-    var x = 1
+    let x = 1
     x = 2
     x += 3
     count = 4

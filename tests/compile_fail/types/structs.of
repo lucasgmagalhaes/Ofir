@@ -51,7 +51,7 @@ fn tupleArity() {
 
 fn immutableField() {
     const p = Point{x: 1}
-    p.x = 2                    // error[E0315]: this value cannot be modified: declare it with `var`
+    p.x = 2                    // error[E0315]: this value cannot be modified: declare it with `let`
 }
 
 fn notInteger() {

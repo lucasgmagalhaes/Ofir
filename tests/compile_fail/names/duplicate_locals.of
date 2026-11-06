@@ -7,7 +7,7 @@ fn same_scope() {
 fn parameters(a: int, a: int) {}   // error[E0201]: `a` is defined more than once in this scope
 
 fn parameter_and_body(count: int) {
-    var count = 0   // error[E0201]: `count` is defined more than once in this scope
+    let count = 0   // error[E0201]: `count` is defined more than once in this scope
 }
 
 fn pattern(pair: (int, int)) {

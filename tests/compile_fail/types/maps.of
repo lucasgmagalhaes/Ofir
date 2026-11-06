@@ -8,6 +8,6 @@ fn main() {
     }
     for i, j in 0..3 {                   // error[E0300]: a range gives one variable: `for i in a..b`
     }
-    var d = Map<str, int>.new()
+    let d = Map<str, int>.new()
     d.insert(1, 2)                       // error[E0300]: mismatched types: expected str, found int
 }

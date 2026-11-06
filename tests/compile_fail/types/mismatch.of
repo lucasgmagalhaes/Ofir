@@ -6,7 +6,7 @@ fn returnsInt() int {
 
 fn annotations() {
     const a: int = "x"      // error[E0300]: mismatched types: expected int, found str
-    var b: bool = 1       // error[E0300]: mismatched types: expected bool, found int
+    let b: bool = 1       // error[E0300]: mismatched types: expected bool, found int
     const c: str = true     // error[E0300]: mismatched types: expected str, found bool
 }
 

@@ -39,7 +39,7 @@ fn main() {
     quiet()
     loud()
     const _ = early()
-    var c = Counter{n: 0}
+    let c = Counter{n: 0}
     c.reset()
     c.bump()
     old()

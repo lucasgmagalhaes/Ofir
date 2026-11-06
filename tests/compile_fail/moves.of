@@ -51,7 +51,7 @@ fn mutNotRestored(s: mut str) {   // error[E0602]: `s` is moved out of and not g
 }
 
 fn uninitialized(flag: bool) {
-    var n: int
+    let n: int
     if flag {
         n = 1
     }
