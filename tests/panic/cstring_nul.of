@@ -1,0 +1,8 @@
+// panic: toCString: the string contains a NUL byte at 1
+fn main() {
+    var s = "a"
+    s.pushChar(0)
+    s.push("b")
+    let c = s.toCString()
+    println("{c.len()}")
+}
