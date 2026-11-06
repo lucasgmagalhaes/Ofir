@@ -1,0 +1,65 @@
+module
+  struct Point
+    field x: float
+    field y: float
+  type PointKey
+    = keyof Point
+  type First
+    = .x
+  type Second
+    = .1
+  type Both
+    = (.x | .y)
+  type Keys
+    = ((keyof Point - .x) | (.y & keyof Point))
+  type Coord
+    = Point[.x]
+  type All
+    = Point[keyof Point]?
+  type keyof
+    = int
+  fn get
+    type_params T, K
+    bound K: keyof T
+    param value: T
+    param key: K
+    returns T[K]
+    body
+      return
+        index
+          ident value
+          ident key
+  fn masks
+    param a: int
+    param b: int
+    returns int
+    body
+      return
+        binary |
+          binary -
+            cast
+              ident a
+              to int
+            lit 1
+          binary &
+            cast
+              ident b
+              to int
+            lit 3
+  fn test
+    param e: dyn Debug
+    returns bool
+    body
+      return
+        match
+          ident e
+          arm n: int | n: Point
+            lit true
+          arm _
+            lit false
+  fn plain
+    param k: keyof
+    returns keyof
+    body
+      return
+        ident k
