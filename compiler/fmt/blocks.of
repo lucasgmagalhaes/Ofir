@@ -22,13 +22,13 @@ import syntax.token.TokenKind
  * @returns one flag per unit
  */
 pub fn brokenBlocks(src: str, units: List<Unit>) List<bool> {
-    var forced: List<bool> = []
+    let forced: List<bool> = []
     for _ in 0..units.len() {
         forced.push(false)
     }
-    var lo = 0
+    let lo = 0
     for lo < units.len() {
-        var hi = lo + 1
+        let hi = lo + 1
         for hi < units.len() && units[hi].breaks == 0 {
             hi += 1
         }
@@ -91,7 +91,7 @@ fn breaks(src: str, units: List<Unit>, statement: bool, lo: int, o: int, c: int,
 
 // The `}` that closes the `{` at `open` on the line, or -1.
 fn closing(units: List<Unit>, open: int, hi: int) int {
-    var depth = 0
+    let depth = 0
     for i in open..hi {
         const kind = code(units, i)
         if kind == TokenKind.LBrace {

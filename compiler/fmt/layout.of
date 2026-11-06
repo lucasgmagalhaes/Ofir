@@ -33,7 +33,7 @@ const INDENT: int = 4
  * @returns the text, ending with a newline unless it is empty
  */
 pub fn layout(src: str, units: List<Unit>, forced: List<bool>) str {
-    var l = Layout{}
+    let l = Layout{}
     for i in 0..units.len() {
         const u = units[i]
         const starts = i == 0 || u.breaks > 0 || forced[i]
@@ -46,7 +46,7 @@ pub fn layout(src: str, units: List<Unit>, forced: List<bool>) str {
         l.put(src, u)
     }
     l.flush()
-    var out = ""
+    let out = ""
     for i in 0..l.lines.len() {
         out.push(l.lines[i])
         out.push("\n")
@@ -125,7 +125,7 @@ struct Layout {
     }
 
     fn indentOf(mut self, u: Unit, orig: int) int {
-        var inner = 0
+        let inner = 0
         if const Option.Some(top) = self.stack.last() {
             const base = top.base
             const origBase = top.origBase
@@ -225,8 +225,8 @@ fn reindented(text: str, indent: int) str {
     if !text.contains("\n") {
         return text.toOwned()
     }
-    var out = ""
-    var first = true
+    let out = ""
+    let first = true
     for part in text.split("\n") {
         if !first {
             out.push("\n")
@@ -313,7 +313,7 @@ fn endsWhere(src: str, u: Unit) bool {
     if u.tok != TokenKind.Ident || src.slice(u.start, u.end) != "where" {
         return false
     }
-    var i = u.end
+    let i = u.end
     for i < src.len() && src[i] == b' ' {
         i += 1
     }

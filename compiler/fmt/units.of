@@ -42,9 +42,9 @@ pub copy struct Unit {
  * @returns the units
  */
 pub fn units(src: str, tokens: List<Token>) List<Unit> {
-    var out: List<Unit> = []
-    var gap = Gap{}
-    var i = 0
+    let out: List<Unit> = []
+    let gap = Gap{}
+    let i = 0
     for i < tokens.len() && tokens[i].kind != TokenKind.Eof {
         const t = &tokens[i]
         if t.kind == TokenKind.Newline {
@@ -52,8 +52,8 @@ pub fn units(src: str, tokens: List<Token>) List<Unit> {
             continue
         }
         gap.scan(src, t.span.start, out)
-        var end = t.span.end
-        var kind = t.kind
+        let end = t.span.end
+        let kind = t.kind
         if t.kind == TokenKind.StrStart {
             i = stringEnd(tokens, i)
             end = tokens[i].span.end
@@ -69,8 +69,8 @@ pub fn units(src: str, tokens: List<Token>) List<Unit> {
 
 // The index of the `StrEnd` that closes the `StrStart` at `i`.
 fn stringEnd(tokens: List<Token>, i: int) int {
-    var depth = 0
-    var j = i
+    let depth = 0
+    let j = i
     for j < tokens.len() {
         const kind = tokens[j].kind
         if kind == TokenKind.StrStart {
