@@ -31,6 +31,9 @@ import syntax.ast.ExprKind
 import syntax.ast.FnDecl
 import syntax.ast.Item
 import syntax.ast.ItemKind
+import syntax.ast.Mode
+import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
 
 /**
  * What the resolver found in one module, by `NodeId`.
@@ -103,8 +106,13 @@ pub struct Resolver {
     pub deprecated: Map<int, str>
     /** `self` */
     pub selfName: Symbol
-    /** `@test` functions are compiled: `ofir test`. */
+    /**
+     * The program is a harness that runs functions chosen by attribute,
+     * not `main`: `ofir test` (`@test`) or `ofir bench` (`@bench`).
+     */
     pub testing: bool
+    /** `ofir bench`: the harness runs the `@bench` functions. */
+    pub benching: bool
     /** The imports, in module order. */
     pub imports: List<ImportUse>
     /** For each closure being resolved, outermost first: its first local. */
@@ -240,16 +248,21 @@ const PRIMITIVE_TYPES: int = 15
  * @param diags where errors go
  * @param map their files
  * @param trace whether to trace the root module's names (`--emit=names`)
- * @param testing `ofir test`: the `@test` functions are checked and compiled
+ * @param testing `ofir test` or `ofir bench`: the `@test` (or `@bench`)
+ *   functions are checked and compiled
+ * @param benching `ofir bench`
  * @returns the resolver, with the results and the tables it took over
  */
 pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagnostics,
-                      map: move SourceMap, trace: bool, testing: bool) Resolver {
+                      map: move SourceMap, trace: bool, testing: bool,
+                      benching: bool) Resolver {
     var r = newResolver(program, names, diags, map, trace)
     r.testing = testing
+    r.benching = benching
     for m in 0..program.modules.len() {
         let name = program.modules[m].name.clone()
-        if name != "std.core.any" && name != "std.core.iter" {   // stage 0 does not load them
+        let late = name == "std.core.any" || name == "std.core.iter" || name == "std.core.bench"
+        if !late {   // stage 0 does not load them
             r.trace.line("module {m} {program.modules[m].name}")
         }
     }
@@ -299,6 +312,7 @@ fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
                     lang: List.filled(0, PRIMITIVE_TYPES), names, diags, map,
                     trace: Trace.new(trace), moduleNames, current: 0, moduleName: "", locals: [],
                     owner: Option.None, deprecated: Map.new(), selfName, testing: false,
+                    benching: false,
                     imports: [], closureBases: [], closureCaptures: []}
 }
 
@@ -343,18 +357,22 @@ pub fn findAttribute(r: Resolver, attributes: List<Attribute>, name: str) Option
     return Option.None
 }
 
-// A `@test` function that this build does not compile (spec 12.2): all of
-// them outside `ofir test`, and those of std modules other than the root.
+// A `@test` or `@bench` function that this build does not compile (spec
+// 12.2, 12.3): all of them outside `ofir test` and `ofir bench`, those of
+// the other attribute, and those of std modules other than the root.
 fn skippedTest(r: Resolver, program: Program, item: &Item) bool {
     let isFn = match item.kind {
         ItemKind.Fn(_) => true
         _ => false
     }
-    if !isFn || findAttribute(r, item.attributes, "test").isNone() {
+    let test = isFn && findAttribute(r, item.attributes, "test").isSome()
+    let bench = isFn && findAttribute(r, item.attributes, "bench").isSome()
+    if !test && !bench {
         return false
     }
+    let wanted = (test && !r.benching) || (bench && r.benching)
     let tested = r.current == 0 || !moduleInStd(program, r.current)
-    return !r.testing || !tested
+    return !r.testing || !tested || !wanted
 }
 
 // ---------------------------------------------------------------------------
@@ -609,6 +627,36 @@ fn checkTestSignature(r: mut Resolver, item: &Item) {
     }
 }
 
+// `@bench fn name(b: mut Bencher) { ... }` (spec 12.3): `ofir bench` calls
+// it with a `Bencher`.
+fn checkBenchSignature(r: mut Resolver, item: &Item) {
+    if findAttribute(r, item.attributes, "bench").isNone() {
+        return
+    }
+    match item.kind {
+        ItemKind.Fn(decl) => {
+            var ok = decl.params.len() == 1 && decl.ret.isNone() && decl.typeParams.len() == 0
+            if ok {
+                ok = decl.params[0].mode == Mode.Mut && isBencher(r, &decl.params[0].ty)
+            }
+            if !ok {
+                r.error("E0206", decl.span, "a `@bench` function takes one parameter, "
+                        + "`b: mut Bencher`, and returns nothing")
+            }
+        }
+        _ => {}
+    }
+}
+
+fn isBencher(r: Resolver, ty: &TypeExpr) bool {
+    return match ty.kind {
+        TypeKind.Path(segments, args) => {
+            args.len() == 0 && r.text(segments[segments.len() - 1]) == "Bencher"
+        }
+        _ => false
+    }
+}
+
 fn resolvePass(r: mut Resolver, program: Program, pass: int) {
     let items = &program.modules[r.current].module.items
     for i in 0..items.len() {
@@ -616,6 +664,7 @@ fn resolvePass(r: mut Resolver, program: Program, pass: int) {
         if pass == 0 {
             checkAttributes(r, item)
             checkTestSignature(r, item)
+            checkBenchSignature(r, item)
         }
         if skippedTest(r, program, item) {
             continue

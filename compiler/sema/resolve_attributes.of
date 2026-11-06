@@ -71,9 +71,9 @@ fn ruleArgs(rule: int) int {
 
 // The attributes this compiler implements: `@inline`, `@cold`, `@test`, `@lang`,
 // `@repr`, `@packed`, `@align` (sema/layout_attrs.of), `@link`, `@export`,
-// `@deprecated`, `@cfg` (driver/cfg.of), `@allow`.
+// `@deprecated`, `@bench` (air/lower.of), `@cfg` (driver/cfg.of), `@allow`.
 fn ruleSupported(rule: int) bool {
-    return rule < 10 || rule == 11 || rule == 12
+    return rule < 13   // all but `@tag`
 }
 
 fn ruleUsage(rule: int) str {
