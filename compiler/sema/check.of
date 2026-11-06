@@ -522,6 +522,10 @@ pub struct Checker {
     /** The struct of each instance of a mapped type (spec 16.4), by the mapped type's
      * file and offset and a tuple of the types in scope. */
     pub mapped: Map<(int, int, int), int>
+    /** The names of the `infer` placeholders of the pattern being resolved (spec 16.5). */
+    pub inferNames: List<Symbol>
+    /** Whether a pattern of a conditional type is being resolved. */
+    pub inferring: bool
 
     /**
      * Reports an error.
@@ -716,7 +720,8 @@ pub struct Checker {
             TyKind.Error => out.push("\{error\}")
             TyKind.Unit => out.push("()")
             TyKind.Never => out.push("!")
-            TyKind.Bool => out.push("bool")
+            TyKind.Bool => out.push(if t.data == 1 { "true" } else if t.data == 2 { "false" }
+                                    else { "bool" })
             TyKind.Int => out.push(intName(t.data))
             TyKind.Float => out.push(if t.data == 64 { "float" } else { "f32" })
             TyKind.Str => out.push("str")
@@ -913,7 +918,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
                    shorthandSpan: noSpan(), closures: [], closureMoves: [], capturesMut,
                    boundArgs: Map.new(), typeVars: [], typeVarTypes: [], aliasDef: 0,
-                   mapped: Map.new()}
+                   mapped: Map.new(), inferNames: [], inferring: false}
 }
 
 // ---------------------------------------------------------------------------

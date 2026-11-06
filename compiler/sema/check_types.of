@@ -15,6 +15,10 @@ import sema.check.itemTypeParams
 import sema.check.noGenerics
 import sema.check.typeGenerics
 import sema.check.typeGenericsOf
+import sema.check_cond.boolType
+import sema.check_cond.condType
+import sema.check_cond.inferType
+import sema.check_cond.isType
 import sema.check_generic.checkBounds
 import sema.check_keys.indexType
 import sema.check_keys.keyOpType
@@ -402,15 +406,13 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
         TypeKind.Key(name) => c.types.keys([name.0])
         TypeKind.KeyOp(op, left, right) => keyOpType(c, p, op, &*left, &*right, t.span)
         TypeKind.Index(base, key) => indexType(c, p, &*base, &*key, t.span)
-        TypeKind.Mapped(param, keys, filter, optional, field) => if filter.isSome() {
-            c.unsupported(t.span, "filters of mapped types are")
-        } else {
-            mappedType(c, p, t, param, &*keys, optional, &*field)
+        TypeKind.Mapped(param, keys, filter, optional, field) => {
+            mappedType(c, p, t, param, &*keys, &filter, optional, &*field)
         }
-        TypeKind.Is(_, _) |
-        TypeKind.Cond(_, _, _) |
-        TypeKind.Infer(_) |
-        TypeKind.Bool(_) => c.unsupported(t.span, "conditional types are")
+        TypeKind.Is(_, _) => isType(c, p, t)
+        TypeKind.Cond(test, then, otherwise) => condType(c, p, &*test, &*then, &*otherwise)
+        TypeKind.Infer(name) => inferType(c, name, t.span)
+        TypeKind.Bool(value) => boolType(c, value)
     }
 }
 

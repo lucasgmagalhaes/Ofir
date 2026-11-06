@@ -10,6 +10,7 @@ import sema.check.Checker
 import sema.check.boundedParam
 import sema.check.emptyInfo
 import sema.check.itemOf
+import sema.check_cond.decide
 import sema.check_keys.included
 import sema.check_ref.checkStorable
 import sema.check_types.resolveType
@@ -31,12 +32,13 @@ import syntax.ast.TypeExpr
  * @param t the mapped type
  * @param param `K`
  * @param keys `Keys`
+ * @param filter `if Cond`: the keys for which it is `false` are left out
  * @param optional `?:`: each field is an `Option` that defaults to `None`
  * @param field `F`
  * @returns the struct type
  */
 pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys: &TypeExpr,
-                  optional: bool, field: &TypeExpr) int {
+                  filter: &Option<Box<TypeExpr>>, optional: bool, field: &TypeExpr) int {
     if c.aliasDef == 0 {
         return c.unsupported(t.span, "mapped types outside a type alias are")
     }
@@ -62,9 +64,19 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
     }
     var info = StructInfo{names: [], types: [], defaults: [], isTuple: false, isCopy: false}
     let names = c.types.keyNames(keyType)
+    var fieldNames: List<int> = []
     for i in 0..names.len() {
         c.typeVars.push(param)
         c.typeVarTypes.push(c.types.keys([names[i]]))
+        let kept = keep(c, p, filter)
+        if kept != 1 {
+            c.typeVars.pop()
+            c.typeVarTypes.pop()
+            if kept < 0 {
+                return ERROR
+            }
+            continue
+        }
         var ty = resolveType(c, p, field)
         c.typeVars.pop()
         c.typeVarTypes.pop()
@@ -76,19 +88,32 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
         }
         checkStorable(c, p, ty, field.span, "a struct field")
         info.names.push(Symbol(names[i]))
+        fieldNames.push(names[i])
         info.types.push(ty)
         info.defaults.push(optional)
     }
     let id = mappedStruct(c, t, &scope)
     var pubs: List<bool> = []
-    for _ in 0..names.len() {
+    for _ in 0..fieldNames.len() {
         pubs.push(true)
     }
-    c.types.setFields(id, KeyFields{module: c.module(), isTuple: false, names: names.clone(), pubs,
+    c.types.setFields(id, KeyFields{module: c.module(), isTuple: false, names: fieldNames, pubs,
                                     types: info.types.clone()})
     c.info[id].fields = Option.Some(Box.new(info))
     c.mapped.insert(cacheKey, id)
     return c.types.adt(id, [])
+}
+
+// Whether a mapped type keeps the current key: 1, 0, or -1 after an error.
+fn keep(c: mut Checker, p: Program, filter: &Option<Box<TypeExpr>>) int {
+    return match *filter {
+        Option.Some(test) => {
+            var names: List<Symbol> = []
+            var binds: List<int> = []
+            decide(c, p, &*test, names, binds)
+        }
+        Option.None => 1
+    }
 }
 
 // A new struct declaration for an instance, named by its alias and the types
