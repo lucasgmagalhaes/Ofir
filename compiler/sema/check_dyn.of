@@ -24,18 +24,18 @@ import syntax.ast.Expr
  * @returns whether it was converted (or an error reported)
  */
 pub fn coerceToDyn(c: mut Checker, p: Program, e: &Expr, found: int, expected: int) bool {
-    let Option.Some(target) = dynTarget(c, found, expected) else {
+    const Option.Some(target) = dynTarget(c, found, expected) else {
         return false
     }
     if c.types.kind(target) == TyKind.Error {
         return true
     }
-    let object = match boxInner(c, expected) {
+    const object = match boxInner(c, expected) {
         Option.Some(inner) => inner
         Option.None => c.types.get(expected).inner
     }
-    let dynArgs = c.types.get(object).args.clone()
-    let why = unsatisfied(c, p, target, c.types.get(object).data, c.types.tuple(dynArgs))
+    const dynArgs = c.types.get(object).args.clone()
+    const why = unsatisfied(c, p, target, c.types.get(object).data, c.types.tuple(dynArgs))
     if why.len() > 0 {
         c.error("E0300", e.span, "mismatched types: expected {c.typeName(expected)}, found "
                 + "{c.typeName(found)}: {why}")
@@ -49,11 +49,11 @@ pub fn coerceToDyn(c: mut Checker, p: Program, e: &Expr, found: int, expected: i
 // The concrete type that `found` gives to `expected`, if the conversion
 // applies.
 fn dynTarget(c: Checker, found: int, expected: int) Option<int> {
-    if let Option.Some(inner) = boxInner(c, expected) {
+    if const Option.Some(inner) = boxInner(c, expected) {
         if c.types.kind(inner) != TyKind.Dyn {
             return Option.None
         }
-        let Option.Some(source) = boxInner(c, found) else {
+        const Option.Some(source) = boxInner(c, found) else {
             return Option.None
         }
         return dynSource(c, source)
@@ -61,8 +61,8 @@ fn dynTarget(c: Checker, found: int, expected: int) Option<int> {
     if !c.types.isFat(expected) {
         return Option.None
     }
-    let want = c.types.get(expected)
-    let have = c.types.get(found)
+    const want = c.types.get(expected)
+    const have = c.types.get(found)
     if have.kind == want.kind {   // `&T` to `&dyn I`, `*T` to `*dyn I`
         if want.data == 1 && have.data != 1 {
             return Option.None
@@ -108,7 +108,7 @@ pub fn boxesDyn(c: Checker, ty: int) bool {
 pub fn dynBorrowed(c: Checker, e: &Expr) bool {
     return match c.dynCoercions[c.module()].get(e.id.0) {
         Option.Some(found) => {
-            let kind = c.types.kind(*found)
+            const kind = c.types.kind(*found)
             kind != TyKind.Ref && kind != TyKind.Ptr && boxInner(c, *found).isNone()
         }
         Option.None => false

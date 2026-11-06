@@ -27,10 +27,10 @@ import syntax.ast.Expr
  * @returns the union, or a single type when the members are all the same
  */
 pub fn unionType(c: mut Checker, a: int, spanA: Span, b: int, spanB: Span, span: Span) int {
-    let keysA = c.types.kind(a) == TyKind.Key
-    let keysB = c.types.kind(b) == TyKind.Key
+    const keysA = c.types.kind(a) == TyKind.Key
+    const keysB = c.types.kind(b) == TyKind.Key
     if keysA || keysB {
-        let found = if keysA { b } else { a }
+        const found = if keysA { b } else { a }
         c.error("E0351", span, "type `{c.typeName(found)}` cannot be a member of a union of "
                 + "keys")
         return ERROR
@@ -83,8 +83,8 @@ fn memberAllowed(c: mut Checker, ty: int, span: Span) bool {
     if ty == ERROR {
         return false
     }
-    let kind = c.types.kind(ty)
-    let unsized = kind == TyKind.Slice || kind == TyKind.Dyn
+    const kind = c.types.kind(ty)
+    const unsized = kind == TyKind.Slice || kind == TyKind.Dyn
     if kind == TyKind.Ref || kind == TyKind.Never || unsized {
         c.error("E0351", span, "type `{c.typeName(ty)}` cannot be a member of a union")
         return false
@@ -95,7 +95,7 @@ fn memberAllowed(c: mut Checker, ty: int, span: Span) bool {
 // Adds `ty`, or its members when it is a union, keeping `members` sorted by
 // name and without repeats.
 fn addMembers(c: mut Checker, members: mut List<int>, ty: int) {
-    let inner = unionMembers(c, ty)
+    const inner = unionMembers(c, ty)
     if inner.len() == 0 {
         insertMember(c, members, ty)
         return
@@ -106,13 +106,13 @@ fn addMembers(c: mut Checker, members: mut List<int>, ty: int) {
 }
 
 fn insertMember(c: mut Checker, members: mut List<int>, ty: int) {
-    let name = c.typeName(ty)
+    const name = c.typeName(ty)
     var at = members.len()
     for i in 0..members.len() {
         if members[i] == ty {
             return
         }
-        let other = c.typeName(members[i])
+        const other = c.typeName(members[i])
         if at == members.len() && (name < other || (name == other && ty < members[i])) {
             at = i
         }
@@ -126,8 +126,8 @@ fn overlap(c: Checker, a: int, b: int) bool {
     if a == b {
         return true
     }
-    let ta = c.types.get(a)
-    let tb = c.types.get(b)
+    const ta = c.types.get(a)
+    const tb = c.types.get(b)
     if ta.kind == TyKind.Param || tb.kind == TyKind.Param {
         return true
     }
@@ -137,8 +137,8 @@ fn overlap(c: Checker, a: int, b: int) bool {
     if ta.kind != tb.kind || ta.data != tb.data || ta.args.len() != tb.args.len() {
         return false
     }
-    let nested = ta.kind == TyKind.Ref || ta.kind == TyKind.Ptr || ta.kind == TyKind.Slice ||
-                 ta.kind == TyKind.Array || ta.kind == TyKind.Fn
+    const nested = ta.kind == TyKind.Ref || ta.kind == TyKind.Ptr || ta.kind == TyKind.Slice ||
+                   ta.kind == TyKind.Array || ta.kind == TyKind.Fn
     if nested && !overlap(c, ta.inner, tb.inner) {
         return false
     }
@@ -152,8 +152,8 @@ fn overlap(c: Checker, a: int, b: int) bool {
 
 // The enum of the union of `members`, made once.
 fn unionOf(c: mut Checker, members: &List<int>, span: Span) int {
-    let key = c.types.tuple(members.clone())
-    if let Option.Some(known) = c.unions.get(key) {
+    const key = c.types.tuple(members.clone())
+    if const Option.Some(known) = c.unions.get(key) {
         return c.types.adt(*known, [])
     }
     var name = ""
@@ -162,18 +162,18 @@ fn unionOf(c: mut Checker, members: &List<int>, span: Span) int {
         if i > 0 {
             name.push(" | ")
         }
-        let member = c.typeName(members[i])
+        const member = c.typeName(members[i])
         name.push(member)
-        let symbol = c.r.names.intern(member)
+        const symbol = c.r.names.intern(member)
         info.variants.push(VariantInfo{name: symbol, fieldNames: [Option.None],
                                        types: [members[i]], discriminant: i})
     }
-    let symbol = c.r.names.intern(name)
+    const symbol = c.r.names.intern(name)
     c.r.defs.push(Def{kind: DefKind.Enum, name: symbol, span, isPub: true, inPrelude: false,
                       lang: false, module: c.module(), item: -1, member: -1, target: 0,
                       primitive: 0})
     c.info.push(emptyInfo())
-    let id = c.r.defs.len() - 1
+    const id = c.r.defs.len() - 1
     c.info[id].variants = Option.Some(Box.new(info))
     c.unions.insert(key, id)
     c.unionDefs.insert(id, key)
@@ -213,7 +213,7 @@ pub fn widens(c: Checker, found: int, expected: int) bool {
     if found == expected {
         return false
     }
-    let members = unionMembers(c, found)
+    const members = unionMembers(c, found)
     if members.len() == 0 {
         return memberIndex(c, expected, found) >= 0
     }
@@ -234,7 +234,7 @@ pub fn widens(c: Checker, found: int, expected: int) bool {
  * @returns its index, or -1 when it is not a member
  */
 pub fn memberIndex(c: Checker, union: int, member: int) int {
-    let members = unionMembers(c, union)
+    const members = unionMembers(c, union)
     for i in 0..members.len() {
         if members[i] == member {
             return i

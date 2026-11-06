@@ -71,7 +71,7 @@ fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int,
                isCopyEnum: bool) VariantInfo {
     var v = VariantInfo{name: decl.name, fieldNames: [], types: [], discriminant: next}
     for f in 0..decl.fields.len() {
-        let ty = resolveType(c, p, &decl.fields[f].ty)
+        const ty = resolveType(c, p, &decl.fields[f].ty)
         v.fieldNames.push(decl.fields[f].name)
         v.types.push(ty)
         checkNotRecursive(c, p, ty, decl.span)
@@ -81,10 +81,10 @@ fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int,
                     + "not `{c.typeName(ty)}`")
         }
     }
-    if let Option.Some(value) = decl.discriminant {
-        let ty = coerce(c, p, &value, I64)
+    if const Option.Some(value) = decl.discriminant {
+        const ty = coerce(c, p, &value, I64)
         if ty != ERROR {
-            if let Option.Some(found) = constEval(c, p, &value) {
+            if const Option.Some(found) = constEval(c, p, &value) {
                 v.discriminant = found.signed()
             }
         }
@@ -95,7 +95,7 @@ fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int,
 // Explicit discriminants: only without payloads, and all distinct.
 fn checkDiscriminants(c: mut Checker, p: Program, at: Loc, info: &EnumInfo) {
     for i in 0..info.variants.len() {
-        let decl = variantDeclAt(p, at, i)
+        const decl = variantDeclAt(p, at, i)
         if decl.discriminant.isSome() && info.hasPayload {
             c.error("E0319", decl.span,
                     "explicit discriminants are allowed only in enums without payloads"
@@ -126,16 +126,16 @@ pub fn enumVariants(c: mut Checker, p: Program, id: int) bool {
     if c.info[id].checking {
         return false
     }
-    let declared = declaredFlags(p, c.loc(id))
-    let saved = c.enter(c.def(id).module)
-    let savedSelf = c.selfType
-    let outer = c.enterGenerics(typeGenericsOf(c, p, id))
+    const declared = declaredFlags(p, c.loc(id))
+    const saved = c.enter(c.def(id).module)
+    const savedSelf = c.selfType
+    const outer = c.enterGenerics(typeGenericsOf(c, p, id))
     c.selfType = ownerType(c, p, id)
     c.info[id].checking = true
     var info = EnumInfo{variants: [], hasPayload: false}
     var next = 0
     for i in 0..declared.1 {
-        let v = fillVariant(c, p, variantDeclAt(p, c.loc(id), i), next, declared.0)
+        const v = fillVariant(c, p, variantDeclAt(p, c.loc(id), i), next, declared.0)
         next = v.discriminant + 1
         info.hasPayload = info.hasPayload || v.types.len() > 0
         info.variants.push(v)
@@ -194,7 +194,7 @@ pub fn enumOf(c: mut Checker, p: Program, ty: int) Option<int> {
     if c.types.kind(ty) != TyKind.Adt {
         return Option.None
     }
-    let id = c.types.get(ty).data
+    const id = c.types.get(ty).data
     if c.def(id).kind != DefKind.Enum || !enumVariants(c, p, id) {
         return Option.None
     }
@@ -213,15 +213,15 @@ pub fn checkEnumLayouts(c: mut Checker, p: Program, id: int) {
     if id != c.r.langItems[2] && id != c.r.langItems[3] {
         return
     }
-    let isOption = id == c.r.langItems[2]
-    let info = variantsOf(c, id)
-    let ok = info.variants.len() == 2 && if isOption {
+    const isOption = id == c.r.langItems[2]
+    const info = variantsOf(c, id)
+    const ok = info.variants.len() == 2 && if isOption {
         variantIs(c, &info.variants[0], "Some", 1) && variantIs(c, &info.variants[1], "None", 0)
     } else {
         variantIs(c, &info.variants[0], "Ok", 1) && variantIs(c, &info.variants[1], "Err", 1)
     }
     if !ok {
-        let message = if isOption {
+        const message = if isOption {
             "`@lang(\"option\")` must declare `Some(T)` then `None`"
         } else {
             "`@lang(\"result\")` must declare `Ok(T)` then `Err(E)`"

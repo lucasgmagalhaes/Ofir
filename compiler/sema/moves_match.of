@@ -1,6 +1,6 @@
 /**
  * @module
- * Move analysis of patterns, `if let` and `match` (spec 5.1, 5.5; stage 0:
+ * Move analysis of patterns, `if const` and `match` (spec 5.1, 5.5; stage 0:
  * bootstrap/src/sema/moves_match.c): a matched owned value is moved into
  * the bindings that take parts of it by move; the bindings of a matched
  * borrowed place borrow.
@@ -120,7 +120,7 @@ fn listLocals(c: Checker, list: &List<Pattern>, out: mut List<int>) {
 pub fn patternLocals(c: Checker, pattern: &Pattern, out: mut List<int>) {
     match pattern.kind {
         PatternKind.Binding(_, _) | PatternKind.TypeTest(_, _) => {
-            let local = c.localAt(pattern.id.0)
+            const local = c.localAt(pattern.id.0)
             if local >= 0 {
                 out.push(local)
             }
@@ -134,7 +134,7 @@ pub fn patternLocals(c: Checker, pattern: &Pattern, out: mut List<int>) {
                 match fields[i].pattern {
                     Option.Some(inner) => patternLocals(c, &inner, out)
                     Option.None => {
-                        let local = c.localAt(fields[i].id.0)
+                        const local = c.localAt(fields[i].id.0)
                         if local >= 0 {
                             out.push(local)
                         }
@@ -183,23 +183,23 @@ pub fn patternInit(m: mut Moves, c: Checker, pattern: &Pattern, s: mut State, bo
     }
 }
 
-// The value matched by `match` or `if let`: an owned place whose parts are
+// The value matched by `match` or `if const`: an owned place whose parts are
 // bound by move is moved; a borrowed place lends its parts to the
 // bindings; a temporary is consumed. Returns whether the bindings borrow;
 // `m.binding` gets the loans they take.
 fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
              byMove: bool) bool {
-    let mark = m.carry.len()
+    const mark = m.carry.len()
     if !isPlace(c, e) {   // a temporary: consumed if its parts are bound by move
         movesNode(m, c, p, e, s, if byMove { Use.Move } else { Use.Read })
         m.binding = carriedSince(m, mark)
         dropCarry(m, mark)
         return false
     }
-    let place = placeOfNode(m, c, p, e, s)
+    const place = placeOfNode(m, c, p, e, s)
     usePlace(m, c, &place, s, e.span)
-    let owned = place.local && place.via == Via.Nothing && !m.borrowed[place.part.local]
-    let moves = byMove && owned
+    const owned = place.local && place.via == Via.Nothing && !m.borrowed[place.part.local]
+    const moves = byMove && owned
     if place.local {
         access(s, &place.part, if moves { Access.Move } else { Access.Read }, e.span)
     }
@@ -209,17 +209,17 @@ fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
     }
     var loans = carriedSince(m, mark)
     dropCarry(m, mark)
-    let borrows = !owned && place.via != Via.Raw
+    const borrows = !owned && place.via != Via.Raw
     if borrows && place.local {
         loans.push(Loan{holder: -1, part: place.part.clone(), mutable: false, span: e.span})
     }
     m.binding = loans
-    let ty = c.typeOf(e.id.0)
+    const ty = c.typeOf(e.id.0)
     return borrows || (testedDyn(c, ty) >= 0 && !boxesDyn(c, ty))   // a `&dyn I` lends its value
 }
 
 /**
- * `if cond {...} else {...}` and `if let pattern = value {...}`.
+ * `if cond {...} else {...}` and `if const pattern = value {...}`.
  *
  * @param m the analysis
  * @param c the checker
@@ -239,12 +239,12 @@ pub fn movesIf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
                 Option.None => movesNode(m, c, p, &*cond, s, Use.Read)
             }
             var other = s.dup()
-            if let Option.Some(pattern) = letPattern {
+            if const Option.Some(pattern) = letPattern {
                 patternInit(m, c, &pattern, s, borrowed)
             }
             m.binding = []
             movesBlock(m, c, p, &then, s, use)
-            if let Option.Some(branch) = otherwise {
+            if const Option.Some(branch) = otherwise {
                 movesNode(m, c, p, &*branch, other, use)
             }
             s.join(&other)
@@ -270,15 +270,15 @@ pub fn movesMatch(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut Sta
             for i in 0..arms.len() {
                 byMove = byMove || bindsByMove(c, p, &arms[i].pattern)
             }
-            let borrowed = scrutinee(m, c, p, &*value, s, byMove)
-            let loans = mem.replace(m.binding, [])
+            const borrowed = scrutinee(m, c, p, &*value, s, byMove)
+            const loans = mem.replace(m.binding, [])
             var result = deadState()
             for i in 0..arms.len() {
                 var a = s.dup()
                 m.binding = loans.clone()
                 patternInit(m, c, &arms[i].pattern, a, borrowed)
                 m.binding = []
-                if let Option.Some(guard) = arms[i].guard {
+                if const Option.Some(guard) = arms[i].guard {
                     movesNode(m, c, p, &guard, a, Use.Read)
                 }
                 movesNode(m, c, p, &arms[i].body, a, use)

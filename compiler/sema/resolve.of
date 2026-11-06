@@ -127,9 +127,9 @@ pub struct Resolver {
      * @param name a name used in the current module
      */
     pub fn noteImportUse(mut self, name: Symbol) {
-        let id = self.scope.module(name)
+        const id = self.scope.module(name)
         if id != 0 {
-            let def = &self.defs[id]
+            const def = &self.defs[id]
             if def.module == self.current && !def.inPrelude && def.kind != DefKind.Module {
                 return
             }
@@ -260,8 +260,8 @@ pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagno
     r.testing = testing
     r.benching = benching
     for m in 0..program.modules.len() {
-        let name = program.modules[m].name.clone()
-        let late = name == "std.core.any" || name == "std.core.iter" || name == "std.core.bench"
+        const name = program.modules[m].name.clone()
+        const late = name == "std.core.any" || name == "std.core.iter" || name == "std.core.bench"
         if !late {   // stage 0 does not load them
             r.trace.line("module {m} {program.modules[m].name}")
         }
@@ -282,12 +282,12 @@ pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagno
 fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
                map: move SourceMap, trace: bool) Resolver {
     var names = given
-    let prelude = preludeNames()
+    const prelude = preludeNames()
     var symbols: List<Symbol> = []
     for i in 0..prelude.len() {
         symbols.push(names.intern(prelude[i].0))
     }
-    let selfName = names.intern("self")   // before the scope tables are sized
+    const selfName = names.intern("self")   // before the scope tables are sized
     names.intern("_")
     var scope = Scope.new(names.len(), program.modules.len())
     var defs: List<Def> = [noDef()]
@@ -303,7 +303,7 @@ fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
     var tables: List<Resolutions> = []
     for m in 0..program.modules.len() {
         moduleNames.push(program.modules[m].name.clone())
-        let count = program.modules[m].module.nodeCount
+        const count = program.modules[m].module.nodeCount
         tables.push(Resolutions{res: List.filled(Res.None, count), locals: List.filled(-1, count),
                                 fnDefs: List.filled(0, count), fnLocals: Map.new(),
                                 captures: Map.new()})
@@ -336,7 +336,7 @@ fn enter(r: mut Resolver, program: Program, m: int) {
  * @returns true for `std` and `std.*`
  */
 pub fn moduleInStd(program: Program, m: int) bool {
-    let name = program.modules[m].name.sliceFrom(0)
+    const name = program.modules[m].name.sliceFrom(0)
     return name == "std" || name.startsWith("std.")
 }
 
@@ -361,17 +361,17 @@ pub fn findAttribute(r: Resolver, attributes: List<Attribute>, name: str) Option
 // 12.2, 12.3): all of them outside `ofir test` and `ofir bench`, those of
 // the other attribute, and those of std modules other than the root.
 fn skippedTest(r: Resolver, program: Program, item: &Item) bool {
-    let isFn = match item.kind {
+    const isFn = match item.kind {
         ItemKind.Fn(_) => true
         _ => false
     }
-    let test = isFn && findAttribute(r, item.attributes, "test").isSome()
-    let bench = isFn && findAttribute(r, item.attributes, "bench").isSome()
+    const test = isFn && findAttribute(r, item.attributes, "test").isSome()
+    const bench = isFn && findAttribute(r, item.attributes, "bench").isSome()
     if !test && !bench {
         return false
     }
-    let wanted = (test && !r.benching) || (bench && r.benching)
-    let tested = r.current == 0 || !moduleInStd(program, r.current)
+    const wanted = (test && !r.benching) || (bench && r.benching)
+    const tested = r.current == 0 || !moduleInStd(program, r.current)
     return !r.testing || !tested || !wanted
 }
 
@@ -386,13 +386,13 @@ fn skippedTest(r: Resolver, program: Program, item: &Item) bool {
  * @param def the declaration
  */
 pub fn declareItem(r: mut Resolver, def: move Def) {
-    let existing = r.scope.module(def.name)
+    const existing = r.scope.module(def.name)
     if existing != 0 && !r.def(existing).inPrelude {
         r.error("E0201", def.span, "`{r.text(def.name)}` is defined more than once")
         return
     }
-    let name = def.name
-    let id = r.addDef(def)
+    const name = def.name
+    const id = r.addDef(def)
     r.scope.setModule(name, id)
 }
 
@@ -403,7 +403,7 @@ fn newDef(r: Resolver, kind: DefKind, name: Symbol, span: Span, isPub: bool, ite
 }
 
 fn declareFn(r: mut Resolver, decl: &FnDecl, item: int, member: int, inModule: bool) {
-    let def = newDef(r, DefKind.Fn, decl.name, decl.span, decl.isPub, item, member)
+    const def = newDef(r, DefKind.Fn, decl.name, decl.span, decl.isPub, item, member)
     if inModule {
         declareItem(r, def)
         r.tables[r.current].fnDefs[decl.id.0] = r.scope.module(decl.name)
@@ -432,7 +432,7 @@ fn inStd(r: Resolver) bool {
 // The `@lang` types of std that the compiler knows by name (spec 2.6), in
 // the order of `Resolver.langItems`.
 fn langItemIndex(name: str) int {
-    let items = ["box", "list", "option", "result", "slice", "map", "unsafe_cell", "slice_mut"]
+    const items = ["box", "list", "option", "result", "slice", "map", "unsafe_cell", "slice_mut"]
     for i in 0..items.len() {
         if items[i] == name {
             return i
@@ -455,37 +455,37 @@ fn langArgument(attribute: &Attribute) Option<str> {
 // `@lang("box") struct Box<T>`, ...: ordinary declarations of std that the
 // compiler knows. The index of their free `LangItem` slot, or -1.
 fn namedLang(r: Resolver, attribute: Option<&Attribute>) int {
-    let Option.Some(attr) = attribute else {
+    const Option.Some(attr) = attribute else {
         return -1
     }
-    let Option.Some(name) = langArgument(attr) else {
+    const Option.Some(name) = langArgument(attr) else {
         return -1
     }
-    let slot = if inStd(r) { langItemIndex(name) } else { -1 }
+    const slot = if inStd(r) { langItemIndex(name) } else { -1 }
     return if slot >= 0 && r.langItems[slot] == 0 { slot } else { -1 }
 }
 
 // `@lang("str") struct str { ... }` in std: the body of a primitive type. It
 // declares no name; the primitive gets its fields and methods.
 fn collectLang(r: mut Resolver, item: &Item, index: int, methods: List<FnDecl>) bool {
-    let Option.Some(at) = findAttribute(r, item.attributes, "lang") else {
+    const Option.Some(at) = findAttribute(r, item.attributes, "lang") else {
         return false
     }
-    let attr = &item.attributes[at]
+    const attr = &item.attributes[at]
     if namedLang(r, Option.Some(attr)) >= 0 {
         return false
     }
-    let stdModule = inStd(r)
+    const stdModule = inStd(r)
     var primitive = 0
-    if let Option.Some(name) = langArgument(attr) {
-        if let Option.Some(symbol) = r.names.find(name) {
+    if const Option.Some(name) = langArgument(attr) {
+        if const Option.Some(symbol) = r.names.find(name) {
             primitive = r.scope.module(symbol)
         }
     }
-    let isPrimitive = primitive != 0 && r.def(primitive).kind == DefKind.Primitive
-    let taken = isPrimitive && r.lang[r.def(primitive).primitive] != 0
+    const isPrimitive = primitive != 0 && r.def(primitive).kind == DefKind.Primitive
+    const taken = isPrimitive && r.lang[r.def(primitive).primitive] != 0
     if !stdModule || !isPrimitive || taken {
-        let message = if stdModule {
+        const message = if stdModule {
             "`@lang` needs a primitive type or a std type name, declared once: `@lang(\"str\")`"
         } else {
             "`@lang` is reserved to the standard library"
@@ -496,7 +496,7 @@ fn collectLang(r: mut Resolver, item: &Item, index: int, methods: List<FnDecl>) 
     var def = newDef(r, DefKind.Struct, item.name, item.span, true, index, -1)
     def.lang = true
     def.primitive = r.def(primitive).primitive
-    let type = def.primitive
+    const type = def.primitive
     r.lang[type] = r.addDef(def)
     checkMembers(r, methods, index)
     return true
@@ -567,15 +567,15 @@ fn collectItem(r: mut Resolver, item: &Item, index: int) {
 // names (`Some`, `Ok`).
 fn namedSlot(r: mut Resolver, item: &Item, index: int) {
     var attr: Option<&Attribute> = Option.None
-    if let Option.Some(at) = findAttribute(r, item.attributes, "lang") {
+    if const Option.Some(at) = findAttribute(r, item.attributes, "lang") {
         attr = Option.Some(&item.attributes[at])
     }
-    let slot = namedLang(r, attr)
+    const slot = namedLang(r, attr)
     if slot < 0 {
         return
     }
     r.langItems[slot] = r.scope.module(item.name)
-    if let ItemKind.Enum(_, _, _, _) = item.kind {
+    if const ItemKind.Enum(_, _, _, _) = item.kind {
         declareVariants(r, item, index, r.langItems[slot])
     }
 }
@@ -593,7 +593,7 @@ fn resolveItem(r: mut Resolver, item: &Item) {
             }
             r.owner = Option.None
             for i in 0..fields.len() {
-                if let Option.Some(value) = fields[i].defaultValue {
+                if const Option.Some(value) = fields[i].defaultValue {
                     resolveExpr(r, &value)
                 }
             }
@@ -658,9 +658,9 @@ fn isBencher(r: Resolver, ty: &TypeExpr) bool {
 }
 
 fn resolvePass(r: mut Resolver, program: Program, pass: int) {
-    let items = &program.modules[r.current].module.items
+    const items = &program.modules[r.current].module.items
     for i in 0..items.len() {
-        let item = &items[i]
+        const item = &items[i]
         if pass == 0 {
             checkAttributes(r, item)
             checkTestSignature(r, item)
@@ -670,11 +670,11 @@ fn resolvePass(r: mut Resolver, program: Program, pass: int) {
             continue
         }
         if pass == 0 {
-            let first = r.defs.len()
+            const first = r.defs.len()
             collectItem(r, item, i)
             recordDeprecated(r, item, first)
         } else if pass == 1 {
-            if let ItemKind.Import(path, alias) = item.kind {
+            if const ItemKind.Import(path, alias) = item.kind {
                 resolveImport(r, program, &path, alias, item.span)
             }
         } else {

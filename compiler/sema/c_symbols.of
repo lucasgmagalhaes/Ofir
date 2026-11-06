@@ -15,7 +15,7 @@ import syntax.ast.ItemKind
 
 // The string argument of the attribute `name`, if the list has it.
 fn stringArg(r: Resolver, attributes: &List<Attribute>, name: str) Option<str> {
-    let Option.Some(at) = findAttribute(r, *attributes, name) else {
+    const Option.Some(at) = findAttribute(r, *attributes, name) else {
         return Option.None
     }
     if attributes[at].args.len() != 1 {
@@ -47,16 +47,16 @@ pub fn cSymbol(r: Resolver, decl: &FnDecl) str {
 pub fn checkCSymbols(c: mut Checker, p: Program) {
     var seen: Map<str, bool> = Map.new()
     for m in 0..p.modules.len() {
-        let items = &p.modules[m].module.items
+        const items = &p.modules[m].module.items
         for i in 0..items.len() {
             match items[i].kind {
                 ItemKind.Fn(decl) => {
                     if decl.abi.len() > 0 {
-                        let symbol = cSymbol(c.r, &*decl)
+                        const symbol = cSymbol(c.r, &*decl)
                         if seen.contains(symbol) {
                             c.error("E0813", decl.span, "the C symbol `{symbol}` is defined twice")
                         } else {
-                            let _ = seen.insert(symbol, true)
+                            const _ = seen.insert(symbol, true)
                         }
                     }
                 }
@@ -77,16 +77,16 @@ pub fn checkCSymbols(c: mut Checker, p: Program) {
 pub fn linkLibraries(r: Resolver, p: Program) List<str> {
     var names: List<str> = []
     for m in 0..p.modules.len() {
-        let items = &p.modules[m].module.items
+        const items = &p.modules[m].module.items
         for i in 0..items.len() {
-            let isExtern = match items[i].kind {
+            const isExtern = match items[i].kind {
                 ItemKind.Extern(_, _) => true
                 _ => false
             }
             if !isExtern {
                 continue
             }
-            if let Option.Some(name) = stringArg(r, &items[i].attributes, "link") {
+            if const Option.Some(name) = stringArg(r, &items[i].attributes, "link") {
                 var twice = false
                 for k in 0..names.len() {
                     twice = twice || names[k] == name

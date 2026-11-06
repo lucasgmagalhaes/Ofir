@@ -42,7 +42,7 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
     if c.aliasDef == 0 {
         return c.unsupported(t.span, "mapped types outside a type alias are")
     }
-    let keyType = resolveType(c, p, keys)
+    const keyType = resolveType(c, p, keys)
     if keyType == ERROR {
         return ERROR
     }
@@ -58,17 +58,17 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
     for i in 0..c.typeVarTypes.len() {
         scope.push(c.typeVarTypes[i])
     }
-    let cacheKey = (t.span.file.0, t.span.start, c.types.tuple(scope))
-    if let Option.Some(known) = c.mapped.get(cacheKey) {
+    const cacheKey = (t.span.file.0, t.span.start, c.types.tuple(scope))
+    if const Option.Some(known) = c.mapped.get(cacheKey) {
         return c.types.adt(*known, [])
     }
     var info = StructInfo{names: [], types: [], defaults: [], isTuple: false, isCopy: false}
-    let names = c.types.keyNames(keyType)
+    const names = c.types.keyNames(keyType)
     var fieldNames: List<int> = []
     for i in 0..names.len() {
         c.typeVars.push(param)
         c.typeVarTypes.push(c.types.keys([names[i]]))
-        let kept = keep(c, p, filter)
+        const kept = keep(c, p, filter)
         if kept != 1 {
             c.typeVars.pop()
             c.typeVarTypes.pop()
@@ -92,7 +92,7 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
         info.types.push(ty)
         info.defaults.push(optional)
     }
-    let id = mappedStruct(c, t, &scope)
+    const id = mappedStruct(c, t, &scope)
     var pubs: List<bool> = []
     for _ in 0..fieldNames.len() {
         pubs.push(true)
@@ -119,7 +119,7 @@ fn keep(c: mut Checker, p: Program, filter: &Option<Box<TypeExpr>>) int {
 // A new struct declaration for an instance, named by its alias and the types
 // in scope: `Partial<Point>`.
 fn mappedStruct(c: mut Checker, t: &TypeExpr, scope: &List<int>) int {
-    let alias = c.aliasDef
+    const alias = c.aliasDef
     var name = c.text(c.def(alias).name).toOwned()
     if scope.len() > 0 {
         name.push("<")
@@ -131,10 +131,10 @@ fn mappedStruct(c: mut Checker, t: &TypeExpr, scope: &List<int>) int {
         }
         name.push(">")
     }
-    let symbol = c.r.names.intern(name)
-    let module = c.def(alias).module
-    let item = c.def(alias).item
-    let isPub = c.def(alias).isPub
+    const symbol = c.r.names.intern(name)
+    const module = c.def(alias).module
+    const item = c.def(alias).item
+    const isPub = c.def(alias).isPub
     c.r.defs.push(Def{kind: DefKind.Struct, name: symbol, span: t.span, isPub, inPrelude: false,
                       lang: false, module, item, member: -1, target: 0, primitive: 0})
     c.info.push(emptyInfo())
@@ -172,18 +172,18 @@ pub fn isMappedStruct(c: Checker, p: Program, id: int) bool {
  */
 pub fn checkAliasBounds(c: mut Checker, p: Program, id: int, span: Span) bool {
     var ok = true
-    let preds = itemOf(p, c.loc(id)).bounds.clone()
+    const preds = itemOf(p, c.loc(id)).bounds.clone()
     for i in 0..preds.len() {
-        let index = boundedParam(&preds[i].ty, &c.generics.owner, &[])
+        const index = boundedParam(&preds[i].ty, &c.generics.owner, &[])
         if index < 0 || index >= c.generics.aliasArgs.len() {
             continue
         }
-        let arg = c.generics.aliasArgs[index]
+        const arg = c.generics.aliasArgs[index]
         if arg == ERROR || c.types.get(arg).hasParam {
             continue
         }
         for j in 0..preds[i].bounds.len() {
-            let bound = resolveType(c, p, &preds[i].bounds[j])
+            const bound = resolveType(c, p, &preds[i].bounds[j])
             if bound != ERROR && !c.types.get(bound).hasParam && !included(c, arg, bound) {
                 c.error("E0332", span, "the key `{c.typeName(arg)}` is not in the bound "
                         + "`{c.typeName(bound)}` of `{c.text(c.generics.owner[index])}`")

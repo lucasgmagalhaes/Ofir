@@ -19,10 +19,10 @@ import syntax.token_print.formatG
 fn valueText(c: Checker, v: &ConstValue) str {
     return match v.kind {
         ConstKind.Int => {
-            let kind = c.types.get(v.ty).data
+            const kind = c.types.get(v.ty).data
             if kind <= 3 {
-                let widths = [8, 16, 32, 64]
-                let width = widths[kind]
+                const widths = [8, 16, 32, 64]
+                const width = widths[kind]
                 var bits = v.bits
                 if width < 64 && (bits >> (width - 1) as u64) & 1 == 1 {
                     bits = bits | (18446744073709551615 ^ ((1 as u64 << width as u64) - 1))
@@ -39,16 +39,16 @@ fn valueText(c: Checker, v: &ConstValue) str {
 }
 
 fn fnLines(c: Checker, out: mut str, owner: str, decl: &FnDecl) {
-    let id = c.r.tables[0].fnDefs[decl.id.0]
+    const id = c.r.tables[0].fnDefs[decl.id.0]
     out.push("fn {owner}{if owner.len() > 0 { "." } else { "" }}{c.text(decl.name)}: ")
     if id != 0 && c.info[id].typed {
         out.push(c.typeName(c.info[id].ty))
     }
     out.push("\n")
-    let Option.Some(types) = c.localTypesOf[0].get(decl.id.0) else {
+    const Option.Some(types) = c.localTypesOf[0].get(decl.id.0) else {
         return
     }
-    let Option.Some(locals) = c.r.tables[0].fnLocals.get(decl.id.0) else {
+    const Option.Some(locals) = c.r.tables[0].fnLocals.get(decl.id.0) else {
         return
     }
     for i in 0..locals.len() {
@@ -57,7 +57,7 @@ fn fnLines(c: Checker, out: mut str, owner: str, decl: &FnDecl) {
 }
 
 fn methodLines(c: Checker, p: Program, out: mut str, item: &Item, methods: &List<FnDecl>) {
-    let owner = c.text(item.name).toOwned()
+    const owner = c.text(item.name).toOwned()
     if !skippedTest(c, p, item) {
         for i in 0..methods.len() {
             fnLines(c, out, owner, &methods[i])
@@ -67,9 +67,9 @@ fn methodLines(c: Checker, p: Program, out: mut str, item: &Item, methods: &List
 
 fn structLine(c: Checker, out: mut str, index: int, item: &Item) {
     out.push("struct {c.text(item.name)} \{")
-    let id = c.itemDefs[0][index]
+    const id = c.itemDefs[0][index]
     if id != 0 {
-        if let Option.Some(info) = c.info[id].fields {
+        if const Option.Some(info) = c.info[id].fields {
             for i in 0..info.types.len() {
                 out.push(if i > 0 { ", " } else { " " })
                 if !info.isTuple {
@@ -84,11 +84,11 @@ fn structLine(c: Checker, out: mut str, index: int, item: &Item) {
 
 fn enumLine(c: Checker, out: mut str, index: int, item: &Item) {
     out.push("enum {c.text(item.name)} \{")
-    let id = c.itemDefs[0][index]
+    const id = c.itemDefs[0][index]
     if id != 0 {
-        if let Option.Some(info) = c.info[id].variants {
+        if const Option.Some(info) = c.info[id].variants {
             for v in 0..info.variants.len() {
-                let variant = &info.variants[v]
+                const variant = &info.variants[v]
                 out.push("{if v > 0 { ", " } else { " " }}{c.text(variant.name)}")
                 for i in 0..variant.types.len() {
                     out.push(if i > 0 { ", " } else { "(" })
@@ -104,10 +104,10 @@ fn enumLine(c: Checker, out: mut str, index: int, item: &Item) {
 
 fn constLine(c: Checker, out: mut str, index: int, item: &Item, isConst: bool) {
     out.push("{if isConst { "const" } else { "var" }} {c.text(item.name)}: ")
-    let id = c.itemDefs[0][index]
+    const id = c.itemDefs[0][index]
     if id != 0 && c.info[id].typed {
         out.push(c.typeName(c.info[id].ty))
-        if let Option.Some(value) = c.info[id].value {
+        if const Option.Some(value) = c.info[id].value {
             if isConst {   // a mutable global's initial value is not printed
                 out.push(" = {valueText(c, &value)}")
             }
@@ -126,9 +126,9 @@ fn constLine(c: Checker, out: mut str, index: int, item: &Item, isConst: bool) {
 pub fn traceTypes(c: mut Checker, p: Program) str {
     c.enter(0)
     var out = ""
-    let items = &p.modules[0].module.items
+    const items = &p.modules[0].module.items
     for i in 0..items.len() {
-        let item = &items[i]
+        const item = &items[i]
         if skippedTest(c, p, item) {
             continue
         }

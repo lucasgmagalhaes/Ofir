@@ -44,11 +44,11 @@ pub fn requireUnsafe(c: mut Checker, span: Span, what: str) {
  * @returns the type of the value
  */
 pub fn checkDeref(c: mut Checker, p: Program, e: &Expr, operand: &Expr) int {
-    let ty = checkExpr(c, p, operand, ERROR)
+    const ty = checkExpr(c, p, operand, ERROR)
     if boxInner(c, ty).isSome() {   // `*b` reads the value of a box: safe
         return boxTarget(c, p, ty)
     }
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     if kind == TyKind.Ptr {
         requireUnsafe(c, e.span, "dereferencing a raw pointer")
         return c.types.get(ty).inner
@@ -73,11 +73,11 @@ pub fn checkDeref(c: mut Checker, p: Program, e: &Expr, operand: &Expr) int {
  * @returns whether it is a pointer cast
  */
 pub fn pointerCast(c: mut Checker, from: int, to: int, span: Span) bool {
-    let a = c.types.kind(from)
-    let b = c.types.kind(to)
-    let ptrPtr = (a == TyKind.Ptr || a == TyKind.Ref) && b == TyKind.Ptr
-    let ptrInt = (a == TyKind.Ptr && (to == U64 || to == I64)) || (b == TyKind.Ptr &&
-                                                                   (from == U64 ||
+    const a = c.types.kind(from)
+    const b = c.types.kind(to)
+    const ptrPtr = (a == TyKind.Ptr || a == TyKind.Ref) && b == TyKind.Ptr
+    const ptrInt = (a == TyKind.Ptr && (to == U64 || to == I64)) || (b == TyKind.Ptr &&
+                                                                     (from == U64 ||
                                                                          from == I64))
     if ptrPtr || ptrInt {
         requireUnsafe(c, span, "converting a raw pointer")
@@ -88,7 +88,7 @@ pub fn pointerCast(c: mut Checker, from: int, to: int, span: Span) bool {
 
 // Integers, floats, bool, raw pointers and () can cross the C boundary.
 fn cCompatible(c: Checker, ty: int) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     return kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool ||
            kind == TyKind.Ptr || kind == TyKind.Unit ||
            kind == TyKind.Never || kind == TyKind.Error
@@ -103,21 +103,21 @@ fn cCompatible(c: Checker, ty: int) bool {
  * @param id the function's `DefId`
  */
 pub fn checkCSignature(c: mut Checker, p: Program, id: int) {
-    let decl = fnOf(p, c.loc(id))
+    const decl = fnOf(p, c.loc(id))
     if decl.typeParams.len() > 0 {
         c.error("E0804", decl.span, "a function that crosses the C boundary cannot be generic: "
                 + "C has one copy of each function")
         return
     }
-    let sig = fnSignature(c, p, id)
-    let params = c.types.get(sig).args.clone()
+    const sig = fnSignature(c, p, id)
+    const params = c.types.get(sig).args.clone()
     for i in 0..params.len() {
         if !cCompatible(c, params[i]) {
             c.error("E0804", decl.params[i].span, "type `{c.typeName(params[i])}` has no C "
                     + "layout and cannot cross the C boundary")
         }
     }
-    let ret = c.types.get(sig).inner
+    const ret = c.types.get(sig).inner
     if !cCompatible(c, ret) {
         c.error("E0804", decl.span, "type `{c.typeName(ret)}` has no C layout and cannot cross "
                 + "the C boundary")
@@ -125,7 +125,7 @@ pub fn checkCSignature(c: mut Checker, p: Program, id: int) {
 }
 
 fn externAbi(c: Checker, p: Program, id: int) Option<str> {
-    let def = c.def(id)
+    const def = c.def(id)
     if def.kind != DefKind.Fn || def.item < 0 {
         return Option.None
     }

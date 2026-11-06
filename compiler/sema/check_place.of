@@ -31,7 +31,7 @@ import syntax.ast.Op
  *     (0 for a variable or an explicit `*p`), or `None` for a temporary
  */
 pub fn placeRoot(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
-    let own = derefsOf(c, e).len()
+    const own = derefsOf(c, e).len()
     if own > 0 {   // the value itself is reached through a reference or a box
         return Option.Some((e, own))
     }
@@ -45,7 +45,7 @@ fn placeRootBelow(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
         if isModuleMember(c, at) {
             return Option.Some((at, 0))   // `m.global`
         }
-        let base = match at.kind {
+        const base = match at.kind {
             ExprKind.Field(base, _, _) => &*base
             ExprKind.TupleField(base, _) => &*base
             ExprKind.Index(base, _) => {
@@ -64,7 +64,7 @@ fn placeRootBelow(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
                 return Option.None
             }
         }
-        let steps = derefsOf(c, base).len()
+        const steps = derefsOf(c, base).len()
         if steps > 0 {
             return Option.Some((base, steps))
         }
@@ -78,14 +78,14 @@ fn placeRootBelow(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
 fn throughSlice(c: Checker, e: &Expr) int {
     var at = e
     for {
-        let base = match at.kind {
+        const base = match at.kind {
             ExprKind.Field(base, _, _) => &*base
             ExprKind.TupleField(base, _) => &*base
             ExprKind.Index(base, _) => {
-                let ty = adjustedType(c, &*base)
-                let slice = c.r.langItems[4]
+                const ty = adjustedType(c, &*base)
+                const slice = c.r.langItems[4]
                 if c.types.kind(ty) == TyKind.Adt && c.types.get(ty).data != 0 {
-                    let data = c.types.get(ty).data
+                    const data = c.types.get(ty).data
                     if data == slice {
                         return 1
                     }
@@ -115,7 +115,7 @@ pub fn requireMutable(c: mut Checker, p: Program, place: &Expr) {
 }
 
 fn requirePlace(c: mut Checker, p: Program, place: &Expr, withOwn: bool) {
-    let through = throughSlice(c, place)
+    const through = throughSlice(c, place)
     if through == 2 {
         return
     }
@@ -124,11 +124,11 @@ fn requirePlace(c: mut Checker, p: Program, place: &Expr, withOwn: bool) {
                 + "are read-only")
         return
     }
-    let found = if withOwn { placeRoot(c, place) } else { placeRootBelow(c, place) }
-    let Option.Some(root) = found else {
+    const found = if withOwn { placeRoot(c, place) } else { placeRootBelow(c, place) }
+    const Option.Some(root) = found else {
         if c.typeOf(place.id.0) != ERROR {
             c.error("E0315", place.span,
-                    "only variables and their fields can be modified".toOwned())
+                      "only variables and their fields can be modified".toOwned())
         }
         return
     }
@@ -138,7 +138,7 @@ fn requirePlace(c: mut Checker, p: Program, place: &Expr, withOwn: bool) {
 // `e` after `level` of its implicit dereferences.
 fn requireRoot(c: mut Checker, p: Program, e: &Expr, level: int) {
     if level > 0 {
-        let ty = derefsOf(c, e)[level - 1]
+        const ty = derefsOf(c, e)[level - 1]
         if boxInner(c, ty).isSome() {   // through a box: the box is modified
             if level == 1 {
                 requirePlace(c, p, e, false)
@@ -155,23 +155,23 @@ fn requireRoot(c: mut Checker, p: Program, e: &Expr, level: int) {
     }
     match e.kind {
         ExprKind.Unary(_, operand) => {   // `*p`: writable through a `*mut T` or a `&mut T`
-            let ty = c.typeOf(operand.id.0)
+            const ty = c.typeOf(operand.id.0)
             if boxInner(c, ty).isSome() {
                 requireMutable(c, p, &*operand)
                 return
             }
-            let kind = c.types.kind(ty)
-            let ok = ((kind == TyKind.Ptr || kind == TyKind.Ref) && c.types.get(ty).data != 0) ||
-                     c.typeOf(e.id.0) == ERROR
+            const kind = c.types.kind(ty)
+            const ok = ((kind == TyKind.Ptr || kind == TyKind.Ref) && c.types.get(ty).data != 0) ||
+                       c.typeOf(e.id.0) == ERROR
             if !ok {
-                let isRef = kind == TyKind.Ref
+                const isRef = kind == TyKind.Ref
                 c.error("E0315", e.span, "this value cannot be modified: it is reached through "
                         + "a `{if isRef { "&T" } else { "*T" }}`, not a "
                         + "`{if isRef { "&mut T" } else { "*mut T" }}`")
             }
         }
         _ => {
-            let ok = match c.res(e.id.0) {
+            const ok = match c.res(e.id.0) {
                 Res.Local(id) => {
                     noteWrite(c, e.span, id)
                     c.locals[id].mutable

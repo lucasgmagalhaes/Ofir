@@ -65,7 +65,7 @@ pub fn condType(c: mut Checker, p: Program, test: &TypeExpr, then: &TypeExpr,
                 otherwise: &TypeExpr) int {
     var names: List<Symbol> = []
     var binds: List<int> = []
-    let decided = decide(c, p, test, names, binds)
+    const decided = decide(c, p, test, names, binds)
     if decided < 0 {
         return ERROR
     }
@@ -76,7 +76,7 @@ pub fn condType(c: mut Checker, p: Program, test: &TypeExpr, then: &TypeExpr,
         c.typeVars.push(names[i])
         c.typeVarTypes.push(binds[i])
     }
-    let ty = resolveType(c, p, then)
+    const ty = resolveType(c, p, then)
     for _ in 0..names.len() {
         c.typeVars.pop()
         c.typeVarTypes.pop()
@@ -95,7 +95,7 @@ pub fn condType(c: mut Checker, p: Program, test: &TypeExpr, then: &TypeExpr,
 pub fn isType(c: mut Checker, p: Program, test: &TypeExpr) int {
     var names: List<Symbol> = []
     var binds: List<int> = []
-    let decided = decide(c, p, test, names, binds)
+    const decided = decide(c, p, test, names, binds)
     if decided < 0 {
         return ERROR
     }
@@ -120,11 +120,11 @@ pub fn decide(c: mut Checker, p: Program, test: &TypeExpr, names: mut List<Symbo
         }
         _ => {}
     }
-    let ty = resolveType(c, p, test)
+    const ty = resolveType(c, p, test)
     if ty == ERROR {
         return -1
     }
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind == TyKind.Bool && t.data > 0 {
         return if t.data == 1 { 1 } else { 0 }
     }
@@ -139,17 +139,17 @@ pub fn decide(c: mut Checker, p: Program, test: &TypeExpr, names: mut List<Symbo
 // `A is B`.
 fn decideIs(c: mut Checker, p: Program, left: &TypeExpr, pattern: &TypeExpr,
             names: mut List<Symbol>, binds: mut List<int>) int {
-    let ty = resolveType(c, p, left)
+    const ty = resolveType(c, p, left)
     if ty == ERROR {
         return -1
     }
-    let wasInferring = c.inferring
-    let outer = c.inferNames.clone()
+    const wasInferring = c.inferring
+    const outer = c.inferNames.clone()
     c.inferring = true
     c.inferNames = []
-    let shape = resolveType(c, p, pattern)
+    const shape = resolveType(c, p, pattern)
     c.inferring = wasInferring
-    let inferred = c.inferNames.clone()
+    const inferred = c.inferNames.clone()
     c.inferNames = outer
     if shape == ERROR {
         return -1
@@ -186,25 +186,25 @@ fn unify(c: mut Checker, shape: int, ty: int, found: mut List<int>) bool {
     if !c.types.get(shape).hasParam {
         return false
     }
-    let kind = c.types.kind(shape)
-    let data = c.types.get(shape).data
+    const kind = c.types.kind(shape)
+    const data = c.types.get(shape).data
     if kind == TyKind.Param && data >= INFER_BASE {
-        let slot = data - INFER_BASE
+        const slot = data - INFER_BASE
         if found[slot] < 0 {
             found[slot] = ty
             return true
         }
         return found[slot] == ty
     }
-    let count = c.types.get(shape).args.len()
+    const count = c.types.get(shape).args.len()
     if kind != c.types.kind(ty) || data != c.types.get(ty).data ||
        count != c.types.get(ty).args.len() {
         return false
     }
-    let inner = c.types.get(shape).inner
-    let tyInner = c.types.get(ty).inner
-    let nested = kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
-                 kind == TyKind.Array || kind == TyKind.Fn
+    const inner = c.types.get(shape).inner
+    const tyInner = c.types.get(ty).inner
+    const nested = kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
+                   kind == TyKind.Array || kind == TyKind.Fn
     if nested && !unify(c, inner, tyInner, found) {
         return false
     }
@@ -212,8 +212,8 @@ fn unify(c: mut Checker, shape: int, ty: int, found: mut List<int>) bool {
         return false
     }
     for i in 0..count {
-        let arg = c.types.get(shape).args[i]
-        let tyArg = c.types.get(ty).args[i]
+        const arg = c.types.get(shape).args[i]
+        const tyArg = c.types.get(ty).args[i]
         if !unify(c, arg, tyArg, found) {
             return false
         }

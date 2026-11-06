@@ -43,8 +43,8 @@ import syntax.ast.Stmt
  * @returns T, if `ty` is a list
  */
 pub fn listElem(c: Checker, ty: int) Option<int> {
-    let t = c.types.get(ty)
-    let list = c.r.langItems[1]
+    const t = c.types.get(ty)
+    const list = c.r.langItems[1]
     if list == 0 || t.kind != TyKind.Adt || t.data != list || t.args.len() != 1 {
         return Option.None
     }
@@ -59,12 +59,12 @@ pub fn listElem(c: Checker, ty: int) Option<int> {
  * @returns T, if `ty` is a list or a slice
  */
 pub fn sequenceElem(c: Checker, ty: int) Option<int> {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind == TyKind.Array {
         return Option.Some(t.inner)
     }
-    let slice = c.r.langItems[4]
-    let sliceMut = c.r.langItems[7]
+    const slice = c.r.langItems[4]
+    const sliceMut = c.r.langItems[7]
     if t.kind == TyKind.Adt && t.data != 0 && (t.data == slice || t.data == sliceMut) {
         return Option.Some(t.args[0])
     }
@@ -104,7 +104,7 @@ pub fn requireCopy(c: mut Checker, p: Program, span: Span, ty: int, what: str) {
 pub fn checkListLiteral(c: mut Checker, p: Program, e: &Expr, items: &List<Expr>,
                         expected: int) int {
     if c.types.kind(expected) == TyKind.Array {   // `[a, b]` as a `[T; N]` (spec 2.7)
-        let elem = c.types.get(expected).inner
+        const elem = c.types.get(expected).inner
         for i in 0..items.len() {
             coerce(c, p, &items[i], elem)
         }
@@ -116,7 +116,7 @@ pub fn checkListLiteral(c: mut Checker, p: Program, e: &Expr, items: &List<Expr>
     }
     var elem = ERROR
     var known = false
-    if let Option.Some(t) = sequenceElem(c, expected) {   // a List or a `[T]` parameter
+    if const Option.Some(t) = sequenceElem(c, expected) {   // a List or a `[T]` parameter
         elem = t
         known = true
     }
@@ -130,10 +130,10 @@ pub fn checkListLiteral(c: mut Checker, p: Program, e: &Expr, items: &List<Expr>
     }
     if !known {
         c.error("E0330", e.span, "cannot infer the element type of `[]`: write the type, as "
-                + "in `let names: List<str> = []`")
+                + "in `const names: List<str> = []`")
         return ERROR
     }
-    let ty = listOf(c, elem)
+    const ty = listOf(c, elem)
     checkInstanceStorable(c, p, ty, e.span)
     return ty
 }
@@ -141,7 +141,7 @@ pub fn checkListLiteral(c: mut Checker, p: Program, e: &Expr, items: &List<Expr>
 // An array literal of `count` elements for the array type `ty`: the count
 // must be its length, and its elements Copy.
 fn arrayElements(c: mut Checker, p: Program, span: Span, ty: int, count: int) {
-    let t = c.types.get(ty).clone()
+    const t = c.types.get(ty).clone()
     if count != t.data {
         c.error("E0300", span, "mismatched types: expected `{c.typeName(ty)}`, found an array "
                 + "of {count} elements")
@@ -168,7 +168,7 @@ pub fn checkListRepeat(c: mut Checker, p: Program, e: &Expr, value: &Expr, count
         return c.unsupported(e.span, "list literals without the standard library are")
     }
     if c.types.kind(expected) == TyKind.Array {   // `[v; N]` as a `[T; N]`
-        let elem = c.types.get(expected).inner
+        const elem = c.types.get(expected).inner
         coerce(c, p, value, elem)
         coerce(c, p, count, I64)
         match count.kind {
@@ -178,8 +178,8 @@ pub fn checkListRepeat(c: mut Checker, p: Program, e: &Expr, value: &Expr, count
         }
         return expected
     }
-    let hint = listElem(c, expected) ?? ERROR
-    let elem = checkExpr(c, p, value, hint)
+    const hint = listElem(c, expected) ?? ERROR
+    const elem = checkExpr(c, p, value, hint)
     requireCopy(c, p, value.span, elem, "`[value; count]`")
     coerce(c, p, count, I64)
     return listOf(c, elem)
@@ -193,8 +193,8 @@ pub fn checkListRepeat(c: mut Checker, p: Program, e: &Expr, value: &Expr, count
  * @returns (K, V), if `ty` is a map
  */
 pub fn mapParts(c: Checker, ty: int) Option<(int, int)> {
-    let t = c.types.get(ty)
-    let map = c.r.langItems[5]
+    const t = c.types.get(ty)
+    const map = c.r.langItems[5]
     if map == 0 || t.kind != TyKind.Adt || t.data != map || t.args.len() != 2 {
         return Option.None
     }
@@ -212,7 +212,7 @@ pub fn mapParts(c: Checker, ty: int) Option<(int, int)> {
  * @returns true if it can
  */
 pub fn hashable(c: mut Checker, p: Program, ty: int) bool {
-    let t = c.types.get(ty).clone()
+    const t = c.types.get(ty).clone()
     if t.kind == TyKind.Tuple {
         for i in 0..t.args.len() {
             if !hashable(c, p, t.args[i]) {
@@ -224,7 +224,7 @@ pub fn hashable(c: mut Checker, p: Program, ty: int) bool {
     if t.kind == TyKind.Adt {
         return adtSatisfies(c, p, ty, BOUND_HASH)
     }
-    let both = BOUND_HASH | BOUND_EQ
+    const both = BOUND_HASH | BOUND_EQ
     return t.kind == TyKind.Int || t.kind == TyKind.Bool || t.kind == TyKind.Str ||
            t.kind == TyKind.Error ||
            (t.kind == TyKind.Param && paramBounds(c, ty) & both == both)
@@ -234,13 +234,13 @@ pub fn hashable(c: mut Checker, p: Program, ty: int) bool {
 // Iterators: a type with `fn next(mut self) Option<T>` (roadmap 3.7)
 
 fn nextMethod(c: Checker, p: Program, id: int) int {
-    let kind = c.def(id).kind
-    let typed = kind == DefKind.Struct || kind == DefKind.Enum || kind == DefKind.Interface
+    const kind = c.def(id).kind
+    const typed = kind == DefKind.Struct || kind == DefKind.Enum || kind == DefKind.Interface
     if !typed || c.def(id).item < 0 {
         return 0
     }
     for i in 0..methodCount(p, c.loc(id)) {
-        let m = methodAt(p, c.loc(id), i)
+        const m = methodAt(p, c.loc(id), i)
         if m.hasSelf && m.selfMode == Mode.Mut && m.params.len() == 0 && c.text(m.name) == "next" {
             return c.r.tables[c.def(id).module].fnDefs[m.id.0]
         }
@@ -266,23 +266,23 @@ pub fn iteratorItem(c: mut Checker, p: Program, ty: int) Option<int> {
     if c.types.kind(ty) != TyKind.Adt {
         return Option.None
     }
-    let args = c.types.get(ty).args.clone()
+    const args = c.types.get(ty).args.clone()
     return nextItem(c, p, nextMethod(c, p, c.types.get(ty).data), args)
 }
 
 // The item type of a type parameter bounded by an interface with `next`:
 // `T` of `I: Iterator<T>`.
 fn boundIteratorItem(c: mut Checker, p: Program, ty: int) Option<int> {
-    let param = c.types.get(ty).data
+    const param = c.types.get(ty).data
     if param >= c.generics.ifaces.len() {
         return Option.None
     }
-    let bounds = c.generics.ifaces[param].clone()
+    const bounds = c.generics.ifaces[param].clone()
     for i in 0..bounds.len() {
-        let next = nextMethod(c, p, bounds[i])
+        const next = nextMethod(c, p, bounds[i])
         if next != 0 {
             var args = [ty]   // `Self`, then the interface's own parameters
-            let given = c.types.get(c.generics.ifaceArgs[param][i]).args.clone()
+            const given = c.types.get(c.generics.ifaceArgs[param][i]).args.clone()
             for j in 0..given.len() {
                 args.push(given[j])
             }
@@ -298,13 +298,13 @@ fn nextItem(c: mut Checker, p: Program, next: int, args: List<int>) Option<int> 
     if next == 0 {
         return Option.None
     }
-    let decl = fnOf(p, c.loc(next))
+    const decl = fnOf(p, c.loc(next))
     if decl.typeParams.len() > 0 {   // the owner's are the type's arguments
         return Option.None
     }
-    let ret = c.types.get(fnSignature(c, p, next)).inner
-    let option = c.types.subst(ret, args)
-    let t = c.types.get(option)
+    const ret = c.types.get(fnSignature(c, p, next)).inner
+    const option = c.types.subst(ret, args)
+    const t = c.types.get(option)
     if t.kind != TyKind.Adt || t.data != c.r.langItems[2] {
         return Option.None
     }
@@ -322,21 +322,21 @@ fn nextItem(c: mut Checker, p: Program, next: int, args: List<int>) Option<int> 
  * @param two whether there are two variables
  */
 pub fn checkForCollection(c: mut Checker, p: Program, s: &Stmt, expr: &Expr, two: bool) {
-    let found = checkExpr(c, p, expr, ERROR)
-    let ty = autoDeref(c, p, expr, found)
+    const found = checkExpr(c, p, expr, ERROR)
+    const ty = autoDeref(c, p, expr, found)
     var first = ERROR
     var second = ERROR
-    if let Option.Some(elem) = sequenceElem(c, ty) {
+    if const Option.Some(elem) = sequenceElem(c, ty) {
         first = if two { I64 } else { elem }
         second = elem
-    } else if let Option.Some(parts) = mapParts(c, ty) {
+    } else if const Option.Some(parts) = mapParts(c, ty) {
         if !two {
             c.error("E0300", expr.span, "iterate a map with two variables: "
                     + "`for key, value in map`")
         }
         first = parts.0
         second = parts.1
-    } else if let Option.Some(item) = iteratorItem(c, p, ty) {
+    } else if const Option.Some(item) = iteratorItem(c, p, ty) {
         if two {
             c.error("E0300", expr.span, "an iterator gives one value at a time: "
                     + "`for item in iterator`")
@@ -349,7 +349,7 @@ pub fn checkForCollection(c: mut Checker, p: Program, s: &Stmt, expr: &Expr, two
         c.error("E0300", expr.span, "mismatched types: `for` needs a range, a list, a slice, "
                 + "a map or an iterator, found {c.typeName(ty)}")
     }
-    let local = c.localAt(s.id.0)
+    const local = c.localAt(s.id.0)
     if local >= 0 {
         c.localTypes[local] = first
         if two && local + 1 < c.localTypes.len() {
@@ -373,10 +373,10 @@ pub fn checkForCollection(c: mut Checker, p: Program, s: &Stmt, expr: &Expr, two
 pub fn checkRangeIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, range: &Expr) int {
     match range.kind {
         ExprKind.Range(lo, hi, _) => {
-            let text = if hi.isSome() { "slice" } else { "sliceFrom" }
-            let name = c.r.names.intern(text)
-            let found = checkExpr(c, p, base, ERROR)
-            let recvType = methodReceiver(c, p, base, found, name)
+            const text = if hi.isSome() { "slice" } else { "sliceFrom" }
+            const name = c.r.names.intern(text)
+            const found = checkExpr(c, p, base, ERROR)
+            const recvType = methodReceiver(c, p, base, found, name)
             var owner = 0
             if c.types.kind(recvType) == TyKind.Adt {
                 owner = c.types.get(recvType).data
@@ -387,35 +387,35 @@ pub fn checkRangeIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, range:
                 if recvType != ERROR {
                     c.error("E0301", e.span, "no method `{text}` on type `{c.typeName(recvType)}`")
                 }
-                if let Option.Some(l) = lo {
+                if const Option.Some(l) = lo {
                     checkExpr(c, p, &*l, ERROR)
                 }
-                if let Option.Some(h) = hi {
+                if const Option.Some(h) = hi {
                     checkExpr(c, p, &*h, ERROR)
                 }
                 return ERROR
             }
             var id = 0
             for i in 0..methodCount(p, c.loc(owner)) {
-                let m = methodAt(p, c.loc(owner), i)
+                const m = methodAt(p, c.loc(owner), i)
                 if m.name.0 == name.0 {
                     id = c.r.tables[c.def(owner).module].fnDefs[m.id.0]
                 }
             }
-            let sig = fnSignature(c, p, id)
+            const sig = fnSignature(c, p, id)
             var selfArgs: List<int> = []
             if c.types.kind(recvType) == TyKind.Adt {
                 selfArgs = c.types.get(recvType).args.clone()
             }
-            let params = c.types.get(sig).args.clone()
-            if let Option.Some(l) = lo {
+            const params = c.types.get(sig).args.clone()
+            if const Option.Some(l) = lo {
                 coerce(c, p, &*l, c.types.subst(params[0], selfArgs))
             }
-            if let Option.Some(h) = hi {
+            if const Option.Some(h) = hi {
                 coerce(c, p, &*h, c.types.subst(params[1], selfArgs))
             }
             c.setMember(e.id.0, id)
-            let ret = c.types.get(sig).inner
+            const ret = c.types.get(sig).inner
             return c.types.subst(ret, selfArgs)
         }
         _ => {
@@ -426,7 +426,7 @@ pub fn checkRangeIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, range:
 
 // `[T; N]`, for an array or a reference to one, or -1.
 fn arrayBehind(c: Checker, ty: int) int {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind == TyKind.Array {
         return ty
     }
@@ -449,30 +449,30 @@ fn arrayBehind(c: Checker, ty: int) int {
  * @returns whether it was converted
  */
 pub fn coerceToSlice(c: mut Checker, p: Program, e: &Expr, found: int, expected: int) bool {
-    let slice = c.r.langItems[4]
-    let t = c.types.get(expected)
+    const slice = c.r.langItems[4]
+    const t = c.types.get(expected)
     if t.kind == TyKind.Adt && t.data != 0 && t.data == c.r.langItems[7] {
         return coerceToMutSlice(c, p, e, found, expected)
     }
     if t.kind != TyKind.Adt || slice == 0 || t.data != slice {
         return false
     }
-    let array = arrayBehind(c, found)
+    const array = arrayBehind(c, found)
     if array >= 0 && c.types.get(array).inner == t.args[0] {   // `&[T; N]` or `[T; N]`
         c.arrayCoercions[c.module()].insert(e.id.0, found)
         c.setType(e.id.0, expected)
         return true
     }
-    let Option.Some(elem) = listElem(c, found) else {
+    const Option.Some(elem) = listElem(c, found) else {
         return false
     }
     if elem != t.args[0] {
         return false
     }
-    let Option.Some(asSlice) = c.r.names.find("asSlice") else {
+    const Option.Some(asSlice) = c.r.names.find("asSlice") else {
         return false
     }
-    let list = c.r.langItems[1]
+    const list = c.r.langItems[1]
     if !hasMethod(c, p, list, asSlice) {
         return false
     }
@@ -493,12 +493,12 @@ pub fn coerceToSlice(c: mut Checker, p: Program, e: &Expr, found: int, expected:
  * @returns whether it was converted
  */
 fn coerceToMutSlice(c: mut Checker, p: Program, e: &Expr, found: int, expected: int) bool {
-    let t = c.types.get(found)
+    const t = c.types.get(found)
     if t.kind != TyKind.Ref || t.data == 0 {   // only a `&mut` converts
         return false
     }
-    let elem = c.types.get(expected).args[0]
-    let target = c.types.get(t.inner)
+    const elem = c.types.get(expected).args[0]
+    const target = c.types.get(t.inner)
     if target.kind == TyKind.Array {
         if target.inner != elem {
             return false
@@ -507,10 +507,10 @@ fn coerceToMutSlice(c: mut Checker, p: Program, e: &Expr, found: int, expected: 
         c.setType(e.id.0, expected)
         return true
     }
-    let Option.Some(inner) = listElem(c, t.inner) else {
+    const Option.Some(inner) = listElem(c, t.inner) else {
         return false
     }
-    let Option.Some(asMutSlice) = c.r.names.find("asMutSlice") else {
+    const Option.Some(asMutSlice) = c.r.names.find("asMutSlice") else {
         return false
     }
     if inner != elem || !hasMethod(c, p, c.r.langItems[1], asMutSlice) {

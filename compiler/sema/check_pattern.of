@@ -1,7 +1,7 @@
 /**
  * @module
  * Type checking of patterns (spec appendix A.7; stage 0:
- * bootstrap/src/sema/check_pattern.c), for `let`, `match` and `if let`.
+ * bootstrap/src/sema/check_pattern.c), for `const`, `match` and `if const`.
  * A pattern that the resolver found to name a prelude variant (`None`,
  * `Some(x)`) is checked as a variant pattern.
  */
@@ -57,7 +57,7 @@ fn checkList(c: mut Checker, p: Program, list: &List<Pattern>, types: &List<int>
 // The declaration a path of a pattern names, or 0.
 fn pathDef(c: mut Checker, path: &List<Symbol>, span: Span) int {
     if path.len() == 2 {   // `module.Type`
-        let module = c.r.scope.module(path[0])
+        const module = c.r.scope.module(path[0])
         c.r.noteImportUse(path[0])
         if module != 0 && c.def(module).kind == DefKind.Module {
             return moduleType(c, c.def(module).target, path[1], span)
@@ -67,7 +67,7 @@ fn pathDef(c: mut Checker, path: &List<Symbol>, span: Span) int {
         c.unsupported(span, "nested module paths in patterns are")
         return 0
     }
-    let id = c.r.scope.module(path[0])
+    const id = c.r.scope.module(path[0])
     c.r.noteImportUse(path[0])
     if id == 0 {
         c.error("E0200", span, "cannot find `{c.text(path[0])}` in this scope")
@@ -92,20 +92,20 @@ fn fieldTypes(c: mut Checker, p: Program, ty: int, v: int, count: int) List<int>
 
 fn variantPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>, name: Symbol,
                   args: &List<Pattern>, hasArgs: bool, ty: int) {
-    let found = enumOf(c, p, ty)
+    const found = enumOf(c, p, ty)
     if path.len() > 0 {
-        let named = pathDef(c, path, pat.span)
+        const named = pathDef(c, path, pat.span)
         if named != 0 && found.isSome() && named != (found ?? 0) {
             c.error("E0300", pat.span, "mismatched types: the pattern is a variant of "
                     + "`{c.text(c.def(named).name)}`, the value has type {c.typeName(ty)}")
             return
         }
     }
-    let Option.Some(id) = found else {
+    const Option.Some(id) = found else {
         mismatch(c, pat.span, "an enum variant", ty)
         return
     }
-    let index = variantIndex(variantsOf(c, id), name)
+    const index = variantIndex(variantsOf(c, id), name)
     if index < 0 {
         c.error("E0320", pat.span, "no variant `{c.text(name)}` in `{c.typeName(ty)}`")
         return
@@ -114,25 +114,25 @@ fn variantPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>
     if path.len() == 0 {   // `.Some(x)` or a bare `Some(x)`
         unqualifiedVariant(c, pat.span, id, name)
     }
-    let count = variantsOf(c, id).variants[index].types.len()
+    const count = variantsOf(c, id).variants[index].types.len()
     if hasArgs || count > 0 {
         checkList(c, p, args, &fieldTypes(c, p, ty, index, count), pat.span)
     }
 }
 
 fn structPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>, ty: int) {
-    let id = pathDef(c, path, pat.span)
+    const id = pathDef(c, path, pat.span)
     if id == 0 {
         return
     }
-    let isStruct = c.def(id).kind == DefKind.Struct && structFields(c, p, id)
+    const isStruct = c.def(id).kind == DefKind.Struct && structFields(c, p, id)
     if !isStruct || fieldsOf(c, id).isTuple || !sameAdt(c, ty, id) {
         mismatch(c, pat.span, "a struct", ty)
         return
     }
     match pat.kind {
         PatternKind.Struct(_, fields, rest) => {
-            let names = fieldsOf(c, id).names.clone()
+            const names = fieldsOf(c, id).names.clone()
             var listed = 0
             for i in 0..fields.len() {
                 var index = 0
@@ -146,8 +146,8 @@ fn structPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>,
                     continue
                 }
                 listed += 1
-                let fieldType = structFieldType(c, p, ty, index)
-                if let Option.Some(inner) = fields[i].pattern {
+                const fieldType = structFieldType(c, p, ty, index)
+                if const Option.Some(inner) = fields[i].pattern {
                     checkPattern(c, p, &inner, fieldType)
                 } else {
                     shorthand(c, fields[i].id.0, fieldType)
@@ -167,7 +167,7 @@ fn structPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>,
 // The shorthand field `Point{x}` binds `x`.
 fn shorthand(c: mut Checker, id: int, ty: int) {
     c.setType(id, ty)
-    let local = c.localAt(id)
+    const local = c.localAt(id)
     if local >= 0 {
         c.localTypes[local] = ty
     }
@@ -175,7 +175,7 @@ fn shorthand(c: mut Checker, id: int, ty: int) {
 
 fn tupleStructPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>,
                       args: &List<Pattern>, ty: int) {
-    let id = pathDef(c, path, pat.span)
+    const id = pathDef(c, path, pat.span)
     if id == 0 {
         return
     }
@@ -183,12 +183,12 @@ fn tupleStructPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Sym
         mismatch(c, pat.span, "a tuple struct", ty)
         return
     }
-    let isStruct = c.def(id).kind == DefKind.Struct && structFields(c, p, id)
+    const isStruct = c.def(id).kind == DefKind.Struct && structFields(c, p, id)
     if !isStruct || !fieldsOf(c, id).isTuple || !sameAdt(c, ty, id) {
         mismatch(c, pat.span, "a tuple struct", ty)
         return
     }
-    let count = fieldsOf(c, id).types.len()
+    const count = fieldsOf(c, id).types.len()
     checkList(c, p, args, &fieldTypes(c, p, ty, -1, count), pat.span)
 }
 
@@ -203,10 +203,10 @@ fn tupleStructPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Sym
  */
 pub fn checkPattern(c: mut Checker, p: Program, pat: &Pattern, ty: int) {
     c.setType(pat.id.0, ty)
-    if let Res.Def(variant) = c.res(pat.id.0) {   // `None`, `Some(x)`
-        let none: List<Pattern> = []
-        let path: List<Symbol> = []
-        let name = c.def(variant).name
+    if const Res.Def(variant) = c.res(pat.id.0) {   // `None`, `Some(x)`
+        const none: List<Pattern> = []
+        const path: List<Symbol> = []
+        const name = c.def(variant).name
         match pat.kind {
             PatternKind.TupleStruct(_, args) => variantPattern(c, p, pat, &path, name, &args, true,
                                                                ty)
@@ -217,13 +217,13 @@ pub fn checkPattern(c: mut Checker, p: Program, pat: &Pattern, ty: int) {
     match pat.kind {
         PatternKind.Wildcard => {}
         PatternKind.Binding(_, _) => {
-            let local = c.localAt(pat.id.0)
+            const local = c.localAt(pat.id.0)
             if local >= 0 {
                 c.localTypes[local] = ty
             }
         }
         PatternKind.Literal(value) => {
-            let kind = c.types.kind(ty)
+            const kind = c.types.kind(ty)
             if kind != TyKind.Int && kind != TyKind.Bool && kind != TyKind.Str &&
                kind != TyKind.Error {
                 mismatch(c, pat.span, "a literal", ty)
@@ -246,7 +246,7 @@ pub fn checkPattern(c: mut Checker, p: Program, pat: &Pattern, ty: int) {
         PatternKind.TupleStruct(path, args) => tupleStructPattern(c, p, pat, &path, &args, ty)
         PatternKind.Tuple(items) => {
             if c.types.kind(ty) == TyKind.Tuple || (ty == UNIT && items.len() == 0) {   // `()`
-                let types = c.types.get(ty).args.clone()
+                const types = c.types.get(ty).args.clone()
                 checkList(c, p, &items, &types, pat.span)
             } else {
                 mismatch(c, pat.span, "a tuple", ty)
@@ -273,7 +273,7 @@ pub fn testedDyn(c: Checker, ty: int) int {
     if c.types.isFat(ty) {
         return c.types.get(ty).inner
     }
-    if let Option.Some(inner) = boxInner(c, ty) {
+    if const Option.Some(inner) = boxInner(c, ty) {
         if c.types.kind(inner) == TyKind.Dyn {
             return inner
         }
@@ -284,9 +284,9 @@ pub fn testedDyn(c: Checker, ty: int) int {
 // `c: Circle`: the binding gets the concrete type, recorded as the
 // pattern's member.
 fn typeTest(c: mut Checker, p: Program, pat: &Pattern, target: &TypeExpr, ty: int) {
-    let concrete = resolveType(c, p, target)
+    const concrete = resolveType(c, p, target)
     c.setMember(pat.id.0, concrete)
-    let local = c.localAt(pat.id.0)
+    const local = c.localAt(pat.id.0)
     if local >= 0 {
         c.localTypes[local] = concrete
     }
@@ -294,7 +294,7 @@ fn typeTest(c: mut Checker, p: Program, pat: &Pattern, target: &TypeExpr, ty: in
         unionTest(c, pat, concrete, ty)
         return
     }
-    let object = testedDyn(c, ty)
+    const object = testedDyn(c, ty)
     if object < 0 {
         mismatch(c, pat.span, "a type test", ty)
         return
@@ -302,14 +302,14 @@ fn typeTest(c: mut Checker, p: Program, pat: &Pattern, target: &TypeExpr, ty: in
     if concrete == ERROR {
         return
     }
-    let iface = c.types.get(object).data
+    const iface = c.types.get(object).data
     if c.types.kind(concrete) == TyKind.Dyn {
         c.error("E0354", pat.span, "a type test cannot name the `dyn` type "
                 + "{c.typeName(concrete)}: it names a concrete type")
         return
     }
-    let dynArgs = c.types.get(object).args.clone()
-    let why = unsatisfied(c, p, concrete, iface, c.types.tuple(dynArgs))
+    const dynArgs = c.types.get(object).args.clone()
+    const why = unsatisfied(c, p, concrete, iface, c.types.tuple(dynArgs))
     if why.len() > 0 {
         c.error("E0354", pat.span, "the type test can never match: {c.typeName(concrete)} does "
                 + "not satisfy {c.text(c.def(iface).name)}: {why}")
@@ -322,7 +322,7 @@ fn unionTest(c: mut Checker, pat: &Pattern, concrete: int, ty: int) {
     if concrete == ERROR {
         return
     }
-    let tested = unionMembers(c, concrete)
+    const tested = unionMembers(c, concrete)
     if tested.len() == 0 {
         if memberIndex(c, ty, concrete) < 0 {
             c.error("E0352", pat.span, "`{c.typeName(concrete)}` is not a member of the union "
@@ -349,14 +349,14 @@ fn allIrrefutable(c: Checker, list: &List<Pattern>) bool {
 }
 
 /**
- * Whether a pattern matches every value of its type, as `let` needs.
+ * Whether a pattern matches every value of its type, as `const` needs.
  *
  * @param c the checker
  * @param pat the pattern
  * @returns true if it cannot fail
  */
 pub fn irrefutable(c: Checker, pat: &Pattern) bool {
-    if let Res.Def(_) = c.res(pat.id.0) {
+    if const Res.Def(_) = c.res(pat.id.0) {
         return false   // a prelude variant
     }
     return match pat.kind {
@@ -365,11 +365,11 @@ pub fn irrefutable(c: Checker, pat: &Pattern) bool {
         PatternKind.TupleStruct(_, args) => allIrrefutable(c, &args)
         PatternKind.Struct(_, fields, _) => {
             for i in 0..fields.len() {
-                if let Option.Some(inner) = fields[i].pattern {
+                if const Option.Some(inner) = fields[i].pattern {
                     if !irrefutable(c, &inner) {
                         return false
                     }
-                } else if let Res.Def(_) = c.res(fields[i].id.0) {
+                } else if const Res.Def(_) = c.res(fields[i].id.0) {
                     return false
                 }
             }

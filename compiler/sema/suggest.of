@@ -36,7 +36,7 @@ fn bytesOf(text: str) List<u8> {
 // The insertions, deletions, substitutions and swaps of two adjacent bytes
 // that turn `a` into `b` (optimal string alignment).
 fn editDistance(a: &List<u8>, b: &List<u8>) int {
-    let width = b.len() + 1
+    const width = b.len() + 1
     var d: List<int> = []
     for i in 0..a.len() + 1 {
         for j in 0..width {
@@ -52,7 +52,7 @@ fn editDistance(a: &List<u8>, b: &List<u8>) int {
             if d[i * width + j - 1] + 1 < best {
                 best = d[i * width + j - 1] + 1
             }
-            let swapped = i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]
+            const swapped = i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]
             if swapped && d[(i - 2) * width + j - 2] + 1 < best {
                 best = d[(i - 2) * width + j - 2] + 1
             }
@@ -85,7 +85,7 @@ pub struct Suggestion {
      * @param text its text
      */
     pub fn offer(mut self, candidate: Symbol, text: str) {
-        let limit = self.name.len() / 3
+        const limit = self.name.len() / 3
         if limit == 0 || self.name.len() > MAX_NAME || text.len() > MAX_NAME {
             return
         }
@@ -96,11 +96,11 @@ pub struct Suggestion {
         if gap > limit {
             return
         }
-        let distance = editDistance(&self.name, &bytesOf(text))
+        const distance = editDistance(&self.name, &bytesOf(text))
         if distance == 0 || distance > limit {
             return
         }
-        let tie = distance == self.distance && candidate.0 < self.best
+        const tie = distance == self.distance && candidate.0 < self.best
         if self.best < 0 || distance < self.distance || tie {
             self.best = candidate.0
             self.distance = distance
@@ -137,7 +137,7 @@ fn isType(kind: DefKind) bool {
 pub fn suggestName(r: mut Resolver, name: Symbol, scope: SuggestScope) {
     var s = Suggestion.new(r.text(name))
     for i in 0..r.scope.symbols() {
-        let def = r.scope.module(Symbol(i))
+        const def = r.scope.module(Symbol(i))
         var visible = scope == SuggestScope.Value && r.scope.localOf(Symbol(i)).isSome()
         if !visible && def != 0 {
             visible = scope != SuggestScope.Type || isType(r.def(def).kind)
@@ -160,11 +160,11 @@ pub fn suggestName(r: mut Resolver, name: Symbol, scope: SuggestScope) {
 pub fn suggestMember(r: mut Resolver, index: int, name: Symbol) {
     var s = Suggestion.new(r.text(name))
     for i in 0..r.scope.symbols() {
-        let id = r.scope.moduleIn(index, Symbol(i))
+        const id = r.scope.moduleIn(index, Symbol(i))
         if id == 0 {
             continue
         }
-        let def = r.def(id)
+        const def = r.def(id)
         if !def.inPrelude && def.module == index && def.isPub && def.kind != DefKind.Module {
             s.offer(Symbol(i), r.text(Symbol(i)))
         }

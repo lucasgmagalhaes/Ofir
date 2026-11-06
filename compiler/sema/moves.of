@@ -93,12 +93,12 @@ pub struct Part {
         if self.local != other.local {
             return false
         }
-        let len = if self.fields.len() < other.fields.len() { self.fields.len() } else {
+        const len = if self.fields.len() < other.fields.len() { self.fields.len() } else {
             other.fields.len()
         }
         for i in 0..len {
             // Two `value[key]` steps may name the same field (spec 16.2).
-            let keys = keyFieldType(self.fields[i]) >= 0 && keyFieldType(other.fields[i]) >= 0
+            const keys = keyFieldType(self.fields[i]) >= 0 && keyFieldType(other.fields[i]) >= 0
             if self.fields[i] != other.fields[i] && !keys {
                 return false
             }
@@ -374,7 +374,7 @@ pub struct Moves {
  * @param flag `MOVES`, `CONSUMED` or `COERCION_CONSUMED`
  */
 pub fn markFlag(c: mut Checker, id: int, flag: int) {
-    let old = match c.moveFlags[c.module()].get(id) {
+    const old = match c.moveFlags[c.module()].get(id) {
         Option.Some(value) => *value
         Option.None => 0
     }
@@ -413,16 +413,16 @@ fn checkMutParams(m: Moves, c: mut Checker, p: Program, s: &State, span: Span) {
     if s.dead {
         return
     }
-    let decl = fnOf(p, c.loc(m.fnDef))
+    const decl = fnOf(p, c.loc(m.fnDef))
     for i in 0..decl.params.len() + 1 {
-        let isSelf = i == decl.params.len()
+        const isSelf = i == decl.params.len()
         if isSelf && !(decl.hasSelf && decl.selfMode == Mode.Mut) {
             continue
         }
         if !isSelf && decl.params[i].mode != Mode.Mut {
             continue
         }
-        let local = if isSelf { 0 } else { c.localAt(decl.params[i].id.0) }
+        const local = if isSelf { 0 } else { c.localAt(decl.params[i].id.0) }
         if local >= 0 && s.movedPart(&Part{local: local, fields: []}) {
             moveError(m, c, "E0602", span, "`{localName(c, local)}` is moved out of and not "
                       + "given a new value before the function returns")
@@ -442,20 +442,20 @@ fn checkMutParams(m: Moves, c: mut Checker, p: Program, s: &State, span: Span) {
  */
 pub fn movesBlock(m: mut Moves, c: mut Checker, p: Program, block: &Block, s: mut State,
                   tail: Use) {
-    let count = block.stmts.len()
-    let base = m.scope.len()
+    const count = block.stmts.len()
+    const base = m.scope.len()
     m.depth += 1
     for i in 0..count {
-        let stmt = &block.stmts[i]
+        const stmt = &block.stmts[i]
         var done = false
         if i + 1 == count {
-            if let StmtKind.ExprStmt(e) = stmt.kind {
+            if const StmtKind.ExprStmt(e) = stmt.kind {
                 movesNode(m, c, p, &e, s, tail)
                 done = true
             }
         }
         if !done {
-            let mark = m.carry.len()
+            const mark = m.carry.len()
             movesStmt(m, c, p, stmt, s)
             dropCarry(m, mark)
             declaredLocals(m, c, stmt)
@@ -476,7 +476,7 @@ fn declaredLocals(m: mut Moves, c: Checker, stmt: &Stmt) {
     match stmt.kind {
         StmtKind.Let(pattern, _, _, _) => patternLocals(c, &pattern, m.scope)
         StmtKind.Var(_, _, _) => {
-            let local = c.localAt(stmt.id.0)
+            const local = c.localAt(stmt.id.0)
             if local >= 0 {
                 m.scope.push(local)
             }
@@ -488,15 +488,15 @@ fn declaredLocals(m: mut Moves, c: Checker, stmt: &Stmt) {
 fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State) {
     match stmt.kind {
         StmtKind.Let(pattern, _, value, otherwise) => {
-            // `let _ = value` keeps nothing: the value is a temporary, dropped at once.
-            let keeps = match pattern.kind {
+            // `const _ = value` keeps nothing: the value is a temporary, dropped at once.
+            const keeps = match pattern.kind {
                 PatternKind.Wildcard => false
                 _ => true
             }
-            let mark = m.carry.len()
+            const mark = m.carry.len()
             movesNode(m, c, p, &value, s, if keeps { Use.Move } else { Use.Read })
-            let loans = carriedSince(m, mark)
-            if let Option.Some(block) = otherwise {
+            const loans = carriedSince(m, mark)
+            if const Option.Some(block) = otherwise {
                 var other = s.dup()
                 movesBlock(m, c, p, &block, other, Use.Read)   // never falls through
             }
@@ -505,11 +505,11 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
             m.binding = []
         }
         StmtKind.Var(_, _, value) => {
-            let mark = m.carry.len()
-            if let Option.Some(v) = value {
+            const mark = m.carry.len()
+            if const Option.Some(v) = value {
                 movesNode(m, c, p, &v, s, Use.Move)
             }
-            let local = c.localAt(stmt.id.0)
+            const local = c.localAt(stmt.id.0)
             if local >= 0 {
                 s.uninit[local] = value.isNone()
                 s.moved[local] = false
@@ -521,7 +521,7 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
         }
         StmtKind.Assign(op, target, value) => {
             // `x = v` moves `v` into `x`; `x op= v` only reads it (`s += t` appends).
-            let mark = m.carry.len()
+            const mark = m.carry.len()
             movesNode(m, c, p, &value, s, if op == Op.Assign { Use.Move } else { Use.Read })
             if op != Op.Assign {   // `x += 1` reads `x` first, then writes it
                 m.lastLocal = false
@@ -539,14 +539,14 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
             loopBody(m, c, p, stmt, s)
         }
         StmtKind.Return(value) => {
-            if let Option.Some(v) = value {
+            if const Option.Some(v) = value {
                 movesNode(m, c, p, &v, s, Use.Move)
             }
             checkMutParams(m, c, p, &s, stmt.span)
             s.dead = true
         }
         StmtKind.Break => {
-            let last = m.loops.len() - 1
+            const last = m.loops.len() - 1
             if last >= 0 {   // else E0309 was reported
                 endScope(m, c, s, m.loops[last].scope, stmt.span)
                 m.loops[last].breaks.join(&s)
@@ -554,7 +554,7 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
             s.dead = true
         }
         StmtKind.Continue => {
-            let last = m.loops.len() - 1
+            const last = m.loops.len() - 1
             if last >= 0 {
                 endScope(m, c, s, m.loops[last].scope, stmt.span)
                 useHolder(m, c, s, m.holderBase + last)   // the next iteration
@@ -587,25 +587,25 @@ fn isRange(stmt: &Stmt) bool {
 // One iteration from `entry`: the condition or the iterated value, the
 // bindings, the body. Returns the state at the loop's exit.
 fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &State) State {
-    let last = m.loops.len() - 1
+    const last = m.loops.len() - 1
     m.loops[last].breaks = deadState()
     m.loops[last].continues = deadState()
-    let base = m.scope.len()
+    const base = m.scope.len()
     m.loops[last].scope = base
     var st = entry.dup()
     var exit = deadState()
     match stmt.kind {
         StmtKind.For(kind, _, _, second, expr, body) => {
             if kind == ForKind.Cond {
-                if let Option.Some(cond) = expr {
+                if const Option.Some(cond) = expr {
                     movesNode(m, c, p, &cond, st, Use.Read)
                 }
                 exit = st.dup()   // the condition was false
             } else if kind == ForKind.In {
-                let first = c.localAt(stmt.id.0)
+                const first = c.localAt(stmt.id.0)
                 var owns = isRange(stmt)
                 if !owns {
-                    if let Option.Some(e) = expr {
+                    if const Option.Some(e) = expr {
                         owns = iteratorItem(c, p, viewType(c, &e, -1)).isSome()
                     }
                 }
@@ -647,7 +647,7 @@ fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &Stat
 fn bindLoopVar(m: mut Moves, st: mut State, local: int, borrows: bool, last: int) {
     killHolder(st, local)
     if m.refLocal[local] || (borrows && !m.copyLocal[local]) {
-        let loans = loansOf(&st, m.holderBase + last)
+        const loans = loansOf(&st, m.holderBase + last)
         bindLoans(st, local, &loans)
     }
 }
@@ -655,18 +655,18 @@ fn bindLoopVar(m: mut Moves, st: mut State, local: int, borrows: bool, last: int
 // The loans of a `for` loop: those of the iterator, or a borrow of the
 // iterated place, shared or, for `for mut`, exclusive.
 fn loopLoans(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut State) {
-    let holder = m.holderBase + m.loops.len()
-    if let StmtKind.For(kind, mutable, _, _, expr, _) = stmt.kind {
+    const holder = m.holderBase + m.loops.len()
+    if const StmtKind.For(kind, mutable, _, _, expr, _) = stmt.kind {
         if kind != ForKind.In {
             return
         }
-        if let Option.Some(e) = expr {
-            let mark = m.carry.len()
+        if const Option.Some(e) = expr {
+            const mark = m.carry.len()
             m.lastLocal = false
             movesNode(m, c, p, &e, st, Use.Read)   // evaluated once, borrowed
             var loans = carriedSince(m, mark)
             dropCarry(m, mark)
-            let owns = isRange(stmt) || iteratorItem(c, p, viewType(c, &e, -1)).isSome()
+            const owns = isRange(stmt) || iteratorItem(c, p, viewType(c, &e, -1)).isSome()
             if !owns && m.lastLocal && isPlaceView(c, &e) {
                 if mutable {
                     access(st, &m.lastPlace, Access.BorrowMut, e.span)
@@ -686,13 +686,13 @@ fn loopLoans(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut Stat
 fn loopBody(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut State) {
     loopLoans(m, c, p, stmt, st)
     m.loops.push(LoopFrame{breaks: deadState(), continues: deadState(), scope: m.scope.len()})
-    let last = m.loops.len() - 1
+    const last = m.loops.len() - 1
     var entry = st.dup()
     var exit = iteration(m, c, p, stmt, &entry)
     var next = entry.dup()
     next.join(&m.loops[last].continues)
     if !next.equals(&entry) {
-        let report = m.report
+        const report = m.report
         m.report = false
         var round = 0
         for round < 16 && !next.equals(&entry) {
@@ -706,7 +706,7 @@ fn loopBody(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut State
         exit = iteration(m, c, p, stmt, &entry)
     }
     st.replace(exit)
-    let _ = m.loops.pop()
+    const _ = m.loops.pop()
     killHolder(st, m.holderBase + m.loops.len())
 }
 
@@ -719,16 +719,16 @@ fn loopBody(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut State
  * @param id the function's `DefId`
  */
 pub fn checkMoves(c: mut Checker, p: Program, id: int) {
-    let decl = fnOf(p, c.loc(id))
+    const decl = fnOf(p, c.loc(id))
     if decl.body.isNone() {
         return
     }
-    let count = c.locals.len()
+    const count = c.locals.len()
     var refLocal = List.filled(false, count)
     var copyLocal = List.filled(false, count)
     for i in 0..count {
         if i < c.localTypes.len() {
-            let ty = c.localTypes[i]
+            const ty = c.localTypes[i]
             refLocal[i] = holdsRef(c, p, ty) || holdsBorrowedFn(c, ty)
             copyLocal[i] = isCopy(c, p, ty)
         }
@@ -741,7 +741,7 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
         m.borrowed[0] = true
     }
     for i in 0..decl.params.len() {
-        let local = c.localAt(decl.params[i].id.0)
+        const local = c.localAt(decl.params[i].id.0)
         if decl.params[i].mode == Mode.Borrow && local >= 0 {
             m.borrowed[local] = true
         }

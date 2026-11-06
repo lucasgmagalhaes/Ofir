@@ -208,18 +208,18 @@ pub struct TypeTable {
         if (self.types.len() + 1) * 2 > self.slots.len() {
             self.rehash()
         }
-        let mask = self.slots.len() - 1
+        const mask = self.slots.len() - 1
         var i = hashOf(kind, data, inner, args) & mask
         for self.slots[i] != 0 {
-            let id = self.slots[i] - 1
+            const id = self.slots[i] - 1
             if same(&self.types[id], kind, data, inner, args) {
                 return id
             }
             i = (i + 1) & mask
         }
-        let nested = kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
-                     kind == TyKind.Array || kind == TyKind.Fn || kind == TyKind.KeyOf ||
-                     kind == TyKind.Index
+        const nested = kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
+                       kind == TyKind.Array || kind == TyKind.Fn || kind == TyKind.KeyOf ||
+                       kind == TyKind.Index
         var hasParam = kind == TyKind.Param || (nested && self.types[inner].hasParam)
         var copied: List<int> = []
         for a in 0..args.len() {
@@ -232,10 +232,10 @@ pub struct TypeTable {
     }
 
     fn rehash(mut self) {
-        let size = self.slots.len() * 2
+        const size = self.slots.len() * 2
         var slots = List.filled(0, size)
         for id in 0..self.types.len() {
-            let t = &self.types[id]
+            const t = &self.types[id]
             var i = hashOf(t.kind, t.data, t.inner, t.args) & (size - 1)
             for slots[i] != 0 {
                 i = (i + 1) & (size - 1)
@@ -373,7 +373,7 @@ pub struct TypeTable {
      * @returns their symbols, ordered
      */
     pub fn keyNames(self, ty: int) List<int> {
-        let t = &self.types[ty]
+        const t = &self.types[ty]
         var names: List<int> = []
         if t.data >= 0 {
             names.push(t.data)
@@ -392,7 +392,7 @@ pub struct TypeTable {
      * @returns true for `&dyn I`, `*dyn I` and their `mut` forms
      */
     pub fn isFat(self, ty: int) bool {
-        let t = &self.types[ty]
+        const t = &self.types[ty]
         return (t.kind == TyKind.Ref || t.kind == TyKind.Ptr) &&
                self.types[t.inner].kind == TyKind.Dyn
     }
@@ -420,8 +420,8 @@ pub struct TypeTable {
         if !self.types[ty].hasParam || args.len() == 0 {
             return ty
         }
-        let kind = self.types[ty].kind
-        let data = self.types[ty].data
+        const kind = self.types[ty].kind
+        const data = self.types[ty].data
         if kind == TyKind.Param {
             return if data < args.len() { args[data] } else { ty }
         }
@@ -431,7 +431,7 @@ pub struct TypeTable {
         }
         var items: List<int> = []
         for i in 0..self.types[ty].args.len() {
-            let arg = self.types[ty].args[i]
+            const arg = self.types[ty].args[i]
             items.push(self.subst(arg, args))
         }
         if kind == TyKind.KeyOf && !self.types[inner].hasParam {
@@ -489,11 +489,11 @@ pub struct TypeTable {
 
     // `keyof ty` written in `module`, or ERROR.
     fn keyofFields(mut self, ty: int, module: int) int {
-        let kind = self.types[ty].kind
+        const kind = self.types[ty].kind
         if kind == TyKind.Tuple {
             return self.indexKeys(self.types[ty].args.len())
         }
-        let def = self.types[ty].data
+        const def = self.types[ty].data
         if kind != TyKind.Adt || def >= self.fields.len() {
             return ERROR
         }
@@ -527,10 +527,10 @@ pub struct TypeTable {
         if self.types[key].kind != TyKind.Key {
             return ERROR
         }
-        let names = self.keyNames(key)
+        const names = self.keyNames(key)
         var result = ERROR
         for i in 0..names.len() {
-            let field = self.fieldOf(base, names[i])
+            const field = self.fieldOf(base, names[i])
             if field == ERROR || (i > 0 && field != result) {
                 return ERROR
             }
@@ -541,16 +541,16 @@ pub struct TypeTable {
 
     // The type of field `name` of `base`, or ERROR.
     fn fieldOf(mut self, base: int, name: int) int {
-        let kind = self.types[base].kind
+        const kind = self.types[base].kind
         if kind == TyKind.Tuple {
-            let at = self.indexOf(name)
+            const at = self.indexOf(name)
             return if at >= 0 && at < self.types[base].args.len() {
                 self.types[base].args[at]
             } else {
                 ERROR
             }
         }
-        let def = self.types[base].data
+        const def = self.types[base].data
         if kind != TyKind.Adt || def >= self.fields.len() {
             return ERROR
         }
@@ -558,7 +558,8 @@ pub struct TypeTable {
         match self.fields[def] {
             Option.Some(f) => {
                 for i in 0..f.types.len() {
-                    let named = if f.isTuple { self.indexOf(name) == i } else { f.names[i] == name }
+                    const tupleNamed = f.isTuple && self.indexOf(name) == i
+                    const named = tupleNamed || (!f.isTuple && f.names[i] == name)
                     if named {
                         field = f.types[i]
                     }
@@ -566,7 +567,7 @@ pub struct TypeTable {
             }
             Option.None => {}
         }
-        let args = self.types[base].args.clone()
+        const args = self.types[base].args.clone()
         return self.subst(field, args)
     }
 
@@ -578,12 +579,12 @@ pub struct TypeTable {
      * @returns the field's position, or -1
      */
     pub fn keyPosition(self, base: int, key: int) int {
-        let name = self.types[key].data
-        let kind = self.types[base].kind
+        const name = self.types[key].data
+        const kind = self.types[base].kind
         if kind == TyKind.Tuple {
             return self.indexOf(name)
         }
-        let def = self.types[base].data
+        const def = self.types[base].data
         if kind != TyKind.Adt || def >= self.fields.len() {
             return -1
         }
@@ -614,13 +615,13 @@ pub struct TypeTable {
      * @returns its depth
      */
     pub fn depth(self, ty: int) int {
-        let t = &self.types[ty]
-        let nested = t.kind == TyKind.Ref || t.kind == TyKind.Ptr || t.kind == TyKind.Slice ||
-                     t.kind == TyKind.Array || t.kind == TyKind.Fn || t.kind == TyKind.KeyOf ||
-                     t.kind == TyKind.Index
+        const t = &self.types[ty]
+        const nested = t.kind == TyKind.Ref || t.kind == TyKind.Ptr || t.kind == TyKind.Slice ||
+                       t.kind == TyKind.Array || t.kind == TyKind.Fn || t.kind == TyKind.KeyOf ||
+                       t.kind == TyKind.Index
         var deepest = if nested { self.depth(t.inner) } else { 0 }
         for i in 0..t.args.len() {
-            let d = self.depth(t.args[i])
+            const d = self.depth(t.args[i])
             if d > deepest {
                 deepest = d
             }
@@ -645,7 +646,7 @@ pub struct TypeTable {
      * @returns true for numbers
      */
     pub fn isNumeric(self, ty: int) bool {
-        let kind = self.types[ty].kind
+        const kind = self.types[ty].kind
         return kind == TyKind.Int || kind == TyKind.Float
     }
 }

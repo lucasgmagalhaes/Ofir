@@ -61,14 +61,14 @@ import syntax.ast_text.typeText
  */
 pub fn ownerTypeOf(c: mut Checker, p: Program, m: int, index: int) int {
     for t in 0..c.r.lang.len() {
-        let lang = c.r.lang[t]
+        const lang = c.r.lang[t]
         if lang != 0 && c.def(lang).module == m && c.def(lang).item == index {
             return t
         }
     }
-    let id = c.itemDefs[m][index]
-    let params = itemTypeParams(&p.modules[m].module.items[index])
-    let isInterface = match p.modules[m].module.items[index].kind {
+    const id = c.itemDefs[m][index]
+    const params = itemTypeParams(&p.modules[m].module.items[index])
+    const isInterface = match p.modules[m].module.items[index].kind {
         ItemKind.Interface(_, _, _) => true
         _ => false
     }
@@ -109,7 +109,7 @@ pub fn ownerType(c: mut Checker, p: Program, id: int) int {
  * @returns the type
  */
 pub fn resolveAlias(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
-    let item = itemOf(p, c.loc(id))
+    const item = itemOf(p, c.loc(id))
     return match item.kind {
         ItemKind.TypeAlias(typeParams, aliased) => aliasType(c, p, id, &typeParams, &aliased, args,
                                                              span)
@@ -138,10 +138,10 @@ fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
     if typeParams.len() == 0 && c.info[id].typed {
         return c.info[id].ty
     }
-    let saved = c.enter(c.def(id).module)
-    let outer = c.enterGenerics(generics)
-    let savedSelf = c.selfType
-    let savedAlias = c.aliasDef
+    const saved = c.enter(c.def(id).module)
+    const outer = c.enterGenerics(generics)
+    const savedSelf = c.selfType
+    const savedAlias = c.aliasDef
     c.selfType = ERROR
     c.aliasDef = id
     c.info[id].checking = true
@@ -172,14 +172,14 @@ fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
  * @returns the type
  */
 pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span) int {
-    let expected = itemTypeParams(itemOf(p, c.loc(id))).len()
+    const expected = itemTypeParams(itemOf(p, c.loc(id))).len()
     if args.len() != expected {
         c.error("E0302", span, "wrong number of type arguments for `{c.text(c.def(id).name)}`: "
                 + "expected {expected}, found {args.len()}")
         return ERROR
     }
-    let ty = c.types.adt(id, args)
-    let generics = typeGenericsOf(c, p, id)
+    const ty = c.types.adt(id, args)
+    const generics = typeGenericsOf(c, p, id)
     var list: List<int> = []
     for i in 0..args.len() {
         list.push(args[i])
@@ -213,7 +213,7 @@ fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
 }
 
 fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
-    let kind = c.def(id).kind
+    const kind = c.def(id).kind
     warnDeprecated(c.r, id, span)
     if args.len() > 0 && kind != DefKind.Struct && kind != DefKind.Enum &&
        kind != DefKind.TypeAlias {
@@ -234,7 +234,7 @@ fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: S
             adtInstance(c, p, id, types, span)
         }
         DefKind.Interface => {
-            let name = c.text(c.def(id).name)
+            const name = c.text(c.def(id).name)
             c.error("E0356", span, "`{name}` is an interface: only a parameter type can name it "
                     + "alone; write `dyn {name}` or a type parameter (spec 9.6)")
             ERROR
@@ -257,8 +257,8 @@ fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: S
  * @returns its `DefId`, or 0
  */
 pub fn moduleType(c: mut Checker, m: int, name: Symbol, span: Span) int {
-    let id = c.r.scope.moduleIn(m, name)
-    let moduleName = c.r.moduleNames[m].clone()
+    const id = c.r.scope.moduleIn(m, name)
+    const moduleName = c.r.moduleNames[m].clone()
     if id == 0 || c.def(id).inPrelude || c.def(id).module != m {
         c.error("E0200", span, "cannot find `{c.text(name)}` in module `{moduleName}`")
         suggestMember(c.r, m, name)
@@ -272,7 +272,7 @@ pub fn moduleType(c: mut Checker, m: int, name: Symbol, span: Span) int {
 
 // `Name` or `module.Name`: its `DefId`, or 0.
 fn pathTarget(c: mut Checker, segments: &List<Symbol>, span: Span) int {
-    let first = c.r.scope.module(segments[0])
+    const first = c.r.scope.module(segments[0])
     c.r.noteImportUse(segments[0])
     if segments.len() == 1 {
         return first
@@ -292,19 +292,19 @@ fn pathTarget(c: mut Checker, segments: &List<Symbol>, span: Span) int {
 fn resolvePath(c: mut Checker, p: Program, segments: &List<Symbol>, args: &List<TypeExpr>,
                span: Span) int {
     if segments.len() == 1 {
-        if let Option.Some(param) = typeParameter(c, segments[0]) {
+        if const Option.Some(param) = typeParameter(c, segments[0]) {
             if args.len() > 0 {
                 c.error("E0302", span, "a type parameter takes no type arguments".toOwned())
             }
             return param
         }
     }
-    let id = pathTarget(c, segments, span)
+    const id = pathTarget(c, segments, span)
     if id == 0 && segments.len() > 1 {
         return ERROR   // reported by moduleType
     }
     if id == 0 {
-        let name = segments[segments.len() - 1]
+        const name = segments[segments.len() - 1]
         c.error("E0200", span, "cannot find type `{c.text(name)}` in this scope")
         suggestName(c.r, name, SuggestScope.Type)
         return ERROR
@@ -314,7 +314,7 @@ fn resolvePath(c: mut Checker, p: Program, segments: &List<Symbol>, args: &List<
 
 // `[T]` and `&[T]`: the std `Slice<T>`, a pointer and a length (spec 2.12).
 pub fn sliceOf(c: mut Checker, elem: int, span: Span) int {
-    let slice = c.r.langItems[4]
+    const slice = c.r.langItems[4]
     if slice == 0 {
         return c.unsupported(span, "slices without the standard library are")
     }
@@ -353,13 +353,13 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
             c.selfType
         }
         TypeKind.Ref(mutable, inner) => {
-            let target = resolveType(c, p, &*inner)
+            const target = resolveType(c, p, &*inner)
             if target == STR && !mutable {
                 return STR   // stage 0: `&str` is a `str` view
             }
             if isSliceType(&*inner) {   // `&[T]` is the slice itself
                 if mutable {   // `&mut [T]` is `SliceMut<T>`
-                    let sliceMut = c.r.langItems[7]
+                    const sliceMut = c.r.langItems[7]
                     if sliceMut == 0 || c.types.kind(target) != TyKind.Adt {
                         return c.unsupported(t.span, "mutable slices `&mut [T]` are")
                     }
@@ -370,15 +370,15 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
             c.types.ref(target, mutable)
         }
         TypeKind.Ptr(mutable, inner) => {
-            let target = resolveType(c, p, &*inner)
+            const target = resolveType(c, p, &*inner)
             c.types.ptr(target, mutable)
         }
         TypeKind.Slice(elem) => {
-            let item = resolveType(c, p, &*elem)
+            const item = resolveType(c, p, &*elem)
             sliceOf(c, item, t.span)
         }
         TypeKind.Array(elem, len) => {
-            let item = resolveType(c, p, &*elem)
+            const item = resolveType(c, p, &*elem)
             match len.kind {
                 ExprKind.Int(n) => {
                     if n > 4294967295 {
@@ -402,18 +402,18 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
             for i in 0..params.len() {
                 types.push(resolveType(c, p, &params[i]))
             }
-            let result = match ret {
+            const result = match ret {
                 Option.Some(r) => resolveType(c, p, &*r)
                 Option.None => UNIT
             }
-            let kind = if owned { FN_OWNED } else { FN_BORROWED }
-            let flag = if send { FN_SEND } else { 0 }
+            const kind = if owned { FN_OWNED } else { FN_BORROWED }
+            const flag = if send { FN_SEND } else { 0 }
             c.types.fnValueTypeWith(types, result, kind | flag)
         }
         TypeKind.Never => NEVER
         TypeKind.Dyn(inner) => dynType(c, p, &*inner, t.span)
         TypeKind.Optional(inner) => {   // `T?` is `Option<T>` (spec 2.6)
-            let target = resolveType(c, p, &*inner)
+            const target = resolveType(c, p, &*inner)
             if c.r.langItems[2] == 0 {
                 return c.unsupported(t.span, "optional types (`T?`) without std are")
             }
@@ -446,19 +446,19 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
     if c.info[id].typed {
         return c.info[id].ty
     }
-    let def = c.def(id)
-    let module = def.module
-    let decl = fnOf(p, c.loc(id))
-    let item = itemOf(p, c.loc(id))
-    let isMethod = match item.kind {
+    const def = c.def(id)
+    const module = def.module
+    const decl = fnOf(p, c.loc(id))
+    const item = itemOf(p, c.loc(id))
+    const isMethod = match item.kind {
         ItemKind.Struct(_, _, _, _, _, _) | ItemKind.Enum(_, _, _, _) |
         ItemKind.Interface(_, _, _) => true
         _ => false
     }
-    let saved = c.enter(module)
-    let savedSelf = c.selfType
-    let owner = typeGenerics(c, p, item)
-    let outer = c.enterGenerics(fnGenericsIn(c, p, &owner, decl))
+    const saved = c.enter(module)
+    const savedSelf = c.selfType
+    const owner = typeGenerics(c, p, item)
+    const outer = c.enterGenerics(fnGenericsIn(c, p, &owner, decl))
     if isMethod {
         c.selfType = ownerTypeOf(c, p, module, c.def(id).item)
     }
@@ -477,14 +477,14 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
         }
         params.push(ty)
     }
-    let ret = match decl.ret {
+    const ret = match decl.ret {
         Option.Some(t) => resolveType(c, p, &t)
         Option.None => UNIT
     }
     c.enterGenerics(outer)
     c.selfType = savedSelf
     c.enter(saved)
-    let sig = c.types.fnType(params, ret)
+    const sig = c.types.fnType(params, ret)
     c.info[id].ty = sig
     c.info[id].typed = true
     return sig
@@ -505,31 +505,31 @@ pub fn compatible(found: int, expected: int) bool {
 
 // The owned function type `move fn(A) R` of `fn(A) R`; other types as they are.
 fn ownedFn(c: mut Checker, ty: int) int {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind != TyKind.Fn || t.data & FN_BORROWED == 0 {
         return ty
     }
-    let args = t.args.clone()
-    let ret = t.inner
+    const args = t.args.clone()
+    const ret = t.inner
     return c.types.fnValueTypeWith(args, ret, FN_OWNED | (t.data & FN_SEND))
 }
 
 // `dyn I`: E0333 unless `I` names an interface, E0338 unless its methods
 // can be called through a vtable (spec 9.7).
 fn dynType(c: mut Checker, p: Program, inner: &TypeExpr, span: Span) int {
-    let iface = interfaceOf(c, inner)
+    const iface = interfaceOf(c, inner)
     if iface == 0 {
         c.error("E0333", inner.span, "`{typeText(inner, c.r.names)}` is not an interface")
         return ERROR
     }
-    let generic = match inner.kind {
+    const generic = match inner.kind {
         TypeKind.Path(_, args) => args.len() > 0
         _ => false
     }
     if generic {
         return c.unsupported(span, "`dyn` of generic interfaces is")
     }
-    let why = dynIncompatible(c, p, iface)
+    const why = dynIncompatible(c, p, iface)
     if why.len() > 0 {
         c.error("E0338", span, "`dyn {typeText(inner, c.r.names)}` is not allowed: {why}")
         return ERROR

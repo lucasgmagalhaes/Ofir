@@ -58,7 +58,7 @@ pub fn traceAt(r: mut Resolver, span: Span, text: str) {
     if !r.trace.active {
         return
     }
-    let at = r.map.file(span.file).lineCol(span.start)
+    const at = r.map.file(span.file).lineCol(span.start)
     r.trace.line("{at.line}:{at.column} {text}")
 }
 
@@ -79,7 +79,7 @@ pub fn traceUse(r: mut Resolver, what: str, name: Symbol, span: Span, res: Res) 
 
 // `local 3`, `fn std.core.str.len`, `module std.fs`, `primitive int`, `error`.
 fn resText(r: Resolver, res: Res) str {
-    let id = match res {
+    const id = match res {
         Res.Local(local) => {
             return "local {local}"
         }
@@ -89,8 +89,8 @@ fn resText(r: Resolver, res: Res) str {
     if id == 0 {
         return "error"
     }
-    let def = r.def(id)
-    let kind = kindName(def.kind)
+    const def = r.def(id)
+    const kind = kindName(def.kind)
     if def.kind == DefKind.Module {
         return "{kind} {r.programName(def.target)}"
     }

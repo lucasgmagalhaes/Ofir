@@ -39,7 +39,7 @@ pub struct Program {
  * @returns the program
  */
 pub fn newProgram(modules: move List<ProgramModule>) Program {
-    let synthetic = Item{kind: ItemKind.Enum(false, [], [], []), span: noSpan(), name: Symbol(0),
-                         attributes: [], isPub: true, bounds: [], asserts: []}
+    const synthetic = Item{kind: ItemKind.Enum(false, [], [], []), span: noSpan(), name: Symbol(0),
+                           attributes: [], isPub: true, bounds: [], asserts: []}
     return Program{modules, synthetic}
 }
