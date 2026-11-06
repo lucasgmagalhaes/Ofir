@@ -160,7 +160,7 @@ fn hexByte(b: u8) str {
 
 fn escapedBytes(out: mut str, text: str) {
     for i in 0..text.len() {
-        let c = text[i]
+        const c = text[i]
         if c < 0x20 || c >= 0x7f || c == b'"' || c == b'\\' {
             out.push("\\")
             out.push(hexByte(c))
@@ -172,9 +172,9 @@ fn escapedBytes(out: mut str, text: str) {
 
 // The bits of a double, through its memory.
 fn floatBits(value: float) u64 {
-    let x = value
+    const x = value
     unsafe {
-        let p = &x as *float
+        const p = &x as *float
         return *(p as *u64)
     }
 }
@@ -216,7 +216,7 @@ pub fn newGen() Gen {
 }
 
 fn nextTemp(g: mut Gen) str {
-    let t = "%t{g.temp}"
+    const t = "%t{g.temp}"
     g.temp += 1
     return t
 }
@@ -234,10 +234,10 @@ fn nextTemp(g: mut Gen) str {
  * @returns its LLVM type
  */
 pub fn llvmType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
-    let t = c.types.get(ty)
-    let kind = t.kind
-    let data = t.data
-    let inner = t.inner
+    const t = c.types.get(ty)
+    const kind = t.kind
+    const data = t.data
+    const inner = t.inner
     return match kind {
         TyKind.Adt => adtType(g, c, p, ty)
         TyKind.Array => "[{data} x {fieldType(g, c, p, inner)}]"
@@ -255,14 +255,14 @@ pub fn llvmType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
 }
 
 fn fieldType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
-    let t = llvmType(g, c, p, ty)
+    const t = llvmType(g, c, p, ty)
     return if t == "void" { "\{\}".toOwned() } else { t }
 }
 
 // A field that is never null: a reference, a `Box` or a function.
 fn neverNull(c: Checker, ty: int) bool {
-    let t = c.types.get(ty)
-    let box = c.r.langItems[0]
+    const t = c.types.get(ty)
+    const box = c.r.langItems[0]
     return t.kind == TyKind.Ref || t.kind == TyKind.Fn ||
            (t.kind == TyKind.Adt && box != 0 && t.data == box)
 }
@@ -279,16 +279,16 @@ fn neverNull(c: Checker, ty: int) bool {
  * @returns the variant, or -1
  */
 pub fn nicheVariant(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
-    if let Option.Some(known) = g.niches.get(adt) {
+    if const Option.Some(known) = g.niches.get(adt) {
         return *known
     }
-    let id = c.types.get(adt).data
+    const id = c.types.get(adt).data
     enumVariants(c, p, id)
     var found = -1
     if variantsOf(c, id).variants.len() == 2 {
-        let first = variantsOf(c, id).variants[0].types.len()
-        let second = variantsOf(c, id).variants[1].types.len()
-        let v = if first == 1 && second == 0 { 0 } else if first == 0 && second == 1 { 1 } else {
+        const first = variantsOf(c, id).variants[0].types.len()
+        const second = variantsOf(c, id).variants[1].types.len()
+        const v = if first == 1 && second == 0 { 0 } else if first == 0 && second == 1 { 1 } else {
             -1
         }
         if v >= 0 && neverNull(c, variantFieldType(c, p, adt, v, 0)) {
@@ -301,7 +301,7 @@ pub fn nicheVariant(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
 
 // Whether `ty` is an enum with a niche.
 fn isNicheEnum(g: mut Gen, c: mut Checker, p: Program, ty: int) bool {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind != TyKind.Adt || c.def(t.data).kind != DefKind.Enum {
         return false
     }
@@ -317,7 +317,7 @@ fn fieldsLayout(g: mut Gen, c: mut Checker, p: Program, types: &List<int>) Layou
     var size = 0
     var align = 1
     for i in 0..types.len() {
-        let f = layout(g, c, p, types[i])
+        const f = layout(g, c, p, types[i])
         size = (size + f.align - 1) / f.align * f.align + f.size
         align = if f.align > align { f.align } else { align }
     }
@@ -328,16 +328,16 @@ fn fieldsLayout(g: mut Gen, c: mut Checker, p: Program, types: &List<int>) Layou
 // The field types of variant `v` of the enum instance `adt`, or of the
 // struct when `v` is -1.
 fn fieldTypes(c: mut Checker, p: Program, adt: int, v: int) List<int> {
-    let id = c.types.get(adt).data
+    const id = c.types.get(adt).data
     var types: List<int> = []
     if v < 0 {
         structFields(c, p, id)
-        let count = fieldsOf(c, id).types.len()
+        const count = fieldsOf(c, id).types.len()
         for i in 0..count {
             types.push(structFieldType(c, p, adt, i))
         }
     } else {
-        let count = variantsOf(c, id).variants[v].types.len()
+        const count = variantsOf(c, id).variants[v].types.len()
         for i in 0..count {
             types.push(variantFieldType(c, p, adt, v, i))
         }
@@ -348,10 +348,10 @@ fn fieldTypes(c: mut Checker, p: Program, adt: int, v: int) List<int> {
 // The slot of each field of a struct in its LLVM type: the fields go by
 // descending alignment, stable, unless their order is fixed (spec 13.2).
 fn fieldSlots(g: mut Gen, c: mut Checker, p: Program, ty: int) List<int> {
-    if let Option.Some(known) = g.slots.get(ty) {
+    if const Option.Some(known) = g.slots.get(ty) {
         return known.clone()
     }
-    let id = c.types.get(ty).data
+    const id = c.types.get(ty).data
     var types: List<int> = []
     if c.info[id].fields.isSome() {
         types = fieldTypes(c, p, ty, -1)
@@ -381,7 +381,7 @@ fn fieldSlots(g: mut Gen, c: mut Checker, p: Program, ty: int) List<int> {
 
 // The field types of a struct in the order of its LLVM type.
 fn slotTypes(g: mut Gen, c: mut Checker, p: Program, ty: int, types: &List<int>) List<int> {
-    let slots = fieldSlots(g, c, p, ty)
+    const slots = fieldSlots(g, c, p, ty)
     var out = types.clone()
     for i in 0..types.len() {
         out[slots[i]] = types[i]
@@ -391,16 +391,16 @@ fn slotTypes(g: mut Gen, c: mut Checker, p: Program, ty: int, types: &List<int>)
 
 // Whether a type is a struct.
 fn isStruct(c: Checker, ty: int) bool {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     return t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Struct
 }
 
 // The layout of a struct: `@packed` has no padding, `@align(N)` raises its
 // alignment (spec 13.2).
 fn structLayout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
-    let id = c.types.get(ty).data
-    let declared = fieldTypes(c, p, ty, -1)
-    let types = slotTypes(g, c, p, ty, &declared)
+    const id = c.types.get(ty).data
+    const declared = fieldTypes(c, p, ty, -1)
+    const types = slotTypes(g, c, p, ty, &declared)
     if isPacked(c, p, id) {
         var size = 0
         for i in 0..types.len() {
@@ -408,8 +408,8 @@ fn structLayout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
         }
         return Layout{size: size, align: 1}
     }
-    let l = fieldsLayout(g, c, p, &types)
-    let align = alignAttr(c, p, id)
+    const l = fieldsLayout(g, c, p, &types)
+    const align = alignAttr(c, p, id)
     if align <= l.align {
         return l
     }
@@ -419,12 +419,12 @@ fn structLayout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
 // The size of a payload unit of an enum: the largest alignment of its
 // variants, at least 8.
 fn payloadUnit(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
-    let id = c.types.get(adt).data
+    const id = c.types.get(adt).data
     enumVariants(c, p, id)
     var unit = 8
     for v in 0..variantsOf(c, id).variants.len() {
-        let types = fieldTypes(c, p, adt, v)
-        let align = fieldsLayout(g, c, p, &types).align
+        const types = fieldTypes(c, p, adt, v)
+        const align = fieldsLayout(g, c, p, &types).align
         unit = if align > unit { align } else { unit }
     }
     return unit
@@ -432,27 +432,27 @@ fn payloadUnit(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
 
 // The payload units of an enum: enough for its largest variant.
 fn payloadWords(g: mut Gen, c: mut Checker, p: Program, adt: int) int {
-    let id = c.types.get(adt).data
+    const id = c.types.get(adt).data
     enumVariants(c, p, id)
     var largest = 0
     for v in 0..variantsOf(c, id).variants.len() {
-        let types = fieldTypes(c, p, adt, v)
-        let l = fieldsLayout(g, c, p, &types)
+        const types = fieldTypes(c, p, adt, v)
+        const l = fieldsLayout(g, c, p, &types)
         largest = if l.size > largest { l.size } else { largest }
     }
-    let unit = payloadUnit(g, c, p, adt)
+    const unit = payloadUnit(g, c, p, adt)
     return (largest + unit - 1) / unit
 }
 
 fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
-    let t = c.types.get(ty)
-    let kind = t.kind
-    let data = t.data
-    let inner = t.inner
+    const t = c.types.get(ty)
+    const kind = t.kind
+    const data = t.data
+    const inner = t.inner
     return match kind {
         TyKind.Bool => Layout{size: 1, align: 1}
         TyKind.Array => {
-            let elem = layout(g, c, p, inner)
+            const elem = layout(g, c, p, inner)
             Layout{size: elem.size * data, align: elem.align}
         }
         TyKind.Int => Layout{size: intBits(data) / 8, align: intBits(data) / 8}
@@ -461,7 +461,7 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
         TyKind.Ref | TyKind.Ptr => Layout{size: if c.types.isFat(ty) { 16 } else { 8 }, align: 8}
         TyKind.Fn => Layout{size: 16, align: 8}   // the code and the environment
         TyKind.Tuple => {
-            let args = c.types.get(ty).args.clone()
+            const args = c.types.get(ty).args.clone()
             fieldsLayout(g, c, p, &args)
         }
         TyKind.Adt => {
@@ -470,10 +470,10 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
             } else if nicheVariant(g, c, p, ty) >= 0 {   // the pointer alone
                 layout(g, c, p, variantFieldType(c, p, ty, nicheVariant(g, c, p, ty), 0))
             } else {
-                let words = payloadWords(g, c, p, ty)
-                let unit = payloadUnit(g, c, p, ty)
-                let size = if words > 0 { unit + unit * words } else { 4 }
-                let align = if words > 0 { unit } else { 4 }
+                const words = payloadWords(g, c, p, ty)
+                const unit = payloadUnit(g, c, p, ty)
+                const size = if words > 0 { unit + unit * words } else { 4 }
+                const align = if words > 0 { unit } else { 4 }
                 Layout{size: size, align: align}
             }
         }
@@ -483,7 +483,7 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
 
 // `<int, geo.Point>`: the type arguments of an instance, for its name.
 fn typeArgsText(c: Checker, targs: int) str {
-    let args = c.types.get(targs).args.clone()
+    const args = c.types.get(targs).args.clone()
     var out = ""
     for i in 0..args.len() {
         out.push(if i > 0 { ", " } else { "<" })
@@ -496,8 +496,8 @@ fn typeArgsText(c: Checker, targs: int) str {
 // `%"Shape.3"`, or `%"Pair<int, str>.5"` for an instance: the DefId keeps
 // same-named types apart.
 fn nameType(c: mut Checker, ty: int, suffix: str) str {
-    let id = c.types.get(ty).data
-    let args = c.types.get(ty).args.clone()
+    const id = c.types.get(ty).data
+    const args = c.types.get(ty).args.clone()
     var out = "%\"{c.text(c.def(id).name)}"
     if args.len() > 0 {
         out.push(typeArgsText(c, c.types.tuple(args)))
@@ -520,7 +520,7 @@ fn alignField(align: int) str {
 fn define(g: mut Gen, c: mut Checker, p: Program, name: str, types: &List<int>, packed: bool,
           align: int) {
     for i in 0..types.len() {
-        let _ = fieldType(g, c, p, types[i])   // the field types first: no interleaving
+        const _ = fieldType(g, c, p, types[i])   // the field types first: no interleaving
     }
     g.typeDefs.push(if packed { "{name} = type <\{ " } else { "{name} = type \{ " })
     for i in 0..types.len() {
@@ -549,16 +549,16 @@ pub fn variantType(c: mut Checker, adt: int, v: int) str {
 }
 
 fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
-    let words = payloadWords(g, c, p, adt)
-    let id = c.types.get(adt).data
+    const words = payloadWords(g, c, p, adt)
+    const id = c.types.get(adt).data
     for v in 0..variantsOf(c, id).variants.len() {
-        let types = fieldTypes(c, p, adt, v)
+        const types = fieldTypes(c, p, adt, v)
         define(g, c, p, variantType(c, adt, v), &types, false, 0)
     }
-    let unit = payloadUnit(g, c, p, adt)
-    let niche = nicheVariant(g, c, p, adt)
+    const unit = payloadUnit(g, c, p, adt)
+    const niche = nicheVariant(g, c, p, adt)
     if niche >= 0 {   // the pointer alone
-        let field = fieldType(g, c, p, variantFieldType(c, p, adt, niche, 0))
+        const field = fieldType(g, c, p, variantFieldType(c, p, adt, niche, 0))
         g.typeDefs.push("{name} = type \{ {field} \}\n")
     } else if words > 0 && unit > 8 {
         g.typeDefs.push("{name} = type \{ i32, [{words} x <{unit} x i8>] \}\n")
@@ -570,11 +570,11 @@ fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
 }
 
 fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
-    if let Option.Some(known) = g.adtTypes.get(ty) {
+    if const Option.Some(known) = g.adtTypes.get(ty) {
         return known.clone()
     }
-    let id = c.types.get(ty).data
-    let name = nameType(c, ty, "")
+    const id = c.types.get(ty).data
+    const name = nameType(c, ty, "")
     g.adtTypes.insert(ty, name.clone())
     if c.def(id).kind == DefKind.Enum {
         defineEnum(g, c, p, ty, name.clone())
@@ -582,7 +582,7 @@ fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
     }
     var types: List<int> = []
     if c.info[id].fields.isSome() {
-        let declared = fieldTypes(c, p, ty, -1)
+        const declared = fieldTypes(c, p, ty, -1)
         types = slotTypes(g, c, p, ty, &declared)
     }
     define(g, c, p, name.clone(), &types, isPacked(c, p, id), alignAttr(c, p, id))
@@ -591,7 +591,7 @@ fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
 
 // A tuple is a literal LLVM struct type, `{ i64, double }`.
 fn tupleType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
-    let args = c.types.get(ty).args.clone()
+    const args = c.types.get(ty).args.clone()
     var out = "\{ "
     for i in 0..args.len() {
         if i > 0 {
@@ -614,14 +614,14 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
         g.out.push("  {base} = load ptr, ptr %l{local}\n")
     }
     var current = body.locals[local].ty
-    let pointer = c.types.get(current)
+    const pointer = c.types.get(current)
     if path.deref && (pointer.kind == TyKind.Ptr || pointer.kind == TyKind.Ref) {   // `*p`, `*r`
         current = pointer.inner
     }
     var variant = false
     var index = 0
     for i in 0..path.fields.len() {
-        let entry = path.fields[i]
+        const entry = path.fields[i]
         if !variant && isNicheEnum(g, c, p, current) {   // no tag: the pointer
             if entry >= VARIANT_STEP {
                 variant = true
@@ -632,27 +632,27 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
             }
             continue
         }
-        let next = nextTemp(g)
+        const next = nextTemp(g)
         if entry >= VARIANT_STEP {   // view the payload as a variant
-            let container = llvmType(g, c, p, current)
+            const container = llvmType(g, c, p, current)
             g.out.push("  {next} = getelementptr inbounds {container}, ptr {base}, i32 0, i32 1\n")
             variant = true
             index = entry - VARIANT_STEP
             base = next
             continue
         }
-        let container = if variant { variantType(c, current, index) } else {
+        const container = if variant { variantType(c, current, index) } else {
             llvmType(g, c, p, current)
         }
-        let slot = if !variant && isStruct(c, current) {
+        const slot = if !variant && isStruct(c, current) {
             fieldSlots(g, c, p, current)[entry]
         } else {
             entry
         }
         g.out.push("  {next} = getelementptr inbounds {container}, ptr {base}, i32 0, "
                    + "i32 {slot}\n")
-        let t = c.types.get(current)
-        let isEnum = t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Enum
+        const t = c.types.get(current)
+        const isEnum = t.kind == TyKind.Adt && c.def(t.data).kind == DefKind.Enum
         if !variant && t.kind == TyKind.Adt && isPacked(c, p, t.data) {
             g.packedPlace = true
         }
@@ -677,11 +677,11 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
 // Names and globals
 
 fn isCFunction(c: Checker, p: Program, id: int) bool {
-    let def = c.def(id)
+    const def = c.def(id)
     if def.kind != DefKind.Fn || def.item < 0 {
         return false
     }
-    let isExtern = match itemOf(p, c.loc(id)).kind {
+    const isExtern = match itemOf(p, c.loc(id)).kind {
         ItemKind.Extern(_, _) => true
         _ => false
     }
@@ -690,13 +690,13 @@ fn isCFunction(c: Checker, p: Program, id: int) bool {
 
 // `@inline`, `@inline(never)` and `@cold` (spec 12.1).
 fn hints(c: Checker, p: Program, id: int) str {
-    let def = c.def(id)
+    const def = c.def(id)
     if def.kind != DefKind.Fn || def.item < 0 {
         return ""
     }
-    let decl = fnOf(p, c.loc(id))
+    const decl = fnOf(p, c.loc(id))
     var text = ""
-    if let Option.Some(at) = findAttribute(c.r, decl.attributes, "inline") {
+    if const Option.Some(at) = findAttribute(c.r, decl.attributes, "inline") {
         text = if decl.attributes[at].args.len() > 0 { " noinline" } else { " alwaysinline" }
     }
     if findAttribute(c.r, decl.attributes, "cold").isSome() {
@@ -712,21 +712,21 @@ fn functionName(c: mut Checker, p: Program, id: int, targs: int, isMain: bool) s
         return "@ofir_main".toOwned()
     }
     if isGlue(id) {   // `ofir.drop<T>`, `ofir.clone<T>`, `ofir.eq<T>`, ...
-        let glue = glueName(id)
+        const glue = glueName(id)
         return "@\"ofir.{glue}{typeArgsText(c, targs)}\""
     }
     if isCFunction(c, p, id) {   // a C function keeps its name or takes its `@export` one
         return "@{cSymbol(c.r, fnOf(p, c.loc(id)))}"
     }
-    let def = c.def(id)
+    const def = c.def(id)
     var out = "@\"ofir."
     if def.module != 0 {   // qualified by its module, except in the root module
         out.push(c.r.moduleNames[def.module])
         out.push(".")
     }
     if def.member >= 0 {
-        let item = itemOf(p, c.loc(id))
-        let isType = match item.kind {
+        const item = itemOf(p, c.loc(id))
+        const isType = match item.kind {
             ItemKind.Struct(_, _, _, _, _, _) | ItemKind.Enum(_, _, _, _) |
             ItemKind.Interface(_, _, _) => true
             _ => false
@@ -745,7 +745,7 @@ fn functionName(c: mut Checker, p: Program, id: int, targs: int, isMain: bool) s
 }
 
 fn stringGlobal(g: mut Gen, text: str) int {
-    let n = g.strCount
+    const n = g.strCount
     g.strCount += 1
     g.globals.push("@.str.{n} = private unnamed_addr constant [{text.len()} x i8] c\"")
     escapedBytes(g.globals, text)
@@ -755,17 +755,17 @@ fn stringGlobal(g: mut Gen, text: str) int {
 
 // The location of a span, for panic messages: `@.loc.N`.
 fn locationGlobal(g: mut Gen, c: Checker, span: Span) int {
-    let file = c.r.map.file(span.file)
-    let pos = file.lineCol(span.start)
-    let id = span.file.0
+    const file = c.r.map.file(span.file)
+    const pos = file.lineCol(span.start)
+    const id = span.file.0
     if g.filesEmitted.get(id).isNone() {
         g.filesEmitted.insert(id, true)
-        let path = file.path.clone()
+        const path = file.path.clone()
         g.globals.push("@.file.{id} = private unnamed_addr constant [{path.len() + 1} x i8] c\"")
         escapedBytes(g.globals, path)
         g.globals.push("\\00\"\n")
     }
-    let n = g.locCount
+    const n = g.locCount
     g.locCount += 1
     g.globals.push("@.loc.{n} = private unnamed_addr constant %ofir.loc \{ ptr @.file.{id}, "
                    + "i32 {pos.line}, i32 {pos.column} \}\n")
@@ -778,8 +778,8 @@ fn locationGlobal(g: mut Gen, c: Checker, span: Span) int {
 // LLVM integers are sign-agnostic: the bit pattern as a signed number of
 // the type's width.
 fn intText(value: u64, bits: int) str {
-    let ones: u64 = 18446744073709551615
-    let mask = if bits == 64 { ones } else { ((1 as u64) << (bits as u64)) - 1 }
+    const ones: u64 = 18446744073709551615
+    const mask = if bits == 64 { ones } else { ((1 as u64) << (bits as u64)) - 1 }
     var v = value & mask
     if bits < 64 && ((v >> ((bits - 1) as u64)) & 1) == 1 {
         v = v | (mask ^ ones)   // sign-extend
@@ -788,8 +788,8 @@ fn intText(value: u64, bits: int) str {
 }
 
 fn floatText(value: float, isF32: bool) str {
-    let exact = if isF32 { (value as f32) as float } else { value }
-    let bits = floatBits(exact)
+    const exact = if isF32 { (value as f32) as float } else { value }
+    const bits = floatBits(exact)
     var out = "0x"
     var shift = 60
     for shift >= 0 {
@@ -800,17 +800,17 @@ fn floatText(value: float, isF32: bool) str {
 }
 
 fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) Value {
-    let ty = llvmType(g, c, p, o.ty)
+    const ty = llvmType(g, c, p, o.ty)
     return match o.kind {
         OperandKind.Copy => {
             if ty == "void" {
                 Value{ty: ty, text: ""}   // a local of type (): nothing to load
             } else {
-                let at = placeAddress(g, c, p, body, o.local, &o.path)
+                const at = placeAddress(g, c, p, body, o.local, &o.path)
                 if g.nicheTag >= 0 {   // the tag of a niche enum: whether the pointer is null
                     return nicheTagValue(g, c, p, at)
                 }
-                let t = nextTemp(g)
+                const t = nextTemp(g)
                 g.out.push("  {t} = load {ty}, ptr {at}{packedAlign(g)}\n")
                 Value{ty: ty, text: t}
             }
@@ -822,7 +822,7 @@ fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) 
         OperandKind.Bool => Value{ty: ty,
                                   text: if o.truth { "true".toOwned() } else { "false".toOwned() }}
         OperandKind.Str => {
-            let n = stringGlobal(g, o.text)
+            const n = stringGlobal(g, o.text)
             if c.types.kind(o.ty) != TyKind.Str {   // a byte string: a `Slice<u8>`
                 return Value{ty: ty, text: "\{ ptr @.str.{n}, i64 {o.text.len()} \}"}
             }
@@ -835,21 +835,21 @@ fn operand(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, o: &Operand) 
 // The discriminants of the variants of the niche enum `g.nicheTag`: the
 // one without a payload, then the one with it.
 fn nicheDiscriminants(g: mut Gen, c: mut Checker, p: Program) (int, int) {
-    let adt = g.nicheTag
-    let some = nicheVariant(g, c, p, adt)
-    let id = c.types.get(adt).data
-    let none = variantsOf(c, id).variants[1 - some].discriminant
+    const adt = g.nicheTag
+    const some = nicheVariant(g, c, p, adt)
+    const id = c.types.get(adt).data
+    const none = variantsOf(c, id).variants[1 - some].discriminant
     return (none, variantsOf(c, id).variants[some].discriminant)
 }
 
 // Reads the tag of a niche enum at `at`.
 fn nicheTagValue(g: mut Gen, c: mut Checker, p: Program, at: str) Value {
-    let (none, some) = nicheDiscriminants(g, c, p)
-    let word = nextTemp(g)
+    const (none, some) = nicheDiscriminants(g, c, p)
+    const word = nextTemp(g)
     g.out.push("  {word} = load ptr, ptr {at}\n")
-    let isNull = nextTemp(g)
+    const isNull = nextTemp(g)
     g.out.push("  {isNull} = icmp eq ptr {word}, null\n")
-    let tag = nextTemp(g)
+    const tag = nextTemp(g)
     g.out.push("  {tag} = select i1 {isNull}, i32 {none}, i32 {some}\n")
     return Value{ty: "i32".toOwned(), text: tag}
 }
@@ -857,22 +857,22 @@ fn nicheTagValue(g: mut Gen, c: mut Checker, p: Program, at: str) Value {
 // Writes the tag `v` of a niche enum at `at`: a null pointer for the
 // variant without a payload; the other variant's payload is already there.
 fn nicheTagStore(g: mut Gen, c: mut Checker, p: Program, at: str, v: &Value) {
-    let (none, some) = nicheDiscriminants(g, c, p)
+    const (none, some) = nicheDiscriminants(g, c, p)
     if v.text == "{none}" {
         g.out.push("  store ptr null, ptr {at}\n")
     } else if v.text != "{some}" {   // not a constant
-        let word = nextTemp(g)
+        const word = nextTemp(g)
         g.out.push("  {word} = load ptr, ptr {at}\n")
-        let isNone = nextTemp(g)
+        const isNone = nextTemp(g)
         g.out.push("  {isNone} = icmp eq i32 {v.text}, {none}\n")
-        let kept = nextTemp(g)
+        const kept = nextTemp(g)
         g.out.push("  {kept} = select i1 {isNone}, ptr null, ptr {word}\n")
         g.out.push("  store ptr {kept}, ptr {at}\n")
     }
 }
 
 fn intOp(op: Op, signed: bool) str {
-    let name = match op {
+    const name = match op {
         Op.Add => "add"
         Op.Sub => "sub"
         Op.Mul => "mul"
@@ -895,7 +895,7 @@ fn intOp(op: Op, signed: bool) str {
 }
 
 fn floatOp(op: Op) str {
-    let name = match op {
+    const name = match op {
         Op.Add => "fadd"
         Op.Sub => "fsub"
         Op.Mul => "fmul"
@@ -913,18 +913,18 @@ fn floatOp(op: Op) str {
 }
 
 fn isSigned(c: Checker, ty: int) bool {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     return t.kind == TyKind.Int && t.data <= 3
 }
 
 // The cast instruction from one type to another, or "" for none.
 fn castOp(c: Checker, from: int, to: int) str {
-    let f = c.types.get(from)
-    let t = c.types.get(to)
-    let fromPtr = f.kind == TyKind.Ptr || f.kind == TyKind.Ref
-    let toPtr = t.kind == TyKind.Ptr || t.kind == TyKind.Ref
+    const f = c.types.get(from)
+    const t = c.types.get(to)
+    const fromPtr = f.kind == TyKind.Ptr || f.kind == TyKind.Ref
+    const toPtr = t.kind == TyKind.Ptr || t.kind == TyKind.Ref
     if fromPtr || toPtr {   // a reference is a pointer
-        let op = if fromPtr == toPtr { "" } else if fromPtr { "ptrtoint" } else { "inttoptr" }
+        const op = if fromPtr == toPtr { "" } else if fromPtr { "ptrtoint" } else { "inttoptr" }
         return op.toOwned()
     }
     if f.kind == TyKind.Float && t.kind == TyKind.Float {
@@ -936,27 +936,27 @@ fn castOp(c: Checker, from: int, to: int) str {
     if t.kind == TyKind.Float {
         return if isSigned(c, from) { "sitofp".toOwned() } else { "uitofp".toOwned() }
     }
-    let fromBits = intBits(f.data)
-    let toBits = intBits(t.data)
+    const fromBits = intBits(f.data)
+    const toBits = intBits(t.data)
     if fromBits == toBits {
         return "".toOwned()   // same bits, different signedness
     }
-    let op = if toBits < fromBits { "trunc" } else if isSigned(c, from) { "sext" } else { "zext" }
+    const op = if toBits < fromBits { "trunc" } else if isSigned(c, from) { "sext" } else { "zext" }
     return op.toOwned()
 }
 
 fn castValue(g: mut Gen, c: mut Checker, p: Program, from: int, to: int, a: move Value) Value {
-    let op = castOp(c, from, to)
-    let target = llvmType(g, c, p, to)
+    const op = castOp(c, from, to)
+    const target = llvmType(g, c, p, to)
     if c.types.isFat(from) && !c.types.isFat(to) {   // the data pointer of a fat pointer
-        let data = nextTemp(g)
+        const data = nextTemp(g)
         g.out.push("  {data} = extractvalue {FN_LLVM} {a.text}, 0\n")
         return Value{ty: target, text: data}
     }
     if op == "" {
         return Value{ty: target, text: a.text}
     }
-    let t = nextTemp(g)
+    const t = nextTemp(g)
     g.out.push("  {t} = {op} {a.ty} {a.text} to {target}\n")
     return Value{ty: target, text: t}
 }
@@ -969,20 +969,20 @@ copy struct Bounds {
 }
 
 fn bounds(c: Checker, from: int, to: int) Bounds {
-    let s = intBits(c.types.get(from).data)
-    let t = intBits(c.types.get(to).data)
-    let fs = c.types.get(from).data <= 3
-    let ts = c.types.get(to).data <= 3
-    let below = fs && (!ts || t < s)
-    let aboveSigned = if ts { t < s } else { t + 1 < s }
-    let aboveUnsigned = if ts { t <= s } else { t < s }
-    let above = if fs { aboveSigned } else { aboveUnsigned }
-    let one: u64 = 1
+    const s = intBits(c.types.get(from).data)
+    const t = intBits(c.types.get(to).data)
+    const fs = c.types.get(from).data <= 3
+    const ts = c.types.get(to).data <= 3
+    const below = fs && (!ts || t < s)
+    const aboveSigned = if ts { t < s } else { t + 1 < s }
+    const aboveUnsigned = if ts { t <= s } else { t < s }
+    const above = if fs { aboveSigned } else { aboveUnsigned }
+    const one: u64 = 1
     var min: i64 = 0
     if ts {
         min = if t == 64 { i64.MIN } else { 0 - ((one << ((t - 1) as u64)) as i64) }
     }
-    let ones: u64 = 18446744073709551615
+    const ones: u64 = 18446744073709551615
     var max: u64 = 0
     if ts {
         max = (one << ((t - 1) as u64)) - 1
@@ -995,7 +995,7 @@ fn bounds(c: Checker, from: int, to: int) Bounds {
 // Combines two optional failure conditions with `or`.
 fn either(g: mut Gen, low: str, high: str) str {
     if low.len() > 0 && high.len() > 0 {
-        let t = nextTemp(g)
+        const t = nextTemp(g)
         g.out.push("  {t} = or i1 {low}, {high}\n")
         return t
     }
@@ -1009,31 +1009,31 @@ fn floatBound(value: float) str {
 }
 
 fn castFails(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue) Value {
-    let a = operand(g, c, p, body, &rv.a)
-    let from = rv.a.ty
-    let to = rv.to
+    const a = operand(g, c, p, body, &rv.a)
+    const from = rv.a.ty
+    const to = rv.to
     if c.types.kind(from) == TyKind.Float {   // the value must be in [min, max + 1)
-        let t = intBits(c.types.get(to).data)
-        let signed = c.types.get(to).data <= 3
+        const t = intBits(c.types.get(to).data)
+        const signed = c.types.get(to).data <= 3
         var power = 1.0
-        let exponent = if signed { t - 1 } else { t }
+        const exponent = if signed { t - 1 } else { t }
         for _ in 0..exponent {
             power = power * 2.0
         }
-        let min = if signed { 0.0 - power } else { 0.0 }
-        let lo = floatBound(min)
-        let hi = floatBound(power)
-        let ge = nextTemp(g)
+        const min = if signed { 0.0 - power } else { 0.0 }
+        const lo = floatBound(min)
+        const hi = floatBound(power)
+        const ge = nextTemp(g)
         g.out.push("  {ge} = fcmp oge {a.ty} {a.text}, {lo}\n")
-        let lt = nextTemp(g)
+        const lt = nextTemp(g)
         g.out.push("  {lt} = fcmp olt {a.ty} {a.text}, {hi}\n")
-        let ok = nextTemp(g)
+        const ok = nextTemp(g)
         g.out.push("  {ok} = and i1 {ge}, {lt}\n")
-        let result = nextTemp(g)
+        const result = nextTemp(g)
         g.out.push("  {result} = xor i1 {ok}, true\n")
         return Value{ty: "i1".toOwned(), text: result}
     }
-    let b = bounds(c, from, to)
+    const b = bounds(c, from, to)
     var low = ""
     var high = ""
     if b.below {
@@ -1042,7 +1042,7 @@ fn castFails(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue
     }
     if b.above {
         high = nextTemp(g)
-        let cmp = if isSigned(c, from) { "sgt" } else { "ugt" }
+        const cmp = if isSigned(c, from) { "sgt" } else { "ugt" }
         g.out.push("  {high} = icmp {cmp} {a.ty} {a.text}, {b.max}\n")
     }
     return Value{ty: "i1".toOwned(), text: either(g, low, high)}
@@ -1050,21 +1050,21 @@ fn castFails(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue
 
 // `x.saturatingCast<T>()`: clamp in the source type, then convert.
 fn saturate(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue) Value {
-    let a = operand(g, c, p, body, &rv.a)
-    let b = bounds(c, rv.a.ty, rv.to)
+    const a = operand(g, c, p, body, &rv.a)
+    const b = bounds(c, rv.a.ty, rv.to)
     var value = a.text.clone()
     if b.below {
-        let test = nextTemp(g)
+        const test = nextTemp(g)
         g.out.push("  {test} = icmp slt {a.ty} {value}, {b.min}\n")
-        let clamped = nextTemp(g)
+        const clamped = nextTemp(g)
         g.out.push("  {clamped} = select i1 {test}, {a.ty} {b.min}, {a.ty} {value}\n")
         value = clamped
     }
     if b.above {
-        let test = nextTemp(g)
-        let cmp = if isSigned(c, rv.a.ty) { "sgt" } else { "ugt" }
+        const test = nextTemp(g)
+        const cmp = if isSigned(c, rv.a.ty) { "sgt" } else { "ugt" }
         g.out.push("  {test} = icmp {cmp} {a.ty} {value}, {b.max}\n")
-        let clamped = nextTemp(g)
+        const clamped = nextTemp(g)
         g.out.push("  {clamped} = select i1 {test}, {a.ty} {b.max}, {a.ty} {value}\n")
         value = clamped
     }
@@ -1072,7 +1072,7 @@ fn saturate(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue)
 }
 
 fn floatFnName(f: FloatFn) str {
-    let name = match f {
+    const name = match f {
         FloatFn.Sqrt => "sqrt"
         FloatFn.Fabs => "fabs"
         FloatFn.Floor => "floor"
@@ -1095,13 +1095,13 @@ fn floatFnIndex(f: FloatFn) int {
 }
 
 fn floatFn(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue) Value {
-    let binary = rv.floatFn == FloatFn.Minnum || rv.floatFn == FloatFn.Maxnum
-    let a = operand(g, c, p, body, &rv.a)
-    let b = if binary { operand(g, c, p, body, &rv.b) } else { a.clone() }   // loads first
-    let isF64 = a.ty == "double"
+    const binary = rv.floatFn == FloatFn.Minnum || rv.floatFn == FloatFn.Maxnum
+    const a = operand(g, c, p, body, &rv.a)
+    const b = if binary { operand(g, c, p, body, &rv.b) } else { a.clone() }   // loads first
+    const isF64 = a.ty == "double"
     g.floatFnUsed[floatFnIndex(rv.floatFn) * 2 + if isF64 { 1 } else { 0 }] = true
-    let t = nextTemp(g)
-    let suffix = if isF64 { "f64" } else { "f32" }
+    const t = nextTemp(g)
+    const suffix = if isF64 { "f64" } else { "f32" }
     g.out.push("  {t} = call {a.ty} @llvm.{floatFnName(rv.floatFn)}.{suffix}({a.ty} {a.text}")
     if binary {
         g.out.push(", {b.ty} {b.text}")
@@ -1112,43 +1112,43 @@ fn floatFn(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue) 
 
 fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
           destType: int) Value {
-    let ty = llvmType(g, c, p, destType)
+    const ty = llvmType(g, c, p, destType)
     match rv.kind {
         RvalueKind.Use => {
-            let v = operand(g, c, p, body, &rv.a)
+            const v = operand(g, c, p, body, &rv.a)
             return Value{ty: ty, text: v.text}
         }
         RvalueKind.Binary => {
-            let a = operand(g, c, p, body, &rv.a)
-            let b = operand(g, c, p, body, &rv.b)
-            let float = c.types.kind(rv.a.ty) == TyKind.Float
-            let op = if float { floatOp(rv.op) } else { intOp(rv.op, isSigned(c, rv.a.ty)) }
-            let t = nextTemp(g)
+            const a = operand(g, c, p, body, &rv.a)
+            const b = operand(g, c, p, body, &rv.b)
+            const float = c.types.kind(rv.a.ty) == TyKind.Float
+            const op = if float { floatOp(rv.op) } else { intOp(rv.op, isSigned(c, rv.a.ty)) }
+            const t = nextTemp(g)
             g.out.push("  {t} = {op} {a.ty} {a.text}, {b.text}\n")
             return Value{ty: ty, text: t}
         }
         RvalueKind.Checked => {
-            let a = operand(g, c, p, body, &rv.a)
-            let b = operand(g, c, p, body, &rv.b)
-            let signed = isSigned(c, rv.a.ty)
-            let op = if rv.op == Op.Add { 0 } else if rv.op == Op.Sub { 1 } else { 2 }
-            let width = c.types.get(rv.a.ty).data % 4
+            const a = operand(g, c, p, body, &rv.a)
+            const b = operand(g, c, p, body, &rv.b)
+            const signed = isSigned(c, rv.a.ty)
+            const op = if rv.op == Op.Add { 0 } else if rv.op == Op.Sub { 1 } else { 2 }
+            const width = c.types.get(rv.a.ty).data % 4
             g.overflowUsed[(if signed { 12 } else { 0 }) + op * 4 + width] = true
-            let ops = ["add", "sub", "mul"]
-            let pair = nextTemp(g)
-            let sign = if signed { "s" } else { "u" }
+            const ops = ["add", "sub", "mul"]
+            const pair = nextTemp(g)
+            const sign = if signed { "s" } else { "u" }
             g.out.push("  {pair} = call \{ {a.ty}, i1 \} @llvm.{sign}{ops[op]}.with.overflow."
                        + "{a.ty}({a.ty} {a.text}, {a.ty} {b.text})\n")
-            let result = nextTemp(g)
+            const result = nextTemp(g)
             g.out.push("  {result} = extractvalue \{ {a.ty}, i1 \} {pair}, 0\n")
-            let flag = nextTemp(g)
+            const flag = nextTemp(g)
             g.out.push("  {flag} = extractvalue \{ {a.ty}, i1 \} {pair}, 1\n")
             g.out.push("  store i1 {flag}, ptr %l{rv.flag}\n")
             return Value{ty: ty, text: result}
         }
         RvalueKind.Unary => {
-            let a = operand(g, c, p, body, &rv.a)
-            let t = nextTemp(g)
+            const a = operand(g, c, p, body, &rv.a)
+            const t = nextTemp(g)
             if rv.op == Op.Neg {
                 g.out.push("  {t} = fneg {a.ty} {a.text}\n")
             } else {
@@ -1157,23 +1157,23 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             return Value{ty: ty, text: t}
         }
         RvalueKind.Cast => {
-            let a = operand(g, c, p, body, &rv.a)
-            let v = castValue(g, c, p, rv.a.ty, rv.to, a)
+            const a = operand(g, c, p, body, &rv.a)
+            const v = castValue(g, c, p, rv.a.ty, rv.to, a)
             return Value{ty: ty, text: v.text}
         }
         RvalueKind.CastFails => {
-            let v = castFails(g, c, p, body, rv)
+            const v = castFails(g, c, p, body, rv)
             return Value{ty: ty, text: v.text}
         }
         RvalueKind.Saturate => {
-            let v = saturate(g, c, p, body, rv)
+            const v = saturate(g, c, p, body, rv)
             return Value{ty: ty, text: v.text}
         }
         RvalueKind.PtrAdd => {
-            let a = operand(g, c, p, body, &rv.a)
-            let n = operand(g, c, p, body, &rv.b)
-            let elem = llvmType(g, c, p, c.types.get(rv.a.ty).inner)
-            let t = nextTemp(g)
+            const a = operand(g, c, p, body, &rv.a)
+            const n = operand(g, c, p, body, &rv.b)
+            const elem = llvmType(g, c, p, c.types.get(rv.a.ty).inner)
+            const t = nextTemp(g)
             g.out.push("  {t} = getelementptr {elem}, ptr {a.text}, i64 {n.text}\n")
             return Value{ty: ty, text: t}
         }
@@ -1184,12 +1184,12 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
                 slots = fieldSlots(g, c, p, destType)
             }
             for i in 0..rv.items.len() {
-                let field = operand(g, c, p, body, &rv.items[i])
+                const field = operand(g, c, p, body, &rv.items[i])
                 if field.ty == "void" {
                     continue   // a field of type (): nothing to store
                 }
-                let next = nextTemp(g)
-                let slot = if i < slots.len() { slots[i] } else { i }
+                const next = nextTemp(g)
+                const slot = if i < slots.len() { slots[i] } else { i }
                 g.out.push("  {next} = insertvalue {ty} {current}, {field.ty} {field.text}, "
                            + "{slot}\n")
                 current = next
@@ -1197,40 +1197,40 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             return Value{ty: ty, text: current}
         }
         RvalueKind.SizeOf => {   // the address of element 1 from null is the size
-            let end = nextTemp(g)
-            let t = fieldType(g, c, p, rv.to)
+            const end = nextTemp(g)
+            const t = fieldType(g, c, p, rv.to)
             g.out.push("  {end} = getelementptr {t}, ptr null, i32 1\n")
-            let result = nextTemp(g)
+            const result = nextTemp(g)
             g.out.push("  {result} = ptrtoint ptr {end} to i64\n")
             return Value{ty: ty, text: result}
         }
         RvalueKind.AlignOf => {   // the offset of a `T` after an `i1` is its alignment
-            let end = nextTemp(g)
-            let t = fieldType(g, c, p, rv.to)
+            const end = nextTemp(g)
+            const t = fieldType(g, c, p, rv.to)
             g.out.push("  {end} = getelementptr \{ i1, {t} \}, ptr null, i32 0, i32 1\n")
-            let result = nextTemp(g)
+            const result = nextTemp(g)
             g.out.push("  {result} = ptrtoint ptr {end} to i64\n")
             return Value{ty: ty, text: result}
         }
         RvalueKind.StrLen => {
-            let s = operand(g, c, p, body, &rv.a)
-            let t = nextTemp(g)
+            const s = operand(g, c, p, body, &rv.a)
+            const t = nextTemp(g)
             g.out.push("  {t} = extractvalue %ofir.str {s.text}, 1\n")
             return Value{ty: ty, text: t}
         }
         RvalueKind.StrByte => {
-            let s = operand(g, c, p, body, &rv.a)
-            let i = operand(g, c, p, body, &rv.b)
-            let ptr = nextTemp(g)
+            const s = operand(g, c, p, body, &rv.a)
+            const i = operand(g, c, p, body, &rv.b)
+            const ptr = nextTemp(g)
             g.out.push("  {ptr} = extractvalue %ofir.str {s.text}, 0\n")
-            let at = nextTemp(g)
+            const at = nextTemp(g)
             g.out.push("  {at} = getelementptr inbounds i8, ptr {ptr}, i64 {i.text}\n")
-            let t = nextTemp(g)
+            const t = nextTemp(g)
             g.out.push("  {t} = load i8, ptr {at}\n")
             return Value{ty: ty, text: t}
         }
         RvalueKind.FloatFn => {
-            let v = floatFn(g, c, p, body, rv)
+            const v = floatFn(g, c, p, body, rv)
             return Value{ty: ty, text: v.text}
         }
         RvalueKind.FnValue => {
@@ -1242,10 +1242,10 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             if rv.a.kind != OperandKind.Unit {
                 env = operand(g, c, p, body, &rv.a).text
             }
-            let code = nextTemp(g)
-            let thunk = thunkName(c, p, rv.flag)
+            const code = nextTemp(g)
+            const thunk = thunkName(c, p, rv.flag)
             g.out.push("  {code} = insertvalue {FN_LLVM} undef, ptr {thunk}, 0\n")
-            let t = nextTemp(g)
+            const t = nextTemp(g)
             g.out.push("  {t} = insertvalue {FN_LLVM} {code}, ptr {env}, 1\n")
             return Value{ty: ty, text: t}
         }
@@ -1257,51 +1257,51 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             return Value{ty: ty, text: globalName(c, rv.flag)}
         }
         RvalueKind.Unsize => {
-            let thin = operand(g, c, p, body, &rv.a)
-            let iface = c.types.get(dynObject(c, rv.to)).data
-            let vt = vtable(g, rv.b.ty, iface, rv.flag == 1)
+            const thin = operand(g, c, p, body, &rv.a)
+            const iface = c.types.get(dynObject(c, rv.to)).data
+            const vt = vtable(g, rv.b.ty, iface, rv.flag == 1)
             var data = thin.text.clone()
-            let boxed = boxInner(c, rv.to).isSome()
+            const boxed = boxInner(c, rv.to).isSome()
             if boxed {
                 data = nextTemp(g)
                 g.out.push("  {data} = extractvalue {thin.ty} {thin.text}, 0\n")
             }
-            let half = nextTemp(g)
+            const half = nextTemp(g)
             g.out.push("  {half} = insertvalue {FN_LLVM} undef, ptr {data}, 0\n")
-            let fat = nextTemp(g)
+            const fat = nextTemp(g)
             g.out.push("  {fat} = insertvalue {FN_LLVM} {half}, ptr @\"ofir.vt{vt}\", 1\n")
             if !boxed {
                 return Value{ty: ty, text: fat}
             }
-            let t = nextTemp(g)
+            const t = nextTemp(g)
             g.out.push("  {t} = insertvalue {ty} undef, {FN_LLVM} {fat}, 0\n")
             return Value{ty: ty, text: t}
         }
         RvalueKind.DynFn => {
-            let fat = operand(g, c, p, body, &rv.a)
-            let data = nextTemp(g)
+            const fat = operand(g, c, p, body, &rv.a)
+            const data = nextTemp(g)
             g.out.push("  {data} = extractvalue {FN_LLVM} {fat.text}, 0\n")
-            let vt = nextTemp(g)
+            const vt = nextTemp(g)
             g.out.push("  {vt} = extractvalue {FN_LLVM} {fat.text}, 1\n")
-            let at = nextTemp(g)
+            const at = nextTemp(g)
             g.out.push("  {at} = getelementptr inbounds ptr, ptr {vt}, i64 {rv.flag + 4}\n")
-            let code = nextTemp(g)
+            const code = nextTemp(g)
             g.out.push("  {code} = load ptr, ptr {at}\n")
-            let half = nextTemp(g)
+            const half = nextTemp(g)
             g.out.push("  {half} = insertvalue {FN_LLVM} undef, ptr {code}, 0\n")
-            let t = nextTemp(g)
+            const t = nextTemp(g)
             g.out.push("  {t} = insertvalue {FN_LLVM} {half}, ptr {data}, 1\n")
             return Value{ty: ty, text: t}
         }
         RvalueKind.TypeId => {
-            let fat = operand(g, c, p, body, &rv.a)
-            let vt = nextTemp(g)
+            const fat = operand(g, c, p, body, &rv.a)
+            const vt = nextTemp(g)
             g.out.push("  {vt} = extractvalue {FN_LLVM} {fat.text}, 1\n")
-            let at = nextTemp(g)
+            const at = nextTemp(g)
             g.out.push("  {at} = getelementptr inbounds ptr, ptr {vt}, i64 3\n")
-            let slot = nextTemp(g)
+            const slot = nextTemp(g)
             g.out.push("  {slot} = load ptr, ptr {at}\n")
-            let t = nextTemp(g)
+            const t = nextTemp(g)
             g.out.push("  {t} = ptrtoint ptr {slot} to i64\n")
             return Value{ty: ty, text: t}
         }
@@ -1309,22 +1309,22 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             var env = "null"
             if rv.a.kind != OperandKind.Unit &&
                c.types.kind(rv.a.ty) == TyKind.Tuple {   // `move`: on the heap
-                let values = operand(g, c, p, body, &rv.a)
-                let envType = "\{ ptr, {values.ty} \}"
-                let size = nextTemp(g)
+                const values = operand(g, c, p, body, &rv.a)
+                const envType = "\{ ptr, {values.ty} \}"
+                const size = nextTemp(g)
                 g.out.push("  {size} = ptrtoint ptr getelementptr ({envType}, ptr null, ")
                 g.out.push("i32 1) to i64\n")
                 env = nextTemp(g)
-                let align = layout(g, c, p, rv.a.ty).align
+                const align = layout(g, c, p, rv.a.ty).align
                 if align > 16 {   // above malloc's alignment
                     g.alignedHeap = true
                     g.out.push("  {env} = call ptr @ofir_alloc_aligned(i64 {size}, i64 {align})\n")
                 } else {
                     g.out.push("  {env} = call ptr @ofir_alloc(i64 {size})\n")
                 }
-                let drop = closureName(c, p, body.def, body.targs, rv.flag)
+                const drop = closureName(c, p, body.def, body.targs, rv.flag)
                 g.out.push("  store ptr {dropName(drop)}, ptr {env}\n")
-                let field = nextTemp(g)
+                const field = nextTemp(g)
                 g.out.push("  {field} = getelementptr inbounds {envType}, ptr {env}, ")
                 g.out.push("i32 0, i32 1\n")
                 g.out.push("  store {values.ty} {values.text}, ptr {field}\n")
@@ -1332,10 +1332,10 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             } else if rv.a.kind != OperandKind.Unit {
                 env = operand(g, c, p, body, &rv.a).text
             }
-            let code = nextTemp(g)
-            let name = closureName(c, p, body.def, body.targs, rv.flag)
+            const code = nextTemp(g)
+            const name = closureName(c, p, body.def, body.targs, rv.flag)
             g.out.push("  {code} = insertvalue {FN_LLVM} undef, ptr {name}, 0\n")
-            let t = nextTemp(g)
+            const t = nextTemp(g)
             g.out.push("  {t} = insertvalue {FN_LLVM} {code}, ptr {env}, 1\n")
             return Value{ty: ty, text: t}
         }
@@ -1344,7 +1344,7 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
 
 // The function of the closure `id` of a function: it takes the environment first.
 fn closureName(c: mut Checker, p: Program, def: int, targs: int, id: int) str {
-    let name = functionName(c, p, def, targs, false)
+    const name = functionName(c, p, def, targs, false)
     if isCFunction(c, p, def) {
         return "@\"{name.slice(1, name.len())}.c{id}\""
     }
@@ -1361,7 +1361,7 @@ const FN_LLVM: str = "\{ ptr, ptr \}"
 
 // The thunk of a function used as a value: it takes the environment first.
 fn thunkName(c: mut Checker, p: Program, id: int) str {
-    let name = functionName(c, p, id, UNIT, false)
+    const name = functionName(c, p, id, UNIT, false)
     return "{name.slice(0, name.len() - 1)}.fv\""
 }
 
@@ -1371,13 +1371,13 @@ fn valueCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt
     for i in 0..s.args.len() {
         values.push(operand(g, c, p, body, &s.args[i]))
     }
-    let retType = c.types.get(s.args[0].ty).inner
-    let ret = llvmType(g, c, p, retType)
-    let code = nextTemp(g)
+    const retType = c.types.get(s.args[0].ty).inner
+    const ret = llvmType(g, c, p, retType)
+    const code = nextTemp(g)
     g.out.push("  {code} = extractvalue {FN_LLVM} {values[0].text}, 0\n")
-    let env = nextTemp(g)
+    const env = nextTemp(g)
     g.out.push("  {env} = extractvalue {FN_LLVM} {values[0].text}, 1\n")
-    let hasDest = s.hasDest && hasValue(c, retType)
+    const hasDest = s.hasDest && hasValue(c, retType)
     var result = ""
     if hasDest {
         result = nextTemp(g)
@@ -1399,7 +1399,7 @@ fn valueCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt
 
 // The symbol of the mutable global `id`: `@"ofir.g.<module>.<name>"`.
 fn globalName(c: Checker, id: int) str {
-    let def = c.def(id)
+    const def = c.def(id)
     var out = "@\"ofir.g."
     if def.module != 0 {
         out.push(c.r.moduleNames[def.module])
@@ -1416,10 +1416,10 @@ fn mutGlobals(g: mut Gen, c: mut Checker, p: Program) {
         if !g.mutGlobals[id] {
             continue
         }
-        let ty = c.info[id].ty
-        let llty = llvmType(g, c, p, ty)
+        const ty = c.info[id].ty
+        const llty = llvmType(g, c, p, ty)
         var init = "zeroinitializer".toOwned()
-        if let Option.Some(v) = c.info[id].value {
+        if const Option.Some(v) = c.info[id].value {
             init = match v.kind {
                 ConstKind.Int => intText(v.bits, intBits(c.types.get(ty).data))
                 ConstKind.Float => floatText(v.f, c.types.get(ty).data == 32)
@@ -1437,21 +1437,21 @@ fn thunks(g: mut Gen, c: mut Checker, p: Program) {
         if !g.fnValues[id] {
             continue
         }
-        let sig = c.info[id].ty
-        let ret = llvmType(g, c, p, c.types.get(sig).inner)
-        let args = c.types.get(sig).args.clone()
+        const sig = c.info[id].ty
+        const ret = llvmType(g, c, p, c.types.get(sig).inner)
+        const args = c.types.get(sig).args.clone()
         var params = ""
         var forward = ""
         for i in 0..args.len() {
-            let ty = llvmType(g, c, p, args[i])
+            const ty = llvmType(g, c, p, args[i])
             if ty != "void" {
                 params.push(", {ty} %a{i}")
                 forward.push("{if forward.len() > 0 { ", " } else { "" }}{ty} %a{i}")
             }
         }
-        let thunk = thunkName(c, p, id)
+        const thunk = thunkName(c, p, id)
         g.module.push("\ndefine internal fastcc {ret} {thunk}(ptr %env{params}) \{\n")
-        let name = functionName(c, p, id, UNIT, false)
+        const name = functionName(c, p, id, UNIT, false)
         if ret == "void" {
             g.module.push("  call fastcc void {name}({forward})\n  ret void\n\}\n")
         } else {
@@ -1462,11 +1462,11 @@ fn thunks(g: mut Gen, c: mut Checker, p: Program) {
 
 // The number of the vtable of a concrete type for an interface.
 fn vtable(g: mut Gen, ty: int, iface: int, drops: bool) int {
-    let key = ty * 4294967296 + iface
-    if let Option.Some(found) = g.vtIds.get(key) {
+    const key = ty * 4294967296 + iface
+    if const Option.Some(found) = g.vtIds.get(key) {
         return *found
     }
-    let id = g.vtTypes.len()
+    const id = g.vtTypes.len()
     g.vtTypes.push(ty)
     g.vtIfaces.push(iface)
     g.vtDrops.push(drops)
@@ -1480,9 +1480,9 @@ fn vtable(g: mut Gen, ty: int, iface: int, drops: bool) int {
 fn vtables(g: mut Gen, c: mut Checker, p: Program) {
     var noDrop = false
     for k in 0..g.vtTypes.len() {
-        let ty = g.vtTypes[k]
-        let slots = dynMethods(c, p, g.vtIfaces[k])
-        let l = layout(g, c, p, ty)
+        const ty = g.vtTypes[k]
+        const slots = dynMethods(c, p, g.vtIfaces[k])
+        const l = layout(g, c, p, ty)
         var drop = "@ofir.dyn.nodrop".toOwned()
         if g.vtDrops[k] {
             drop = functionName(c, p, GLUE_DROP, c.types.tuple([ty]), false)
@@ -1513,9 +1513,9 @@ fn vtables(g: mut Gen, c: mut Checker, p: Program) {
 // `typeName` of `Any` (spec 9.8), which the compiler provides: the name of
 // the concrete type, as messages write it.
 fn typeNameThunk(g: mut Gen, c: mut Checker, p: Program, ty: int, name: str) {
-    let text = c.typeName(ty)
-    let n = stringGlobal(g, text)
-    let ret = llvmType(g, c, p, STR)
+    const text = c.typeName(ty)
+    const n = stringGlobal(g, text)
+    const ret = llvmType(g, c, p, STR)
     g.module.push("\ndefine internal fastcc {ret} {name}(ptr %self) \{\n")
     g.module.push("  ret {ret} \{ ptr @.str.{n}, i64 {text.len()}, i64 0 \}\n\}\n")
 }
@@ -1523,33 +1523,33 @@ fn typeNameThunk(g: mut Gen, c: mut Checker, p: Program, ty: int, name: str) {
 // A vtable slot: calls the concrete type's method, converting `self` and
 // the arguments passed by address or by value as the method takes them.
 fn vtableThunk(g: mut Gen, c: mut Checker, p: Program, ty: int, id: int, name: str) {
-    let target = dynSlotTarget(c, p, ty, id)
-    let sig = c.info[target.def].ty
-    let targs = c.types.get(target.targs).args.clone()
-    let ret = llvmType(g, c, p, c.types.subst(c.types.get(sig).inner, targs.clone()))
-    let params = c.types.get(sig).args.clone()
+    const target = dynSlotTarget(c, p, ty, id)
+    const sig = c.info[target.def].ty
+    const targs = c.types.get(target.targs).args.clone()
+    const ret = llvmType(g, c, p, c.types.subst(c.types.get(sig).inner, targs.clone()))
+    const params = c.types.get(sig).args.clone()
     var head = "\ndefine internal fastcc {ret} {name}(ptr %self"
     var body = ""
     var forward = ""
     if byAddress(c, p, target.def, -1) {
         forward.push("ptr %self")
     } else {
-        let selfType = llvmType(g, c, p, ty)
+        const selfType = llvmType(g, c, p, ty)
         if selfType != "void" {
             body.push("  %s = load {selfType}, ptr %self\n")
             forward.push("{selfType} %s")
         }
     }
     for i in 0..params.len() {   // the signature leaves `self` out
-        let index = i
-        let pty = llvmType(g, c, p, c.types.subst(params[i], targs.clone()))
+        const index = i
+        const pty = llvmType(g, c, p, c.types.subst(params[i], targs.clone()))
         if pty == "void" {
             continue
         }
-        let given = byAddress(c, p, id, index)
-        let taken = byAddress(c, p, target.def, index)
-        let givenType = if given { "ptr".toOwned() } else { pty.clone() }
-        let takenType = if taken { "ptr".toOwned() } else { pty.clone() }
+        const given = byAddress(c, p, id, index)
+        const taken = byAddress(c, p, target.def, index)
+        const givenType = if given { "ptr".toOwned() } else { pty.clone() }
+        const takenType = if taken { "ptr".toOwned() } else { pty.clone() }
         head.push(", {givenType} %a{i}")
         var arg = "{takenType} %a{i}"
         if given && !taken {
@@ -1564,7 +1564,7 @@ fn vtableThunk(g: mut Gen, c: mut Checker, p: Program, ty: int, id: int, name: s
     g.module.push(head)
     g.module.push(") \{\n")
     g.module.push(body)
-    let callee = functionName(c, p, target.def, target.targs, false)
+    const callee = functionName(c, p, target.def, target.targs, false)
     if ret == "void" {
         g.module.push("  call fastcc void {callee}({forward})\n  ret void\n\}\n")
     } else {
@@ -1586,7 +1586,7 @@ fn dropDyn(g: mut Gen) {
 fn storeAt(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, dest: int,
            path: &FieldPath, v: &Value) {
     if v.ty != "void" {
-        let at = placeAddress(g, c, p, body, dest, path)
+        const at = placeAddress(g, c, p, body, dest, path)
         if g.nicheTag >= 0 {
             nicheTagStore(g, c, p, at, v)
             return
@@ -1606,7 +1606,7 @@ fn runtimeCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirSt
     for i in 0..s.args.len() {
         args.push(operand(g, c, p, body, &s.args[i]))
     }
-    let ret = match s.rt {
+    const ret = match s.rt {
         RuntimeFn.StrEq => "i1"
         RuntimeFn.StrCmp => "i32"
         RuntimeFn.TestIndex => "i64"
@@ -1628,7 +1628,7 @@ fn runtimeCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirSt
     }
     g.out.push("call {ret} @{runtimeName(s.rt)}(")
     for i in 0..args.len() {
-        let zext = if args[i].ty == "i1" { " zeroext" } else { "" }
+        const zext = if args[i].ty == "i1" { " zeroext" } else { "" }
         g.out.push("{if i > 0 { ", " } else { "" }}{args[i].ty}{zext} {args[i].text}")
     }
     g.out.push(")\n")
@@ -1646,8 +1646,8 @@ fn userCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt)
     for i in 0..s.args.len() {
         values.push(operand(g, c, p, body, &s.args[i]))
     }
-    let glue = isGlue(s.callee)
-    let cfn = !glue && isCFunction(c, p, s.callee)
+    const glue = isGlue(s.callee)
+    const cfn = !glue && isCFunction(c, p, s.callee)
     if cfn && c.def(s.callee).member >= 0 {
         for g.cUsed.len() <= s.callee {
             g.cUsed.push(false)
@@ -1664,12 +1664,12 @@ fn userCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt)
     } else if s.callee == GLUE_CMP {
         retType = I32   // the tag of an `Ordering`
     } else if !glue {
-        let sig = c.info[s.callee].ty
-        let args = c.types.get(s.targs).args.clone()
+        const sig = c.info[s.callee].ty
+        const args = c.types.get(s.targs).args.clone()
         retType = c.types.subst(c.types.get(sig).inner, args)
     }
-    let ret = llvmType(g, c, p, retType)
-    let hasDest = s.hasDest && hasValue(c, retType)   // an instance may return ()
+    const ret = llvmType(g, c, p, retType)
+    const hasDest = s.hasDest && hasValue(c, retType)   // an instance may return ()
     var result = ""
     if hasDest {
         result = nextTemp(g)
@@ -1677,14 +1677,14 @@ fn userCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt)
     } else {
         g.out.push("  ")
     }
-    let zext = cfn && ret == "i1"
+    const zext = cfn && ret == "i1"
     g.out.push("call {if cfn { "" } else { "fastcc " }}{if zext { "zeroext " } else { "" }}{ret} ")
     g.out.push(functionName(c, p, s.callee, s.targs, false))
     g.out.push("(")
     var first = true
     for i in 0..values.len() {
         if values[i].ty != "void" {   // () arguments are not passed
-            let attr = if cfn && values[i].ty == "i1" { " zeroext" } else { "" }
+            const attr = if cfn && values[i].ty == "i1" { " zeroext" } else { "" }
             g.out.push("{if first { "" } else { ", " }}{values[i].ty}{attr} {values[i].text}")
             first = false
         }
@@ -1710,12 +1710,12 @@ fn statement(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt
     } else if body.locals[s.dest].byRef {   // a binding given an address
         ty = s.value.a.ty
     }
-    let v = rvalue(g, c, p, body, &s.value, ty)
+    const v = rvalue(g, c, p, body, &s.value, ty)
     storeAt(g, c, p, body, s.dest, &s.destPath, &v)
 }
 
 fn panicFn(kind: PanicKind) str {
-    let name = match kind {
+    const name = match kind {
         PanicKind.Overflow => "ofir_panic_overflow"
         PanicKind.DivZero => "ofir_panic_div_zero"
         PanicKind.Shift => "ofir_panic_shift"
@@ -1731,17 +1731,17 @@ fn terminator(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, t: &Termin
     match t.kind {
         TermKind.Goto => g.out.push("  br label %bb{t.target}\n")
         TermKind.Branch => {
-            let cond = operand(g, c, p, body, &t.cond)
+            const cond = operand(g, c, p, body, &t.cond)
             g.out.push("  br i1 {cond.text}, label %bb{t.target}, label %bb{t.other}\n")
         }
         TermKind.Assert => {   // the failing branch calls the panic function with the location
-            let cond = operand(g, c, p, body, &t.cond)
-            let loc = locationGlobal(g, c, t.span)
+            const cond = operand(g, c, p, body, &t.cond)
+            const loc = locationGlobal(g, c, t.span)
             g.out.push("  br i1 {cond.text}, label %panic{index}, label %bb{t.target}\n")
             g.out.push("panic{index}:\n")
             if t.panic == PanicKind.Bounds {   // the message shows the index and the length
-                let i = operand(g, c, p, body, &t.index)
-                let len = operand(g, c, p, body, &t.len)
+                const i = operand(g, c, p, body, &t.index)
+                const len = operand(g, c, p, body, &t.len)
                 g.out.push("  call void @ofir_panic_bounds(i64 {i.text}, i64 {len.text}, "
                            + "ptr @.loc.{loc})\n")
             } else {
@@ -1750,15 +1750,15 @@ fn terminator(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, t: &Termin
             g.out.push("  unreachable\n")
         }
         TermKind.Panic => {
-            let msg = operand(g, c, p, body, &t.cond)
-            let loc = locationGlobal(g, c, t.span)
+            const msg = operand(g, c, p, body, &t.cond)
+            const loc = locationGlobal(g, c, t.span)
             g.out.push("  call void @ofir_panic_str(ptr {msg.text}, ptr @.loc.{loc})\n")
             g.out.push("  unreachable\n")
         }
         TermKind.Return => {
-            let ret = body.locals[0].ty
+            const ret = body.locals[0].ty
             if hasValue(c, ret) {
-                let v = operand(g, c, p, body, &opCopy(0, ret))
+                const v = operand(g, c, p, body, &opCopy(0, ret))
                 g.out.push("  ret {v.ty} {v.text}\n")
             } else {
                 g.out.push("  ret void\n")
@@ -1783,7 +1783,7 @@ fn dropFnEnv(g: mut Gen) {
 }
 
 fn localType(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, i: int) str {
-    let local = &body.locals[i]
+    const local = &body.locals[i]
     return if local.byRef { "ptr".toOwned() } else { llvmType(g, c, p, local.ty) }
 }
 
@@ -1811,8 +1811,8 @@ fn subprogram(g: mut Gen, c: Checker, body: &AirBody, header: str) int {
         name = ""
         escapedBytes(name, c.text(body.name))
     }
-    let line = c.r.map.file(body.span.file).lineCol(body.span.start).line
-    let file = debugFile(g, c, body.span.file)
+    const line = c.r.map.file(body.span.file).lineCol(body.span.start).line
+    const file = debugFile(g, c, body.span.file)
     return g.di.subprogram(name, file, line)
 }
 
@@ -1831,9 +1831,9 @@ fn tagEnd(g: mut Gen, c: Checker, held: move str, span: Span) {
     if g.scope == 0 {
         return
     }
-    let text = mem.replace(g.out, held)
-    let pos = c.r.map.file(span.file).lineCol(span.start)
-    let loc = g.di.location(pos.line, pos.column, g.scope)
+    const text = mem.replace(g.out, held)
+    const pos = c.r.map.file(span.file).lineCol(span.start)
+    const loc = g.di.location(pos.line, pos.column, g.scope)
     for line in text.lines() {
         g.out.push(line)
         if line.startsWith("  ") {   // not a label
@@ -1848,13 +1848,13 @@ fn tagEnd(g: mut Gen, c: Checker, held: move str, span: Span) {
 // do not alias, other borrows are also read-only, unless what they point to
 // has interior mutability.
 fn aliasAttrs(c: mut Checker, p: Program, body: &AirBody, i: int) str {
-    let local = &body.locals[i]
+    const local = &body.locals[i]
     var exclusive = false
     var target = local.ty
     if local.byRef {
         exclusive = local.exclusive
     } else {
-        let t = c.types.get(local.ty)
+        const t = c.types.get(local.ty)
         if t.kind != TyKind.Ref || c.types.isFat(local.ty) {
             return ""
         }
@@ -1869,16 +1869,16 @@ fn aliasAttrs(c: mut Checker, p: Program, body: &AirBody, i: int) str {
 
 fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     g.temp = 0
-    let ret = body.locals[0].ty
-    let closure = body.closure.isSome()
-    let cfn = !closure && !isGlue(body.def) && isCFunction(c, p, body.def)   // callable from C
-    let linkage = if body.isMain || cfn { "" } else { "internal fastcc " }
-    let retType = if body.isMain { "void".toOwned() } else { llvmType(g, c, p, ret) }
+    const ret = body.locals[0].ty
+    const closure = body.closure.isSome()
+    const cfn = !closure && !isGlue(body.def) && isCFunction(c, p, body.def)   // callable from C
+    const linkage = if body.isMain || cfn { "" } else { "internal fastcc " }
+    const retType = if body.isMain { "void".toOwned() } else { llvmType(g, c, p, ret) }
     g.out.push("define {linkage}{retType} ")
-    let nameAt = g.out.len()
+    const nameAt = g.out.len()
     var params: List<int> = []
-    if let Option.Some(info) = body.closure {
-        let name = closureName(c, p, body.def, body.targs, info.id)
+    if const Option.Some(info) = body.closure {
+        const name = closureName(c, p, body.def, body.targs, info.id)
         if info.drop {
             g.out.push(dropName(name))
         } else {
@@ -1894,12 +1894,12 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
         }
     }
     var first = !closure
-    let plain = g.optimize && !closure && !cfn && !isGlue(body.def)
+    const plain = g.optimize && !closure && !cfn && !isGlue(body.def)
     for k in 0..params.len() {
-        let i = params[k]
-        let local = &body.locals[i]
+        const i = params[k]
+        const local = &body.locals[i]
         if local.byRef || hasValue(c, local.ty) {
-            let attrs = if plain { aliasAttrs(c, p, body, i) } else { "" }
+            const attrs = if plain { aliasAttrs(c, p, body, i) } else { "" }
             g.out.push("{if first { "" } else { ", " }}{localType(g, c, p, body, i)}{attrs} %p{i}")
             first = false
         }
@@ -1914,21 +1914,21 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
         g.out.push(" !dbg !{g.scope}")
     }
     g.out.push(" \{\nstart:\n")
-    let prologue = tagStart(g)
+    const prologue = tagStart(g)
     for i in 0..body.locals.len() {
-        let local = &body.locals[i]
+        const local = &body.locals[i]
         if local.byRef || hasValue(c, local.ty) {
             g.out.push("  %l{i} = alloca {localType(g, c, p, body, i)}\n")
         }
     }
     for k in 0..params.len() {
-        let i = params[k]
-        let local = &body.locals[i]
+        const i = params[k]
+        const local = &body.locals[i]
         if local.byRef || hasValue(c, local.ty) {
             g.out.push("  store {localType(g, c, p, body, i)} %p{i}, ptr %l{i}\n")
         }
     }
-    if let Option.Some(info) = body.closure {   // each captured variable, through the environment
+    if const Option.Some(info) = body.closure {   // each captured variable, through the environment
         var envType = ""
         if info.env != 0 {
             envType = "\{ ptr, {llvmType(g, c, p, info.env)} \}"
@@ -1938,7 +1938,7 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
             g.out.push("  store ptr %values, ptr %l1\n")
         }
         for j in 0..info.captures.len() {
-            let i = info.captures[j]
+            const i = info.captures[j]
             if info.env != 0 {   // `move`: the value is in the environment
                 g.out.push("  %cap.{j} = getelementptr inbounds {envType}, ptr %env, i32 0, ")
                 g.out.push("i32 1, i32 {j}\n")
@@ -1962,13 +1962,13 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     tagEnd(g, c, prologue, body.span)
     for b in 0..body.blocks.len() {
         g.out.push("bb{b}:\n")
-        let block = &body.blocks[b]
+        const block = &body.blocks[b]
         for i in 0..block.stmts.len() {
-            let held = tagStart(g)
+            const held = tagStart(g)
             statement(g, c, p, body, &block.stmts[i])
             tagEnd(g, c, held, block.stmts[i].span)
         }
-        let held = tagStart(g)
+        const held = tagStart(g)
         terminator(g, c, p, body, &block.term, b)
         tagEnd(g, c, held, block.at)
     }
@@ -2008,7 +2008,7 @@ fn runtimeDecls() str {
 }
 
 fn begin(g: mut Gen, c: mut Checker, p: Program) {
-    let root = c.r.map.file(p.modules[0].module.file)
+    const root = c.r.map.file(p.modules[0].module.file)
     var path = ""
     escapedBytes(path, root.path)
     g.module.push("; Generated by the Ofir stage 0 compiler.\nsource_filename = \"{path}\"\n\n")
@@ -2017,12 +2017,12 @@ fn begin(g: mut Gen, c: mut Checker, p: Program) {
     // Every struct is known after type checking. The definitions come first:
     // LLVM needs a type's size when a function allocates it.
     for i in 1..c.r.defs.len() {
-        let def = c.def(i)
-        let known = (def.kind == DefKind.Struct && c.info[i].fields.isSome() && !def.lang) ||
-                    (def.kind == DefKind.Enum && c.info[i].variants.isSome())
+        const def = c.def(i)
+        const known = (def.kind == DefKind.Struct && c.info[i].fields.isSome() && !def.lang) ||
+                      (def.kind == DefKind.Enum && c.info[i].variants.isSome())
         if known && itemTypeParams(itemOf(p, c.loc(i))).len() == 0 {
-            let ty = c.types.adt(i, [])
-            let _ = adtType(g, c, p, ty)
+            const ty = c.types.adt(i, [])
+            const _ = adtType(g, c, p, ty)
         }
     }
     g.module.push(g.typeDefs)
@@ -2045,15 +2045,15 @@ fn function(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
 }
 
 fn overflowDecls(g: mut Gen) {
-    let ops = ["add", "sub", "mul"]
-    let bits = [8, 16, 32, 64]
+    const ops = ["add", "sub", "mul"]
+    const bits = [8, 16, 32, 64]
     for i in 0..24 {
-        let s = i / 12
-        let op = i / 4 % 3
-        let b = i % 4
+        const s = i / 12
+        const op = i / 4 % 3
+        const b = i % 4
         if g.overflowUsed[i] {
-            let n = bits[b]
-            let sign = if s == 1 { "s" } else { "u" }
+            const n = bits[b]
+            const sign = if s == 1 { "s" } else { "u" }
             g.module.push("declare \{ i{n}, i1 \} @llvm.{sign}{ops[op]}.with.overflow.i{n}(i{n}, "
                           + "i{n})\n")
         }
@@ -2061,15 +2061,15 @@ fn overflowDecls(g: mut Gen) {
 }
 
 fn floatDecls(g: mut Gen) {
-    let names = ["sqrt", "fabs", "floor", "ceil", "minnum", "maxnum"]
+    const names = ["sqrt", "fabs", "floor", "ceil", "minnum", "maxnum"]
     for f in 0..6 {
         for isF64 in 0..2 {
             if !g.floatFnUsed[f * 2 + isF64] {
                 continue
             }
-            let ty = if isF64 == 1 { "double" } else { "float" }
-            let suffix = if isF64 == 1 { "f64" } else { "f32" }
-            let second = if f >= 4 { ", {ty}" } else { "" }
+            const ty = if isF64 == 1 { "double" } else { "float" }
+            const suffix = if isF64 == 1 { "f64" } else { "f32" }
+            const second = if f >= 4 { ", {ty}" } else { "" }
             g.module.push("declare {ty} @llvm.{names[f]}.{suffix}({ty}{second})\n")
         }
     }
@@ -2091,15 +2091,15 @@ fn cDecls(g: mut Gen, c: mut Checker, p: Program) {
         if before {
             continue
         }
-        let sig = c.info[id].ty
-        let ret = llvmType(g, c, p, c.types.get(sig).inner)
+        const sig = c.info[id].ty
+        const ret = llvmType(g, c, p, c.types.get(sig).inner)
         g.module.push("declare {if ret == "i1" { "zeroext " } else { "" }}{ret} ")
         g.module.push(functionName(c, p, id, UNIT, false))
         g.module.push("(")
-        let args = c.types.get(sig).args.clone()
+        const args = c.types.get(sig).args.clone()
         for i in 0..args.len() {
-            let ty = llvmType(g, c, p, args[i])
-            let zext = if ty == "i1" { " zeroext" } else { "" }
+            const ty = llvmType(g, c, p, args[i])
+            const zext = if ty == "i1" { " zeroext" } else { "" }
             g.module.push("{if i > 0 { ", " } else { "" }}{ty}{zext}")
         }
         g.module.push(") nounwind\n")
