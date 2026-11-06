@@ -144,7 +144,7 @@ var ages = Map<str, int>.new()
 let first: Option<&int> = xs.first()   // borrows xs (chapter 5.6)
 ```
 
-`T?` is shorthand for `Option<T>`.
+`T?` is shorthand for `Option<T>`: `fn find(xs: [int], x: int) int?`.
 
 **Map ordering and hashing.** Iterating a `Map` visits entries in the order
 their keys were first inserted (removing a key forgets its position). The

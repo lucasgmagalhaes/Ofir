@@ -247,7 +247,14 @@ TypeId resolve_type(Checker *c, const TypeExpr *type) {
     case TYPE_FN: return resolve_fn_type(c, type);
     case TYPE_NEVER: return type_id(TID_NEVER);
     case TYPE_DYN: return unsupported(c, type->span, "`dyn` types are");
-    case TYPE_OPTION: return unsupported(c, type->span, "optional types (`T?`) are");
+    case TYPE_OPTION: {   // `T?` is `Option<T>` (spec 2.6)
+        TypeId target = resolve_type(c, type->as.inner);
+        if (c->sema->option.id == 0) {
+            return unsupported(c, type->span, "optional types (`T?`) without std are");
+        }
+        return type_intern(c->types, (Ty){.kind = TY_ADT, .data = c->sema->option.id,
+                                          .arg_count = 1, .args = &target});
+    }
     }
     return type_id(TID_ERROR);
 }
