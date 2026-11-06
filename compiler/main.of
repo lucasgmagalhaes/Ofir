@@ -45,6 +45,7 @@ fn printUsage() {
              + "  build <file.of>   compile a program\n"
              + "  run <file.of>     compile and run a program\n"
              + "  test <file.of>    compile and run the `@test` functions\n"
+             + "  bench <file.of>   compile with optimizations and time the `@bench` functions\n"
              + "  explain <code>    explain an error or warning code, as E0600\n"
              + "  version           print the compiler version\n\noptions:\n"
              + "  -o <path>                 output path\n"
@@ -66,7 +67,7 @@ fn printUsage() {
 
 /** What the command line asks for. */
 struct Options {
-    /** `build`, `run` or `test`. */
+    /** `build`, `run`, `test` or `bench`. */
     command: str
     /** The root file. */
     input: str
@@ -132,6 +133,9 @@ fn parseOptions(args: &List<str>) Option<Options> {
         eprintln("error: `{opts.command}` needs an input file")
         return Option.None
     }
+    if opts.command == "bench" {
+        opts.release = true   // benchmarks are optimized (spec 12.3)
+    }
     return Option.Some(opts)
 }
 
@@ -166,7 +170,8 @@ fn main() {
         printUsage()
         return
     }
-    if command != "build" && command != "run" && command != "test" {
+    let known = command == "build" || command == "run" || command == "test"
+    if !known && command != "bench" {
         eprintln("error: unknown command `{command}`\n")
         printUsage()
         os.exit(2)
@@ -194,7 +199,7 @@ struct Pipeline {
     opts: Options
     /** The executable, or "" when none was built. */
     exe: str
-    /** The names of the `@test` functions, for `ofir test`. */
+    /** The names of the `@test` (or `@bench`) functions, for `ofir test` (or `bench`). */
     tests: List<str>
 }
 
@@ -245,13 +250,15 @@ fn build(given: move Options) int {
         return finish(front.diags, front.map, &pipeline)
     }
     let testing = opts.command == "test"
-    let target = CfgTarget{os: os.name(), arch: os.arch(), debug: !opts.release, test: testing}
+    let benching = opts.command == "bench"
+    let target = CfgTarget{os: os.name(), arch: os.arch(), debug: !opts.release, test: testing,
+                           bench: benching}
     var program = loadProgram(opts.input, parsed.module, front, target)
     if front.diags.hasErrors() {
         return finish(front.diags, front.map, &pipeline)
     }
     var r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
-                           testing, false)
+                           testing || benching, benching)
     if opts.emit == "names" {
         print(r.trace.out)
         return finish(r.diags, r.map, &pipeline)
@@ -339,7 +346,7 @@ fn outputPath(opts: &Options) str {
     if base.len() > 3 && base.endsWith(".of") {
         base = base.slice(0, base.len() - 3).toOwned()
     }
-    if opts.command != "run" && opts.command != "test" {
+    if opts.command == "build" {
         return base
     }
     let full = match fs.canonicalize(input) {
@@ -483,6 +490,22 @@ fn runTests(exe: str, tests: &List<str>) int {
     return if failed > 0 { 1 } else { 0 }
 }
 
+// `ofir bench` (spec 12.3): each benchmark in its own process, which prints
+// its time.
+fn runBenches(exe: str, benches: &List<str>) int {
+    var failed = 0
+    for i in 0..benches.len() {
+        print("bench {benches[i]} ... ")
+        let status = runProgram(exe, ["{i}"])
+        if status != 0 {
+            println("FAILED (exit status {status})")
+            failed += 1
+        }
+    }
+    println("\n{benches.len()} benchmarks: {benches.len() - failed} ran, {failed} failed")
+    return if failed > 0 { 1 } else { 0 }
+}
+
 // The diagnostics, then the program or its tests.
 fn finish(diags: Diagnostics, map: SourceMap, pipeline: &Pipeline) int {
     render(diags, map, pipeline.opts.format)
@@ -498,6 +521,8 @@ fn finish(diags: Diagnostics, map: SourceMap, pipeline: &Pipeline) int {
         status = runProgram(pipeline.exe, empty)
     } else if pipeline.opts.command == "test" {
         status = runTests(pipeline.exe, &pipeline.tests)
+    } else if pipeline.opts.command == "bench" {
+        status = runBenches(pipeline.exe, &pipeline.tests)
     }
     if pipeline.opts.output.isNone() && pipeline.opts.command != "build" {
         let _ = fs.removeFile(pipeline.exe)

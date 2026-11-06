@@ -347,12 +347,16 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
             // that stage 0 cannot read, so `std.core` does not import them;
             // loaded last, they leave the numbers of the other modules as
             // stage 0 gives them.
-            for name in ["std.core.any", "std.core.iter"] {
-                if isLoaded(ld, name) {
+            var late = ["std.core.any", "std.core.iter"]
+            if ld.target.bench {
+                late.push("std.core.bench")   // `Bencher` (spec 12.3)
+            }
+            for k in 0..late.len() {
+                if isLoaded(ld, late[k]) {
                     continue
                 }
-                if let Option.Some(file) = moduleFile(ld, name) {
-                    loadModule(ld, front, name, file)
+                if let Option.Some(file) = moduleFile(ld, late[k]) {
+                    loadModule(ld, front, late[k], file)
                 }
             }
         }
