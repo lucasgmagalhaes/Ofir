@@ -15,7 +15,7 @@ fn each<T>(items: &List<T>, f: fn(&T)) {
 }
 
 fn count<T>(items: &List<T>, keep: fn(&T) bool) int {
-    var n = 0
+    let n = 0
     each(items, item => {
         if keep(item) {
             n += 1
@@ -42,7 +42,7 @@ fn twice(f: fn()) {
 }
 
 fn main() {
-    var total = 0
+    let total = 0
     const k = 3
     const add = (a: int, b: int) int => a + b + k
     println("{add(1, 2)}")
@@ -62,7 +62,7 @@ fn main() {
     const list = [1, 5, 8, 2, 9]
     const limit = 4
     println("{count(&list, x => *x > limit)}")
-    var t = 1
+    let t = 1
     bump(t, 5)
     println("{t}")
     const p = Point{x: 2, y: 3}
@@ -71,7 +71,7 @@ fn main() {
     const prefix = "n="
     const show = (n: int) str => "{prefix}{n}"
     println(show(7))
-    var sum = 0
+    let sum = 0
     for i in 0..4 {
         const addI = () => {
             sum += i

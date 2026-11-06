@@ -49,7 +49,7 @@ fn main() {
     const _d = make(true)
     const _e: Option<int | bool> = Option.Some(true)
     const _h = Holder{value: "text"}
-    var n: int | str = 5
+    let n: int | str = 5
     n = "five"
     const _m = n
     const _p = pick(false)

@@ -28,7 +28,7 @@ fn twice(f: fn() int + Send) int {
 fn main() {
     const job = Job{name: "job".toOwned(), sizes: [1, 2, 3], shape: Box.new(Shape.Rect(2, 5))}
     const t = task.run(move () int => {
-        var sum = 0
+        let sum = 0
         for x in job.sizes {
               sum += x
         }
@@ -36,7 +36,7 @@ fn main() {
         return sum
     })
     println("{t.join()}")
-    var counts: Map<str, int> = Map.new()
+    let counts: Map<str, int> = Map.new()
     counts.insert("a", 1)
     const m = task.run(move () int => counts.len())
     println("{m.join()}")

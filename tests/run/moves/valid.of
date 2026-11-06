@@ -32,7 +32,7 @@ fn pick(flag: bool) str {
 }
 
 fn main() {
-    var s = "first".toOwned()
+    let s = "first".toOwned()
     const n = consume(s)
     s = "second".toOwned()          // a new value after the move
     println("{n} {s}")
@@ -41,7 +41,7 @@ fn main() {
     const name = u.name               // moves a part
     println("{name} {u.age}")
 
-    var label = "old".toOwned()
+    let label = "old".toOwned()
     println("{reset(label)} {label}")
     rename(label)
     println(label)
@@ -53,14 +53,14 @@ fn main() {
     println("")
     println("{pick(true)} {pick(false)}")
 
-    var names = ["b", "a"]
+    let names = ["b", "a"]
     const first = mem.replace(names[0], "c")
-    var x = 1
-    var y = 2
+    let x = 1
+    let y = 2
     mem.swap(x, y)
     println("{first} {names[0]} {x} {y}")
 
-    var maybe = Option.Some("token".toOwned())
+    let maybe = Option.Some("token".toOwned())
     const taken = maybe.take()
     println("{taken.isSome()} {maybe.isNone()}")
 }

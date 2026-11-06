@@ -8,7 +8,7 @@ enum Color {
 }
 
 fn largest<T: Ord + Clone>(xs: List<T>) T {
-    var best = xs[0].clone()
+    let best = xs[0].clone()
     for i in 1..xs.len() {
         if xs[i] > best {
             best = xs[i].clone()
@@ -18,7 +18,7 @@ fn largest<T: Ord + Clone>(xs: List<T>) T {
 }
 
 fn count<T: Eq>(xs: List<T>, x: T) int {
-    var n = 0
+    let n = 0
     for i in 0..xs.len() {
         if xs[i] == x {
             n += 1
@@ -44,13 +44,13 @@ fn ordered<T: Ord>(a: T, b: T) str {
 }
 
 fn sorted<T: Ord + Clone>(xs: List<T>) List<T> {
-    var out = xs.clone()
+    let out = xs.clone()
     out.sort()
     return out
 }
 
 fn tally<K: Hash + Eq + Clone>(keys: List<K>) Map<K, int> {
-    var m: Map<K, int> = Map.new()
+    let m: Map<K, int> = Map.new()
     for i in 0..keys.len() {
         const n = *(m.get(keys[i]) ?? &0) + 1
         m.insert(keys[i].clone(), n)

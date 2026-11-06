@@ -2,7 +2,7 @@
 // `for` and the slice methods; str slices.
 
 fn sum(xs: [int]) int {
-    var total = 0
+    let total = 0
     for x in xs {
         total += x
     }
@@ -10,7 +10,7 @@ fn sum(xs: [int]) int {
 }
 
 fn names(all: &[str]) str {
-    var text = ""
+    let text = ""
     for name in all {
         text.push("{name} ")
     }
@@ -35,7 +35,7 @@ fn main() {
     const s = "hello, world"
     const hello: &str = s[0..5]
     println("{hello} {s[7..]} {hello.len()}")
-    var tail = s[7..]
+    let tail = s[7..]
     tail.push("!")
     println("{tail} {s}")
     const accented = "café"

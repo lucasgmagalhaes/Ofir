@@ -15,7 +15,7 @@ fn double(xs: &mut [int]) {
 }
 
 fn sum(xs: [int]) int {
-    var total = 0
+    let total = 0
     for x in xs {
         total += x
     }
@@ -23,10 +23,10 @@ fn sum(xs: [int]) int {
 }
 
 fn main() {
-    var list = [1, 2, 3]
+    let list = [1, 2, 3]
     double(&mut list)
     println("{list[0]} {list[1]} {list[2]}")
-    var grid: [int; 4] = [1, 2, 3, 4]
+    let grid: [int; 4] = [1, 2, 3, 4]
     double(&mut grid)
     println("{sum(&grid)}")
     fill(&mut grid, 7)

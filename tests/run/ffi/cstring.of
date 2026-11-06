@@ -12,7 +12,7 @@ fn cLen(s: str) uint {
 
 fn main() {
     println("{cLen("hello")} {cLen("")} {cLen("café")}")
-    var digits = "12"
+    let digits = "12"
     digits.push("34")
     const c = digits.toCString()
     println("{c.len()} {unsafe { atoi(c.ptr()) }}")

@@ -31,7 +31,7 @@ fn prepend<T>(list: move List<T>, value: move T) List<T> {
 }
 
 fn main() {
-    var b = Box.new(Point{x: 1, y: 2})
+    let b = Box.new(Point{x: 1, y: 2})
     println("{b.x} {b.y} {b.sum()}")
     b.x = 10
     b.shift(5)

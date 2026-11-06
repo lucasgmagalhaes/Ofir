@@ -3,7 +3,7 @@
 // `[T; N]` convert to `&[T]` and to `[T]` parameters (spec 2.7, 2.12).
 
 fn total(xs: [int]) int {
-    var t = 0
+    let t = 0
     for x in xs {
         t += x
     }
@@ -19,7 +19,7 @@ fn main() {
     for i, x in a {
         println("{i}: {x}")
     }
-    var sum = 0
+    let sum = 0
     for x in a {
         sum += x
     }

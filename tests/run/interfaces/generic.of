@@ -49,8 +49,8 @@ struct Meters: Make<int> {
 }
 
 fn total<S: Source<int>>(s: mut S) int {
-    var sum = 0
-    var next = s.next()
+    let sum = 0
+    let next = s.next()
     for next.isSome() {
         sum += next ?? 0
         next = s.next()
@@ -59,7 +59,7 @@ fn total<S: Source<int>>(s: mut S) int {
 }
 
 fn count<S, T>(s: mut S) int where S: Source<T> {
-    var n = 0
+    let n = 0
     for s.skip() {
         n += 1
     }
@@ -68,7 +68,7 @@ fn count<S, T>(s: mut S) int where S: Source<T> {
 
 
 fn joined<S: Source<str>>(s: mut S) str {
-    var out = ""
+    let out = ""
     for word in s {
         out += word
     }
@@ -76,7 +76,7 @@ fn joined<S: Source<str>>(s: mut S) str {
 }
 
 fn sumAll(s: mut Source<int>) int {
-    var sum = 0
+    let sum = 0
     for x in s {
         sum += x
     }
@@ -84,17 +84,17 @@ fn sumAll(s: mut Source<int>) int {
 }
 
 fn main() {
-    var w2 = Words{items: ["x", "y"], at: 0}
+    let w2 = Words{items: ["x", "y"], at: 0}
     println(joined(w2))
-    var c2 = Countdown{n: 3}
+    let c2 = Countdown{n: 3}
     println("{sumAll(c2)}")
-    var c = Countdown{n: 4}
+    let c = Countdown{n: 4}
     println("{total(c)}")
-    var w = Words{items: ["a", "b", "c"], at: 0}
+    let w = Words{items: ["a", "b", "c"], at: 0}
     println("{count(w)}")
     const m = Meters.make(3)
     println("{m.value}")
-    var u = Up{n: 0, max: 4}
+    let u = Up{n: 0, max: 4}
     println("{total(u)}")
 }
 

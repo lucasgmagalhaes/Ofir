@@ -18,7 +18,7 @@ fn main() {
     const flipped: Flipped<str, int> = (5, "five")
     const lists: Nested<int> = ([1, 2], [3])
     const maybe: Maybe<int> = Option.Some(7)
-    var table: Table<int> = Map.new()
+    let table: Table<int> = Map.new()
     table.insert("answer", 42)
     const text: View<str> = "view"
     println("{a.0} {a.1} {b.0}{b.1} {nested.1.0}")

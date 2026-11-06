@@ -47,12 +47,12 @@ fn bump(w: mut Wire) {
 }
 
 fn main() {
-    var w = Wire{tag: 1, len: 70000, flags: 3}
+    let w = Wire{tag: 1, len: 70000, flags: 3}
     w.len = w.len * 2
     bump(w)
     println("{sizeOf<Header>()} {sizeOf<Wire>()} {sizeOf<Frame>()}")
     println("{w.tag} {w.len} {w.flags}")
-    var f = Frame{kind: 9, wire: w}
+    let f = Frame{kind: 9, wire: w}
     f.wire.flags = f.wire.flags + 4
     println("{f.kind} {f.wire.tag} {f.wire.len} {f.wire.flags}")
     const frames = [f, Frame{kind: 2, wire: Wire{tag: 5, len: 6, flags: 7}}]

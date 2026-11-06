@@ -12,7 +12,7 @@ fn main() {
     println("{neg} {neg + 127}")
     const x = 1.5
     println("{x * 2.0} {x / 4.0} {0.1 + 0.2} {1.0 / 3.0} {x - 1.5}")
-    var total: float = 0
+    let total: float = 0
     total += 2
     println("{total}")
 }

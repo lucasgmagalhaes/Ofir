@@ -37,7 +37,7 @@ fn main() {
     const fallback: Option<int> = find(xs, 1) ?? find(xs, 2)
     println("{port} {chained} {fallback.isNone()}")
 
-    var slot = Option.Some("token")
+    let slot = Option.Some("token")
     const taken = slot.take()
     println("{taken.unwrap()} {slot.isNone()}")
 
@@ -49,8 +49,8 @@ fn main() {
     }
     println("first {first}")
 
-    var stack = [1, 2, 3]
-    var total = 0
+    let stack = [1, 2, 3]
+    let total = 0
     for {
         const Option.Some(top) = stack.pop() else {
             break

@@ -21,7 +21,7 @@ fn scale(v: Coord, by: X) float {
 }
 
 fn main() {
-    var p = Point{x: 1.0, y: 2.0, label: "p"}
+    let p = Point{x: 1.0, y: 2.0, label: "p"}
     p[.x] = 3.0
     p[.y] += 1.5
     const x: X = p[.x]

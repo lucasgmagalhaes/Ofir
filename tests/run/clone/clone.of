@@ -44,7 +44,7 @@ struct Noisy {
 
 fn main() {
     const a = Person{name: "ada".toOwned(), tags: ["x".toOwned(), "y".toOwned()], age: 36}
-    var b = a.clone()
+    let b = a.clone()
     b.name.push("!")
     b.tags.push("z".toOwned())
     println("{a.name} {a.tags.len()} / {b.name} {b.tags.len()} {b.age}")
@@ -54,9 +54,9 @@ fn main() {
     const u = t.clone()
     println("sums {sum(t)} {sum(u)}")
 
-    var ages: Map<str, int> = Map.new()
+    let ages: Map<str, int> = Map.new()
     ages.insert("ada".toOwned(), 36)
-    var older = ages.clone()
+    let older = ages.clone()
     older.insert("alan".toOwned(), 41)
     println("maps {ages.len()} {older.len()}")
 

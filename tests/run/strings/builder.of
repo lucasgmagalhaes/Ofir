@@ -6,7 +6,7 @@ fn main() {
     println(strings.join(["a", "b", "c"], ", "))
     const empty: List<str> = []
     println("[{strings.join(empty, ",")}]")
-    var s = "caf"
+    let s = "caf"
     s.pushChar(0xE9)
     s.pushChar(0x20AC)
     s.pushChar(0x1F600)
@@ -23,7 +23,7 @@ fn main() {
             Result.Err(e) => println("err {e.offset}")
         }
     }
-    var b = strings.Builder.new()
+    let b = strings.Builder.new()
     b.push("n = ")
     b.pushChar(0x31)
     println("{b.len()} {b.finish()}")

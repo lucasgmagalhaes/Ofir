@@ -36,7 +36,7 @@ fn report<S: Shape>(s: S) str {
 }
 
 fn total<S: Shape>(shapes: List<S>) float {
-    var sum = 0.0
+    let sum = 0.0
     for i in 0..shapes.len() {
         sum += shapes[i].area()
     }

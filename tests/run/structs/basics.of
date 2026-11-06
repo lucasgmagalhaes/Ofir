@@ -18,9 +18,9 @@ fn length(line: Line) float {
 }
 
 fn main() {
-    var a = Point{x: 1.0, y: 2.0}
+    let a = Point{x: 1.0, y: 2.0}
     const b = Point{x: 4.0}
-    var line = Line{start: a, end: Point{x: 4.0, y: 6.0}}
+    let line = Line{start: a, end: Point{x: 4.0, y: 6.0}}
     println("{length(line)} {line.name} {b.y}")
     a.x = 10.0
     line.end.y += 1.0

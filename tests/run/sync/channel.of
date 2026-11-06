@@ -35,8 +35,8 @@ fn many() {
     const (tx, rx) = channel<int>()
     const a = produce(tx.clone(), 0)
     const b = produce(tx, 10)
-    var sum = 0
-    var count = 0
+    let sum = 0
+    let count = 0
     for _ in 0..6 {
         sum += rx.recv().unwrap()
         count += 1

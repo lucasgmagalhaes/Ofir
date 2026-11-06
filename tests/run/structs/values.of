@@ -29,8 +29,8 @@ fn make(name: move str) Counter {
 }
 
 fn main() {
-    var first = make("clicks")
-    var second = Counter{name: first.name.toOwned(), count: first.count}   // an explicit copy
+    let first = make("clicks")
+    let second = Counter{name: first.name.toOwned(), count: first.count}   // an explicit copy
     second.count += 5
     second.name += " (copy)"
     println("{first.name}: {first.count}, {second.name}: {second.count}")
@@ -41,7 +41,7 @@ fn main() {
     const q = moved(moved(p, 10), 5)
     println("{p.at.x} {q.at.x} {q.at.y} {q.color.0}")
     println("{make("x").count} {Position{x: 3, y: 4}.y}")
-    var grid = Pixel{at: Position{x: 0, y: 0}, color: Rgb(0, 0, 0)}
+    let grid = Pixel{at: Position{x: 0, y: 0}, color: Rgb(0, 0, 0)}
     for i in 0..3 {
         grid.at.x += i
         grid.at.y = grid.at.x * 2

@@ -64,7 +64,7 @@ fn more() {
     println("{empty:?} {():?}")
     const s = "{xs:?}!"
     println(s)
-    var m: Map<str, List<int>> = Map.new()
+    let m: Map<str, List<int>> = Map.new()
     m.insert("a", [1])
     m.insert("b", [])
     println("{m:?}")

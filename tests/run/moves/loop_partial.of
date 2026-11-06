@@ -6,7 +6,7 @@ fn pair(s: move str) (str, bool) {
 }
 
 fn main() {
-    var e = "x".toOwned()
+    let e = "x".toOwned()
     for {
         const step = pair(e)
         const more = step.1

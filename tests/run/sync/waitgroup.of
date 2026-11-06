@@ -9,7 +9,7 @@ import std.task
 fn main() {
     const group = Arc.new(WaitGroup.new())
     const done = Arc.new(AtomicInt.new(0))
-    var tasks: List<task.Task<()>> = []
+    let tasks: List<task.Task<()>> = []
     for _ in 0..3 {
         group.get().add(1)
         const g = group.clone()

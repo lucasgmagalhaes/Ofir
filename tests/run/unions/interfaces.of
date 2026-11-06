@@ -24,7 +24,7 @@ fn main() {
     println("{a == three} {a == b} {a != c}")
     const twin = b.clone()
     println("{twin == b}")
-    var counts: Map<Value, int> = Map.new()
+    let counts: Map<Value, int> = Map.new()
     counts.insert(a, 1)
     counts.insert(b, 2)
     counts.insert(three, 3)

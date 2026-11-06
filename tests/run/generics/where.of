@@ -63,7 +63,7 @@ fn main() {
     println("{s.contains("b")} {s.contains("z")} {s.top()}")
     const t: Tree<int, str> = Tree.Node(3, "three")
     println("{holds(t, 3)} {holds(t, 4)}")
-    var a: Map<str, int> = Map.new()
+    let a: Map<str, int> = Map.new()
     a.insert("one", 1)
     const b: Map<str, int> = Map.new()
     println("{merge(a, b)}")

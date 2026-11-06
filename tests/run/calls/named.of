@@ -49,7 +49,7 @@ fn main() {
     println(pair(b: trace("b", 2), a: trace("a", 1)))
     println("{first([1, 2, 3], 0)} {first([1, 2, 3], 0, skip: 2)}")
     println("{first(fallback: "none", items: ["x"], skip: 4)}")
-    var n = 1
+    let n = 1
     bump(n)
     bump(by: 10, n: n)
     println("{n}")

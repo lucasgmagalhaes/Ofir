@@ -2,7 +2,7 @@
 // Raw strings, multi-line strings and byte strings (spec 1.7).
 
 fn sum(bytes: &[u8]) int {
-    var total = 0
+    let total = 0
     for b in bytes {
         total += b as int
     }

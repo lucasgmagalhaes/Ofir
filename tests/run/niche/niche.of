@@ -32,7 +32,7 @@ fn main() {
         println("{p.x} {p.y}")
     }
     println("{first(&empty).isNone()}")
-    var boxed: Option<Box<int>> = Option.Some(Box.new(7))
+    let boxed: Option<Box<int>> = Option.Some(Box.new(7))
     println("{*boxed.unwrap()}")
     boxed = Option.None
     println("{boxed.isSome()}")

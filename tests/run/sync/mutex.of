@@ -9,12 +9,12 @@ import std.task
 
 fn main() {
     const total = Arc.new(Mutex.new(0))
-    var tasks: List<task.Task<()>> = []
+    let tasks: List<task.Task<()>> = []
     for _ in 0..4 {
         const mine = total.clone()
         tasks.push(task.run(move () => {
             for _ in 0..1000 {
-                var guard = mine.get().lock()
+                let guard = mine.get().lock()
                 *guard.getMut() = *guard.get() + 1
             }
         }))
@@ -25,7 +25,7 @@ fn main() {
     println("{*total.get().lock().get()}")
     const names = Mutex.new(List<str>.new())
     {
-        var guard = names.lock()
+        let guard = names.lock()
         guard.getMut().push("ana")
         guard.getMut().push("bia")
     }
@@ -33,7 +33,7 @@ fn main() {
     println("{guard.get().len()} {guard.get()[1]}")
     const config = RwLock.new("fast")
     {
-        var w = config.write()
+        let w = config.write()
         *w.getMut() = "safe"
     }
     const r1 = config.read()

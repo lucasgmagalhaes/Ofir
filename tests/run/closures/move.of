@@ -52,7 +52,7 @@ fn main() {
     const a = noisy("a")
     const b = Button{label: "ok".toOwned(), handler: move () int => a.name.len() + 40}
     println(b.label)
-    var list: List<move fn() int> = []
+    let list: List<move fn() int> = []
     for i in 0..3 {
         const n = noisy("n{i}")
         list.push(move () int => n.name.len() * 10 + i)

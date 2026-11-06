@@ -14,7 +14,7 @@ fn main() {
     const ratio: f32 = 0.5
     const byte: u8 = 65
     println("{flag} {ratio} {byte} {-7} {1e21} {0.00001} {100.0}")
-    var built = ""
+    let built = ""
     for i in 0..3 {
         built = built + "{i},"
     }

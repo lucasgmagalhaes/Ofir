@@ -7,7 +7,7 @@ struct P {
 }
 
 fn longest(ps: &List<P>) int {
-    var best = 0
+    let best = 0
     for p in ps.iter() {
         if p.tags.len() > best {
             best = p.tags.len()
@@ -18,7 +18,7 @@ fn longest(ps: &List<P>) int {
 
 fn main() {
     const rows = [[1, 2], [3], [4, 5, 6]]
-    var sum = 0
+    let sum = 0
     for row in rows.iter() {
         for x in row.iter() {
             sum += *x
@@ -27,7 +27,7 @@ fn main() {
     println("{sum}")
     const ps = [P{name: "a", tags: ["x"]}, P{name: "b", tags: ["y", "z"]}]
     println("{longest(&ps)}")
-    var it = ps.iter()
+    let it = ps.iter()
     if const Option.Some(p) = it.next() {
         println(p.name)
     }

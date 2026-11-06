@@ -21,7 +21,7 @@ fn main() {
     give(Noisy{name: "arg"})
     give(3)
     const k = keep()
-    var list: List<Noisy | int> = []
+    let list: List<Noisy | int> = []
     list.push(Noisy{name: "in list"})
     list.push(1)
     println("len {list.len()}")

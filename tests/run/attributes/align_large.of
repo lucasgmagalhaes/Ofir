@@ -39,11 +39,11 @@ fn main() {
     println("{lineAt(&line)} {pageAt(&page)} {lineAt(&h.line)}")
     const boxed = Box.new(Page{a: 5})
     println("{pageAt(&*boxed)} {boxed.a}")
-    var lines: List<Line> = []
+    let lines: List<Line> = []
     for _i in 0..100 {
         lines.push(Line{a: 6})
     }
-    var pages: List<Page> = []
+    let pages: List<Page> = []
     for _i in 0..10 {
         pages.push(Page{a: 7})
     }

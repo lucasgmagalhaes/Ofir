@@ -57,7 +57,7 @@ fn swapIn(target: mut int, value: int) {
 }
 
 fn main() {
-    var c = Counter.new("clicks")
+    let c = Counter.new("clicks")
     c.bump(3)
     twice(c)
     println("{c.label()} {c.value()}")
@@ -66,12 +66,12 @@ fn main() {
     const v = Vec2{x: 3.0, y: 4.0}
     println("{v.length()} {v.add(v).scaled(0.5).x} {v.scaled(2.0).length()}")
     println("{Meters(1500.0).km()}")
-    var n = 1
+    let n = 1
     swapIn(n, 42)
     println("{n}")
-    var pair = Counter.new("pair")
+    let pair = Counter.new("pair")
     twice(pair)
-    var grid = Vec2{x: 0.0, y: 0.0}
+    let grid = Vec2{x: 0.0, y: 0.0}
     for _ in 0..3 {
         grid = grid.add(Vec2{x: 1.0, y: 2.0})
     }

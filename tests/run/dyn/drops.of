@@ -34,10 +34,10 @@ fn bump(c: &mut dyn Counter, n: int) {
 }
 
 fn main() {
-    var t = Tally{sum: 1, label: "stack"}
+    let t = Tally{sum: 1, label: "stack"}
     bump(&mut t, 4)
     println("{t.total()}")
-    var b: Box<dyn Counter> = Box.new(Tally{sum: 0, label: "boxed"})
+    let b: Box<dyn Counter> = Box.new(Tally{sum: 0, label: "boxed"})
     b.add(10)
     b.add(5)
     println("{b.name()} {b.total()}")

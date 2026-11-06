@@ -40,7 +40,7 @@ fn main() {
     }
     const moved = make("moved")
     consume(moved)
-    var slot = make("old")
+    let slot = make("old")
     slot = make("new")
     println("{make("temp").name.len()} after temp")
     const n = early(true)

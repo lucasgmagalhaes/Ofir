@@ -29,7 +29,7 @@ fn main() {
     const label = if const Reply.Value(v) = lookup(1) { "v={v}" } else { "none" }
     println(label)
     println("{doubled(4)} {doubled(-2)}")
-    var total = 0
+    let total = 0
     for k in -2..4 {
         const Reply.Value(v) = lookup(k) else {
             continue

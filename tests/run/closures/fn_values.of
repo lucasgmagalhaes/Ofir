@@ -41,7 +41,7 @@ fn main() {
     run(show, Point{x: 1, y: 2})
     const k = keep(sum)
     println("{k(Point{x: 3, y: 4})}")
-    var greeters: List<move fn(str) str> = []
+    let greeters: List<move fn(str) str> = []
     greeters.push(greet)
     println(greeters[0]("bob"))
     const h: fn(Point) int = sum

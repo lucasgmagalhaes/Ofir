@@ -25,7 +25,7 @@ fn bump(m: mut Mixed) {
 }
 
 fn main() {
-    var m = Mixed{a: 1, b: 2, c: 3, d: 4}
+    let m = Mixed{a: 1, b: 2, c: 3, d: 4}
     bump(m)
     println("{m.a} {m.b} {m.c} {m.d}")
     println("{sizeOf<Mixed>()}")

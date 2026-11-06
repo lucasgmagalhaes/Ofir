@@ -17,7 +17,7 @@ fn parse(s: str) Result<int, ParseError> {
     if s.isEmpty() {
         return Result.Err(ParseError.Empty)
     }
-    var n = 0
+    let n = 0
     for i in 0..s.len() {
         n = n * 10 + digit(s[i])?
         if n > 65535 {
