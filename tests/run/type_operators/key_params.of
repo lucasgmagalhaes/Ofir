@@ -1,0 +1,42 @@
+// requires: stage1
+// Key parameters (spec 16.2): `K: keyof T` takes a key literal, erased and
+// instantiated for each key; `value[key]` is the field it names.
+
+struct Point {
+    x: float
+    y: float
+    name: str
+}
+
+fn get<T, K: keyof T>(value: &T, key: K) &T[K] {
+    return &value[key]
+}
+
+fn forward<T, K: keyof T>(value: &T, key: K) &T[K] {
+    return get(value, key)
+}
+
+fn set<T, K: keyof T>(value: mut T, key: K, v: move T[K]) {
+    value[key] = v
+}
+
+fn take<T, K: keyof T>(value: move T, key: K) T[K] {
+    return value[key]
+}
+
+fn coord<K: .x | .y>(p: &Point, key: K) float {
+    return *get(p, key) * 2.0
+}
+
+fn main() {
+    var p = Point{x: 1.0, y: 2.0, name: "p".toOwned()}
+    set(p, .y, 5.0)
+    set(p, .name, "q".toOwned())
+    println("{*forward(&p, .y)} {forward(&p, .name)} {coord(&p, .x)} {coord(&p, .y)}")
+    let t = ("a".toOwned(), "b".toOwned(), 3)
+    println("{*get(&t, .2)}")
+    let second = take(t, .1)
+    println("{second}")
+    let name = take(p, .name)
+    println("{name}")
+}
