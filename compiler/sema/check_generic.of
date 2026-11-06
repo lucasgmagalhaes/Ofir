@@ -22,6 +22,12 @@ import sema.check.fnGenericsIn
 import sema.check.fnOf
 import sema.check.noGenerics
 import sema.check.typeGenericsOf
+import sema.check_keys.checkKeyArg
+import sema.check_keys.checkKeyBound
+import sema.check_keys.isKeyLiteral
+import sema.check_keys.isKeyParam
+import sema.check_keys.keyLiteralType
+import sema.check_keys.resolveKeyed
 import sema.check_list.coerceToSlice
 import sema.check_list.hashable
 import sema.check_methods.isCloneable
@@ -231,7 +237,8 @@ pub fn inferHint(c: mut Checker, inf: &Infer, pattern: int) int {
  * @returns the type
  */
 pub fn inferApply(c: mut Checker, inf: &Infer, pattern: int) int {
-    return c.types.subst(pattern, inf.args)
+    let ty = c.types.subst(pattern, inf.args)
+    return resolveKeyed(c, ty)
 }
 
 // Whether a tuple type has an `ERROR` element.
@@ -350,8 +357,15 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
     for i in 0..args.len() {
         let arg = &args[i].value
         let param = if slots[i] >= 0 { params[slots[i]] } else { ERROR }
-        let hint = if slots[i] >= 0 { inferHint(c, &inf, param) } else { ERROR }
+        let keyParam = isKeyParam(c, &inf.params, param)
+        var hint = if slots[i] >= 0 { inferHint(c, &inf, param) } else { ERROR }
+        if keyParam && hint == ERROR && isKeyLiteral(arg) {
+            hint = keyLiteralType(c, arg)   // `.x` for `K: keyof T`
+        }
         let found = checkExpr(c, p, arg, hint)
+        if keyParam {
+            checkKeyArg(c, arg, found)
+        }
         inferFrom(c, inf, param, found)
     }
     inferFromBounds(c, p, inf)
@@ -526,6 +540,9 @@ pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<in
         }
         if i < params.ifaces.len() {
             checkInterfaceBounds(c, p, params, i, args, span)
+        }
+        if i < params.keys.len() && params.keys[i] != 0 {
+            checkKeyBound(c, p, params, i, args, span)
         }
     }
 }

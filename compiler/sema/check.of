@@ -109,6 +109,8 @@ pub struct Generics {
     pub ifaceArgs: List<List<int>>
     /** Actual arguments when expanding an alias; empty for generic declarations. */
     pub aliasArgs: List<int>
+    /** The key type bounding each parameter (spec 16.2), or 0. */
+    pub keys: List<int>
 }
 
 /**
@@ -118,7 +120,7 @@ pub struct Generics {
  */
 pub fn noGenerics() Generics {
     return Generics{owner: [], fnParams: [], bounds: [], ifaces: [], ifaceArgs: [],
-                    aliasArgs: []}
+                    aliasArgs: [], keys: []}
 }
 
 /** The built-in interfaces a bound can name until interfaces (roadmap 5.3), as bits. */
@@ -249,6 +251,11 @@ fn addBounds(c: mut Checker, p: Program, preds: &List<WherePred>, g: mut Generic
             continue   // E0334, reported with the declaration
         }
         for j in 0..preds[i].bounds.len() {
+            if isKeyBound(&preds[i].bounds[j]) {
+                g.keys[index] = keyBound(c, p, &preds[i].bounds[j], &g)
+                g.bounds[index] = g.bounds[index] | BOUND_COPY   // a key has no value
+                continue
+            }
             g.bounds[index] = g.bounds[index] | boundBit(c, &preds[i].bounds[j])
             let iface = interfaceOf(c, &preds[i].bounds[j])
             if iface != 0 {
@@ -258,6 +265,39 @@ fn addBounds(c: mut Checker, p: Program, preds: &List<WherePred>, g: mut Generic
             }
         }
     }
+}
+
+/**
+ * Whether a bound is a key type (spec 16.2): `keyof T`, `.x` or `A | B`.
+ *
+ * @param t the bound
+ * @returns true for a key bound
+ */
+pub fn isKeyBound(t: &TypeExpr) bool {
+    return match t.kind {
+        TypeKind.KeyOf(_) |
+        TypeKind.Key(_) |
+        TypeKind.KeyOp(_, _, _) => true
+        _ => false
+    }
+}
+
+// The key type of a key bound, resolved once with the parameters of the
+// declaration, or 0 when it is not a key type.
+fn keyBound(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
+    let key = (t.span.file.0, t.span.start)
+    if let Option.Some(known) = c.boundArgs.get(key) {
+        return *known
+    }
+    let inner = Generics{owner: g.owner.clone(), fnParams: g.fnParams.clone(), bounds: [],
+                         ifaces: [], ifaceArgs: [], aliasArgs: [], keys: []}
+    let saved = c.enterGenerics(inner)
+    let ty = resolveType(c, p, t)
+    c.enterGenerics(saved)
+    let kind = c.types.kind(ty)
+    let bound = if kind == TyKind.Key || kind == TyKind.KeyOf { ty } else { 0 }
+    c.boundArgs.insert(key, bound)
+    return bound
 }
 
 /**
@@ -285,7 +325,7 @@ pub fn boundArgs(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
         return *known
     }
     let inner = Generics{owner: g.owner.clone(), fnParams: g.fnParams.clone(), bounds: [],
-                         ifaces: [], ifaceArgs: [], aliasArgs: []}
+                         ifaces: [], ifaceArgs: [], aliasArgs: [], keys: []}
     let saved = c.enterGenerics(inner)
     var types: List<int> = []
     for i in 0..list.len() {
@@ -328,7 +368,7 @@ pub fn typeGenerics(c: mut Checker, p: Program, item: &Item) Generics {
     let owner = itemTypeParams(item)
     var g = Generics{owner: owner.clone(), fnParams: [], bounds: List.filled(0, owner.len()),
                      ifaces: noIfaces(owner.len()), ifaceArgs: noIfaces(owner.len()),
-                     aliasArgs: []}
+                     aliasArgs: [], keys: List.filled(0, owner.len())}
     addBounds(c, p, &item.bounds, g)
     let isInterface = match item.kind {
         ItemKind.Interface(_, _, _) => true
@@ -381,10 +421,13 @@ pub fn fnGenericsIn(c: mut Checker, p: Program, outer: &Generics, decl: &FnDecl)
     let n = outer.owner.len() + decl.typeParams.len()
     var g = Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(),
                      bounds: List.filled(0, n), ifaces: noIfaces(n), ifaceArgs: noIfaces(n),
-                     aliasArgs: []}
+                     aliasArgs: [], keys: List.filled(0, n)}
     for i in 0..outer.owner.len() {
         if i < outer.bounds.len() {
             g.bounds[i] = outer.bounds[i]
+        }
+        if i < outer.keys.len() {
+            g.keys[i] = outer.keys[i]
         }
         if i < outer.ifaces.len() {
             g.ifaces[i] = outer.ifaces[i].clone()
@@ -721,6 +764,16 @@ pub struct Checker {
                     out.push(if i > 0 { " | ." } else { "." })
                     out.push(self.text(Symbol(names[i])))
                 }
+            }
+            TyKind.KeyOf => {
+                out.push("keyof ")
+                self.appendType(out, t.inner, qualified)
+            }
+            TyKind.Index => {
+                self.appendType(out, t.inner, qualified)
+                out.push("[")
+                self.appendType(out, t.args[0], qualified)
+                out.push("]")
             }
         }
     }
@@ -1077,7 +1130,7 @@ pub fn checkDeclBounds(c: mut Checker, p: Program, preds: &List<WherePred>) {
         }
         for j in 0..pred.bounds.len() {
             let iface = interfaceOf(c, &pred.bounds[j])
-            if boundBit(c, &pred.bounds[j]) == 0 && iface == 0 {
+            if boundBit(c, &pred.bounds[j]) == 0 && iface == 0 && !isKeyBound(&pred.bounds[j]) {
                 c.error("E0333", pred.bounds[j].span, "`{typeText(&pred.bounds[j], c.r.names)}` "
                         + "is not an interface")
             }
