@@ -234,8 +234,10 @@ pub fn llvmType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
     let t = c.types.get(ty)
     let kind = t.kind
     let data = t.data
+    let inner = t.inner
     return match kind {
         TyKind.Adt => adtType(g, c, p, ty)
+        TyKind.Array => "[{data} x {fieldType(g, c, p, inner)}]"
         TyKind.Param => panic("llvmType: a type parameter survived monomorphization")
         TyKind.Tuple => tupleType(g, c, p, ty)
         TyKind.Ref |
@@ -443,8 +445,13 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
     let t = c.types.get(ty)
     let kind = t.kind
     let data = t.data
+    let inner = t.inner
     return match kind {
         TyKind.Bool => Layout{size: 1, align: 1}
+        TyKind.Array => {
+            let elem = layout(g, c, p, inner)
+            Layout{size: elem.size * data, align: elem.align}
+        }
         TyKind.Int => Layout{size: intBits(data) / 8, align: intBits(data) / 8}
         TyKind.Float => Layout{size: data / 8, align: data / 8}
         TyKind.Str => Layout{size: 24, align: 8}
@@ -650,6 +657,8 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
             current = variantFieldType(c, p, current, index, entry)
         } else if t.kind == TyKind.Tuple {
             current = t.args[entry]
+        } else if t.kind == TyKind.Array {
+            current = t.inner
         } else if isEnum {
             current = I32
         } else {   // a struct, or a primitive's fields from its `@lang` declaration
