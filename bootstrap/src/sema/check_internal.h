@@ -30,7 +30,7 @@ typedef struct {
     uint32_t unsafe_depth;   // > 0 inside an `unsafe` block or function
     Arena scratch;           // reset per function: the move analysis states
     // Whether the function moves a value that is not trivially Copy (into a
-    // variable, a `move` parameter, an aggregate, its result) or has a `var`
+    // variable, a `move` parameter, an aggregate, its result) or has a `let`
     // without a value: else the move analysis has nothing to find, and the
     // drops treat every new value as a temporary.
     bool owned_values;
