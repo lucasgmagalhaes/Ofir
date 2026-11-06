@@ -8,8 +8,8 @@ member it holds.
 type LoadError = IoError | ParseError
 
 fn load(path: str) Result<Config, LoadError> {
-    let text = fs.readFile(path)?      // Result<str, IoError>: IoError widens
-    let config = Config.parse(text)?   // Result<Config, ParseError>
+    const text = fs.readFile(path)?      // Result<str, IoError>: IoError widens
+    const config = Config.parse(text)?   // Result<Config, ParseError>
     return Result.Ok(config)
 }
 ```
@@ -47,7 +47,7 @@ A value **widens** to a union `U` when its type is a member of `U`, or is a
 union whose members are all members of `U`. Widening happens only where an
 expected type is known, the coercion points:
 
-- the value of `let` or `var` with a declared type, and of an assignment;
+- the value of `const` or `let` with a declared type, and of an assignment;
 - an argument, for its parameter's type;
 - the value of `return` or of the last expression of a body;
 - a field of a struct literal or of a variant;
@@ -65,14 +65,14 @@ A union is never inferred from the values: when the branches of an `if` or
 (E0353); writing the expected type fixes it.
 
 ```ofir
-let a = if ok { 1 } else { "one" }               // E0353
-let b: int | str = if ok { 1 } else { "one" }    // each branch widens
+const a = if ok { 1 } else { "one" }               // E0353
+const b: int | str = if ok { 1 } else { "one" }    // each branch widens
 ```
 
 ## 17.4 Narrowing
 
 A union is inspected with **type test patterns**, `name: Type` (A.7), in
-`match` and `if let`:
+`match` and `if const`:
 
 ```ofir
 match err {
@@ -80,7 +80,7 @@ match err {
     e: ParseError => eprintln("line {e.line}: {e.message}"),
 }
 
-if let e: IoError = err {
+if const e: IoError = err {
     retry()
 }
 ```

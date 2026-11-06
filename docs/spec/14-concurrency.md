@@ -21,9 +21,9 @@ its design is fixed now so that earlier features do not block it.
 import std.task
 
 fn main() {
-    let data = [1, 2, 3]
-    let handle = task.run(move () int => {
-        var sum = 0
+    const data = [1, 2, 3]
+    const handle = task.run(move () int => {
+        let sum = 0
         for x in data {
             sum += x
         }
@@ -86,9 +86,9 @@ fn twice(f: fn() int + Send) int {
 }
 
 fn main() {
-    let n = 21
+    const n = 21
     println("{twice(() int => n)}")
-    let t = task.run(move () int => n * 2)
+    const t = task.run(move () int => n * 2)
     println("{t.join()}")
 }
 ```
@@ -104,8 +104,8 @@ import std.sync.channel
 import std.task
 
 fn main() {
-    let (tx, rx) = channel<int>()
-    let t = task.run(move () => tx.send(42))
+    const (tx, rx) = channel<int>()
+    const t = task.run(move () => tx.send(42))
     println("{rx.recv().unwrap()}")
     t.join()
 }
@@ -128,10 +128,10 @@ import std.sync.Mutex
 import std.task
 
 fn main() {
-    let total = Arc.new(Mutex.new(0))
-    let mine = total.clone()
-    let t = task.run(move () => {
-        var guard = mine.get().lock()
+    const total = Arc.new(Mutex.new(0))
+    const mine = total.clone()
+    const t = task.run(move () => {
+        let guard = mine.get().lock()
         *guard.getMut() += 1
     })
     t.join()

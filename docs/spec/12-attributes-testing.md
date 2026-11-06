@@ -64,7 +64,7 @@ message if one is given:
 @deprecated("use `parseInt`")
 fn atoi(s: str) int { ... }
 
-let n = atoi("12")   // warning[W0006]: `atoi` is deprecated: use `parseInt`
+const n = atoi("12")   // warning[W0006]: `atoi` is deprecated: use `parseInt`
 ```
 
 `@allow(category)` silences the warnings of one category inside the
@@ -119,7 +119,7 @@ interfaces (roadmap 5.1). Doc tests are planned.
 ```ofir
 @bench
 fn benchSort(b: mut Bencher) {
-    var data = randomList(10_000)
+    let data = randomList(10_000)
     b.run(() => data.sort())
 }
 ```
@@ -213,11 +213,11 @@ meaningful:
 
 | Warning | Example |
 |---------|---------|
-| unused variable | `let x = 1` never read (prefix with `_` to silence) |
+| unused variable | `const x = 1` never read (prefix with `_` to silence) |
 | unused import | `import std.fs` never used |
 | unused private function, type or constant | |
 | unreachable code | statements after `return` |
-| unused `mut` / `var` | a `var` that is never reassigned or mutated |
+| unused `mut` / `let` | a `let` that is never reassigned or mutated |
 | deprecated item | uses of `@deprecated` items |
 | naming convention | `fn read_file()`, `struct token` (chapter 1.4) |
 
