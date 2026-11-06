@@ -28,7 +28,7 @@ extern "C" {
  * ```ofir
  * import std.os
  *
- * let args = os.args()
+ * const args = os.args()
  * if args.len() < 2 {
  *     eprintln("usage: tool <file>")
  *     os.exit(2)
@@ -36,11 +36,11 @@ extern "C" {
  * ```
  */
 pub fn args() List<str> {
-    let count = unsafe { ofir_arg_count() }
+    const count = unsafe { ofir_arg_count() }
     var out: List<str> = List.withCapacity(count)
     for i in 0..count {
         var len = 0
-        let ptr = unsafe { ofir_arg(i, &mut len as *mut int) }
+        const ptr = unsafe { ofir_arg(i, &mut len as *mut int) }
         out.push(unsafe { str.fromRaw(ptr, len) })
     }
     return out
@@ -55,12 +55,12 @@ pub fn args() List<str> {
  * ```ofir
  * import std.os
  *
- * let home = os.env("HOME") ?? "/"
+ * const home = os.env("HOME") ?? "/"
  * ```
  */
 pub fn env(name: str) Option<str> {
     var len = 0
-    let ptr = unsafe { ofir_env(name.asPtr(), name.len(), &mut len as *mut int) }
+    const ptr = unsafe { ofir_env(name.asPtr(), name.len(), &mut len as *mut int) }
     if unsafe { ptr as u64 } == 0 {
         return Option.None
     }
@@ -110,7 +110,7 @@ struct Captured {
  * ```ofir
  * import std.os
  *
- * let out = os.run("clang", ["--version"])?
+ * const out = os.run("clang", ["--version"])?
  * println(out.stdout)
  * ```
  */
@@ -157,7 +157,7 @@ pub fn executablePath() Result<str, IoError> {
  */
 pub fn name() str {
     var len = 0
-    let ptr = unsafe { ofir_os_name(&mut len as *mut int) }
+    const ptr = unsafe { ofir_os_name(&mut len as *mut int) }
     return unsafe { str.fromRaw(ptr, len) }
 }
 
@@ -168,6 +168,6 @@ pub fn name() str {
  */
 pub fn arch() str {
     var len = 0
-    let ptr = unsafe { ofir_arch_name(&mut len as *mut int) }
+    const ptr = unsafe { ofir_arch_name(&mut len as *mut int) }
     return unsafe { str.fromRaw(ptr, len) }
 }

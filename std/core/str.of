@@ -118,8 +118,8 @@ pub struct str {
      * the end of the string
      * @example
      * ```ofir
-     * let c = "hello".toCString()
-     * let n = unsafe { strlen(c.ptr()) }   // 5
+     * const c = "hello".toCString()
+     * const n = unsafe { strlen(c.ptr()) }   // 5
      * ```
      */
     pub fn toCString(self) CString {
@@ -246,7 +246,7 @@ pub struct str {
         if suffix.len > self.len {
             return false
         }
-        let start = unsafe { self.ptr.add(self.len - suffix.len) }
+        const start = unsafe { self.ptr.add(self.len - suffix.len) }
         return sameBytes(start, suffix.ptr, suffix.len)
     }
 
@@ -301,7 +301,7 @@ pub struct str {
      * on a character boundary of the UTF-8 text
      * @example
      * ```ofir
-     * let s = "hello, world"
+     * const s = "hello, world"
      * assert(s[0..5] == "hello")
      * ```
      */
@@ -335,7 +335,7 @@ pub struct str {
      * `Some(0)` for `""`
      * @example
      * ```ofir
-     * let at = "key=value".find("=") ?? -1   // 3
+     * const at = "key=value".find("=") ?? -1   // 3
      * ```
      */
     pub fn find(self, part: str) Option<int> {
@@ -398,7 +398,7 @@ pub struct str {
         var out = ""
         var at = 0
         for from.len > 0 {
-            let Option.Some(i) = findFrom(self, from, at) else {
+            const Option.Some(i) = findFrom(self, from, at) else {
                 break
             }
             out.push(self.slice(at, i))
@@ -544,7 +544,7 @@ pub struct str {
 
     // Makes room for `extra` more bytes; a literal moves to the heap.
     fn reserve(mut self, extra: int) {
-        let needed = self.len + extra
+        const needed = self.len + extra
         if needed <= self.cap {
             return
         }
@@ -554,7 +554,7 @@ pub struct str {
         }
         unsafe {
             if self.cap == 0 {
-                let heap = ofir_alloc(cap)
+                const heap = ofir_alloc(cap)
                 if self.len > 0 {
                     memcpy(heap, self.ptr, self.len as u64)
                 }
@@ -571,7 +571,7 @@ pub struct str {
         var out = self.toOwned()
         for i in 0..out.len {
             unsafe {
-                let at = out.ptr.add(i) as *mut u8
+                const at = out.ptr.add(i) as *mut u8
                 if *at >= from && *at <= to {
                     *at = *at ^ 0x20
                 }

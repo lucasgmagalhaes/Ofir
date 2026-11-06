@@ -78,7 +78,7 @@ pub copy struct u64 {
      * @returns `Some(self + other)`, or `None` on overflow
      */
     pub fn checkedAdd(self, other: u64) Option<u64> {
-        let sum = self.wrappingAdd(other)
+        const sum = self.wrappingAdd(other)
         return if sum < self { Option.None } else { Option.Some(sum) }
     }
 
@@ -99,7 +99,7 @@ pub copy struct u64 {
      * @returns `Some(self * other)`, or `None` on overflow
      */
     pub fn checkedMul(self, other: u64) Option<u64> {
-        let product = self.wrappingMul(other)
+        const product = self.wrappingMul(other)
         return if self != 0 && product / self != other { Option.None } else { Option.Some(product) }
     }
 
@@ -126,27 +126,27 @@ pub copy struct u64 {
      * ```
      */
     pub fn parse(text: str) Result<u64, ParseError> {
-        let negative = text.len() > 0 && text[0] == b'-'
-        let start = if negative || (text.len() > 0 && text[0] == b'+') { 1 } else { 0 }
+        const negative = text.len() > 0 && text[0] == b'-'
+        const start = if negative || (text.len() > 0 && text[0] == b'+') { 1 } else { 0 }
         if start == text.len() || negative {
             return Result.Err(ParseError{})
         }
         var value: u64 = 0
         for i in start..text.len() {
-            let c = text[i]
+            const c = text[i]
             if c < b'0' || c > b'9' {
                 return Result.Err(ParseError{})
             }
-            let digit = (c - b'0') as u64
-            let Option.Some(shifted) = value.checkedMul(10) else {
+            const digit = (c - b'0') as u64
+            const Option.Some(shifted) = value.checkedMul(10) else {
                 return Result.Err(ParseError{})
             }
-            let next = if negative {
+            const next = if negative {
                 shifted.checkedSub(digit)
             } else {
                 shifted.checkedAdd(digit)
             }
-            let Option.Some(updated) = next else {
+            const Option.Some(updated) = next else {
                 return Result.Err(ParseError{})
             }
             value = updated

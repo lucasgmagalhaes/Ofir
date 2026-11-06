@@ -76,7 +76,7 @@ extern "intrinsic" {
  *     }
  * }
  *
- * let e = Expr.Add(Box.new(.Number(2)), Box.new(.Number(3)))   // eval(e) == 5
+ * const e = Expr.Add(Box.new(.Number(2)), Box.new(.Number(3)))   // eval(e) == 5
  * ```
  */
 @lang("box")
@@ -92,11 +92,11 @@ pub struct Box<T> {
      * @panics when the system is out of memory
      */
     pub fn new(value: move T) Box<T> {
-        let ptr = unsafe {
+        const ptr = unsafe {
             if alignOf<T>() > 16 {   // above malloc's alignment (spec 13.7)
-                ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
+                  ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
             } else {
-                ofir_alloc(sizeOf<T>()) as *mut T
+                  ofir_alloc(sizeOf<T>()) as *mut T
             }
         }
         unsafe {
@@ -111,12 +111,12 @@ pub struct Box<T> {
      * @returns the value the box held
      * @example
      * ```ofir
-     * let b = Box.new("text")
-     * let s = b.unbox()   // b can no longer be used
+     * const b = Box.new("text")
+     * const s = b.unbox()   // b can no longer be used
      * ```
      */
     pub fn unbox(move self) T {
-        let value = unsafe { *self.ptr }
+        const value = unsafe { *self.ptr }
         unsafe {
             ofir_free(self.ptr as *mut u8)
         }
@@ -130,8 +130,8 @@ pub struct Box<T> {
      * @returns a box that owns its own copy of the value
      * @example
      * ```ofir
-     * let a = Box.new("text".toOwned())
-     * let b = a.clone()   // a and b can both be used
+     * const a = Box.new("text".toOwned())
+     * const b = a.clone()   // a and b can both be used
      * ```
      */
     pub fn clone(self) Box<T> {

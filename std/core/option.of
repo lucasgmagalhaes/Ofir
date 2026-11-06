@@ -9,7 +9,7 @@
  * A value of type `T`, or nothing.
  *
  * Ofir has no null: a function that may find nothing returns an Option,
- * and the caller must look inside, with `match`, `if let`, `let ... else`,
+ * and the caller must look inside, with `match`, `if const`, `const ... else`,
  * `?` (which returns `None` from the caller) or `??` (a default).
  * `Option<T>` is Copy when `T` is.
  *
@@ -25,7 +25,7 @@
  *     return None
  * }
  *
- * let index = find(["ana", "bob"], "bob") ?? -1   // 1
+ * const index = find(["ana", "bob"], "bob") ?? -1   // 1
  * ```
  */
 @lang("option")
@@ -82,7 +82,7 @@ pub enum Option<T> {
      * @panics on `None`, with `message`
      * @example
      * ```ofir
-     * let port = config.get("port").expect("the config has a port")
+     * const port = config.get("port").expect("the config has a port")
      * ```
      */
     pub fn expect(move self, message: str) T {
@@ -100,7 +100,7 @@ pub enum Option<T> {
      * @returns the content of `Some`, else `fallback`
      * @example
      * ```ofir
-     * let none: Option<int> = None
+     * const none: Option<int> = None
      * assert(none.unwrapOr(8080) == 8080)
      * ```
      */
@@ -118,11 +118,11 @@ pub enum Option<T> {
      * @example
      * ```ofir
      * var slot = Some("token")
-     * let taken = slot.take()   // Some("token"); slot is now None
+     * const taken = slot.take()   // Some("token"); slot is now None
      * ```
      */
     pub fn take(mut self) Option<T> {
-        let taken = self
+        const taken = self
         self = Option.None
         return taken
     }
@@ -136,7 +136,7 @@ pub enum Option<T> {
      * @returns `Ok` with the content of `Some`, else `Err(error)`
      * @example
      * ```ofir
-     * let user = findUser(id).okOr("no such user")?
+     * const user = findUser(id).okOr("no such user")?
      * ```
      */
     pub fn okOr<E>(move self, error: move E) Result<T, E> {

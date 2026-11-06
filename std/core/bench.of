@@ -46,11 +46,11 @@ pub copy struct Bencher {
         f()   // a warm-up call
         var n = 1
         for {
-            let start = unsafe { ofir_now_ns() }
+            const start = unsafe { ofir_now_ns() }
             for _ in 0..n {
                 f()
             }
-            let elapsed = unsafe { ofir_now_ns() } - start
+            const elapsed = unsafe { ofir_now_ns() } - start
             self.iters = n
             self.nanos = elapsed as int
             if elapsed as int >= TARGET_NANOS || n >= 1 << 40 {

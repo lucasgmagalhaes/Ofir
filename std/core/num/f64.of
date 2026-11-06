@@ -123,8 +123,8 @@ pub copy struct f64 {
         var terminated = text.toOwned()
         terminated.push("\0")
         var end = terminated.asPtr()
-        let value = unsafe { strtod(terminated.asPtr(), &mut end as *mut *u8) }
-        let used = unsafe { end as u64 } - unsafe { terminated.asPtr() as u64 }
+        const value = unsafe { strtod(terminated.asPtr(), &mut end as *mut *u8) }
+        const used = unsafe { end as u64 } - unsafe { terminated.asPtr() as u64 }
         if used != text.len() as u64 {
             return Result.Err(ParseError{})
         }

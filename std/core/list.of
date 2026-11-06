@@ -142,7 +142,7 @@ pub struct List<T> {
      * @panics when the system is out of memory
      */
     pub fn reserve(mut self, extra: int) {
-        let needed = self.len + extra
+        const needed = self.len + extra
         if needed <= self.cap {
             return
         }
@@ -150,9 +150,9 @@ pub struct List<T> {
         if cap < needed {
             cap = needed
         }
-        let size = cap * sizeOf<T>()
+        const size = cap * sizeOf<T>()
         unsafe {
-            let old = self.ptr as *mut u8
+            const old = self.ptr as *mut u8
             self.ptr = if alignOf<T>() > 16 {   // above malloc's alignment (spec 13.7)
                 ofir_realloc_aligned(old, size, alignOf<T>()) as *mut T
             } else {
@@ -191,8 +191,8 @@ pub struct List<T> {
      * `0..len()`
      * @example
      * ```ofir
-     * let xs = [10, 20]
-     * if let Some(x) = xs.get(1) {
+     * const xs = [10, 20]
+     * if const Some(x) = xs.get(1) {
      *     println("{x}")   // 20
      * }
      * ```
@@ -213,7 +213,7 @@ pub struct List<T> {
      * @example
      * ```ofir
      * var xs = [1, 2]
-     * if let Some(x) = xs.getMut(0) {
+     * if const Some(x) = xs.getMut(0) {
      *     *x = 10   // xs is [10, 2]
      * }
      * ```
@@ -270,7 +270,7 @@ pub struct List<T> {
      * @returns a `ListIter` that borrows the list
      * @example
      * ```ofir
-     * let names = ["ana", "bia"]
+     * const names = ["ana", "bia"]
      * for name in names.iter() {
      *     println(*name)
      * }
@@ -289,8 +289,8 @@ pub struct List<T> {
      * @panics unless `0 <= lo <= hi <= len()`
      * @example
      * ```ofir
-     * let xs = [10, 20, 30, 40]
-     * let middle = xs[1..3]   // [20, 30]
+     * const xs = [10, 20, 30, 40]
+     * const middle = xs[1..3]   // [20, 30]
      * ```
      */
     pub fn slice(self, lo: int, hi: int) &[T] {
@@ -361,7 +361,7 @@ pub struct List<T> {
      */
     pub fn remove(mut self, i: int) T {
         self.checkIndex(i)
-        let x = unsafe { *self.ptr.add(i) }
+        const x = unsafe { *self.ptr.add(i) }
         unsafe {
             shift(self.ptr.add(i), self.ptr.add(i + 1), self.len - i - 1)
         }
@@ -380,7 +380,7 @@ pub struct List<T> {
     pub fn swapRemove(mut self, i: int) T {
         self.checkIndex(i)
         unsafe {
-            let x = *self.ptr.add(i)
+            const x = *self.ptr.add(i)
             *self.ptr.add(i) = *self.ptr.add(self.len - 1)
             self.len -= 1
             return x
@@ -400,7 +400,7 @@ pub struct List<T> {
      * @returns a list of the same length, which owns its elements
      * @example
      * ```ofir
-     * let names = ["ada".toOwned(), "alan".toOwned()]
+     * const names = ["ada".toOwned(), "alan".toOwned()]
      * var copy = names.clone()
      * copy.push("grace".toOwned())   // names keeps 2 elements
      * ```
@@ -480,7 +480,7 @@ pub struct List<T> {
         var j = self.len - 1
         for i < j {
             unsafe {
-                let a = *self.ptr.add(i)
+                const a = *self.ptr.add(i)
                 *self.ptr.add(i) = *self.ptr.add(j)
                 *self.ptr.add(j) = a
             }
@@ -509,7 +509,7 @@ pub struct List<T> {
             return
         }
         var src = self.ptr
-        let size = self.len * sizeOf<T>()
+        const size = self.len * sizeOf<T>()
         var dst = unsafe {
             if alignOf<T>() > 16 {
                 ofir_alloc_aligned(size, alignOf<T>()) as *mut T
@@ -521,12 +521,12 @@ pub struct List<T> {
         for width < self.len {
             var lo = 0
             for lo < self.len {
-                let mid = (lo + width).min(self.len)
-                let hi = (lo + 2 * width).min(self.len)
+                const mid = (lo + width).min(self.len)
+                const hi = (lo + 2 * width).min(self.len)
                 mergeRuns(src, dst, lo, mid, hi)
                 lo = hi
             }
-            let done = src
+            const done = src
             src = dst
             dst = done
             width *= 2
@@ -575,7 +575,7 @@ pub ref struct ListIter<T> {
      * @returns `Some` with a reference to it, or `None` after the last one
      */
     pub fn next(mut self) Option<&T> {
-        let item = self.list.get(self.index)
+        const item = self.list.get(self.index)
         self.index += 1
         return item
     }
@@ -595,7 +595,7 @@ fn mergeRuns<T: Ord>(src: *mut T, dst: *mut T, lo: int, mid: int, hi: int) {
     var j = mid
     for k in lo..hi {
         unsafe {
-            let takeLeft = i < mid && (j >= hi || !(*src.add(j) < *src.add(i)))
+            const takeLeft = i < mid && (j >= hi || !(*src.add(j) < *src.add(i)))
             if takeLeft {
                 *dst.add(k) = *src.add(i)
                 i += 1

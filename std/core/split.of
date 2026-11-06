@@ -11,7 +11,7 @@
  * @example
  * ```ofir
  * var parts = "x=1".split("=")
- * let key = parts.next() ?? ""   // "x"
+ * const key = parts.next() ?? ""   // "x"
  * ```
  */
 pub struct StrSplit {
@@ -71,11 +71,11 @@ pub struct StrSplit {
         if self.done {
             return Option.None
         }
-        let Option.Some(i) = self.rest.find(self.sep) else {
+        const Option.Some(i) = self.rest.find(self.sep) else {
             self.done = true
             return Option.Some(self.cut(self.rest.len()))
         }
-        let part = self.cut(i)
+        const part = self.cut(i)
         self.rest = self.rest.sliceFrom(self.sep.len())
         self.done = self.lines && self.rest.len() == 0
         return Option.Some(part)
@@ -87,7 +87,7 @@ pub struct StrSplit {
         if self.lines && hi > 0 && self.rest[hi - 1] == b'\r' {
             hi -= 1
         }
-        let part = self.rest.slice(0, hi)
+        const part = self.rest.slice(0, hi)
         self.rest = self.rest.sliceFrom(n)
         return part
     }
@@ -101,7 +101,7 @@ pub struct StrSplit {
         for hi < self.rest.len() && !isSpace(self.rest[hi]) {
             hi += 1
         }
-        let word = self.rest.slice(lo, hi)
+        const word = self.rest.slice(lo, hi)
         self.rest = self.rest.sliceFrom(hi)
         if lo == hi {
             return Option.None

@@ -3,7 +3,7 @@
 @test
 fn replaceReturnsTheOldValue() {
     var names = ["ana".toOwned(), "bob".toOwned()]
-    let old = replace(names[0], "cy".toOwned())
+    const old = replace(names[0], "cy".toOwned())
     assert(old == "ana" && names[0] == "cy")
 }
 
