@@ -1,0 +1,222 @@
+/**
+ * @module
+ * Conditional types (spec 16.5): `if A is B { X } else { Y }`, decided per
+ * instance (stage 1 only).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.check.Checker
+import sema.check_types.resolveType
+import sema.program.Program
+import sema.types.ERROR
+import sema.types.TyKind
+import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
+
+// The index of the first `infer` placeholder: far above any type parameter.
+const INFER_BASE: int = 1048576
+
+/**
+ * The type `true` or `false`.
+ *
+ * @param c the checker
+ * @param value which one
+ * @returns its type
+ */
+pub fn boolType(c: mut Checker, value: bool) int {
+    return c.types.intern(TyKind.Bool, if value { 1 } else { 2 }, 0, [])
+}
+
+/**
+ * `infer U`: a placeholder in the pattern of a conditional type, else E0345.
+ *
+ * @param c the checker
+ * @param name `U`
+ * @param span where it is written
+ * @returns the placeholder
+ */
+pub fn inferType(c: mut Checker, name: Symbol, span: Span) int {
+    if !c.inferring {
+        c.error("E0345", span, "`infer` is only allowed in the pattern of a conditional type")
+        return ERROR
+    }
+    for i in 0..c.inferNames.len() {
+        if c.inferNames[i].0 == name.0 {
+            return c.types.param(INFER_BASE + i, name.0)
+        }
+    }
+    c.inferNames.push(name)
+    return c.types.param(INFER_BASE + c.inferNames.len() - 1, name.0)
+}
+
+/**
+ * `if A is B { X } else { Y }`: one branch, resolved with the names `B`
+ * infers when it is `X`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param test `A is B`, or another condition
+ * @param then `X`
+ * @param otherwise `Y`
+ * @returns the type of the branch
+ */
+pub fn condType(c: mut Checker, p: Program, test: &TypeExpr, then: &TypeExpr,
+                otherwise: &TypeExpr) int {
+    var names: List<Symbol> = []
+    var binds: List<int> = []
+    let decided = decide(c, p, test, names, binds)
+    if decided < 0 {
+        return ERROR
+    }
+    if decided == 0 {
+        return resolveType(c, p, otherwise)
+    }
+    for i in 0..names.len() {
+        c.typeVars.push(names[i])
+        c.typeVarTypes.push(binds[i])
+    }
+    let ty = resolveType(c, p, then)
+    for _ in 0..names.len() {
+        c.typeVars.pop()
+        c.typeVarTypes.pop()
+    }
+    return ty
+}
+
+/**
+ * `A is B` as a type: `true` or `false`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param test `A is B`
+ * @returns its type
+ */
+pub fn isType(c: mut Checker, p: Program, test: &TypeExpr) int {
+    var names: List<Symbol> = []
+    var binds: List<int> = []
+    let decided = decide(c, p, test, names, binds)
+    if decided < 0 {
+        return ERROR
+    }
+    return boolType(c, decided == 1)
+}
+
+/**
+ * Decides a condition: 1 when it holds, 0 when not, -1 after an error.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param test the condition
+ * @param names the names `infer` binds in it
+ * @param binds their types, when it holds
+ * @returns 1, 0 or -1
+ */
+pub fn decide(c: mut Checker, p: Program, test: &TypeExpr, names: mut List<Symbol>,
+              binds: mut List<int>) int {
+    match test.kind {
+        TypeKind.Is(left, pattern) => {
+            return decideIs(c, p, &*left, &*pattern, names, binds)
+        }
+        _ => {}
+    }
+    let ty = resolveType(c, p, test)
+    if ty == ERROR {
+        return -1
+    }
+    let t = c.types.get(ty)
+    if t.kind == TyKind.Bool && t.data > 0 {
+        return if t.data == 1 { 1 } else { 0 }
+    }
+    if t.hasParam {
+        return notDecided(c, test.span, ty)
+    }
+    c.error("E0344", test.span, "a condition must be `true` or `false`, found "
+            + "`{c.typeName(ty)}`")
+    return -1
+}
+
+// `A is B`.
+fn decideIs(c: mut Checker, p: Program, left: &TypeExpr, pattern: &TypeExpr,
+            names: mut List<Symbol>, binds: mut List<int>) int {
+    let ty = resolveType(c, p, left)
+    if ty == ERROR {
+        return -1
+    }
+    let wasInferring = c.inferring
+    let outer = c.inferNames.clone()
+    c.inferring = true
+    c.inferNames = []
+    let shape = resolveType(c, p, pattern)
+    c.inferring = wasInferring
+    let inferred = c.inferNames.clone()
+    c.inferNames = outer
+    if shape == ERROR {
+        return -1
+    }
+    if c.types.get(ty).hasParam {
+        return notDecided(c, left.span, ty)
+    }
+    var found: List<int> = []
+    for _ in 0..inferred.len() {
+        found.push(-1)
+    }
+    if !unify(c, shape, ty, found) {
+        return 0
+    }
+    for i in 0..inferred.len() {
+        names.push(inferred[i])
+        binds.push(found[i])
+    }
+    return 1
+}
+
+// E0344 for a condition on a type parameter.
+fn notDecided(c: mut Checker, span: Span, ty: int) int {
+    c.error("E0344", span, "the condition of a conditional type is not decided for "
+            + "`{c.typeName(ty)}`")
+    return -1
+}
+
+// Whether `ty` matches the pattern `shape`, binding its placeholders in `found`.
+fn unify(c: mut Checker, shape: int, ty: int, found: mut List<int>) bool {
+    if shape == ty {
+        return true
+    }
+    if !c.types.get(shape).hasParam {
+        return false
+    }
+    let kind = c.types.kind(shape)
+    let data = c.types.get(shape).data
+    if kind == TyKind.Param && data >= INFER_BASE {
+        let slot = data - INFER_BASE
+        if found[slot] < 0 {
+            found[slot] = ty
+            return true
+        }
+        return found[slot] == ty
+    }
+    let count = c.types.get(shape).args.len()
+    if kind != c.types.kind(ty) || data != c.types.get(ty).data ||
+       count != c.types.get(ty).args.len() {
+        return false
+    }
+    let inner = c.types.get(shape).inner
+    let tyInner = c.types.get(ty).inner
+    let nested = kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
+                 kind == TyKind.Array || kind == TyKind.Fn
+    if nested && !unify(c, inner, tyInner, found) {
+        return false
+    }
+    if !nested && inner != tyInner {
+        return false
+    }
+    for i in 0..count {
+        let arg = c.types.get(shape).args[i]
+        let tyArg = c.types.get(ty).args[i]
+        if !unify(c, arg, tyArg, found) {
+            return false
+        }
+    }
+    return true
+}
