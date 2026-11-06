@@ -1311,7 +1311,8 @@ fn checkAsserts(c: mut Checker, p: Program, index: int) {
 }
 
 /**
- * A `@test` function that this build does not check (spec 12.2).
+ * A `@test` or `@bench` function that this build does not check (spec 12.2,
+ * 12.3).
  *
  * @param c the checker
  * @param p the program
@@ -1323,11 +1324,14 @@ pub fn skippedTest(c: Checker, p: Program, item: &Item) bool {
         ItemKind.Fn(_) => true
         _ => false
     }
-    if !isFn || findAttribute(c.r, item.attributes, "test").isNone() {
+    let test = isFn && findAttribute(c.r, item.attributes, "test").isSome()
+    let bench = isFn && findAttribute(c.r, item.attributes, "bench").isSome()
+    if !test && !bench {
         return false
     }
+    let wanted = (test && !c.r.benching) || (bench && c.r.benching)
     let tested = c.module() == 0 || !moduleInStd(p, c.module())
-    return !c.r.testing || !tested
+    return !c.r.testing || !tested || !wanted
 }
 
 /**

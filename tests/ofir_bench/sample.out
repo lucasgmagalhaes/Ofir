@@ -1,0 +1,3 @@
+bench sample.benchSum ... N ns/iter (N iterations)
+
+1 benchmarks: 1 ran, 0 failed

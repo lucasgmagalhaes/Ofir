@@ -49,7 +49,12 @@ def parse_doc(lines: list, end: int, start: int) -> Doc:
         text = re.sub(r"^\*\s?", "", text)
         body.append(text)
     doc = Doc("\n".join(body).strip(), start + 1)
+    fenced = False
     for i, text in enumerate(body):
+        if text.startswith("```"):
+            fenced = not fenced
+        if fenced:
+            continue   # an attribute in an example is code, not a tag
         for m in re.finditer(r"(?:^|\s)(@\w+)\s*(\S*)", text):
             if m.group(1) in TAGS or text.startswith(m.group(1)):
                 doc.tags.append((m.group(1), m.group(2), start + 1 + i))

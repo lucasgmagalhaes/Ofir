@@ -29,6 +29,8 @@ pub struct CfgTarget {
     pub debug: bool
     /** `test`: the program is built by `ofir test`. */
     pub test: bool
+    /** The program is built by `ofir bench`: not a `@cfg` condition. */
+    pub bench: bool
 }
 
 // The value of `os == value` or `arch == value`; `None` if `name` is not

@@ -1,0 +1,19 @@
+// requires: stage1
+// `@bench` functions take `b: mut Bencher` and return nothing (spec 12.3),
+// which every build checks, although only `ofir bench` compiles them.
+
+@bench                           // error[E0206]: a `@bench` function takes one parameter, `b: mut Bencher`, and returns nothing
+fn takesNothing() {
+}
+
+@bench                           // error[E0206]: a `@bench` function takes one parameter, `b: mut Bencher`, and returns nothing
+fn borrows(b: Bencher) {
+}
+
+@bench                           // error[E0206]: a `@bench` function takes one parameter, `b: mut Bencher`, and returns nothing
+fn returnsAValue(b: mut Bencher) int {
+    return 1
+}
+
+fn main() {
+}

@@ -116,6 +116,7 @@ const uint8_t *ofir_arch_name(int64_t *len);   // "x86_64", "aarch64"
 const uint8_t *ofir_env(const uint8_t *name, int64_t len, int64_t *value_len);   // NULL: unset
 _Noreturn void ofir_exit(int64_t code);
 int64_t ofir_test_index(void);   // the test `ofir test` asked for, or -1
+int64_t ofir_now_ns(void);       // a monotonic clock, in nanoseconds
 int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run);
 char *ofir_c_string(const uint8_t *ptr, int64_t len);   // NULL if it holds a NUL
 

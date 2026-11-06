@@ -6,8 +6,9 @@ struct Block {
     x: int
 }
 
-@bench   // error[E0901]: the attribute `@bench` is not supported yet
-fn f() {
+struct Row {
+    @tag("json", "id")   // error[E0901]: the attribute `@tag` is not supported yet
+    id: int
 }
 
 fn main() {
