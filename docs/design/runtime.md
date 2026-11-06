@@ -17,6 +17,7 @@ LLVM IR. Its interface is `runtime/include/ofir_rt.h`.
 | Files | thin wrappers over `open`, `read`, `write`, `stat`, `mkdir`, `unlink`, `opendir`, `getline` |
 | Processes | `ofir_run`: `posix_spawnp` with both output streams captured (needed for the compiler to invoke clang) |
 | Tasks | `ofir_task_spawn`, `ofir_task_join`: one POSIX thread per task (`std.task`, spec 14.2) |
+| Channels | `ofir_channel_new`, `_send`, `_recv`, `_try_recv` and the sender and receiver counts (`std.sync`, spec 14.4) |
 
 Stage 0 implements the entry point, the panic functions, the allocator,
 the standard output buffer and the string functions used by
@@ -80,6 +81,17 @@ on the heap, and the thread calls back into Ofir through
 whole process, as a panic on the main thread does, and a stack overflow in
 a task is not yet reported as one: the guard handler of section 3 covers
 the main thread only.
+
+### Channels
+
+`channel.c`, linked only into programs that use `std.sync`, keeps a queue
+of pointers under a mutex, with a condition variable that `recv` waits on.
+`std.sync` moves each value to memory of its own before `send` and back
+out after `recv`, so the runtime never knows a value's type. The channel
+counts its senders and knows whether the receiver is alive. The receiver
+closes the channel first, so that later sends fail and drop their value,
+then drops what it never took; the last of the senders and the receiver to
+go frees the channel.
 
 ## 3. Stack overflow
 
