@@ -88,6 +88,19 @@ pub fn typeText(t: &TypeExpr, names: Interner) str {
         TypeKind.Dyn(inner) => "dyn {typeText(&*inner, names)}"
         TypeKind.Optional(inner) => "{typeText(&*inner, names)}?"
         TypeKind.Never => "!".toOwned()
+        TypeKind.KeyOf(inner) => "keyof {typeText(&*inner, names)}"
+        TypeKind.Key(name) => ".{names.name(name)}"
+        TypeKind.KeyOp(op, left, right) => {
+            let symbol = if op == Op.Or {
+                "|"
+            } else if op == Op.And {
+                "&"
+            } else {
+                "-"
+            }
+            "({typeText(&*left, names)} {symbol} {typeText(&*right, names)})"
+        }
+        TypeKind.Index(base, key) => "{typeText(&*base, names)}[{typeText(&*key, names)}]"
     }
 }
 

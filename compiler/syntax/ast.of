@@ -80,6 +80,14 @@ pub enum TypeKind {
     Optional(inner: Box<TypeExpr>)
     /** `!` */
     Never
+    /** `keyof T` (spec 16.1) */
+    KeyOf(inner: Box<TypeExpr>)
+    /** A key literal: `.x`, or `.0` with the index as its name. */
+    Key(name: Symbol)
+    /** `A | B`, `A & B`, `A - B` on key types (`Op.Or`, `Op.And`, `Op.Sub`). */
+    KeyOp(op: Op, left: Box<TypeExpr>, right: Box<TypeExpr>)
+    /** `T[K]`, an indexed access type (spec 16.3) */
+    Index(base: Box<TypeExpr>, key: Box<TypeExpr>)
 }
 
 // ---------------------------------------------------------------------------
