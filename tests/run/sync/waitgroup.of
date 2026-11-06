@@ -1,0 +1,30 @@
+// requires: stage1
+// `WaitGroup`: waiting for a count of tasks to finish (spec 14.4).
+
+import std.sync.Arc
+import std.sync.AtomicInt
+import std.sync.WaitGroup
+import std.task
+
+fn main() {
+    let group = Arc.new(WaitGroup.new())
+    let done = Arc.new(AtomicInt.new(0))
+    var tasks: List<task.Task<()>> = []
+    for _ in 0..3 {
+        group.get().add(1)
+        let g = group.clone()
+        let d = done.clone()
+        tasks.push(task.run(move () => {
+            d.get().fetchAdd(1)
+            g.get().done()
+        }))
+    }
+    group.get().wait()
+    println("{done.get().load()}")
+    for _ in 0..3 {
+        tasks.pop().unwrap().join()
+    }
+    let empty = WaitGroup.new()
+    empty.wait()
+    println("an empty group does not wait")
+}

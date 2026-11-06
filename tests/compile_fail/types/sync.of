@@ -1,0 +1,19 @@
+// requires: stage1
+// An `Arc` shares its value between tasks, so the value must be `Send` and
+// `Sync`; a `Cell` is never `Sync` (spec 14.3, 14.4).
+
+import std.mem.cell.Cell
+import std.sync.Arc
+
+struct Raw {
+    p: *int,
+}
+
+unsafe fn raw() Raw {
+    return Raw{p: 0 as *int}
+}
+
+fn main() {
+    let _ = Arc.new(Cell.new(1))   // error[E0332]: `Cell<int>` does not satisfy the bound `Sync`
+    let _ = Arc.new(unsafe { raw() })   // error[E0332]: `Raw` does not satisfy the bound `Send`
+}

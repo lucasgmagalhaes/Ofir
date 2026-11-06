@@ -1,0 +1,34 @@
+// requires: stage1
+// `AtomicInt` and `AtomicBool` shared between tasks through an `Arc`
+// (spec 14.4).
+
+import std.sync.Arc
+import std.sync.AtomicBool
+import std.sync.AtomicInt
+import std.task
+
+fn main() {
+    let counter = Arc.new(AtomicInt.new(0))
+    var tasks: List<task.Task<()>> = []
+    for _ in 0..4 {
+        let mine = counter.clone()
+        tasks.push(task.run(move () => {
+            for _ in 0..1000 {
+                mine.get().fetchAdd(1)
+            }
+        }))
+    }
+    for _ in 0..4 {
+        tasks.pop().unwrap().join()
+    }
+    let n = counter.get()
+    println("{n.load()}")
+    println("{n.swap(7)} {n.load()}")
+    println("{n.compareExchange(7, 8)} {n.compareExchange(7, 9)} {n.load()}")
+    n.store(-1)
+    println("{n.fetchAdd(2)} {n.load()}")
+    let flag = AtomicBool.new(false)
+    println("{flag.load()} {flag.swap(true)} {flag.load()}")
+    flag.store(false)
+    println("{flag.load()}")
+}

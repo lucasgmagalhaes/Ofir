@@ -1,10 +1,13 @@
 /**
  * @module
- * `std.sync`: channels between tasks (spec 14.4).
+ * `std.sync`: channels, locks, atomics, shared ownership and wait groups
+ * for tasks (spec 14.4).
  *
  * Only stage 1 compiles this module: it needs `Send` (spec 14.3).
  */
 // requires: stage1 (Send, roadmap 6.1b)
+
+import std.mem.cell.UnsafeCell
 
 @link("pthread")
 extern "C" {
@@ -19,6 +22,24 @@ extern "C" {
     fn ofir_channel_drop_sender(ch: *mut u8)
     fn ofir_channel_close(ch: *mut u8)
     fn ofir_channel_drop_receiver(ch: *mut u8)
+    fn ofir_atomic_load(p: *mut int) int
+    fn ofir_atomic_store(p: *mut int, value: int)
+    fn ofir_atomic_fetch_add(p: *mut int, delta: int) int
+    fn ofir_atomic_swap(p: *mut int, value: int) int
+    fn ofir_atomic_compare_exchange(p: *mut int, expected: int, desired: int) bool
+    fn ofir_mutex_new() *mut u8
+    fn ofir_mutex_lock(m: *mut u8)
+    fn ofir_mutex_unlock(m: *mut u8)
+    fn ofir_mutex_free(m: *mut u8)
+    fn ofir_rwlock_new() *mut u8
+    fn ofir_rwlock_read(l: *mut u8)
+    fn ofir_rwlock_write(l: *mut u8)
+    fn ofir_rwlock_unlock(l: *mut u8)
+    fn ofir_rwlock_free(l: *mut u8)
+    fn ofir_waitgroup_new() *mut u8
+    fn ofir_waitgroup_add(wg: *mut u8, delta: int) bool
+    fn ofir_waitgroup_wait(wg: *mut u8)
+    fn ofir_waitgroup_free(wg: *mut u8)
 }
 
 extern "intrinsic" {
@@ -178,4 +199,509 @@ pub struct Receiver<T> {
 pub fn channel<T: Send>() (Sender<T>, Receiver<T>) {
     let ch = unsafe { ofir_channel_new() }
     return (Sender{ch: ch}, Receiver{ch: ch})
+}
+
+/**
+ * An `int` that several tasks may read and change at once, without a lock.
+ * Every operation is sequentially consistent. Tasks share it through an
+ * `Arc`.
+ *
+ * @example
+ * ```ofir
+ * import std.sync.AtomicInt
+ *
+ * let hits = AtomicInt.new(0)
+ * hits.fetchAdd(2)
+ * let old = hits.swap(10)   // old == 2, hits.load() == 10
+ * ```
+ */
+@threadsafe
+pub struct AtomicInt {
+    cell: UnsafeCell<int>
+
+    /**
+     * An atomic holding a value.
+     *
+     * @param value the first value
+     * @returns the atomic
+     */
+    pub fn new(value: int) AtomicInt {
+        return AtomicInt{cell: UnsafeCell.new(value)}
+    }
+
+    /**
+     * Reads the value.
+     *
+     * @returns the current value
+     */
+    pub fn load(self) int {
+        return unsafe { ofir_atomic_load(self.cell.get()) }
+    }
+
+    /**
+     * Replaces the value.
+     *
+     * @param value the new value
+     */
+    pub fn store(self, value: int) {
+        unsafe {
+            ofir_atomic_store(self.cell.get(), value)
+        }
+    }
+
+    /**
+     * Adds to the value, wrapping on overflow.
+     *
+     * @param delta the amount added, negative to subtract
+     * @returns the value before the addition
+     */
+    pub fn fetchAdd(self, delta: int) int {
+        return unsafe { ofir_atomic_fetch_add(self.cell.get(), delta) }
+    }
+
+    /**
+     * Replaces the value.
+     *
+     * @param value the new value
+     * @returns the value it replaced
+     */
+    pub fn swap(self, value: int) int {
+        return unsafe { ofir_atomic_swap(self.cell.get(), value) }
+    }
+
+    /**
+     * Replaces the value only if it is `expected`.
+     *
+     * @param expected the value the atomic must hold
+     * @param desired the value it then holds
+     * @returns true if the value was replaced
+     */
+    pub fn compareExchange(self, expected: int, desired: int) bool {
+        return unsafe { ofir_atomic_compare_exchange(self.cell.get(), expected, desired) }
+    }
+}
+
+/**
+ * A `bool` that several tasks may read and change at once, without a
+ * lock: a flag such as "stop now". Every operation is sequentially
+ * consistent.
+ *
+ * @example
+ * ```ofir
+ * import std.sync.AtomicBool
+ *
+ * let stop = AtomicBool.new(false)
+ * stop.store(true)   // stop.load() == true
+ * ```
+ */
+@threadsafe
+pub struct AtomicBool {
+    cell: UnsafeCell<int>
+
+    /**
+     * An atomic holding a value.
+     *
+     * @param value the first value
+     * @returns the atomic
+     */
+    pub fn new(value: bool) AtomicBool {
+        return AtomicBool{cell: UnsafeCell.new(if value { 1 } else { 0 })}
+    }
+
+    /**
+     * Reads the value.
+     *
+     * @returns the current value
+     */
+    pub fn load(self) bool {
+        return unsafe { ofir_atomic_load(self.cell.get()) != 0 }
+    }
+
+    /**
+     * Replaces the value.
+     *
+     * @param value the new value
+     */
+    pub fn store(self, value: bool) {
+        unsafe {
+            ofir_atomic_store(self.cell.get(), if value { 1 } else { 0 })
+        }
+    }
+
+    /**
+     * Replaces the value.
+     *
+     * @param value the new value
+     * @returns the value it replaced
+     */
+    pub fn swap(self, value: bool) bool {
+        return unsafe { ofir_atomic_swap(self.cell.get(), if value { 1 } else { 0 }) != 0 }
+    }
+}
+
+// What an `Arc` points to: the count of its owners and the value.
+struct ArcInner<T> {
+    count: int
+    value: T
+}
+
+/**
+ * A value shared by several owners, possibly in different tasks: each
+ * `clone` is another owner of the same value, and the last owner to go
+ * drops it. The count is atomic. The value is read-only: shared mutation
+ * goes through a `Mutex`, an `RwLock` or an atomic inside the `Arc`.
+ *
+ * @typeParam T the type of the value; shared between tasks, it must be
+ *            `Send` and `Sync`
+ * @example
+ * ```ofir
+ * import std.sync.Arc
+ * import std.task
+ *
+ * let names = Arc.new(["ana", "bia"])
+ * let mine = names.clone()
+ * let t = task.run(move () int => mine.get().len())
+ * println("{t.join()} {names.get()[0]}")   // 2 ana
+ * ```
+ */
+@threadsafe
+pub struct Arc<T: Send + Sync> {
+    inner: *mut ArcInner<T>
+
+    /**
+     * Moves a value to the heap, with one owner.
+     *
+     * @param value the value to share
+     * @returns the first owner
+     */
+    pub fn new(value: move T) Arc<T> {
+        return Arc{inner: boxed(ArcInner{count: 1, value})}
+    }
+
+    /**
+     * The shared value.
+     *
+     * @returns a borrow of the value, as long as this owner lives
+     */
+    pub fn get(self) &T {
+        return unsafe { &(*self.inner).value }
+    }
+
+    /**
+     * Another owner of the same value; the value itself is not copied.
+     *
+     * @returns the new owner
+     */
+    pub fn clone(self) Arc<T> {
+        unsafe {
+            ofir_atomic_fetch_add(self.count(), 1)
+        }
+        return Arc{inner: self.inner}
+    }
+
+    /**
+     * How many owners the value has. Other tasks may change it at any
+     * moment, so it is a hint, not a guarantee.
+     *
+     * @returns the number of owners
+     */
+    pub fn owners(self) int {
+        return unsafe { ofir_atomic_load(self.count()) }
+    }
+
+    // The address of the count.
+    unsafe fn count(self) *mut int {
+        return &(*self.inner).count as *int as *mut int
+    }
+
+    // The last owner drops the value and frees the memory.
+    fn drop(mut self) {
+        unsafe {
+            if ofir_atomic_fetch_add(self.count(), -1) == 1 {
+                dropInPlace(self.inner)
+                ofir_free(self.inner as *mut u8)
+            }
+        }
+    }
+}
+
+/**
+ * A value that tasks change one at a time. The value lives inside the
+ * mutex and is reached only through the guard that `lock` returns; the
+ * mutex is unlocked when the guard is dropped. Tasks share it through an
+ * `Arc`.
+ *
+ * Locking a mutex again in the task that holds it waits forever.
+ *
+ * @typeParam T the type of the value
+ * @example
+ * ```ofir
+ * import std.sync.Mutex
+ *
+ * let names = Mutex.new(List<str>.new())
+ * {
+ *     var guard = names.lock()
+ *     guard.getMut().push("ana")
+ * }   // unlocked here
+ * println("{names.lock().get().len()}")   // 1
+ * ```
+ */
+@threadsafe
+pub struct Mutex<T> {
+    raw: *mut u8
+    cell: UnsafeCell<T>
+
+    /**
+     * A mutex holding a value, unlocked.
+     *
+     * @param value the value to guard
+     * @returns the mutex
+     */
+    pub fn new(value: move T) Mutex<T> {
+        return Mutex{raw: unsafe { ofir_mutex_new() }, cell: UnsafeCell.new(value)}
+    }
+
+    /**
+     * Waits until no other task holds the mutex, then holds it.
+     *
+     * @returns the guard that reaches the value and unlocks on drop
+     */
+    pub fn lock(self) MutexGuard<T> {
+        unsafe {
+            ofir_mutex_lock(self.raw)
+        }
+        return MutexGuard{mutex: &self}
+    }
+
+    fn drop(mut self) {
+        unsafe {
+            ofir_mutex_free(self.raw)
+        }
+    }
+}
+
+/**
+ * Proof that a task holds a `Mutex`: the value is reachable through it,
+ * and dropping it unlocks the mutex.
+ *
+ * @typeParam T the type of the value
+ */
+pub ref struct MutexGuard<T> {
+    mutex: &Mutex<T>
+
+    /**
+     * Reads the value.
+     *
+     * @returns a borrow of the value, as long as the guard lives
+     */
+    pub fn get(self) &T {
+        return unsafe { &*self.mutex.cell.get() }
+    }
+
+    /**
+     * Changes the value.
+     *
+     * @returns a mutable borrow of the value, as long as the guard lives
+     */
+    pub fn getMut(mut self) &mut T {
+        return unsafe { &mut *self.mutex.cell.get() }
+    }
+
+    fn drop(mut self) {
+        unsafe {
+            ofir_mutex_unlock(self.mutex.raw)
+        }
+    }
+}
+
+/**
+ * A value that many tasks may read at once, or one task may change: a
+ * reader-writer lock. `read` and `write` return guards that unlock on
+ * drop. Tasks share it through an `Arc`.
+ *
+ * @typeParam T the type of the value
+ * @example
+ * ```ofir
+ * import std.sync.RwLock
+ *
+ * let config = RwLock.new("fast")
+ * {
+ *     var w = config.write()
+ *     *w.getMut() = "safe"
+ * }
+ * println("{config.read().get()}")   // safe
+ * ```
+ */
+@threadsafe
+pub struct RwLock<T> {
+    raw: *mut u8
+    cell: UnsafeCell<T>
+
+    /**
+     * A lock holding a value, unlocked.
+     *
+     * @param value the value to guard
+     * @returns the lock
+     */
+    pub fn new(value: move T) RwLock<T> {
+        return RwLock{raw: unsafe { ofir_rwlock_new() }, cell: UnsafeCell.new(value)}
+    }
+
+    /**
+     * Waits until no task writes, then reads alongside the other readers.
+     *
+     * @returns the guard that reads the value and unlocks on drop
+     */
+    pub fn read(self) ReadGuard<T> {
+        unsafe {
+            ofir_rwlock_read(self.raw)
+        }
+        return ReadGuard{lock: &self}
+    }
+
+    /**
+     * Waits until no other task reads or writes, then holds the lock alone.
+     *
+     * @returns the guard that changes the value and unlocks on drop
+     */
+    pub fn write(self) WriteGuard<T> {
+        unsafe {
+            ofir_rwlock_write(self.raw)
+        }
+        return WriteGuard{lock: &self}
+    }
+
+    fn drop(mut self) {
+        unsafe {
+            ofir_rwlock_free(self.raw)
+        }
+    }
+}
+
+/**
+ * A shared hold on an `RwLock`: the value can be read, and dropping the
+ * guard releases the hold.
+ *
+ * @typeParam T the type of the value
+ */
+pub ref struct ReadGuard<T> {
+    lock: &RwLock<T>
+
+    /**
+     * Reads the value.
+     *
+     * @returns a borrow of the value, as long as the guard lives
+     */
+    pub fn get(self) &T {
+        return unsafe { &*self.lock.cell.get() }
+    }
+
+    fn drop(mut self) {
+        unsafe {
+            ofir_rwlock_unlock(self.lock.raw)
+        }
+    }
+}
+
+/**
+ * The only hold on an `RwLock`: the value can be read and changed, and
+ * dropping the guard releases the hold.
+ *
+ * @typeParam T the type of the value
+ */
+pub ref struct WriteGuard<T> {
+    lock: &RwLock<T>
+
+    /**
+     * Reads the value.
+     *
+     * @returns a borrow of the value, as long as the guard lives
+     */
+    pub fn get(self) &T {
+        return unsafe { &*self.lock.cell.get() }
+    }
+
+    /**
+     * Changes the value.
+     *
+     * @returns a mutable borrow of the value, as long as the guard lives
+     */
+    pub fn getMut(mut self) &mut T {
+        return unsafe { &mut *self.lock.cell.get() }
+    }
+
+    fn drop(mut self) {
+        unsafe {
+            ofir_rwlock_unlock(self.lock.raw)
+        }
+    }
+}
+
+/**
+ * Waits for a group of tasks: `add` counts the work started, each task
+ * calls `done` when it finishes, and `wait` returns once the count is
+ * back to zero. Tasks share it through an `Arc`.
+ *
+ * @example
+ * ```ofir
+ * import std.sync.Arc
+ * import std.sync.WaitGroup
+ * import std.task
+ *
+ * let group = Arc.new(WaitGroup.new())
+ * group.get().add(1)
+ * let mine = group.clone()
+ * let t = task.run(move () => mine.get().done())
+ * group.get().wait()   // returns once the task called done
+ * t.join()
+ * ```
+ */
+@threadsafe
+pub struct WaitGroup {
+    raw: *mut u8
+
+    /**
+     * A group with a count of zero.
+     *
+     * @returns the group
+     */
+    pub fn new() WaitGroup {
+        return WaitGroup{raw: unsafe { ofir_waitgroup_new() }}
+    }
+
+    /**
+     * Adds to the count.
+     *
+     * @param count the amount of work started
+     * @panics when the count would go below zero
+     */
+    pub fn add(self, count: int) {
+        if unsafe { !ofir_waitgroup_add(self.raw, count) } {
+            panic("WaitGroup count below zero")
+        }
+    }
+
+    /**
+     * Counts one piece of work as finished.
+     *
+     * @panics when the count is already zero
+     */
+    pub fn done(self) {
+        self.add(-1)
+    }
+
+    /**
+     * Waits until the count is zero.
+     */
+    pub fn wait(self) {
+        unsafe {
+            ofir_waitgroup_wait(self.raw)
+        }
+    }
+
+    fn drop(mut self) {
+        unsafe {
+            ofir_waitgroup_free(self.raw)
+        }
+    }
 }

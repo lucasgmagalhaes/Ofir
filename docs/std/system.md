@@ -92,6 +92,18 @@ Stage 1 only (spec 14.4).
 
 Dropping the receiver drops the values it never took.
 
+- `Arc<T: Send + Sync>`: `new(value: move T)`, `get(self) &T`,
+  `clone(self) Arc<T>` (another owner), `owners(self) int`. The last owner
+  dropped drops the value.
+- `Mutex<T>`: `new(value: move T)`, `lock(self) MutexGuard<T>`; the guard's
+  `get` and `getMut` reach the value, and dropping it unlocks.
+- `RwLock<T>`: `new(value: move T)`, `read(self) ReadGuard<T>` (`get`),
+  `write(self) WriteGuard<T>` (`get`, `getMut`).
+- `AtomicInt`: `new`, `load`, `store`, `fetchAdd` and `swap` (both return
+  the old value), `compareExchange(expected, desired) bool`.
+- `AtomicBool`: `new`, `load`, `store`, `swap`.
+- `WaitGroup`: `new`, `add(count)` (panics below 0), `done()`, `wait()`.
+
 Stage 0: `std.io`, `std.fs` and `std.os` are written in Ofir over the C
 runtime's `os.c` and `fs.c` (docs/design/runtime.md); `std.io.Buffer` is
 the runtime's result buffer and `io.check(code)` turns a returned `errno`
