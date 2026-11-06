@@ -13,7 +13,7 @@ fn maybe(f: Option<fn(int)>) {
 // A borrow of an inner local that is not used after its block.
 fn innerBlock() {
     const a = [1]
-    var r = &a
+    let r = &a
     {
         const b = [2, 3]
         r = &b

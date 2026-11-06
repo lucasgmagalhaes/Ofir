@@ -3,13 +3,13 @@
 // use, `&mut` if it modifies it (spec 10.3); a `move` closure moves it.
 
 fn main() {
-    var total = 0
+    let total = 0
     const bump = () => {
         total += 1
     }
     println("{total}")                  // error[E0703]: cannot use `total` while it is borrowed as mutable by `bump`
     bump()
-    var count = 0
+    let count = 0
     const read = () => count + 1
     count = 5                           // error[E0704]: cannot assign to `count` while it is borrowed by `read`
     println("{read()}")
