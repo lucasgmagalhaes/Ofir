@@ -175,7 +175,7 @@ static void resolve_struct_literal(Resolver *r, Expr *e) {
 
 static void resolve_if(Resolver *r, Expr *e) {
     resolve_expr(r, e->as.if_.cond);
-    scope_enter(&r->sema->scope);   // `if let` bindings are visible in `then` only
+    scope_enter(&r->sema->scope);   // `if const` bindings are visible in `then` only
     if (e->as.if_.let_pattern) {
         declare_pattern(r, e->as.if_.let_pattern, false);
     }
@@ -275,7 +275,7 @@ void resolve_expr(Resolver *r, Expr *e) {
 // Statements
 
 static void resolve_let(Resolver *r, Stmt *s) {
-    resolve_expr(r, s->as.let.value);   // `let x = x + 1` reads the outer `x`
+    resolve_expr(r, s->as.let.value);   // `const x = x + 1` reads the outer `x`
     if (s->as.let.else_) {
         resolve_block(r, s->as.let.else_);
     }

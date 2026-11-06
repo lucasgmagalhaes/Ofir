@@ -1,4 +1,4 @@
-// Move analysis of patterns, `if let` and `match` (spec 5.1, 5.5): a
+// Move analysis of patterns, `if const` and `match` (spec 5.1, 5.5): a
 // matched owned value is moved into the bindings that take parts of it by
 // move; the bindings of a matched borrowed place borrow.
 
@@ -59,7 +59,7 @@ void moves_pattern_init(Moves *m, const Pattern *p, State *s, bool borrowed) {
     }
 }
 
-// The value matched by `match` or `if let`: an owned place whose parts are
+// The value matched by `match` or `if const`: an owned place whose parts are
 // bound by move is moved; a borrowed place lends its parts to the
 // bindings; a temporary is consumed. Returns whether the bindings borrow.
 static bool scrutinee(Moves *m, Expr *e, State *s, bool by_move) {
