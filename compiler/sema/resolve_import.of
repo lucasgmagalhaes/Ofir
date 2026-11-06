@@ -15,6 +15,8 @@ import sema.program.Program
 import sema.resolve.ImportUse
 import sema.resolve.Resolver
 import sema.resolve_attributes.warnDeprecated
+import sema.complete.completeMember
+import sema.complete.probing
 import sema.suggest.suggestMember
 import sema.trace.traceUse
 import syntax.ast.Expr
@@ -62,6 +64,9 @@ pub fn moduleMember(r: mut Resolver, index: int, name: Symbol, span: Span) int {
         r.error("E0200", span,
                 "cannot find `{r.text(name)}` in module `{r.programName(index)}`")
         suggestMember(r, index, name)
+        if probing(r, name) {
+            completeMember(r, index, false)
+        }
         return 0
     }
     if !r.def(id).isPub {
