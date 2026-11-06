@@ -111,7 +111,7 @@ static void enum_lines(Sema *sema, FILE *out, const Item *item) {
 static void const_line(Sema *sema, FILE *out, const Item *item) {
     DefId id = scope_module(&sema->scope, item->name);
     const Def *def = id.id ? sema_def(sema, id) : NULL;
-    fprintf(out, "%s " SV_FMT ": ", item->kind == ITEM_CONST ? "const" : "var",
+    fprintf(out, "%s " SV_FMT ": ", item->kind == ITEM_CONST ? "const" : "let",
             SV_ARG(name_of(sema, item->name)));
     if (def && def->item == item && def->typed) {
         type_line(sema, out, def->type);
