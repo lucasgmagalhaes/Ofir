@@ -125,9 +125,9 @@ pub copy struct {t} {{
      * ```
      */
     pub fn pow(self, exp: u32) {t} {{
-        var result: {t} = 1
-        var base = self
-        var e = exp
+        let result: {t} = 1
+        let base = self
+        let e = exp
         for e > 0 {{
             if e & 1 == 1 {{
                 result *= base
@@ -154,7 +154,7 @@ UNSIGNED_CHECKED = (
     CHECKED_DOC.format(verb="Adds", operand="value to add", op="+", when="on overflow", t="{t}")
     + """
     pub fn checkedAdd(self, other: {t}) Option<{t}> {{
-        let sum = self.wrappingAdd(other)
+        const sum = self.wrappingAdd(other)
         return if sum < self {{ .None }} else {{ .Some(sum) }}
     }}
 """ + CHECKED_DOC.format(verb="Subtracts", operand="value to subtract", op="-",
@@ -165,7 +165,7 @@ UNSIGNED_CHECKED = (
 """ + CHECKED_DOC.format(verb="Multiplies", operand="value to multiply by", op="*",
                          when="on overflow", t="{t}") + """
     pub fn checkedMul(self, other: {t}) Option<{t}> {{
-        let product = self.wrappingMul(other)
+        const product = self.wrappingMul(other)
         return if self != 0 && product / self != other {{ .None }} else {{ .Some(product) }}
     }}
 """ + CHECKED_DOC.format(verb="Divides", operand="divisor", op="/", when="when `other` is 0",
@@ -179,15 +179,15 @@ SIGNED_CHECKED = (
     CHECKED_DOC.format(verb="Adds", operand="value to add", op="+", when="on overflow", t="{t}")
     + """
     pub fn checkedAdd(self, other: {t}) Option<{t}> {{
-        let sum = self.wrappingAdd(other)
-        let overflow = (self >= 0) == (other >= 0) && (sum >= 0) != (self >= 0)
+        const sum = self.wrappingAdd(other)
+        const overflow = (self >= 0) == (other >= 0) && (sum >= 0) != (self >= 0)
         return if overflow {{ .None }} else {{ .Some(sum) }}
     }}
 """ + CHECKED_DOC.format(verb="Subtracts", operand="value to subtract", op="-",
                          when="on overflow", t="{t}") + """
     pub fn checkedSub(self, other: {t}) Option<{t}> {{
-        let difference = self.wrappingSub(other)
-        let overflow = (self >= 0) != (other >= 0) && (difference >= 0) != (self >= 0)
+        const difference = self.wrappingSub(other)
+        const overflow = (self >= 0) != (other >= 0) && (difference >= 0) != (self >= 0)
         return if overflow {{ .None }} else {{ .Some(difference) }}
     }}
 """ + CHECKED_DOC.format(verb="Multiplies", operand="value to multiply by", op="*",
@@ -199,7 +199,7 @@ SIGNED_CHECKED = (
         if (self == -1 && other == {t}.MIN) || (other == -1 && self == {t}.MIN) {{
             return .None
         }}
-        let product = self.wrappingMul(other)
+        const product = self.wrappingMul(other)
         return if product / other != self {{ .None }} else {{ .Some(product) }}
     }}
 """ + CHECKED_DOC.format(verb="Divides", operand="divisor", op="/",
@@ -225,27 +225,27 @@ INT_PARSE = """
      * ```
      */
     pub fn parse(text: str) Result<{t}, ParseError> {{
-        let negative = text.len() > 0 && text[0] == b'-'
-        let start = if negative || (text.len() > 0 && text[0] == b'+') {{ 1 }} else {{ 0 }}
+        const negative = text.len() > 0 && text[0] == b'-'
+        const start = if negative || (text.len() > 0 && text[0] == b'+') {{ 1 }} else {{ 0 }}
         if start == text.len(){negative_check} {{
             return .Err(ParseError{{}})
         }}
-        var value: {t} = 0
+        let value: {t} = 0
         for i in start..text.len() {{
-            let c = text[i]
+            const c = text[i]
             if c < b'0' || c > b'9' {{
                 return .Err(ParseError{{}})
             }}
-            let digit = (c - b'0') as {t}
-            let .Some(shifted) = value.checkedMul(10) else {{
+            const digit = (c - b'0') as {t}
+            const .Some(shifted) = value.checkedMul(10) else {{
                 return .Err(ParseError{{}})
             }}
-            let next = if negative {{
+            const next = if negative {{
                 shifted.checkedSub(digit)
             }} else {{
                 shifted.checkedAdd(digit)
             }}
-            let .Some(updated) = next else {{
+            const .Some(updated) = next else {{
                 return .Err(ParseError{{}})
             }}
             value = updated
@@ -381,11 +381,11 @@ pub copy struct {t} {{
         if text.len() == 0 || text[0] == b' ' || (text[0] >= 9 && text[0] <= 13) {{
             return .Err(ParseError{{}})
         }}
-        var terminated = text.toOwned()
+        let terminated = text.toOwned()
         terminated.push("\\0")
-        var end = terminated.asPtr()
-        let value = unsafe {{ strto{c}(terminated.asPtr(), &mut end as *mut *u8) }}
-        let used = unsafe {{ end as u64 }} - unsafe {{ terminated.asPtr() as u64 }}
+        let end = terminated.asPtr()
+        const value = unsafe {{ strto{c}(terminated.asPtr(), &mut end as *mut *u8) }}
+        const used = unsafe {{ end as u64 }} - unsafe {{ terminated.asPtr() as u64 }}
         if used != text.len() as u64 {{
             return .Err(ParseError{{}})
         }}
