@@ -1,0 +1,33 @@
+// requires: stage1
+// `Arc`: shared ownership across tasks; the value is dropped once, by its
+// last owner (spec 14.4).
+
+import std.sync.Arc
+import std.task
+
+struct Noisy {
+    name: str
+
+    fn drop(mut self) {
+        println("drop {self.name}")
+    }
+}
+
+fn main() {
+    let shared = Arc.new(Noisy{name: "ana"})
+    println("{shared.owners()}")
+    let other = shared.clone()
+    println("{shared.owners()} {other.get().name}")
+    let t = task.run(move () str => {
+        return "task saw {other.get().name}"
+    })
+    println(t.join())
+    println("{shared.owners()}")
+    {
+        let _a = shared.clone()
+        let _b = shared.clone()
+        println("{shared.owners()}")
+    }
+    println("{shared.owners()}")
+    println("end of main")
+}
