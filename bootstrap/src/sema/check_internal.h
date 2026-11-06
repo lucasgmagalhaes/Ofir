@@ -269,7 +269,7 @@ void check_exhaustive(Checker *c, Expr *e, TypeId type);
 // check_pattern.c
 // Checks `p` against a value of `type` and gives its bindings their types.
 void check_pattern(Checker *c, Pattern *p, TypeId type);
-// Whether `p` matches every value of its type (`let` needs such a pattern).
+// Whether `p` matches every value of its type (`const` needs such a pattern).
 bool pattern_irrefutable(Checker *c, const Pattern *p);
 
 // check_stmt.c

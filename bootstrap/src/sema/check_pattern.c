@@ -1,5 +1,5 @@
-// Type checking of patterns (spec appendix A.7), for `let`, `match` and
-// `if let`.
+// Type checking of patterns (spec appendix A.7), for `const`, `match` and
+// `if const`.
 
 #include "sema/check_internal.h"
 #include "sema/suggest.h"

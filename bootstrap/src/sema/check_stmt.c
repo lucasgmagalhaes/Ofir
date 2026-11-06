@@ -19,7 +19,7 @@ static TypeId let_stmt(Checker *c, Stmt *s) {
     TypeId found = s->as.let.type ? coerce(c, s->as.let.value, type)
                                   : check_expr(c, s->as.let.value, NO_TYPE);
     check_pattern(c, pattern, s->as.let.type ? type : found);
-    if (s->as.let.else_) {   // `let pattern = value else { ... }` (spec 4.6)
+    if (s->as.let.else_) {   // `const pattern = value else { ... }` (spec 4.6)
         TypeId other = check_block(c, s->as.let.else_, NO_TYPE, false);
         if (other.id != TID_NEVER) {
             check_error(c, "E0307", s->as.let.else_->span,
@@ -223,7 +223,7 @@ static TypeId join(Checker *c, Expr *e, TypeId expected, TypeId then, TypeId els
 }
 
 TypeId check_if(Checker *c, Expr *e, TypeId expected, bool as_value) {
-    if (e->as.if_.let_pattern) {   // `if let pattern = value`
+    if (e->as.if_.let_pattern) {   // `if const pattern = value`
         check_pattern(c, e->as.if_.let_pattern, check_expr(c, e->as.if_.cond, NO_TYPE));
     } else {
         coerce(c, e->as.if_.cond, type_id(TID_BOOL));
