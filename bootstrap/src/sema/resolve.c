@@ -155,6 +155,7 @@ static DefId *named_lang(Resolver *r, const Attribute *attr) {
                   : sv_eq(name, SV("option")) ? &r->sema->option
                   : sv_eq(name, SV("result")) ? &r->sema->result
                   : sv_eq(name, SV("slice"))  ? &r->sema->slice
+                  : sv_eq(name, SV("slice_mut")) ? &r->sema->slice_mut
                   : sv_eq(name, SV("map"))    ? &r->sema->map
                                               : NULL;
     return slot && slot->id == 0 ? slot : NULL;

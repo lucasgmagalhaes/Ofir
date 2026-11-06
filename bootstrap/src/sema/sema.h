@@ -104,6 +104,7 @@ typedef struct {
     DefId list;          // `@lang("list") struct List<T>`: literals, indexing, `for`
     DefId option, result;   // `@lang("option")`, `@lang("result")`: `?`, `??`, bare variants
     DefId slice;         // `@lang("slice") ref struct Slice<T>`: the type `&[T]`
+    DefId slice_mut;     // `@lang("slice_mut") ref struct SliceMut<T>`: `&mut [T]`
     DefId map;           // `@lang("map") struct Map<K, V>`: `for key, value in map`
     FILE *trace;         // --emit=names: where the root module's resolutions go
     bool testing;        // `ofir test`: the `@test` functions are the roots, not `main`
