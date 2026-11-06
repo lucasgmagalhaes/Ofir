@@ -56,12 +56,12 @@ fn normalize(c: Checker, ty: int, bits: u64) u64 {
     if !isInt(c, ty) {
         return bits & 1
     }
-    let width = intBits(c.types.get(ty).data)
+    const width = intBits(c.types.get(ty).data)
     if width == 64 {
         return bits
     }
-    let mask = (1 as u64 << width as u64) - 1
-    let low = bits & mask
+    const mask = (1 as u64 << width as u64) - 1
+    const low = bits & mask
     if isSigned(c, ty) && (low >> (width - 1) as u64) & 1 == 1 {
         return low | (ONES ^ mask)
     }
@@ -85,10 +85,10 @@ fn known(f: &Folder, c: Checker, o: &Operand) Option<u64> {
 
 // Whether the known value `v` of int type `from` lies outside int type `to`.
 fn castFails(c: Checker, from: int, to: int, v: u64) bool {
-    let t = intBits(c.types.get(to).data)
-    let one: u64 = 1
+    const t = intBits(c.types.get(to).data)
+    const one: u64 = 1
     if isSigned(c, from) && v.wrappingCast<i64>() < 0 {
-        let min = if t == 64 { i64.MIN } else { 0 - ((one << ((t - 1) as u64)) as i64) }
+        const min = if t == 64 { i64.MIN } else { 0 - ((one << ((t - 1) as u64)) as i64) }
         return !isSigned(c, to) || v.wrappingCast<i64>() < min
     }
     var max = ONES
@@ -101,8 +101,8 @@ fn castFails(c: Checker, from: int, to: int, v: u64) bool {
 }
 
 fn compare(op: Op, a: u64, b: u64, sign: bool) Option<bool> {
-    let lt = if sign { a.wrappingCast<i64>() < b.wrappingCast<i64>() } else { a < b }
-    let gt = if sign { a.wrappingCast<i64>() > b.wrappingCast<i64>() } else { a > b }
+    const lt = if sign { a.wrappingCast<i64>() < b.wrappingCast<i64>() } else { a < b }
+    const gt = if sign { a.wrappingCast<i64>() > b.wrappingCast<i64>() } else { a > b }
     return match op {
         Op.Eq => Option.Some(a == b)
         Op.Ne => Option.Some(a != b)
@@ -127,9 +127,9 @@ fn truth(b: bool) u64 {
 
 // `a and b`, `a or b` of bools: one known operand can decide.
 fn logic(f: &Folder, c: Checker, rv: &Rvalue) Option<u64> {
-    let a = known(f, c, &rv.a)
-    let b = known(f, c, &rv.b)
-    let absorbing = truth(rv.op == Op.Or)
+    const a = known(f, c, &rv.a)
+    const b = known(f, c, &rv.b)
+    const absorbing = truth(rv.op == Op.Or)
     if holds(a, absorbing) || holds(b, absorbing) {
         return Option.Some(absorbing)
     }
@@ -140,12 +140,12 @@ fn logic(f: &Folder, c: Checker, rv: &Rvalue) Option<u64> {
 }
 
 fn binary(f: &Folder, c: Checker, rv: &Rvalue) Option<u64> {
-    let int = isInt(c, rv.a.ty)
+    const int = isInt(c, rv.a.ty)
     if !int && (rv.op == Op.And || rv.op == Op.Or) {
         return logic(f, c, rv)
     }
-    let a = known(f, c, &rv.a)
-    let b = known(f, c, &rv.b)
+    const a = known(f, c, &rv.a)
+    const b = known(f, c, &rv.b)
     if a.isNone() || b.isNone() {
         return Option.None
     }
@@ -156,27 +156,27 @@ fn binary(f: &Folder, c: Checker, rv: &Rvalue) Option<u64> {
 }
 
 fn eval(f: &Folder, c: Checker, rv: &Rvalue, dest: int) Option<u64> {
-    let ints = isInt(c, rv.a.ty) && isInt(c, rv.to)
+    const ints = isInt(c, rv.a.ty) && isInt(c, rv.to)
     if rv.kind == RvalueKind.Use {
         return known(f, c, &rv.a)
     }
     if rv.kind == RvalueKind.Binary {
         return binary(f, c, rv)
     }
-    let unary = rv.kind == RvalueKind.Unary && rv.op == Op.Not && !isInt(c, dest)
-    let cast = (rv.kind == RvalueKind.Cast || rv.kind == RvalueKind.CastFails) && ints
+    const unary = rv.kind == RvalueKind.Unary && rv.op == Op.Not && !isInt(c, dest)
+    const cast = (rv.kind == RvalueKind.Cast || rv.kind == RvalueKind.CastFails) && ints
     if !unary && !cast {
         return Option.None
     }
-    let a = known(f, c, &rv.a)
+    const a = known(f, c, &rv.a)
     if a.isNone() {
         return Option.None
     }
-    let v = a.unwrap()
+    const v = a.unwrap()
     if unary {
         return Option.Some(1 - v)
     }
-    let fails = castFails(c, rv.a.ty, rv.to, v)
+    const fails = castFails(c, rv.a.ty, rv.to, v)
     if rv.kind == RvalueKind.CastFails {
         return Option.Some(truth(fails))
     }
@@ -196,7 +196,7 @@ fn step(f: mut Folder, c: Checker, body: &AirBody, s: &AirStmt) {
     if s.value.kind == RvalueKind.Checked {
         f.stamp[s.value.flag] = 0
     }
-    let tracked = s.destPath.fields.len() == 0 && !s.destPath.deref && !f.escaped[s.dest] &&
+    const tracked = s.destPath.fields.len() == 0 && !s.destPath.deref && !f.escaped[s.dest] &&
         body.locals[s.dest].name.isNone()
     var v: Option<u64> = Option.None
     if tracked {
@@ -251,7 +251,7 @@ fn termOperands(t: &Terminator, out: mut List<Operand>) {
 
 fn countReads(reads: mut List<int>, operands: &List<Operand>, delta: int) {
     for i in 0..operands.len() {
-        let o = &operands[i]
+        const o = &operands[i]
         if o.kind == OperandKind.Copy || o.kind == OperandKind.Addr {
             reads[o.local] = reads[o.local] + delta
         }
@@ -262,7 +262,7 @@ fn removable(body: &AirBody, s: &AirStmt, reads: &List<int>) bool {
     if s.kind != StmtKind.Assign || s.destPath.fields.len() > 0 || s.destPath.deref {
         return false
     }
-    let id = s.dest
+    const id = s.dest
     if id <= body.paramCount || body.locals[id].name.isSome() || reads[id] != 0 {
         return false
     }
@@ -282,7 +282,7 @@ fn removeInBlock(body: &AirBody, block: mut AirBlock, reads: mut List<int>) bool
     var kept: List<AirStmt> = []
     var removed = false
     for old.len() > 0 {
-        let s = old.pop().unwrap()
+        const s = old.pop().unwrap()
         if removable(body, &s, &reads) {
             var operands: List<Operand> = []
             stmtOperands(&s, operands)
@@ -337,7 +337,7 @@ fn emptyBlock() AirBlock {
  * @param body the body, changed in place
  */
 pub fn foldChecks(c: Checker, body: mut AirBody) {
-    let n = body.locals.len()
+    const n = body.locals.len()
     var f = Folder{stamp: List.filled(0, n), value: List.filled(0 as u64, n),
                    escaped: List.filled(false, n), block: 0}
     for b in 0..body.blocks.len() {
@@ -361,9 +361,9 @@ pub fn foldChecks(c: Checker, body: mut AirBody) {
         for i in 0..body.blocks[b].stmts.len() {
             step(f, c, &body, &body.blocks[b].stmts[i])
         }
-        let term = &body.blocks[b].term
+        const term = &body.blocks[b].term
         if term.kind == TermKind.Assert && holds(known(&f, c, &term.cond), 0) {
-            let target = term.target
+            const target = term.target
             body.blocks[b].term = jump(target)
             folded = true
         }

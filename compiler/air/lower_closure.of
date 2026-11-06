@@ -59,12 +59,12 @@ import syntax.ast.Param
  */
 pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
                     body: &Expr, isMove: bool, ty: int) Operand {
-    let module = c.def(l.fnDef).module
-    let captured: List<int> = match c.r.tables[module].captures.get(e.id.0) {
+    const module = c.def(l.fnDef).module
+    const captured: List<int> = match c.r.tables[module].captures.get(e.id.0) {
         Option.Some(list) => list.clone()
         Option.None => []
     }
-    let written: List<int> = match c.capturesMut[module].get(e.id.0) {
+    const written: List<int> = match c.capturesMut[module].get(e.id.0) {
         Option.Some(list) => list.clone()
         Option.None => []
     }
@@ -75,13 +75,13 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
     // The environment: the captured values, or raw pointers to them (a `&str` is a view).
     var types: List<int> = []
     for i in 0..captures.len() {
-        let local = captures[i]
-        let captureType = l.body.locals[local].ty
+        const local = captures[i]
+        const captureType = l.body.locals[local].ty
         types.push(if isMove { captureType } else {
             c.types.ptr(captureType, contains(&written, captured[i]))
         })
     }
-    let envType = if captures.len() > 0 { c.types.tuple(types.clone()) } else { 0 }
+    const envType = if captures.len() > 0 { c.types.tuple(types.clone()) } else { 0 }
     lowerBody(l, c, p, e, params, body, captures.clone(), isMove, envType, ty)
     if isMove && envType != 0 {
         lowerEnvDrop(l, c, p, e, envType)
@@ -91,20 +91,20 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
     if envType != 0 {
         var items: List<Operand> = []
         for i in 0..captures.len() {
-            let local = captures[i]
+            const local = captures[i]
             // A local passed by address holds the address of the value.
-            let place = Place{local, fields: [], deref: l.body.locals[local].byRef}
+            const place = Place{local, fields: [], deref: l.body.locals[local].byRef}
             if !isMove {
                 items.push(placeOperand(&place, OperandKind.Addr, types[i]))
             } else {
                 items.push(placeOperand(&place, OperandKind.Copy, types[i]))
                 if !isCopy(c, p, types[i]) {   // moved into the closure
-                    let path: List<int> = []
+                    const path: List<int> = []
                     noteMoved(l, c, local, &path)
                 }
             }
         }
-        let env = aggregate(l, envType, items)
+        const env = aggregate(l, envType, items)
         rv.a = if isMove { env } else {
             placeOperand(&localPlace(env.local), OperandKind.Addr, c.types.ptr(envType, false))
         }
@@ -115,15 +115,15 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
 // The function that drops a `move` closure's captured values; the caller
 // then frees the environment.
 fn lowerEnvDrop(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, envType: int) {
-    let info = ClosureBody{id: e.id.0, params: [], captures: [], isMove: true, env: envType,
-                           drop: true}
+    const info = ClosureBody{id: e.id.0, params: [], captures: [], isMove: true, env: envType,
+                             drop: true}
     var drop = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
                        isMain: false, paramCount: 0, locals: [], blocks: [],
                        closure: Option.Some(info), span: noSpan(), at: noSpan()}
     drop.newLocal(UNIT, Option.None, e.span)
     drop.newLocal(c.types.ref(envType, true), Option.None, e.span)   // the captured values
-    let outer = mem.replace(l.body, drop)
-    let block = l.block
+    const outer = mem.replace(l.body, drop)
+    const block = l.block
     l.block = l.body.newBlock()
     emitDrop(l, c, p, &Place{local: 1, fields: [], deref: true}, envType)
     terminate(l, terminator(TermKind.Return))
@@ -137,8 +137,8 @@ fn lowerEnvDrop(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, envType: i
 // through the environment.
 fn lowerBody(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
              body: &Expr, captures: List<int>, isMove: bool, env: int, ty: int) {
-    let decl = fnOf(p, c.loc(l.fnDef))
-    let count = match c.r.tables[c.def(l.fnDef).module].fnLocals.get(decl.id.0) {
+    const decl = fnOf(p, c.loc(l.fnDef))
+    const count = match c.r.tables[c.def(l.fnDef).module].fnLocals.get(decl.id.0) {
         Option.Some(list) => list.len()
         Option.None => 0
     }
@@ -146,33 +146,33 @@ fn lowerBody(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List
     for i in 0..params.len() {
         paramLocals.push(c.localAt(params[i].id.0) + 1)
     }
-    let info = ClosureBody{id: e.id.0, params: paramLocals, captures: captures.clone(), isMove,
-                           env: if isMove { env } else { 0 }, drop: false}
+    const info = ClosureBody{id: e.id.0, params: paramLocals, captures: captures.clone(), isMove,
+                             env: if isMove { env } else { 0 }, drop: false}
     var closure = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
                           isMain: false, paramCount: 0, locals: [], blocks: [],
                           closure: Option.Some(info), span: e.span, at: e.span}
     closure.newLocal(c.types.get(ty).inner, Option.None, e.span)   // the return value
     for i in 1..count + 1 {
-        let local = &l.body.locals[i]
+        const local = &l.body.locals[i]
         closure.newLocal(local.ty, local.name, local.span)
     }
     for i in 0..captures.len() {
         closure.locals[captures[i]].byRef = true
     }
-    let outer = mem.replace(l.body, closure)
-    let block = l.block
-    let loops = mem.replace(l.loops, [])
-    let owned = mem.replace(l.owned, [])
-    let scopes = mem.replace(l.scopes, [])
-    let flags = mem.replace(l.flags, List.filled(0, count + 1))
-    let partFlags = mem.replace(l.partFlags, [])
-    let temps = mem.replace(l.temps, [])
-    let tempScopes = mem.replace(l.tempScopes, [])
-    let forward = l.forward
+    const outer = mem.replace(l.body, closure)
+    const block = l.block
+    const loops = mem.replace(l.loops, [])
+    const owned = mem.replace(l.owned, [])
+    const scopes = mem.replace(l.scopes, [])
+    const flags = mem.replace(l.flags, List.filled(0, count + 1))
+    const partFlags = mem.replace(l.partFlags, [])
+    const temps = mem.replace(l.temps, [])
+    const tempScopes = mem.replace(l.tempScopes, [])
+    const forward = l.forward
     l.forward = false
     l.block = l.body.newBlock()
     dropScopeEnter(l)
-    let value = lowerExpr(l, c, p, body)
+    const value = lowerExpr(l, c, p, body)
     assignOperand(l, 0, value)
     dropTemps(l, c, p, 0)
     dropScopeLeave(l, c, p)

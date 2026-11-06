@@ -74,7 +74,7 @@ const HEX: str = "0123456789abcdef"
 fn stringLiteral(out: mut str, text: str) {
     out.push("\"")
     for i in 0..text.len() {
-        let c = text[i]
+        const c = text[i]
         if c < 0x20 || c == b'"' || c == b'\\' || c >= 0x7f {
             out.push("\\x")
             out.push(HEX.slice((c >> 4) as int, (c >> 4) as int + 1))
@@ -91,7 +91,7 @@ fn stringLiteral(out: mut str, text: str) {
 fn decimalDigits(text: str) (str, int) {
     var mantissa = text.clone()
     var exponent = 0
-    if let Option.Some(e) = text.find("e") {
+    if const Option.Some(e) = text.find("e") {
         mantissa = text.slice(0, e).toOwned()
         exponent = match int.parse(text.sliceFrom(e + 1)) {
             Result.Ok(n) => n
@@ -134,7 +134,7 @@ fn roundDigits(digits: str, exponent: int, n: int) (str, int) {
         }
         if i < 0 {
             kept.insert(0, b'1')
-            let _ = kept.pop()
+            const _ = kept.pop()
             var out = ""
             for j in 0..kept.len() {
                 out.push(HEX.slice((kept[j] - b'0') as int, (kept[j] - b'0') as int + 1))
@@ -166,24 +166,24 @@ fn trimZeros(digits: str) str {
  * @returns its text
  */
 pub fn formatG(value: float) str {
-    let text = "{value}"
+    const text = "{value}"
     if text == "NaN" {
         return "nan"
     }
     if text == "inf" || text == "-inf" {
         return text.toOwned()
     }
-    let negative = text.startsWith("-")
-    let body = if negative { text.sliceFrom(1) } else { text.sliceFrom(0) }
+    const negative = text.startsWith("-")
+    const body = if negative { text.sliceFrom(1) } else { text.sliceFrom(0) }
     var out = if negative { "-" } else { "" }
-    let parts = decimalDigits(body)
+    const parts = decimalDigits(body)
     if parts.0 == "0" {
         out.push("0")
         return out
     }
-    let rounded = roundDigits(parts.0, parts.1, 6)
-    let digits = trimZeros(rounded.0)
-    let x = rounded.1
+    const rounded = roundDigits(parts.0, parts.1, 6)
+    const digits = trimZeros(rounded.0)
+    const x = rounded.1
     if x < -4 || x >= 6 {
         out.push(digits.slice(0, 1))
         if digits.len() > 1 {
@@ -191,7 +191,7 @@ pub fn formatG(value: float) str {
             out.push(digits.sliceFrom(1))
         }
         out.push(if x < 0 { "e-" } else { "e+" })
-        let magnitude = if x < 0 { -x } else { x }
+        const magnitude = if x < 0 { -x } else { x }
         if magnitude < 10 {
             out.push("0")
         }
@@ -234,7 +234,7 @@ pub struct AirPrinter {
         if targs == UNIT {
             return
         }
-        let args = c.types.get(targs).args.clone()
+        const args = c.types.get(targs).args.clone()
         for i in 0..args.len() {
             self.out.push(if i > 0 { ", " } else { "<" })
             self.out.push(c.typeName(args[i]))
@@ -268,7 +268,7 @@ pub struct AirPrinter {
         self.out.push(name)
         self.out.push(" ")
         self.operand(c, a)
-        if let Option.Some(second) = b {
+        if const Option.Some(second) = b {
             self.out.push(", ")
             self.operand(c, second)
         }
@@ -300,7 +300,7 @@ pub struct AirPrinter {
             }
             RvalueKind.StrByte => self.operands(c, "str_byte", &rv.a, Option.Some(&rv.b))
             RvalueKind.FloatFn => {
-                let two = rv.floatFn == FloatFn.Minnum || rv.floatFn == FloatFn.Maxnum
+                const two = rv.floatFn == FloatFn.Minnum || rv.floatFn == FloatFn.Maxnum
                 self.operands(c, floatFnName(rv.floatFn), &rv.a, if two { Option.Some(&rv.b) }
                               else { Option.None })
             }
@@ -348,7 +348,7 @@ pub struct AirPrinter {
             if s.runtime {
                 self.out.push("call {runtimeName(s.rt)}(")
             } else {
-                let name = if isGlue(s.callee) {
+                const name = if isGlue(s.callee) {
                     glueName(s.callee)
                 } else if s.callee == CALL_VALUE {
                     "value"
@@ -399,10 +399,10 @@ pub struct AirPrinter {
      * @param b the body
      */
     pub fn body(mut self, c: Checker, b: &AirBody) {
-        let name = if isGlue(b.def) { "" } else { c.text(b.name) }
+        const name = if isGlue(b.def) { "" } else { c.text(b.name) }
         self.out.push("fn {name}")
         self.typeArgs(c, b.targs)
-        if let Option.Some(closure) = b.closure {
+        if const Option.Some(closure) = b.closure {
             self.out.push(".c{closure.id}")
             if closure.drop {
                 self.out.push(".drop")
@@ -410,17 +410,17 @@ pub struct AirPrinter {
         }
         self.out.push(if b.isMain { " (entry) \{\n" } else { " \{\n" })
         for i in 0..b.locals.len() {
-            let local = &b.locals[i]
-            let role = if i == 0 { "return" } else if i <= b.paramCount { "param" } else { "let" }
+            const local = &b.locals[i]
+            const role = if i == 0 { "return" } else if i <= b.paramCount { "param" } else { "let" }
             self.out.push("    {role} _{i}: {c.typeName(local.ty)}")
-            if let Option.Some(name) = local.name {
+            if const Option.Some(name) = local.name {
                 self.out.push("   // {c.text(name)}")
             }
             self.out.push("\n")
         }
         for i in 0..b.blocks.len() {
             self.out.push("  bb{i}:\n")
-            let block = &b.blocks[i]
+            const block = &b.blocks[i]
             for j in 0..block.stmts.len() {
                 self.statement(c, &block.stmts[j])
             }

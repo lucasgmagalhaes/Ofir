@@ -96,7 +96,7 @@ fn isEnum(c: Checker, ty: int) bool {
  * @returns true if it is
  */
 pub fn equalityCalls(c: mut Checker, p: Program, ty: int) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     if kind == TyKind.Tuple {
         return true
     }
@@ -106,7 +106,7 @@ pub fn equalityCalls(c: mut Checker, p: Program, ty: int) bool {
     if comparisonMethod(c, p, ty, BOUND_EQ) != 0 || !isEnum(c, ty) {
         return true
     }
-    let id = c.types.get(ty).data
+    const id = c.types.get(ty).data
     enumVariants(c, p, id)
     return variantsOf(c, id).hasPayload
 }
@@ -119,7 +119,7 @@ pub fn equalityCalls(c: mut Checker, p: Program, ty: int) bool {
  * @returns true if it is
  */
 pub fn orderCalls(c: Checker, ty: int) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     return kind == TyKind.Tuple || kind == TyKind.Adt
 }
 
@@ -136,8 +136,8 @@ pub fn orderCalls(c: Checker, ty: int) bool {
  */
 pub fn adtEqual(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand, b: move Operand,
                 ty: int) Operand {
-    let dest = newTemp(l, BOOL)
-    let method = comparisonMethod(c, p, ty, BOUND_EQ)
+    const dest = newTemp(l, BOOL)
+    const method = comparisonMethod(c, p, ty, BOUND_EQ)
     if method != 0 {
         emitCall(l, method, methodTargs(c, ty), [a, b], dest)
     } else {
@@ -156,7 +156,7 @@ pub fn adtEqual(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand, b: 
  * @returns the `u64`
  */
 pub fn adtHash(l: mut Lowerer, c: mut Checker, value: move Operand, ty: int) Operand {
-    let dest = newTemp(l, U64)
+    const dest = newTemp(l, U64)
     emitCall(l, GLUE_HASH, c.types.tuple([ty]), [value], dest)
     return opCopy(dest, U64)
 }
@@ -181,30 +181,30 @@ pub fn orderOf(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand, b: m
     x.ty = ty
     y.ty = ty
     if orderCalls(c, ty) {
-        let method = comparisonMethod(c, p, ty, BOUND_ORD)
+        const method = comparisonMethod(c, p, ty, BOUND_ORD)
         if method == 0 {
-            let dest = newTemp(l, I32)
+            const dest = newTemp(l, I32)
             emitCall(l, GLUE_CMP, c.types.tuple([ty]), [x, y], dest)
             return opCopy(dest, I32)
         }
-        let ordering = c.types.get(fnSignature(c, p, method)).inner
-        let result = newTemp(l, ordering)
+        const ordering = c.types.get(fnSignature(c, p, method)).inner
+        const result = newTemp(l, ordering)
         emitCall(l, method, methodTargs(c, ty), [x, y], result)
-        let tag = Place{local: result, fields: [0], deref: false}
+        const tag = Place{local: result, fields: [0], deref: false}
         return placeOperand(&tag, OperandKind.Copy, I32)
     }
-    let dest = emitTemp(l, I32, rvUse(opInt(EQUAL, I32)))
-    let less = l.body.newBlock()
-    let notLess = l.body.newBlock()
-    let greater = l.body.newBlock()
-    let done = l.body.newBlock()
-    let lt = lowerBinaryOp(l, c, Op.Lt, ty, x.clone(), y.clone(), noSpan())
+    const dest = emitTemp(l, I32, rvUse(opInt(EQUAL, I32)))
+    const less = l.body.newBlock()
+    const notLess = l.body.newBlock()
+    const greater = l.body.newBlock()
+    const done = l.body.newBlock()
+    const lt = lowerBinaryOp(l, c, Op.Lt, ty, x.clone(), y.clone(), noSpan())
     terminate(l, branch(lt, less, notLess))
     switchTo(l, less)
     emitAssign(l, dest, rvUse(opInt(LESS, I32)))
     emitGoto(l, done)
     switchTo(l, notLess)
-    let gt = lowerBinaryOp(l, c, Op.Gt, ty, x, y, noSpan())
+    const gt = lowerBinaryOp(l, c, Op.Gt, ty, x, y, noSpan())
     terminate(l, branch(gt, greater, done))
     switchTo(l, greater)
     emitAssign(l, dest, rvUse(opInt(GREATER, I32)))
@@ -227,7 +227,7 @@ pub fn orderOf(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand, b: m
  */
 pub fn orderedBy(l: mut Lowerer, c: mut Checker, p: Program, op: Op, a: move Operand,
                  b: move Operand, ty: int) Operand {
-    let order = orderOf(l, c, p, a, b, ty)
+    const order = orderOf(l, c, p, a, b, ty)
     return temp(l, BOOL, rvalue(RvalueKind.Binary, op, order, opInt(EQUAL, I32)))
 }
 
@@ -256,7 +256,7 @@ fn part(place: &Place, ty: int) Operand {
 }
 
 fn startGlue(l: mut Lowerer, c: mut Checker, glue: int, targs: int, ret: int, params: int) {
-    let ty = c.types.get(targs).args[0]
+    const ty = c.types.get(targs).args[0]
     l.body = AirBody{def: glue, targs: targs, name: Symbol(0), isMain: false,
                      paramCount: params, locals: [], blocks: [],
                      closure: Option.None, span: noSpan(), at: noSpan()}
@@ -278,20 +278,20 @@ fn finishGlue(l: mut Lowerer, c: mut Checker, p: Program) {
 // Each pair of fields, in `a` and `b` at `step`: `same` stays true while they
 // are equal.
 fn equalFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int) Operand {
-    let a = localPlace(1)
-    let b = localPlace(2)
-    let count = if variant < 0 { partCount(c, ty) } else {
+    const a = localPlace(1)
+    const b = localPlace(2)
+    const count = if variant < 0 { partCount(c, ty) } else {
         variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
     }
     var all = opBool(true, BOOL)
     for i in 0..count {
-        let step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
-        let field = if variant < 0 { partType(c, p, ty, i) } else {
+        const step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
+        const field = if variant < 0 { partType(c, p, ty, i) } else {
             variantFieldType(c, p, ty, variant, i)
         }
-        let fa = part(&fieldPlace(&a, step, i), field)
-        let fb = part(&fieldPlace(&b, step, i), field)
-        let same = equalValues(l, c, p, fa, fb, field)
+        const fa = part(&fieldPlace(&a, step, i), field)
+        const fb = part(&fieldPlace(&b, step, i), field)
+        const same = equalValues(l, c, p, fa, fb, field)
         all = temp(l, BOOL, rvalue(RvalueKind.Binary, Op.And, all, same))
     }
     return all
@@ -307,30 +307,30 @@ fn equalFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int
  */
 pub fn lowerEqGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     startGlue(l, c, GLUE_EQ, targs, BOOL, 2)
-    let ty = c.types.get(targs).args[0]
+    const ty = c.types.get(targs).args[0]
     if !isEnum(c, ty) {
         emitAssign(l, 0, rvUse(equalFields(l, c, p, ty, -1)))
         finishGlue(l, c, p)
         return
     }
-    let id = c.types.get(ty).data
+    const id = c.types.get(ty).data
     enumVariants(c, p, id)
     emitAssign(l, 0, rvUse(opBool(false, BOOL)))
-    let tagA = part(&Place{local: 1, fields: [0], deref: false}, I32)
-    let tagB = part(&Place{local: 2, fields: [0], deref: false}, I32)
-    let sameTag = temp(l, BOOL, rvalue(RvalueKind.Binary, Op.Eq, tagA.clone(), tagB))
-    let done = l.body.newBlock()
-    let fields = l.body.newBlock()
+    const tagA = part(&Place{local: 1, fields: [0], deref: false}, I32)
+    const tagB = part(&Place{local: 2, fields: [0], deref: false}, I32)
+    const sameTag = temp(l, BOOL, rvalue(RvalueKind.Binary, Op.Eq, tagA.clone(), tagB))
+    const done = l.body.newBlock()
+    const fields = l.body.newBlock()
     terminate(l, branch(sameTag, fields, done))
     switchTo(l, fields)
-    let count = variantsOf(c, id).variants.len()
+    const count = variantsOf(c, id).variants.len()
     for v in 0..count {
         if variantsOf(c, id).variants[v].types.len() == 0 {
             continue
         }
-        let body = l.body.newBlock()
-        let next = l.body.newBlock()
-        let is = isVariant(l, c, p, &localPlace(1), ty, v)
+        const body = l.body.newBlock()
+        const next = l.body.newBlock()
+        const is = isVariant(l, c, p, &localPlace(1), ty, v)
         terminate(l, branch(is, body, next))
         switchTo(l, body)
         emitAssign(l, 0, rvUse(equalFields(l, c, p, ty, v)))
@@ -345,17 +345,17 @@ pub fn lowerEqGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
 
 fn hashFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int,
               start: move Operand) Operand {
-    let value = localPlace(1)
-    let count = if variant < 0 { partCount(c, ty) } else {
+    const value = localPlace(1)
+    const count = if variant < 0 { partCount(c, ty) } else {
         variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
     }
     var h = start
     for i in 0..count {
-        let step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
-        let field = if variant < 0 { partType(c, p, ty, i) } else {
+        const step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
+        const field = if variant < 0 { partType(c, p, ty, i) } else {
             variantFieldType(c, p, ty, variant, i)
         }
-        let one = hashValue(l, c, p, part(&fieldPlace(&value, step, i), field), field)
+        const one = hashValue(l, c, p, part(&fieldPlace(&value, step, i), field), field)
         h = combine(l, c, p, h, one)
     }
     return h
@@ -377,26 +377,26 @@ fn combine(l: mut Lowerer, c: mut Checker, p: Program, h: move Operand,
  */
 pub fn lowerHashGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     startGlue(l, c, GLUE_HASH, targs, U64, 1)
-    let ty = c.types.get(targs).args[0]
+    const ty = c.types.get(targs).args[0]
     if !isEnum(c, ty) {
         emitAssign(l, 0, rvUse(hashFields(l, c, p, ty, -1, opInt(0, U64))))
         finishGlue(l, c, p)
         return
     }
-    let id = c.types.get(ty).data
+    const id = c.types.get(ty).data
     enumVariants(c, p, id)
-    let tag = part(&Place{local: 1, fields: [0], deref: false}, I32)
-    let start = toLocal(l, hashValue(l, c, p, tag.clone(), I32))
+    const tag = part(&Place{local: 1, fields: [0], deref: false}, I32)
+    const start = toLocal(l, hashValue(l, c, p, tag.clone(), I32))
     emitAssign(l, 0, rvUse(opCopy(start, U64)))
-    let done = l.body.newBlock()
-    let count = variantsOf(c, id).variants.len()
+    const done = l.body.newBlock()
+    const count = variantsOf(c, id).variants.len()
     for v in 0..count {
         if variantsOf(c, id).variants[v].types.len() == 0 {
             continue
         }
-        let body = l.body.newBlock()
-        let next = l.body.newBlock()
-        let is = isVariant(l, c, p, &localPlace(1), ty, v)
+        const body = l.body.newBlock()
+        const next = l.body.newBlock()
+        const is = isVariant(l, c, p, &localPlace(1), ty, v)
         terminate(l, branch(is, body, next))
         switchTo(l, body)
         emitAssign(l, 0, rvUse(hashFields(l, c, p, ty, v, opCopy(start, U64))))
@@ -410,19 +410,19 @@ pub fn lowerHashGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
 
 // Compares the fields in order: the first that differ decide, into local 0.
 fn cmpFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int, done: int) {
-    let a = localPlace(1)
-    let b = localPlace(2)
-    let count = if variant < 0 { partCount(c, ty) } else {
+    const a = localPlace(1)
+    const b = localPlace(2)
+    const count = if variant < 0 { partCount(c, ty) } else {
         variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
     }
     for i in 0..count {
-        let step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
-        let field = if variant < 0 { partType(c, p, ty, i) } else {
+        const step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
+        const field = if variant < 0 { partType(c, p, ty, i) } else {
             variantFieldType(c, p, ty, variant, i)
         }
-        let fa = part(&fieldPlace(&a, step, i), field)
-        let fb = part(&fieldPlace(&b, step, i), field)
-        let order = orderOf(l, c, p, fa, fb, field)
+        const fa = part(&fieldPlace(&a, step, i), field)
+        const fb = part(&fieldPlace(&b, step, i), field)
+        const order = orderOf(l, c, p, fa, fb, field)
         decide(l, order, done)
     }
 }
@@ -430,9 +430,9 @@ fn cmpFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int, 
 // `order` into local 0; on to `done` unless it is `Equal`.
 fn decide(l: mut Lowerer, order: move Operand, done: int) {
     emitAssign(l, 0, rvUse(order))
-    let equal = temp(l, BOOL, rvalue(RvalueKind.Binary, Op.Eq, opCopy(0, I32),
-                                     opInt(EQUAL, I32)))
-    let next = l.body.newBlock()
+    const equal = temp(l, BOOL, rvalue(RvalueKind.Binary, Op.Eq, opCopy(0, I32),
+                                       opInt(EQUAL, I32)))
+    const next = l.body.newBlock()
     terminate(l, branch(equal, next, done))
     switchTo(l, next)
 }
@@ -447,25 +447,25 @@ fn decide(l: mut Lowerer, order: move Operand, done: int) {
  */
 pub fn lowerCmpGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     startGlue(l, c, GLUE_CMP, targs, I32, 2)
-    let ty = c.types.get(targs).args[0]
+    const ty = c.types.get(targs).args[0]
     emitAssign(l, 0, rvUse(opInt(EQUAL, I32)))
-    let done = l.body.newBlock()
+    const done = l.body.newBlock()
     if !isEnum(c, ty) {
         cmpFields(l, c, p, ty, -1, done)
     } else {
-        let id = c.types.get(ty).data
+        const id = c.types.get(ty).data
         enumVariants(c, p, id)
-        let tagA = part(&Place{local: 1, fields: [0], deref: false}, I32)
-        let tagB = part(&Place{local: 2, fields: [0], deref: false}, I32)
+        const tagA = part(&Place{local: 1, fields: [0], deref: false}, I32)
+        const tagB = part(&Place{local: 2, fields: [0], deref: false}, I32)
         decide(l, orderOf(l, c, p, tagA.clone(), tagB, I32), done)
-        let count = variantsOf(c, id).variants.len()
+        const count = variantsOf(c, id).variants.len()
         for v in 0..count {
             if variantsOf(c, id).variants[v].types.len() == 0 {
                 continue
             }
-            let body = l.body.newBlock()
-            let next = l.body.newBlock()
-            let is = isVariant(l, c, p, &localPlace(1), ty, v)
+            const body = l.body.newBlock()
+            const next = l.body.newBlock()
+            const is = isVariant(l, c, p, &localPlace(1), ty, v)
             terminate(l, branch(is, body, next))
             switchTo(l, body)
             cmpFields(l, c, p, ty, v, done)
@@ -482,8 +482,8 @@ pub fn lowerCmpGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
 // struct with named fields, `(1, 2)` otherwise (as a variant is built).
 fn debugFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int,
                out: &Operand) {
-    let value = localPlace(1)
-    let isTuple = c.types.kind(ty) == TyKind.Tuple
+    const value = localPlace(1)
+    const isTuple = c.types.kind(ty) == TyKind.Tuple
     var names: List<str> = []
     var count = 0
     if variant >= 0 {
@@ -491,7 +491,7 @@ fn debugFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int
     } else if isTuple {
         count = partCount(c, ty)
     } else {
-        let info = fieldsOf(c, c.types.get(ty).data)
+        const info = fieldsOf(c, c.types.get(ty).data)
         count = info.types.len()
         if !info.isTuple {
             for i in 0..count {
@@ -499,7 +499,7 @@ fn debugFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int
             }
         }
     }
-    let named = names.len() == count && count > 0
+    const named = names.len() == count && count > 0
     if count == 0 {
         if isTuple {
             pushText(l, out, "()")
@@ -516,8 +516,8 @@ fn debugFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int
         if named {
             pushText(l, out, "{names[i]}: ")
         }
-        let step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
-        let field = if variant < 0 { partType(c, p, ty, i) } else {
+        const step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
+        const field = if variant < 0 { partType(c, p, ty, i) } else {
             variantFieldType(c, p, ty, variant, i)
         }
         debugValue(l, c, p, part(&fieldPlace(&value, step, i), field), field, out)
@@ -541,10 +541,10 @@ pub fn lowerDebugGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
     startGlue(l, c, GLUE_DEBUG, targs, UNIT, 2)
     l.body.locals[2].ty = STR
     l.body.locals[2].byRef = true
-    let ty = c.types.get(targs).args[0]
-    let out = placeOperand(&Place{local: 2, fields: [], deref: true}, OperandKind.Addr, STR)
-    let kind = c.types.kind(ty)
-    let method = if kind == TyKind.Adt { debugMethod(c, p, ty) } else { 0 }
+    const ty = c.types.get(targs).args[0]
+    const out = placeOperand(&Place{local: 2, fields: [], deref: true}, OperandKind.Addr, STR)
+    const kind = c.types.kind(ty)
+    const method = if kind == TyKind.Adt { debugMethod(c, p, ty) } else { 0 }
     if method != 0 {
         emitCall(l, method, methodTargs(c, ty), [opCopy(1, ty), out], -1)
     } else if kind == TyKind.Tuple {
@@ -553,19 +553,19 @@ pub fn lowerDebugGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
         pushText(l, &out, c.text(c.def(c.types.get(ty).data).name))
         debugFields(l, c, p, ty, -1, &out)
     } else if kind == TyKind.Adt {
-        let id = c.types.get(ty).data
+        const id = c.types.get(ty).data
         enumVariants(c, p, id)
-        let done = l.body.newBlock()
-        let count = variantsOf(c, id).variants.len()
+        const done = l.body.newBlock()
+        const count = variantsOf(c, id).variants.len()
         for v in 0..count {
-            let body = l.body.newBlock()
-            let next = l.body.newBlock()
-            let is = isVariant(l, c, p, &localPlace(1), ty, v)
+            const body = l.body.newBlock()
+            const next = l.body.newBlock()
+            const is = isVariant(l, c, p, &localPlace(1), ty, v)
             terminate(l, branch(is, body, next))
             switchTo(l, body)
             if c.isUnion(id) {   // the member it holds (spec 17.5)
-                let member = variantFieldType(c, p, ty, v, 0)
-                let held = part(&fieldPlace(&localPlace(1), VARIANT_STEP + v, 0), member)
+                const member = variantFieldType(c, p, ty, v, 0)
+                const held = part(&fieldPlace(&localPlace(1), VARIANT_STEP + v, 0), member)
                 debugValue(l, c, p, held, member, &out)
             } else {
                 pushText(l, &out, c.text(variantsOf(c, id).variants[v].name))
