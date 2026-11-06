@@ -230,7 +230,7 @@ These gaps remain:
 | 5.22b | `T?` as shorthand for `Option<T>` | 2.6 | **done**: both stages resolve `T?`; `tests/run/option/shorthand` covers parameters, results, fields and generics |
 | 5.22c | `&mut [T]`: mutable slices | 2.12 | **done** (stage 1): `tests/run/slices/mutable` writes through slices of a list and an array; `borrow/mut_slices` and `compile_fail/types/mut_slices` cover exclusivity and `&`/`let` sources |
 | 5.22d | Mutable globals (`var` at module level, accessed in `unsafe`) | 11.5 | **done** (stage 1, numeric and `bool` globals): `tests/run/globals/app` reads, writes and borrows globals, also through a path; `compile_fail/types/globals` covers access outside `unsafe`, run-time initializers and other types |
-| 5.22e | `str.toCString()` | 11.3 | the chapter's `strlen` example runs |
+| 5.22e | `str.toCString()` | 11.3 | **done** (both stages): `tests/run/ffi/cstring` runs the chapter's `strlen` example; `panic/cstring_nul` covers a NUL inside the text |
 | 5.22f | `@bench` and `ofir bench` with a `Bencher` | 12.3 | **done** (stage 1): `tests/ofir_bench/sample` runs under `ofir bench` (checked by `run_std_tests.py`), and `compile_fail/types/benches` covers E0206 |
 | 5.22g | Chapter 12.1 still says the layout and linking attributes report E0901 | 12.1 | **done**: the note lists what each stage implements; only `@tag` reports E0901 |
 
