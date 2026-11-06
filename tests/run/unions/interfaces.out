@@ -1,0 +1,9 @@
+3 hi true
+[3, hi, true]
+3 "hi" true
+Point { x: 1, y: 2 }
+Some("hi")
+true false true
+true
+2
+1.5
