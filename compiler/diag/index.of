@@ -209,6 +209,24 @@ pub struct Diagnostics {
         return out
     }
 
+    /**
+     * The diagnostics in the order `render` writes them, without exact
+     * duplicates.
+     *
+     * @returns copies of them
+     */
+    pub fn reported(self) List<Diagnostic> {
+        let out: List<Diagnostic> = []
+        const order = self.sortedOrder()
+        for k in 0..order.len() {
+            if k > 0 && same(&self.items[order[k]], &self.items[order[k - 1]]) {
+                continue
+            }
+            out.push(self.items[order[k]].clone())
+        }
+        return out
+    }
+
     fn isAllowed(self, code: str, span: Span) bool {
         for i in 0..self.allowedCodes.len() {
             const a = self.allowedSpans[i]
