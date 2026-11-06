@@ -6,6 +6,7 @@
  *     ofir build <file.of>   compile a program
  *     ofir run <file.of>     compile and run a program
  *     ofir test <file.of>    compile and run the `@test` functions
+ *     ofir lsp               run the language server (compiler/lsp)
  *     ofir version           print the compiler version
  */
 
@@ -24,6 +25,7 @@ import driver.explain.explain
 import fmt.fmtCommand
 import driver.modules.Front
 import driver.modules.loadProgram
+import lsp.lspCommand
 import sema.c_symbols.linkLibraries
 import sema.check.Checker
 import sema.check.checkProgram
@@ -50,6 +52,7 @@ fn printUsage() {
              + "  explain <code>    explain an error or warning code, as E0600\n"
              + "  fmt [paths]       format the source files (--check: list those that would "
              + "change; --stdout: print them)\n"
+             + "  lsp               run the language server on standard input and output\n"
              + "  version           print the compiler version\n\noptions:\n"
              + "  -o <path>                 output path\n"
              + "  --emit=tokens             print the tokens and stop\n"
@@ -175,6 +178,9 @@ fn main() {
             rest.push(args[i].clone())
         }
         os.exit(fmtCommand(rest))
+    }
+    if command == "lsp" {
+        os.exit(lspCommand())
     }
     if command == "help" {
         printUsage()

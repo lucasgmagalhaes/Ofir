@@ -1,0 +1,248 @@
+/**
+ * @module
+ * `ofir lsp`: a language server (Language Server Protocol 3.17) on
+ * standard input and output (docs/design/toolchain.md).
+ *
+ * The server keeps the text of every open document, with full document
+ * synchronization, and checks a document each time it is opened or
+ * changed, as `ofir build --stop-after=check` would with the open
+ * documents read in place of their files. The diagnostics are published
+ * for that document; those located in another file are shown at its first
+ * line, with the place they point to.
+ */
+
+import base.span.SourceMap
+import diag.Diagnostic
+import diag.NoteKind
+import diag.Severity
+import diag.jsonString
+import lsp.check.checkFile
+import lsp.json.JsonDoc
+import lsp.json.parseJson
+import std.io
+import std.io.Stdin
+import std.strings
+
+/**
+ * Runs the server until the client sends `exit`.
+ *
+ * @returns the exit status: 0 after `shutdown`, 1 otherwise
+ */
+pub fn lspCommand() int {
+    let server = Server{docs: Map.new(), uris: Map.new(), shutdown: false}
+    let input = io.stdin()
+    for true {
+        const Option.Some(body) = readMessage(input) else {
+            return 1   // the input ended without `exit`
+        }
+        const Option.Some(doc) = parseJson(body) else {
+            send(errorResponse("null", -32700, "the message is not valid JSON"))
+            continue
+        }
+        const method = doc.text(doc.field(0, "method"))
+        if method == "exit" {
+            return if server.shutdown { 0 } else { 1 }
+        }
+        server.handle(doc, method)
+    }
+    return 1
+}
+
+struct Server {
+    // The text of each open document, by path.
+    docs: Map<str, str>
+    // The URI of each open document, as the client wrote it, by path.
+    uris: Map<str, str>
+    shutdown: bool
+
+    fn handle(mut self, doc: JsonDoc, method: str) {
+        const idNode = doc.field(0, "id")
+        const id = doc.raw(idNode)
+        const uri = doc.text(doc.at(["params", "textDocument", "uri"]))
+        if method == "initialize" {
+            send(response(id, capabilities()))
+        } else if method == "shutdown" {
+            self.shutdown = true
+            send(response(id, "null"))
+        } else if method == "textDocument/didOpen" {
+            const text = doc.text(doc.at(["params", "textDocument", "text"]))
+            self.open(uri, text)
+        } else if method == "textDocument/didChange" {
+            const changes = doc.elements(doc.at(["params", "contentChanges"]))
+            if changes.len() > 0 {
+                const text = doc.text(doc.field(changes[changes.len() - 1], "text"))
+                self.open(uri, text)
+            }
+        } else if method == "textDocument/didClose" {
+            const path = uriToPath(uri)
+            const _ = self.docs.remove(path)
+            const _ = self.uris.remove(path)
+            send(publish(uri, ""))
+        } else if idNode >= 0 && doc.field(0, "method") >= 0 {
+            send(errorResponse(id, -32601, "`{method}` is not supported"))
+        }
+    }
+
+    // Stores a document's text and publishes its diagnostics.
+    fn open(mut self, uri: str, text: move str) {
+        const path = uriToPath(uri)
+        self.docs.insert(path.clone(), text)
+        self.uris.insert(path.clone(), uri.toOwned())
+        const checked = checkFile(path, &self.docs)
+        let items = ""
+        for i in 0..checked.diags.len() {
+            if i > 0 {
+                items.push(",")
+            }
+            items.push(lspDiagnostic(&checked.diags[i], checked.map, path))
+        }
+        send(publish(uri, items))
+    }
+}
+
+// The capabilities of `initialize`: full document synchronization.
+fn capabilities() str {
+    const sync = "\"textDocumentSync\":\{\"openClose\":true,\"change\":1\}"
+    const info = "\"serverInfo\":\{\"name\":\"ofir\"\}"
+    return "\{\"capabilities\":\{{sync}\},{info}\}"
+}
+
+fn response(id: str, result: str) str {
+    return "\{\"jsonrpc\":\"2.0\",\"id\":{id},\"result\":{result}\}"
+}
+
+fn errorResponse(id: str, code: int, message: str) str {
+    const error = "\{\"code\":{code},\"message\":{jsonString(message)}\}"
+    return "\{\"jsonrpc\":\"2.0\",\"id\":{id},\"error\":{error}\}"
+}
+
+fn publish(uri: str, items: str) str {
+    const params = "\{\"uri\":{jsonString(uri)},\"diagnostics\":[{items}]\}"
+    const method = "\"method\":\"textDocument/publishDiagnostics\""
+    return "\{\"jsonrpc\":\"2.0\",{method},\"params\":{params}\}"
+}
+
+// A diagnostic as an LSP `Diagnostic` of the document `path`.
+fn lspDiagnostic(d: &Diagnostic, map: SourceMap, path: str) str {
+    let message = d.message.clone()
+    const origin = "\{\"line\":0,\"character\":0\}"
+    let range = "\{\"start\":{origin},\"end\":{origin}\}"
+    if d.span.file.0 >= 0 && d.span.file.0 < map.len() {
+        const file = map.file(d.span.file)
+        if file.path == path {
+            const start = position(map, d, d.span.start)
+            const end = position(map, d, d.span.end)
+            range = "\{\"start\":{start},\"end\":{end}\}"
+        } else {
+            const at = file.lineCol(d.span.start)
+            message = "{file.path}:{at.line}:{at.column}: {message}"
+        }
+    }
+    for i in 0..d.notes.len() {
+        const kind = if d.notes[i].kind == NoteKind.Help { "help" } else { "note" }
+        message.push("\n{kind}: {d.notes[i].message}")
+    }
+    const severity = if d.severity == Severity.Error { 1 } else { 2 }
+    const fields = "\"severity\":{severity},\"code\":{jsonString(d.code)},\"source\":\"ofir\""
+    return "\{\"range\":{range},{fields},\"message\":{jsonString(message)}\}"
+}
+
+// An offset of the diagnostic's file as an LSP position: a line from 0 and
+// a column in UTF-16 code units.
+fn position(map: SourceMap, d: &Diagnostic, offset: int) str {
+    const file = map.file(d.span.file)
+    const at = file.lineCol(offset)
+    const lineStart = offset - (at.column - 1)
+    let units = 0
+    for i in lineStart..offset {
+        const b = file.text[i]
+        if b & 0xC0 != 0x80 {
+            units += if b >= 0xF0 { 2 } else { 1 }
+        }
+    }
+    return "\{\"line\":{at.line - 1},\"character\":{units}\}"
+}
+
+// The path of a `file:` URI, percent-decoded.
+fn uriToPath(uri: str) str {
+    const prefix = "file://"
+    const skip = if uri.startsWith(prefix) { prefix.len() } else { 0 }
+    const rest = uri.sliceFrom(skip)
+    let bytes: List<u8> = []
+    let i = 0
+    for i < rest.len() {
+        if rest[i] == b'%' && i + 2 < rest.len() && hexValue(rest[i + 1]) >= 0 &&
+            hexValue(rest[i + 2]) >= 0 {
+            bytes.push((hexValue(rest[i + 1]) * 16 + hexValue(rest[i + 2])) as u8)
+            i += 3
+        } else {
+            bytes.push(rest[i])
+            i += 1
+        }
+    }
+    return strings.fromUtf8(bytes).ok() ?? rest.toOwned()
+}
+
+fn hexValue(b: u8) int {
+    if b >= b'0' && b <= b'9' {
+        return (b - b'0') as int
+    } else if b >= b'a' && b <= b'f' {
+        return (b - b'a') as int + 10
+    } else if b >= b'A' && b <= b'F' {
+        return (b - b'A') as int + 10
+    }
+    return -1
+}
+
+// The body of the next message, or `None` at the end of the input.
+fn readMessage(input: mut Stdin) Option<str> {
+    let length = -1
+    for true {
+        let line = ""
+        const Result.Ok(n) = input.readLine(line) else {
+            return Option.None
+        }
+        if n == 0 {
+            return Option.None
+        }
+        const header = line.trim()
+        if header.len() == 0 {
+            break
+        }
+        const name = "content-length:"
+        if header.len() > name.len() && header.slice(0, name.len()).toLower() == name {
+            length = headerValue(header.sliceFrom(name.len()).trim())
+        }
+    }
+    if length < 0 {
+        return Option.Some("")   // no length: not valid JSON, answered as such
+    }
+    let body = ""
+    for body.len() < length {
+        const Result.Ok(part) = input.read(length - body.len()) else {
+            return Option.None
+        }
+        if part.len() == 0 {
+            return Option.None
+        }
+        body.push(part)
+    }
+    return Option.Some(body)
+}
+
+fn headerValue(text: str) int {
+    let v = 0
+    for i in 0..text.len() {
+        if text[i] < b'0' || text[i] > b'9' || v > 1000000000 {
+            return -1
+        }
+        v = v * 10 + (text[i] - b'0') as int
+    }
+    return if text.len() > 0 { v } else { -1 }
+}
+
+// Writes a message with its header.
+fn send(body: str) {
+    print("Content-Length: {body.len()}\r\n\r\n{body}")
+    const _ = io.flush()
+}
