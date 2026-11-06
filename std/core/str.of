@@ -109,6 +109,31 @@ pub struct str {
     }
 
     /**
+     * A NUL-terminated copy of the text, for C functions that take a
+     * `const char *` (spec 11.3).
+     *
+     * @returns the copy; `ptr()` gives its address
+     * @panics when the text contains a NUL byte, which C would read as
+     * the end of the string
+     * @example
+     * ```ofir
+     * let c = "hello".toCString()
+     * let n = unsafe { strlen(c.ptr()) }   // 5
+     * ```
+     */
+    pub fn toCString(self) CString {
+        var bytes = str.withCapacity(self.len + 1)
+        for i in 0..self.len {
+            if unsafe { *self.ptr.add(i) } == 0 {
+                panic("toCString: the string contains a NUL byte at {i}")
+            }
+        }
+        bytes.push(self)
+        bytes.pushByte(0)
+        return CString{bytes: bytes}
+    }
+
+    /**
      * The length in bytes, not in characters: `"é".len()` is 2.
      *
      * @returns the number of bytes
@@ -552,6 +577,33 @@ pub struct str {
             }
         }
         return out
+    }
+}
+
+/**
+ * An owned, NUL-terminated copy of a `str`, made by `s.toCString()`, to
+ * pass text to C. It frees its buffer when dropped, so the pointer from
+ * `ptr()` is valid only while the `CString` lives.
+ */
+pub struct CString {
+    bytes: str   // the text followed by one NUL byte
+
+    /**
+     * The address of the first byte; the text ends with a NUL.
+     *
+     * @returns the pointer; reading through it requires `unsafe`
+     */
+    pub fn ptr(self) *u8 {
+        return self.bytes.ptr
+    }
+
+    /**
+     * The length in bytes, without the NUL.
+     *
+     * @returns the number of bytes C's `strlen` reports
+     */
+    pub fn len(self) int {
+        return self.bytes.len - 1
     }
 }
 
