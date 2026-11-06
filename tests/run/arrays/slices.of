@@ -1,0 +1,29 @@
+// requires: stage1
+// An array is a sequence: `for` reads its elements, and `&[T; N]` and
+// `[T; N]` convert to `&[T]` and to `[T]` parameters (spec 2.7, 2.12).
+
+fn total(xs: [int]) int {
+    var t = 0
+    for x in xs {
+        t += x
+    }
+    return t
+}
+
+fn first<T: Copy>(xs: &[T]) T {
+    return xs[0]
+}
+
+fn main() {
+    let a: [int; 3] = [4, 5, 6]
+    for i, x in a {
+        println("{i}: {x}")
+    }
+    var sum = 0
+    for x in a {
+        sum += x
+    }
+    println("{sum} {total(a)} {total(&a)} {first(&a)}")
+    let view: &[int] = &a
+    println("{view.len()} {view[2]}")
+}

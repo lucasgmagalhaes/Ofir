@@ -1,0 +1,7 @@
+// requires: stage1
+// panic: index out of bounds: the length is 3 but the index is 3
+fn main() {
+    let a: [int; 3] = [1, 2, 3]
+    let i = 3
+    println("{a[i]}")
+}
