@@ -1,7 +1,7 @@
 // panic: index out of bounds: the length is 3 but the index is 3
 fn main() {
     const xs = [1, 2, 3]
-    var i = 0
+    let i = 0
     for i < 3 {
         i += 1
     }

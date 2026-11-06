@@ -24,7 +24,7 @@ fn fail() {
 }
 
 fn main() {
-    var c = Counter{n: square(3)}
+    let c = Counter{n: square(3)}
     if c.next() != 10 {
         fail()
     }

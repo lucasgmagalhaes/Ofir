@@ -8,7 +8,7 @@ fn add(a: int, b: int) int {
 fn main() {
     const xs = [1, 2, 3]
     const n = -xs[0] + xs.len()
-    var total = 0
+    let total = 0
     total += add(n, 1)
     if total >= 2 && n <= 3 {
         println("{total}")

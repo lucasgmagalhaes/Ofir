@@ -4,7 +4,7 @@
 // the times replaced.
 
 fn sum(xs: [int]) int {
-    var total = 0
+    let total = 0
     for x in xs {
         total += x
     }
@@ -13,7 +13,7 @@ fn sum(xs: [int]) int {
 
 @bench
 fn benchSum(b: mut Bencher) {
-    var xs: List<int> = []
+    let xs: List<int> = []
     for i in 0..100 {
         xs.push(i)
     }

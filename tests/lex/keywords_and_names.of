@@ -1,6 +1,6 @@
 pub fn main() {
     const type = move
-    var x: Self = self
+    let x: Self = self
     if true && false {
         return
     } else {

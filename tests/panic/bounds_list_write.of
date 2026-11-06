@@ -1,6 +1,6 @@
 // panic: index out of bounds: the length is 2 but the index is -1
 fn main() {
-    var xs = ["a", "b"]
+    let xs = ["a", "b"]
     const i = -1
     xs[i] = "c"
 }
