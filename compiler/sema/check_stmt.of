@@ -46,8 +46,8 @@ fn unitUnlessNever(ty: int) int {
 fn letStmt(c: mut Checker, p: Program, s: &Stmt) int {
     match s.kind {
         StmtKind.Let(pattern, annotation, value, otherwise) => {
-            var ty = ERROR
-            var found = ERROR
+            let ty = ERROR
+            let found = ERROR
             if const Option.Some(t) = annotation {
                 ty = resolveType(c, p, &t)
                 found = coerce(c, p, &value, ty)
@@ -78,11 +78,11 @@ fn letStmt(c: mut Checker, p: Program, s: &Stmt) int {
 fn varStmt(c: mut Checker, p: Program, s: &Stmt) int {
     match s.kind {
         StmtKind.Var(_, annotation, value) => {
-            var ty = ERROR
+            let ty = ERROR
             if const Option.Some(t) = annotation {
                 ty = resolveType(c, p, &t)
             }
-            var found = ERROR
+            let found = ERROR
             if const Option.Some(init) = value {
                 found = if annotation.isSome() { coerce(c, p, &init, ty) } else {
                     checkExpr(c, p, &init, ERROR)
@@ -120,7 +120,7 @@ fn checkPlace(c: mut Checker, p: Program, target: &Expr) {
                 const name = c.text(c.locals[id].name)
                 c.error("E0304", target.span, "cannot assign twice to immutable variable "
                         + "`{name}`")
-                c.r.diags.help("declare it with `var {name}` to assign to it again")
+                c.r.diags.help("declare it with `let {name}` to assign to it again")
             }
             noteWrite(c, target.span, id)
         }
@@ -295,8 +295,8 @@ fn checkStmt(c: mut Checker, p: Program, s: &Stmt) int {
  */
 pub fn checkBlock(c: mut Checker, p: Program, block: &Block, expected: int, asValue: bool) int {
     const stmts = &block.stmts
-    var diverges = false
-    var warned = false
+    let diverges = false
+    let warned = false
     for i in 0..stmts.len() {
         const s = &stmts[i]
         if diverges && !warned {   // W0004 once per block (spec 12.6)
@@ -307,7 +307,7 @@ pub fn checkBlock(c: mut Checker, p: Program, block: &Block, expected: int, asVa
         }
         if asValue && i + 1 == stmts.len() {
             if const StmtKind.ExprStmt(tail) = s.kind {
-                var ty = checkExpr(c, p, &tail, expected)
+                let ty = checkExpr(c, p, &tail, expected)
                 if coerceToUnion(c, &tail, ty, expected) {
                     ty = expected   // a branch widens to the union expected (spec 17.3)
                 }
@@ -407,7 +407,7 @@ fn armBody(c: mut Checker, p: Program, body: &Expr, expected: int, asValue: bool
             _ => {}
         }
     }
-    var ty = checkExpr(c, p, body, expected)
+    let ty = checkExpr(c, p, body, expected)
     if asValue && coerceToUnion(c, body, ty, expected) {
         ty = expected
     }
@@ -429,7 +429,7 @@ pub fn checkMatch(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: 
     match e.kind {
         ExprKind.Match(scrutinee, arms) => {
             const ty = checkExpr(c, p, &*scrutinee, ERROR)
-            var result = NEVER
+            let result = NEVER
             for i in 0..arms.len() {
                 const arm = &arms[i]
                 checkPattern(c, p, &arm.pattern, ty)

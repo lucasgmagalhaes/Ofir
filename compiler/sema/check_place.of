@@ -40,7 +40,7 @@ pub fn placeRoot(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
 
 // The root of `e` as a place, before its own implicit dereferences.
 fn placeRootBelow(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
-    var at = e
+    let at = e
     for {
         if isModuleMember(c, at) {
             return Option.Some((at, 0))   // `m.global`
@@ -76,7 +76,7 @@ fn placeRootBelow(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
 // which is read-only, 2 for a `&mut [T]`, which is writable whatever binds
 // it, and 0 for neither.
 fn throughSlice(c: Checker, e: &Expr) int {
-    var at = e
+    let at = e
     for {
         const base = match at.kind {
             ExprKind.Field(base, _, _) => &*base
@@ -181,7 +181,7 @@ fn requireRoot(c: mut Checker, p: Program, e: &Expr, level: int) {
             }
             if !ok {
                 c.error("E0315", e.span,
-                        "this value cannot be modified: declare it with `var`".toOwned())
+                        "this value cannot be modified: declare it with `let`".toOwned())
             }
         }
     }
