@@ -33,7 +33,7 @@ named through the enum, in expressions and in patterns (`Option.Some(x)`,
 
 ```ofir
 fn parsePort(s: str) Result<u16, str> {
-    let n = parseInt(s)?
+    const n = parseInt(s)?
     if n < 1 || n > 65535 {
         return Result.Err("port out of range: {n}")
     }
@@ -70,7 +70,7 @@ struct AppError {
 }
 
 fn load(text: str) Result<Config, AppError> {
-    let n = parseInt(text)?    // a ParseError becomes an AppError
+    const n = parseInt(text)?    // a ParseError becomes an AppError
     ...
 }
 ```
@@ -81,7 +81,7 @@ Ignoring a value of type `Result` is a compile error:
 
 ```ofir
 writeFile(path, data)        // error: unused Result
-let _ = writeFile(path, data) // explicitly ignored
+const _ = writeFile(path, data) // explicitly ignored
 ```
 
 ## 6.4 Helper methods
