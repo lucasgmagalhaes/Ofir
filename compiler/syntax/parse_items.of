@@ -194,7 +194,7 @@ fn itemBody(p: mut Parser, header: move ItemHeader) Option<(Symbol, ItemKind)> {
         const imported = importItem(p)
         return Option.Some((Symbol(0), imported))
     }
-    if kind == TokenKind.Const || kind == TokenKind.Var {
+    if kind == TokenKind.Const || kind == TokenKind.Let || kind == TokenKind.Var {
         p.advance()
         return Option.Some(valueItem(p, kind == TokenKind.Const))
     }

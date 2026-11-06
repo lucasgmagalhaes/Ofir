@@ -54,7 +54,7 @@ fn letStmt(p: mut Parser, start: Span) Stmt {
 }
 
 fn varStmt(p: mut Parser, start: Span) Stmt {
-    const name = p.expectName("a variable name after `var`") ?? Symbol(0)
+    const name = p.expectName("a variable name after `let`") ?? Symbol(0)
     const ty = optionalType(p)
     var value: Option<Expr> = Option.None
     if p.accept(TokenKind.Eq) {
@@ -153,11 +153,11 @@ fn exprStmt(p: mut Parser, start: Span) Stmt {
 pub fn parseStmt(p: mut Parser) Stmt {
     const start = p.here()
     return match p.peek() {
-        TokenKind.Let | TokenKind.Const => {
+        TokenKind.Const => {
             p.advance()
             letStmt(p, start)
         }
-        TokenKind.Var => {
+        TokenKind.Let | TokenKind.Var => {
             p.advance()
             varStmt(p, start)
         }
