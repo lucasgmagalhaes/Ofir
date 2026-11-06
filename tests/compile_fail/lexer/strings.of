@@ -17,5 +17,5 @@ fn third() {
 }
 
 fn fourth() {
-    let d = b"\q"          // error[E0004]: invalid escape sequence
+    const d = b"\q"          // error[E0004]: invalid escape sequence
 }
