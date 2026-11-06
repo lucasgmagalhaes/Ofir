@@ -16,7 +16,7 @@ typedef struct {
     size_t pos;
     bool no_struct_literal;   // in `if`, `match` and `for` headers (spec A.6)
     bool recovering;          // an error was reported; silent until resynchronized
-    bool type_tests;          // in a `match` arm or `if let` pattern: `name: T` (spec 9.8)
+    bool type_tests;          // in a `match` arm or `if const` pattern: `name: T` (spec 9.8)
     struct {                  // contextual keywords (spec 1.5)
         Symbol move, type, ref, where, wildcard;
     } words;

@@ -35,7 +35,7 @@ static Expr *block_expr(Parser *p, ExprKind kind, Span start) {
     return e;
 }
 
-// `if cond { } else if ... else { }` and `if let pattern = value { }`.
+// `if cond { } else if ... else { }` and `if const pattern = value { }`.
 static Expr *if_expr(Parser *p) {
     Span start = advance(p)->span;
     Expr *e = new_expr(p, EXPR_IF, start);

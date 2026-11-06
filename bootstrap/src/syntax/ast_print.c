@@ -248,7 +248,7 @@ static void variant(Printer *p, const Expr *e) {
 }
 
 void print_expr(Printer *p, const Expr *e) {
-    if (!e) {   // missing after a syntax error (`let x` without `= value`)
+    if (!e) {   // missing after a syntax error (`const x` without `= value`)
         line(p, "<missing>");
         return;
     }

@@ -13,7 +13,7 @@ static TypeExpr *optional_type(Parser *p) {
     return accept(p, TOK_COLON) ? parse_type(p) : NULL;
 }
 
-// `let pattern: T = value` and `let pattern = value else { ... }`.
+// `const pattern: T = value` and `const pattern = value else { ... }`.
 static Stmt *let_stmt(Parser *p, Span start) {
     Stmt *s = new_stmt(p, STMT_LET, start);
     s->as.let.pattern = parse_pattern(p);

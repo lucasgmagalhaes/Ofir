@@ -180,7 +180,7 @@ static Operand lower_if(Lowerer *l, Expr *e) {
                                   .other = other});
     }
     switch_to(l, then);
-    drop_scope_enter(l);   // the bindings of `if let` live in the `then` block
+    drop_scope_enter(l);   // the bindings of `if const` live in the `then` block
     if (e->as.if_.let_pattern) {
         own_bindings(l, e->as.if_.let_pattern);
     }
