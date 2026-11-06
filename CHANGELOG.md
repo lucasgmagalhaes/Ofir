@@ -11,7 +11,8 @@ project uses [Semantic Versioning](https://semver.org/).
 - `ofir lsp`, a language server on standard input and output: it publishes
   the diagnostics of each open document as it is opened and changed
   (roadmap 6.3a), and answers go to definition for locals, declarations,
-  imported modules and types (roadmap 6.3b).
+  imported modules and types (roadmap 6.3b), and completes names in scope,
+  module members, fields, methods and types (roadmap 6.3c).
 - `Stdin.read(n)` in `std.io`: up to `n` bytes of standard input.
 
 ### Changed
