@@ -49,6 +49,8 @@ import air.lower_expr.typeIsValue
 import diag.noSpan
 import sema.check.Checker
 import sema.check_dyn.boxesDyn
+import sema.check_union.memberIndex
+import sema.check_union.unionMembers
 import sema.def.DefKind
 import sema.enums.enumVariants
 import sema.enums.variantsOf
@@ -116,6 +118,44 @@ pub fn variantValue(l: mut Lowerer, c: mut Checker, p: Program, ty: int, index: 
         emitStore(l, &placeChild(&payload, i), fields[i].clone())
     }
     emitStore(l, &placeChild(&place, 0), discriminant(c, p, ty, index))
+    return opCopy(dest, ty)
+}
+
+/**
+ * Widens a union to a larger one (spec 17.3): each member moves to its
+ * variant in the larger union.
+ *
+ * @param l the lowering
+ * @param c the checker
+ * @param p the program
+ * @param value the smaller union
+ * @param found its type
+ * @param ty the larger union
+ * @returns the value
+ */
+pub fn widenUnion(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand, found: int,
+                  ty: int) Operand {
+    let source = localPlace(toLocal(l, value))
+    let dest = newTemp(l, ty)
+    let members = unionMembers(c, found)
+    let done = l.body.newBlock()
+    for k in 0..members.len() {
+        let last = k + 1 == members.len()
+        let next = if last { done } else { l.body.newBlock() }
+        if !last {
+            let is = compare(l, c, p, Op.Eq, I32, tagOf(&source), discriminant(c, p, found, k))
+            test(l, is, next)
+        }
+        let member = placeChild(&placeChild(&source, VARIANT_STEP + k), 0)
+        let held = placeOperand(&member, OperandKind.Copy, members[k])
+        emitStore(l, &localPlace(dest), variantValue(l, c, p, ty, memberIndex(c, ty, members[k]),
+                                                     [held]))
+        emitGoto(l, done)
+        if !last {
+            switchTo(l, next)
+        }
+    }
+    switchTo(l, done)
     return opCopy(dest, ty)
 }
 
@@ -288,6 +328,10 @@ fn dataPointer(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: in
 fn typeTest(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, place: &Place,
             ty: int, fail: int) {
     let target = concreteType(l, c, c.members[c.module()][pattern.id.0])
+    if unionMembers(c, ty).len() > 0 {
+        unionTest(l, c, p, pattern, place, ty, target, fail)
+        return
+    }
     let id = emitTemp(l, I64, rvalue(RvalueKind.TypeId, Op.Add, fatPointer(c, p, place, ty),
                                      opUnit(UNIT)))
     let is = compare(l, c, p, Op.Eq, I64, opCopy(id, I64), opInt(target as u64, I64))
@@ -297,6 +341,46 @@ fn typeTest(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, place
         let data = dataPointer(l, c, p, place, ty, target)
         bind(l, c, local, &Place{local: data, fields: [], deref: true}, target)
     }
+}
+
+// `e: IoError` on a union (spec 17.4): the tag is that of the member, whose
+// value the binding takes. `e: (IoError | NetError)` takes any of the
+// members and rebuilds the smaller union around it.
+fn unionTest(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Pattern, place: &Place,
+             ty: int, target: int, fail: int) {
+    let local = c.localAt(pattern.id.0)
+    let tested = unionMembers(c, target)
+    if tested.len() == 0 {
+        let index = memberIndex(c, ty, target)
+        let is = compare(l, c, p, Op.Eq, I32, tagOf(place), discriminant(c, p, ty, index))
+        test(l, is, fail)
+        if local >= 0 {
+            bind(l, c, local, &placeChild(&placeChild(place, VARIANT_STEP + index), 0), target)
+        }
+        return
+    }
+    if local >= 0 && l.body.locals[local + 1].byRef {
+        l.fail("a type test that borrows a union of members")
+        return
+    }
+    let ok = l.body.newBlock()
+    for k in 0..tested.len() {
+        let next = if k + 1 < tested.len() { l.body.newBlock() } else { fail }
+        let index = memberIndex(c, ty, tested[k])
+        let is = compare(l, c, p, Op.Eq, I32, tagOf(place), discriminant(c, p, ty, index))
+        test(l, is, next)
+        if local >= 0 {
+            let member = placeChild(&placeChild(place, VARIANT_STEP + index), 0)
+            let value = placeOperand(&member, OperandKind.Copy, tested[k])
+            let widened = variantValue(l, c, p, target, k, [value])
+            emitStore(l, &localPlace(local + 1), widened)
+        }
+        emitGoto(l, ok)
+        if k + 1 < tested.len() {
+            switchTo(l, next)
+        }
+    }
+    switchTo(l, ok)
 }
 
 /**
