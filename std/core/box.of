@@ -80,6 +80,7 @@ extern "intrinsic" {
  * ```
  */
 @lang("box")
+@threadsafe
 pub struct Box<T> {
     ptr: *mut T
 

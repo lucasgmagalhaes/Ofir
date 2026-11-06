@@ -97,7 +97,7 @@ pub fn holdsRef(c: Checker, p: Program, ty: int) bool {
 pub fn holdsBorrowedFn(c: Checker, ty: int) bool {
     let t = c.types.get(ty)
     if t.kind == TyKind.Fn {
-        return t.data == FN_BORROWED
+        return t.data & FN_BORROWED != 0
     }
     if t.kind == TyKind.Adt || t.kind == TyKind.Tuple {
         for i in 0..t.args.len() {

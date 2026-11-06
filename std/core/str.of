@@ -28,6 +28,7 @@ extern "C" {
  * ```
  */
 @lang("str")
+@threadsafe
 pub struct str {
     ptr: *u8
     len: int

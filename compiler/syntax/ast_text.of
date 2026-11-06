@@ -84,7 +84,13 @@ pub fn typeText(t: &TypeExpr, names: Interner) str {
         TypeKind.Tuple(items) => {
             "({typeListText(items, names)}{if items.len() == 1 { ",)" } else { ")" }}"
         }
-        TypeKind.Fn(params, modes, ret, owned) => fnTypeText(params, modes, ret, owned, names)
+        TypeKind.Fn(params, modes, ret, owned, send) => {
+            var out = fnTypeText(params, modes, ret, owned, names)
+            if send {
+                out.push(" + Send")
+            }
+            out
+        }
         TypeKind.Dyn(inner) => "dyn {typeText(&*inner, names)}"
         TypeKind.Optional(inner) => "{typeText(&*inner, names)}?"
         TypeKind.Never => "!".toOwned()

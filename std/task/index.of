@@ -59,8 +59,9 @@ pub struct Task<T> {
 /**
  * Starts a task that runs `f` on an OS thread of its own.
  *
- * @typeParam T the type of the task's result
- * @param f the task's body; it owns everything it captures
+ * @typeParam T the type of the task's result, which moves back to the caller
+ * @param f the task's body; it owns everything it captures, and all of it
+ *          must be `Send` (spec 14.3)
  * @returns the task's handle
  * @example
  * ```ofir
@@ -70,7 +71,7 @@ pub struct Task<T> {
  * println("{handle.join()}")
  * ```
  */
-pub fn run<T>(f: move fn() T) Task<T> {
+pub fn run<T: Send>(f: move fn() T + Send) Task<T> {
     let slot = unsafe {
         if alignOf<T>() > 16 {
             ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T

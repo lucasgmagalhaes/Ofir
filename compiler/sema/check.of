@@ -49,6 +49,7 @@ import sema.structs.checkStructLayouts
 import sema.structs.hasInteriorMutability
 import sema.structs.structFields
 import sema.types.ERROR
+import sema.types.FN_SEND
 import sema.types.NEVER
 import sema.types.TyKind
 import sema.types.TypeTable
@@ -135,6 +136,12 @@ pub const BOUND_CLONE: int = 8
 pub const BOUND_COPY: int = 16
 /** `Debug`: `{x:?}` (spec 9.9). */
 pub const BOUND_DEBUG: int = 32
+/** `Send`: values may move to another task (spec 14.3). */
+pub const BOUND_SEND: int = 64
+/** `Sync`: shared references may be used from several tasks (spec 14.3). */
+pub const BOUND_SYNC: int = 128
+/** The number of bits above. */
+pub const BOUND_COUNT: int = 8
 
 /**
  * The bit of the built-in interface a bound names, or 0.
@@ -142,7 +149,7 @@ pub const BOUND_DEBUG: int = 32
  * @param c the checker
  * @param t the bound
  * @returns `BOUND_EQ`, `BOUND_ORD`, `BOUND_HASH`, `BOUND_CLONE`, `BOUND_COPY`,
- *          `BOUND_DEBUG` or 0
+ *          `BOUND_DEBUG`, `BOUND_SEND`, `BOUND_SYNC` or 0
  */
 pub fn boundBit(c: Checker, t: &TypeExpr) int {
     let name = match t.kind {
@@ -168,6 +175,10 @@ pub fn boundBit(c: Checker, t: &TypeExpr) int {
         BOUND_COPY
     } else if text == "Debug" {
         BOUND_DEBUG
+    } else if text == "Send" {
+        BOUND_SEND
+    } else if text == "Sync" {
+        BOUND_SYNC
     } else {
         0
     }
@@ -770,6 +781,9 @@ pub struct Checker {
                 if t.inner != UNIT {
                     out.push(" ")
                     self.appendType(out, t.inner, qualified)
+                }
+                if t.data & FN_SEND != 0 {
+                    out.push(" + Send")
                 }
             }
             TyKind.Adt | TyKind.Dyn => {

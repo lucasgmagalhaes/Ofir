@@ -12,16 +12,20 @@
 import base.span.Span
 import sema.call_args.arrangeArgs
 import sema.check.BOUND_CLONE
+import sema.check.BOUND_COUNT
 import sema.check.BOUND_DEBUG
 import sema.check.BOUND_EQ
 import sema.check.BOUND_HASH
 import sema.check.BOUND_ORD
+import sema.check.BOUND_SEND
+import sema.check.BOUND_SYNC
 import sema.check.Checker
 import sema.check.Generics
 import sema.check.fnGenericsIn
 import sema.check.fnOf
 import sema.check.noGenerics
 import sema.check.typeGenericsOf
+import sema.check_closure.coerceToSend
 import sema.check_keys.checkKeyArg
 import sema.check_keys.checkKeyBound
 import sema.check_keys.isKeyLiteral
@@ -42,6 +46,8 @@ import sema.interfaces.interfaceText
 import sema.interfaces.paramBoundArgs
 import sema.interfaces.unsatisfied
 import sema.program.Program
+import sema.send.isSend
+import sema.send.isSync
 import sema.structs.isCopy
 import sema.types.ERROR
 import sema.types.NEVER
@@ -383,7 +389,8 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
             let wanted = inferApply(c, &inf, params[slots[i]])
             let found = c.typeOf(args[i].value.id.0)
             let widened = coerceToSlice(c, p, &args[i].value, found, wanted) ||
-                          coerceToUnion(c, &args[i].value, found, wanted)
+                          coerceToUnion(c, &args[i].value, found, wanted) ||
+                          coerceToSend(c, p, &args[i].value, found, wanted)
             if !widened {
                 requireType(c, &args[i].value, found, wanted)
             }
@@ -499,6 +506,10 @@ pub fn satisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
         isCloneable(c, p, ty)
     } else if bit == BOUND_DEBUG {
         debuggable(c, p, ty)
+    } else if bit == BOUND_SEND {
+        isSend(c, p, ty)
+    } else if bit == BOUND_SYNC {
+        isSync(c, p, ty)
     } else {
         isCopy(c, p, ty)
     }
@@ -515,6 +526,10 @@ fn boundName(bit: int) str {
         "Clone"
     } else if bit == BOUND_DEBUG {
         "Debug"
+    } else if bit == BOUND_SEND {
+        "Send"
+    } else if bit == BOUND_SYNC {
+        "Sync"
     } else {
         "Copy"
     }
@@ -538,7 +553,7 @@ pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<in
             return
         }
         let bits = params.bounds[i]
-        for b in 0..6 {
+        for b in 0..BOUND_COUNT {
             let bit = 1 << b
             if bits & bit == 0 || satisfies(c, p, args[i], bit) {
                 continue

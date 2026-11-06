@@ -34,6 +34,7 @@ struct Header {
 | `@cfg(cond)` | any | conditional compilation (12.4) |
 | `@allow(category)` | any | silence a warning category (12.6) |
 | `@tag("key", "value")` | types, fields, variants | metadata for compile-time code (chapter 15.4) |
+| `@threadsafe` | structs, enums | `Send` and `Sync` when the type arguments are, whatever the fields hold (14.3) |
 | `@lang("type")` | structs, `std` only | the fields and methods of a primitive type (ADR 0019); `@lang("box")`, `"list"`, `"option"` and `"result"` mark the std types the compiler knows |
 
 Attributes are checked where they are declared:

@@ -1,0 +1,50 @@
+// requires: stage1
+// What may move to a task: `Send` derived from a type's parts, `+ Send`
+// function types and the `Send` bound (spec 14.3).
+
+import std.task
+
+enum Shape {
+    Circle(int)
+    Rect(int, int)
+}
+
+struct Job {
+    name: str
+    sizes: List<int>
+    shape: Box<Shape>
+}
+
+// A generic function passes its `Send` bound on to `task.run`.
+fn later<T: Send>(items: move List<T>) task.Task<int> {
+    return task.run(move () int => items.len())
+}
+
+// A borrowed `+ Send` function may still be called here.
+fn twice(f: fn() int + Send) int {
+    return f() + f()
+}
+
+fn main() {
+    let job = Job{name: "job".toOwned(), sizes: [1, 2, 3], shape: Box.new(Shape.Rect(2, 5))}
+    let t = task.run(move () int => {
+        var sum = 0
+        for x in job.sizes {
+            sum += x
+        }
+        println("{job.name}: {job.shape:?}")
+        return sum
+    })
+    println("{t.join()}")
+    var counts: Map<str, int> = Map.new()
+    counts.insert("a", 1)
+    let m = task.run(move () int => counts.len())
+    println("{m.join()}")
+    let back = later([4, 5])
+    println("{back.join()}")
+    let n = 21
+    println("{twice(() int => n)}")
+    let f: move fn() int + Send = move () int => n + 1
+    let g: move fn() int = f
+    println("{g()}")
+}

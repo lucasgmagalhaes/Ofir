@@ -72,8 +72,9 @@ pub enum TypeKind {
     Array(elem: Box<TypeExpr>, len: Box<Expr>)
     /** `(A, B)`; `()` is the unit type. */
     Tuple(items: List<TypeExpr>)
-    /** `fn(A) R`, `move fn(A) R` */
-    Fn(params: List<TypeExpr>, modes: List<Mode>, ret: Option<Box<TypeExpr>>, owned: bool)
+    /** `fn(A) R`, `move fn(A) R`; `send` for `+ Send` (spec 14.3) */
+    Fn(params: List<TypeExpr>, modes: List<Mode>, ret: Option<Box<TypeExpr>>, owned: bool,
+       send: bool)
     /** `dyn I` */
     Dyn(inner: Box<TypeExpr>)
     /** `T?` */

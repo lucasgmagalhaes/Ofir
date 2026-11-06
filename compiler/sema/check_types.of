@@ -32,6 +32,8 @@ import sema.program.Program
 import sema.resolve_attributes.warnDeprecated
 import sema.types.ERROR
 import sema.types.FN_BORROWED
+import sema.types.FN_OWNED
+import sema.types.FN_SEND
 import sema.types.NEVER
 import sema.types.STR
 import sema.types.TyKind
@@ -395,7 +397,7 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
             }
             c.types.tuple(types)
         }
-        TypeKind.Fn(params, _, ret, owned) => {
+        TypeKind.Fn(params, _, ret, owned, send) => {
             var types: List<int> = []
             for i in 0..params.len() {
                 types.push(resolveType(c, p, &params[i]))
@@ -404,7 +406,9 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
                 Option.Some(r) => resolveType(c, p, &*r)
                 Option.None => UNIT
             }
-            c.types.fnValueType(types, result, owned)
+            let kind = if owned { FN_OWNED } else { FN_BORROWED }
+            let flag = if send { FN_SEND } else { 0 }
+            c.types.fnValueTypeWith(types, result, kind | flag)
         }
         TypeKind.Never => NEVER
         TypeKind.Dyn(inner) => dynType(c, p, &*inner, t.span)
@@ -502,12 +506,12 @@ pub fn compatible(found: int, expected: int) bool {
 // The owned function type `move fn(A) R` of `fn(A) R`; other types as they are.
 fn ownedFn(c: mut Checker, ty: int) int {
     let t = c.types.get(ty)
-    if t.kind != TyKind.Fn || t.data != FN_BORROWED {
+    if t.kind != TyKind.Fn || t.data & FN_BORROWED == 0 {
         return ty
     }
     let args = t.args.clone()
     let ret = t.inner
-    return c.types.fnValueType(args, ret, true)
+    return c.types.fnValueTypeWith(args, ret, FN_OWNED | (t.data & FN_SEND))
 }
 
 // `dyn I`: E0333 unless `I` names an interface, E0338 unless its methods

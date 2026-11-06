@@ -1,0 +1,31 @@
+// requires: stage1
+// A `+ Send` function type and the `Send` and `Sync` bounds (spec 14.3).
+
+struct Raw {
+    p: *int,
+}
+
+fn needSend<T: Send>(_: T) {
+}
+
+fn needSync<T: Sync>(_: T) {
+}
+
+unsafe fn raw() Raw {
+    return Raw{p: 0 as *int}
+}
+
+fn main() {
+    let r = unsafe { raw() }
+    let f: move fn() int + Send = move () int => {   // error[E0360]: the closure captures `r` of type `Raw`, which is not `Send`
+        let _ = r
+        return 1
+    }
+    let g = () int => 2
+    let h: fn() int + Send = () int => g()   // error[E0360]: the closure captures `g` of type `fn() int`, which is not `Sync`
+    needSend(unsafe { raw() })   // error[E0332]: `Raw` does not satisfy the bound `Send`
+    let s = unsafe { raw() }
+    needSync(&s)   // error[E0332]: `&Raw` does not satisfy the bound `Sync`
+    let _ = f
+    let _ = h
+}
