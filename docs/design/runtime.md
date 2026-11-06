@@ -18,6 +18,7 @@ LLVM IR. Its interface is `runtime/include/ofir_rt.h`.
 | Processes | `ofir_run`: `posix_spawnp` with both output streams captured (needed for the compiler to invoke clang) |
 | Tasks | `ofir_task_spawn`, `ofir_task_join`: one POSIX thread per task (`std.task`, spec 14.2) |
 | Channels | `ofir_channel_new`, `_send`, `_recv`, `_try_recv` and the sender and receiver counts (`std.sync`, spec 14.4) |
+| Locks and atomics | `ofir_atomic_*`, `ofir_mutex_*`, `ofir_rwlock_*`, `ofir_waitgroup_*` (`std.sync`, spec 14.4) |
 
 Stage 0 implements the entry point, the panic functions, the allocator,
 the standard output buffer and the string functions used by
@@ -92,6 +93,14 @@ counts its senders and knows whether the receiver is alive. The receiver
 closes the channel first, so that later sends fail and drop their value,
 then drops what it never took; the last of the senders and the receiver to
 go frees the channel.
+
+### Locks and atomics
+
+`sync.c` wraps the compiler's `__atomic` builtins, all sequentially
+consistent, on the `int` that `std.sync` keeps in an `UnsafeCell`. A mutex,
+a read-write lock or a wait group (a count, a mutex and a condition
+variable that `wait` waits on until the count is 0) lives on the heap, so
+the Ofir value that owns it can move; its drop frees it.
 
 ## 3. Stack overflow
 
