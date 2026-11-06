@@ -27,9 +27,11 @@ import sema.check_mapped.checkAliasBounds
 import sema.check_mapped.mappedType
 import sema.check_ref.checkInstanceStorable
 import sema.def.DefKind
+import sema.def.Res
 import sema.interfaces.dynIncompatible
 import sema.program.Program
 import sema.resolve_attributes.warnDeprecated
+import sema.trace.link
 import sema.types.ERROR
 import sema.types.FN_BORROWED
 import sema.types.FN_OWNED
@@ -275,6 +277,9 @@ fn pathTarget(c: mut Checker, segments: &List<Symbol>, span: Span) int {
     const first = c.r.scope.module(segments[0])
     c.r.noteImportUse(segments[0])
     if segments.len() == 1 {
+        if first != 0 {
+            link(c.r, span, Res.Def(first))
+        }
         return first
     }
     if first == 0 {   // `nowhere.Name`
@@ -286,7 +291,11 @@ fn pathTarget(c: mut Checker, segments: &List<Symbol>, span: Span) int {
         c.unsupported(span, "nested module paths in types are")
         return 0
     }
-    return moduleType(c, c.def(first).target, segments[segments.len() - 1], span)
+    const id = moduleType(c, c.def(first).target, segments[segments.len() - 1], span)
+    if id != 0 {
+        link(c.r, span, Res.Def(id))
+    }
+    return id
 }
 
 fn resolvePath(c: mut Checker, p: Program, segments: &List<Symbol>, args: &List<TypeExpr>,
