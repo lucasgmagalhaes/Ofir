@@ -18,8 +18,8 @@ fn expectKinds(src: str, expected: [TokenKind]) {
 
 @test
 fn genericsCloseWithSingleGtTokens() {
-    expectKinds("var b: List<List<u8>>", [
-        TokenKind.Var, TokenKind.Ident, TokenKind.Colon, TokenKind.Ident, TokenKind.Lt,
+    expectKinds("let b: List<List<u8>>", [
+        TokenKind.Let, TokenKind.Ident, TokenKind.Colon, TokenKind.Ident, TokenKind.Lt,
         TokenKind.Ident, TokenKind.Lt, TokenKind.Ident, TokenKind.Gt, TokenKind.Gt, TokenKind.Eof,
     ])
 }

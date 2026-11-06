@@ -157,7 +157,7 @@ pub fn parseStmt(p: mut Parser) Stmt {
             p.advance()
             letStmt(p, start)
         }
-        TokenKind.Let | TokenKind.Var => {
+        TokenKind.Let => {
             p.advance()
             varStmt(p, start)
         }
