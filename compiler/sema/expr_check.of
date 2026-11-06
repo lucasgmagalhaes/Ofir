@@ -39,6 +39,7 @@ import sema.check_types.fnSignature
 import sema.check_types.resolveType
 import sema.check_types.sliceOf
 import sema.check_union.coerceToUnion
+import sema.check_union.unionMembers
 import sema.check_unsafe.checkDeref
 import sema.check_unsafe.isUnsafeFn
 import sema.check_unsafe.pointerCast
@@ -142,9 +143,8 @@ fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>, specs: &List<st
             }
             continue
         }
-        let printable = kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool ||
-                        kind == TyKind.Str ||
-                        kind == TyKind.Error
+        let printable = interpolates(c, ty) ||
+                        (specs[i].len() == 0 && unionInterpolates(c, ty))
         if !printable {
             c.error("E0314", parts[i].span, "a value of type `{c.typeName(ty)}` cannot be "
                     + "interpolated into a string")
@@ -153,6 +153,27 @@ fn interpolation(c: mut Checker, p: Program, parts: &List<Expr>, specs: &List<st
         }
     }
     return STR
+}
+
+fn interpolates(c: Checker, ty: int) bool {
+    let kind = c.types.kind(ty)
+    return kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool ||
+           kind == TyKind.Str ||
+           kind == TyKind.Error
+}
+
+// A union interpolates when each of its members does (spec 17.5).
+fn unionInterpolates(c: Checker, ty: int) bool {
+    let members = unionMembers(c, ty)
+    if members.len() == 0 {
+        return false
+    }
+    for i in 0..members.len() {
+        if !interpolates(c, members[i]) {
+            return false
+        }
+    }
+    return true
 }
 
 // `{x:spec}` (spec 1.7): a precision needs a float, a radix an integer and

@@ -1,0 +1,17 @@
+// requires: stage1
+// Built-in interfaces on unions (spec 17.5).
+
+struct Point {
+    x: int
+}
+
+fn order(a: int | str, b: int | str) bool {
+    return a < b   // error[E0313]: operator cannot be applied to type `int | str`
+}
+
+fn show(value: int | Point) str {
+    return "{value}"   // error[E0314]: a value of type `Point | int` cannot be interpolated into a string
+}
+
+fn main() {
+}

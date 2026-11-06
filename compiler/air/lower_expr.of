@@ -40,6 +40,7 @@ import air.lower_derive.orderedBy
 import air.lower_pattern.boxRest
 import air.lower_pattern.buildVariant
 import air.lower_pattern.isVariant
+import air.lower_pattern.placeChild
 import air.lower_pattern.variantValue
 import air.lower_pattern.widenUnion
 import air.air.VARIANT_STEP
@@ -2132,7 +2133,9 @@ fn interpolation(l: mut Lowerer, c: mut Checker, p: Program, parts: &List<Expr>,
     let dest = emitTemp(l, STR, rvUse(opStr("", STR)))
     for i in 0..parts.len() {
         var part = lowerExpr(l, c, p, &parts[i])
-        if specs[i].len() == 0 {
+        if specs[i].len() == 0 && unionMembers(c, part.ty).len() > 0 {
+            pushUnion(l, c, p, dest, part, false)
+        } else if specs[i].len() == 0 {
             let f = partFn(l, c, part, false)
             emitRuntime(l, f, [opAddr(dest, STR), part], -1)
         } else {
@@ -2140,6 +2143,31 @@ fn interpolation(l: mut Lowerer, c: mut Checker, p: Program, parts: &List<Expr>,
         }
     }
     return opCopy(dest, STR)
+}
+
+// `"{x}"` on a union (spec 17.5): the member it holds, as it interpolates;
+// appended to `dest`, or printed.
+fn pushUnion(l: mut Lowerer, c: mut Checker, p: Program, dest: int, value: move Operand,
+             print: bool) {
+    let ty = value.ty
+    let source = localPlace(toLocal(l, value))
+    let members = unionMembers(c, ty)
+    let done = l.body.newBlock()
+    for k in 0..members.len() {
+        let body = l.body.newBlock()
+        let next = l.body.newBlock()
+        let is = isVariant(l, c, p, &source, ty, k)
+        terminate(l, branch(is, body, next))
+        switchTo(l, body)
+        let member = placeChild(&placeChild(&source, VARIANT_STEP + k), 0)
+        var held = placeOperand(&member, OperandKind.Copy, members[k])
+        let f = partFn(l, c, held, print)
+        emitRuntime(l, f, if print { [held] } else { [opAddr(dest, STR), held] }, -1)
+        emitGoto(l, done)
+        switchTo(l, next)
+    }
+    emitGoto(l, done)
+    switchTo(l, done)
 }
 
 // `{x:spec}` (spec 1.7): a padded part is formatted into a str of its own,
@@ -2247,6 +2275,10 @@ fn lowerPrint(l: mut Lowerer, c: mut Checker, p: Program, arg: &Expr, newline: b
             }
             for i in 0..parts.len() {
                 var part = lowerExpr(l, c, p, &parts[i])
+                if unionMembers(c, part.ty).len() > 0 {
+                    pushUnion(l, c, p, -1, part, true)
+                    continue
+                }
                 let f = partFn(l, c, part, true)
                 emitRuntime(l, f, [part], -1)
             }

@@ -119,6 +119,9 @@ pub fn isOrdering(c: Checker, ty: int) bool {
  * @returns true if it does
  */
 pub fn adtSatisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
+    if bit == BOUND_ORD && c.isUnion(c.types.get(ty).data) {
+        return false   // a union has no order of its own (spec 17.5)
+    }
     if bit != BOUND_HASH && comparisonMethod(c, p, ty, bit) != 0 {
         return true
     }

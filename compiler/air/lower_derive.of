@@ -563,8 +563,14 @@ pub fn lowerDebugGlue(l: mut Lowerer, c: mut Checker, p: Program, targs: int) {
             let is = isVariant(l, c, p, &localPlace(1), ty, v)
             terminate(l, branch(is, body, next))
             switchTo(l, body)
-            pushText(l, &out, c.text(variantsOf(c, id).variants[v].name))
-            debugFields(l, c, p, ty, v, &out)
+            if c.isUnion(id) {   // the member it holds (spec 17.5)
+                let member = variantFieldType(c, p, ty, v, 0)
+                let held = part(&fieldPlace(&localPlace(1), VARIANT_STEP + v, 0), member)
+                debugValue(l, c, p, held, member, &out)
+            } else {
+                pushText(l, &out, c.text(variantsOf(c, id).variants[v].name))
+                debugFields(l, c, p, ty, v, &out)
+            }
             emitGoto(l, done)
             switchTo(l, next)
         }
