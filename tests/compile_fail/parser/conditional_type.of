@@ -1,0 +1,7 @@
+// requires: stage1
+// A conditional type has both branches (spec 16.5).
+
+type Half<T> = if T is int { T }   // error[E0100]: expected `else`: a conditional type has both branches
+
+fn main() {
+}

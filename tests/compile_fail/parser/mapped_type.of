@@ -1,0 +1,7 @@
+// requires: stage1
+// A mapped type names its keys with `in` (spec 16.4).
+
+type Field<T> = { [K keyof T]: T[K] }   // error[E0100]: expected `in` after the key parameter
+
+fn main() {
+}
