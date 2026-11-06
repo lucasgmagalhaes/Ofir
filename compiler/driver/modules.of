@@ -41,14 +41,20 @@ pub struct Front {
     pub names: Interner
     /** The diagnostics of every phase. */
     pub diags: Diagnostics
+    /** Texts read in place of their files: the unsaved buffers of an editor. */
+    pub overlays: Map<str, str>
 
     /**
-     * Reads a file into the source map.
+     * Reads a file into the source map, or its overlay.
      *
      * @param path its path
      * @returns its id, or `None` when it cannot be read
      */
     pub fn load(mut self, path: str) Option<FileId> {
+        if const Option.Some(text) = self.overlays.get(path) {
+            const saved = text.clone()
+            return Option.Some(self.map.add(path.toOwned(), saved))
+        }
         const Result.Ok(text) = fs.readToString(path) else {
             return Option.None
         }

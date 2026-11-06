@@ -233,7 +233,8 @@ fn build(given: move Options) int {
     let opts = given
     opts.input = testRoot(&opts)
     let pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
-    let front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
+    let front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new(),
+                      overlays: Map.new()}
     front.diags.denyWarnings = opts.deny
     const Option.Some(file) = front.load(opts.input) else {
         driverError(opts.format, "E0900", "cannot read `{opts.input}`")
