@@ -83,6 +83,7 @@ import air.lower.terminate
 import air.lower.toLocal
 import base.intern.Symbol
 import sema.check_box.boxInner
+import sema.check_mapped.isMappedStruct
 import sema.check_methods.BUILTIN_BASE
 import sema.check_methods.DERIVED_CLONE
 import air.lower.methodTargs
@@ -1238,6 +1239,11 @@ fn structLiteral(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, fields: &
 // The default value of field `f` of struct `id`: an expression of the
 // struct's module.
 fn fieldDefault(l: mut Lowerer, c: mut Checker, p: Program, id: int, f: int) Operand {
+    if isMappedStruct(c, p, id) {   // a `?:` field of a mapped type: `None`
+        let ty = fieldsOf(c, id).types[f]
+        let none: List<Arg> = []
+        return buildVariant(l, c, p, ty, variantNamed(c, p, ty, "None"), &none)
+    }
     let decl = fieldDeclAt(p, c.loc(id), f)
     let previous = c.enter(c.def(id).module)
     let result = match decl.defaultValue {

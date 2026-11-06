@@ -356,10 +356,20 @@ fn postfixType(p: mut Parser, ops: bool) TypeExpr {
     }
 }
 
+// Whether a token can start the right operand of `|`, `&` or `-`; before
+// any other token the operator ends the type, as in stage 0 (`mu&mut t`).
+fn startsOperand(kind: TokenKind) bool {
+    return match kind {
+        TokenKind.Ident | TokenKind.Dot | TokenKind.LParen | TokenKind.SelfType => true
+        TokenKind.LBrace | TokenKind.If | TokenKind.True | TokenKind.False => true
+        _ => false
+    }
+}
+
 // `&` and `-` on key types, left-associative and tighter than `|`.
 fn keyTerm(p: mut Parser) TypeExpr {
     var t = postfixType(p, true)
-    for p.at(TokenKind.Amp) || p.at(TokenKind.Minus) {
+    for (p.at(TokenKind.Amp) || p.at(TokenKind.Minus)) && startsOperand(p.peekAt(1)) {
         let start = t.span
         let op = if p.at(TokenKind.Amp) { Op.And } else { Op.Sub }
         p.advance()
@@ -374,7 +384,8 @@ fn typeIn(p: mut Parser, ops: bool) TypeExpr {
         return postfixType(p, false)
     }
     var t = keyTerm(p)
-    for p.accept(TokenKind.Pipe) {
+    for p.at(TokenKind.Pipe) && startsOperand(p.peekAt(1)) {
+        p.advance()
         let start = t.span
         let right = Box.new(keyTerm(p))
         t = newType(p, TypeKind.KeyOp(Op.Or, Box.new(t), right), start)
@@ -384,13 +395,14 @@ fn typeIn(p: mut Parser, ops: bool) TypeExpr {
 
 /**
  * A type; `T?` is `Option<T>`. Key types (spec 16.1-16.3) are included:
- * `keyof T`, `.x`, `A | B`, `A & B`, `A - B` and `T[K]`.
+ * `keyof T`, `.x`, `A | B`, `A & B`, `A - B` and `T[K]`. After a syntax
+ * error only the types of stage 0 are, so that the recovery agrees.
  *
  * @param p the parser
  * @returns the type
  */
 pub fn parseType(p: mut Parser) TypeExpr {
-    return typeIn(p, true)
+    return typeIn(p, !p.recovering)
 }
 
 /**

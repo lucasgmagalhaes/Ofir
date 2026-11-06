@@ -417,7 +417,7 @@ fn ensureFields(c: mut Checker, p: Program, ty: int) {
 }
 
 // Whether the keys of `key` are keys of `bound`.
-fn included(c: Checker, key: int, bound: int) bool {
+pub fn included(c: Checker, key: int, bound: int) bool {
     var keys = key
     if c.types.kind(key) == TyKind.Param {
         keys = paramKey(c, key)

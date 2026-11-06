@@ -19,6 +19,8 @@ import sema.check_generic.checkBounds
 import sema.check_keys.indexType
 import sema.check_keys.keyOpType
 import sema.check_keys.keyofType
+import sema.check_mapped.checkAliasBounds
+import sema.check_mapped.mappedType
 import sema.check_ref.checkInstanceStorable
 import sema.def.DefKind
 import sema.interfaces.dynIncompatible
@@ -86,8 +88,18 @@ pub fn ownerType(c: mut Checker, p: Program, id: int) int {
     return ownerTypeOf(c, p, c.def(id).module, c.def(id).item)
 }
 
-// Expand with actual arguments so all underlying type checks run at each use.
-fn resolveAlias(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
+/**
+ * `Name<args>` for a type alias, expanded with its arguments so that the
+ * checks of the aliased type run at each use.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the alias
+ * @param args its type arguments
+ * @param span where it is named
+ * @returns the type
+ */
+pub fn resolveAlias(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
     let item = itemOf(p, c.loc(id))
     return match item.kind {
         ItemKind.TypeAlias(typeParams, aliased) => aliasType(c, p, id, &typeParams, &aliased, args,
@@ -120,10 +132,16 @@ fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
     let saved = c.enter(c.def(id).module)
     let outer = c.enterGenerics(generics)
     let savedSelf = c.selfType
+    let savedAlias = c.aliasDef
     c.selfType = ERROR
+    c.aliasDef = id
     c.info[id].checking = true
-    let ty = resolveType(c, p, aliased)
+    var ty = ERROR
+    if checkAliasBounds(c, p, id, span) {
+        ty = resolveType(c, p, aliased)
+    }
     c.info[id].checking = false
+    c.aliasDef = savedAlias
     c.selfType = savedSelf
     c.enterGenerics(outer)
     c.enter(saved)
@@ -164,6 +182,13 @@ pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span)
 
 // The type parameter named `name`, if it is in scope.
 fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
+    var bound = c.typeVars.len()
+    for bound > 0 {   // the innermost first
+        bound -= 1
+        if c.typeVars[bound].0 == name.0 {
+            return Option.Some(c.typeVarTypes[bound])
+        }
+    }
     for i in 0..c.generics.fnParams.len() {
         if c.generics.fnParams[i].0 == name.0 {
             return Option.Some(c.types.param(c.generics.owner.len() + i, name.0))
@@ -377,7 +402,11 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
         TypeKind.Key(name) => c.types.keys([name.0])
         TypeKind.KeyOp(op, left, right) => keyOpType(c, p, op, &*left, &*right, t.span)
         TypeKind.Index(base, key) => indexType(c, p, &*base, &*key, t.span)
-        TypeKind.Mapped(_, _, _, _, _) => c.unsupported(t.span, "mapped types are")
+        TypeKind.Mapped(param, keys, filter, optional, field) => if filter.isSome() {
+            c.unsupported(t.span, "filters of mapped types are")
+        } else {
+            mappedType(c, p, t, param, &*keys, optional, &*field)
+        }
         TypeKind.Is(_, _) |
         TypeKind.Cond(_, _, _) |
         TypeKind.Infer(_) |

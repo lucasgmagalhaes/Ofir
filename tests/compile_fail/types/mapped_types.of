@@ -1,0 +1,13 @@
+// requires: stage1
+// Mapped types (spec 16.4): E0332 and E0340.
+
+struct Point {
+    x: float
+    y: float
+}
+
+type Pick<T, K: keyof T> = { [P in K]: T[P] }
+type Bad<T> = { [P in T]: int }   // error[E0340]: a mapped type needs a key type, found `int`
+
+fn far(p: Pick<Point, .z>) {}   // error[E0332]: the key `.z` is not in the bound `.x | .y` of `K`
+fn wrong(b: Bad<int>) {}

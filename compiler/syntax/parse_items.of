@@ -13,6 +13,7 @@ import syntax.ast.FnDecl
 import syntax.ast.Item
 import syntax.ast.ItemKind
 import syntax.ast.TypeExpr
+import syntax.ast.TypeKind
 import syntax.ast.WherePred
 import syntax.parse_decls.parseEnum
 import syntax.parse_decls.parseFn
@@ -112,11 +113,31 @@ fn typeAlias(p: mut Parser) (Symbol, ItemKind) {
     let name = p.expectName("a type name") ?? Symbol(0)
     var bounds: List<WherePred> = []
     let params = parseTypeParams(p, bounds)
-    if bounds.len() > 0 {
-        p.syntaxError(bounds[0].span, "a type alias cannot bound its type parameters".toOwned())
+    for i in 0..bounds.len() {
+        if !keyBounds(&bounds[i].bounds) {
+            p.syntaxError(bounds[i].span, "a type alias cannot bound its type parameters".toOwned())
+            break
+        }
     }
+    p.typeBounds = bounds   // key bounds, as `K: keyof T` (spec 16.4)
     p.expect(TokenKind.Eq, "`=` and a type")
     return (name, ItemKind.TypeAlias(params, parseType(p)))
+}
+
+// Whether each bound is a key type: `keyof T`, `.x` or `A | B`.
+fn keyBounds(bounds: &List<TypeExpr>) bool {
+    for i in 0..bounds.len() {
+        let isKey = match bounds[i].kind {
+            TypeKind.KeyOf(_) |
+            TypeKind.Key(_) |
+            TypeKind.KeyOp(_, _, _) => true
+            _ => false
+        }
+        if !isKey {
+            return false
+        }
+    }
+    return true
 }
 
 // `extern "C" { fn ... }` or `extern "C" fn name(...) { body }`.

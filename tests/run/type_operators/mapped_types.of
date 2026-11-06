@@ -1,0 +1,43 @@
+// requires: stage1
+// Mapped types (spec 16.4): Partial, Pick, Omit and Record.
+
+struct Point {
+    x: float
+    y: float
+}
+
+struct User {
+    name: str
+    age: int
+    email: str
+}
+
+type Partial<T> = { [K in keyof T]?: T[K] }
+type Pick<T, K: keyof T> = { [P in K]: T[P] }
+type Omit<T, K: keyof T> = { [P in keyof T - K]: T[P] }
+type Record<K, V> = { [P in K]: V }
+
+fn patch(p: &Point, with: &Partial<Point>) Point {
+    return Point{x: with.x ?? p.x, y: with.y ?? p.y}
+}
+
+fn total(limits: Record<.min | .max, int>) int {
+    return limits.max - limits.min
+}
+
+fn main() {
+    let p = Point{x: 1.0, y: 2.0}
+    let q = patch(&p, &Partial<Point>{y: Option.Some(5.0)})
+    println("{q.x} {q.y}")
+    let only: Pick<Point, .x> = Pick<Point, .x>{x: 7.5}
+    println("{only.x}")
+    let u = Omit<User, .email>{name: "ana".toOwned(), age: 31}
+    println("{u.name} {u.age}")
+    println("{total(Record<.min | .max, int>{min: 3, max: 10})}")
+    let keys: keyof Partial<Point> = .y
+    let empty = Partial<User>{}
+    println("{empty.name.isNone()} {empty[.age].isNone()}")
+    let named = Pick<User, .name | .email>{name: "bo".toOwned(), email: "b@o".toOwned()}
+    println("{named.email}")
+    let _ = keys
+}
