@@ -53,7 +53,7 @@ build/stage0/ofir build|run|test <file.of> [--emit=tokens|ast|names|types|air|ll
 
 - A return type goes on the same line as the signature.
 - No multi-line strings; no leading `+` continuation outside parentheses.
-- `let X = ref.field else { ... }` is E0602: use `match`.
+- `const X = ref.field else { ... }` is E0602: use `match`.
 - `self` is a keyword outside methods: do not use it as a binding name.
 - `u64 as i64` is range checked: use `.wrappingCast<i64>()`.
 - `list[i] = f()` where `f` grows `list` writes into freed memory: compute
