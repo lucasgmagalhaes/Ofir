@@ -211,7 +211,7 @@ compiler/
 │   ├── const_eval.of         compile-time evaluation of constants
 │   ├── moves.of              move analysis: states, statements, loops (E0600-E0602)
 │   ├── moves_expr.of         move analysis of expressions and places
-│   ├── moves_match.of        move analysis of patterns, `if let`, `match`
+│   ├── moves_match.of        move analysis of patterns, `if const`, `match`
 │   ├── borrows.of            borrow checking, non-lexical (E0700-E0705)
 │   ├── type_trace.of         the `--emit=types` format
 │   ├── check_items.of        declarations, signatures
@@ -230,7 +230,7 @@ compiler/
 │   ├── air_print.of          the `main air` format (stage 0's `--emit=air`)
 │   ├── lower.of              roots, monomorphization, drop scopes and flags, glue
 │   ├── lower_expr.of         expressions, methods, lists, clones, hashes, statements
-│   ├── lower_pattern.of      enum values, patterns, `match`, `if let`
+│   ├── lower_pattern.of      enum values, patterns, `match`, `if const`
 │   └── validate.of           AIR invariants checker [planned]
 ├── opt/                      Ofir-level passes before LLVM [planned]
 │   └── inline_small.of

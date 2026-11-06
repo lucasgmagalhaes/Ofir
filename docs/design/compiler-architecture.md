@@ -74,7 +74,7 @@ TypeKind = Int(width, signed) | Float(width) | Bool | Unit | Never | Str
          | Ref(mutable, TypeId) | Ptr(mutable, TypeId)
          | Slice(TypeId) | Array(TypeId, len) | Tuple([TypeId])
          | Fn([TypeId], TypeId) | Dyn([DefId]) | Param(index)
-         | Infer(var) | Error
+         | Infer(let) | Error
 ```
 
 `Error` is compatible with every type; it is produced after a reported
@@ -137,7 +137,7 @@ collected per type in a `MethodTable` keyed by `(DefId of type, Symbol)`.
 Types and values share one namespace, as in Go: `struct Point` and
 `fn Point` in one module conflict (E0201). A module declaration may hide a
 prelude name. The parameters and the top level of a function body are one
-scope, so `fn f(x: int) { let x = 1 }` is an error, while a nested block may
+scope, so `fn f(x: int) { const x = 1 }` is an error, while a nested block may
 shadow `x`.
 
 Stage 0 indexes its tables by symbol id: the module table maps each symbol
@@ -301,9 +301,9 @@ checker proper, is in stage 1 only (roadmap 4.10).
 **Stage 1** (`compiler/sema/borrows.of`) does step 2 in the same walk as
 the move analysis. The state at each point also keeps the loans that may be
 alive: a loan is a borrowed place of a local and its *holder*, a local
-whose value holds a reference (`let r = &list`, `let f = list.first()`, a
+whose value holds a reference (`const r = &list`, `const f = list.first()`, a
 borrowing `for` or `match` binding) or a `for` loop. The value being
-computed carries the loans it holds, and a `let`, `var` or assignment
+computed carries the loans it holds, and a `const`, `let` or assignment
 gives them to the local. A call result that holds a reference borrows the
 argument it comes from (spec 5.6). An access to a place overlapping a loan
 it is not compatible with records a conflict, which is reported only when

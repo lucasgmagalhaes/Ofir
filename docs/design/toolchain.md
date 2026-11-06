@@ -47,7 +47,7 @@ error[E0304]: cannot assign twice to immutable variable `n`
 3 |     n = 2
   |     ^
   |
-  = help: declare it with `var n` to assign to it again
+  = help: declare it with `let n` to assign to it again
 ```
 
 The short format leaves them out: it has one line per diagnostic.
@@ -155,7 +155,7 @@ allowed, the format of `tsconfig.json` (ADR 0026). Keys are camelCase.
 
 | Property | Default | Meaning |
 |----------|---------|---------|
-| `inlineBlocks` | `false` | when `false`, the body of every function and of every statement (`if`, `else`, `for`, `unsafe`, `match` arm, `let ... else`) is broken onto its own lines; an `if` or `unsafe` used as a value may stay on one line if each block holds one expression. `true` lets a body of a single statement stay on one line. |
+| `inlineBlocks` | `false` | when `false`, the body of every function and of every statement (`if`, `else`, `for`, `unsafe`, `match` arm, `const ... else`) is broken onto its own lines; an `if` or `unsafe` used as a value may stay on one line if each block holds one expression. `true` lets a body of a single statement stay on one line. |
 
 `ofir fmt` (stage 1) does not read the manifest yet: it always applies the
 default. `tools/check_format.py` checks the repository against the same
