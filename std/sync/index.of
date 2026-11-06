@@ -1,0 +1,181 @@
+/**
+ * @module
+ * `std.sync`: channels between tasks (spec 14.4).
+ *
+ * Only stage 1 compiles this module: it needs `Send` (spec 14.3).
+ */
+// requires: stage1 (Send, roadmap 6.1b)
+
+@link("pthread")
+extern "C" {
+    fn ofir_alloc(size: int) *mut u8
+    fn ofir_alloc_aligned(size: int, align: int) *mut u8
+    fn ofir_free(p: *mut u8)
+    fn ofir_channel_new() *mut u8
+    fn ofir_channel_send(ch: *mut u8, value: *mut u8) bool
+    fn ofir_channel_recv(ch: *mut u8) *mut u8
+    fn ofir_channel_try_recv(ch: *mut u8) *mut u8
+    fn ofir_channel_add_sender(ch: *mut u8)
+    fn ofir_channel_drop_sender(ch: *mut u8)
+    fn ofir_channel_close(ch: *mut u8)
+    fn ofir_channel_drop_receiver(ch: *mut u8)
+}
+
+extern "intrinsic" {
+    fn dropInPlace<T>(p: *mut T)
+}
+
+// Moves a value to memory of its own, as the channel's queue holds it.
+fn boxed<T>(value: move T) *mut T {
+    let p = unsafe {
+        if alignOf<T>() > 16 {
+            ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
+        } else {
+            ofir_alloc(sizeOf<T>()) as *mut T
+        }
+    }
+    unsafe {
+        *p = value
+    }
+    return p
+}
+
+// Whether the runtime handed back no value.
+fn none(p: *mut u8) bool {
+    return unsafe { p == 0 as *mut u8 }
+}
+
+// Moves the value out of memory from `boxed` and frees it.
+fn unboxed<T>(p: *mut u8) T {
+    unsafe {
+        let value = *(p as *mut T)
+        ofir_free(p)
+        return value
+    }
+}
+
+/**
+ * The sending half of a channel. `clone` makes another sender of the same
+ * channel; the receiver sees the end once every sender is dropped.
+ *
+ * @typeParam T the type of the values sent
+ */
+@threadsafe
+pub struct Sender<T> {
+    ch: *mut u8
+
+    /**
+     * Sends a value to the receiver; it never waits. If the receiver is
+     * gone, the value is dropped.
+     *
+     * @param value the value to send
+     */
+    pub fn send(self, value: move T) {
+        let p = boxed(value)
+        let sent = unsafe { ofir_channel_send(self.ch, p as *mut u8) }
+        if !sent {
+            unsafe {
+                dropInPlace(p)
+                ofir_free(p as *mut u8)
+            }
+        }
+    }
+
+    /**
+     * Another sender of the same channel.
+     *
+     * @returns the new sender
+     */
+    pub fn clone(self) Sender<T> {
+        unsafe {
+            ofir_channel_add_sender(self.ch)
+        }
+        return Sender{ch: self.ch}
+    }
+
+    fn drop(mut self) {
+        unsafe {
+            ofir_channel_drop_sender(self.ch)
+        }
+    }
+}
+
+/**
+ * The receiving half of a channel. Values arrive in the order each sender
+ * sent them.
+ *
+ * @typeParam T the type of the values received
+ */
+@threadsafe
+pub struct Receiver<T> {
+    ch: *mut u8
+
+    /**
+     * Waits for the next value.
+     *
+     * @returns the value, or `None` once the queue is empty and every
+     *          sender is dropped
+     */
+    pub fn recv(self) Option<T> {
+        let p = unsafe { ofir_channel_recv(self.ch) }
+        if none(p) {
+            return Option.None
+        }
+        return Option.Some(unboxed<T>(p))
+    }
+
+    /**
+     * Takes the next value if one is waiting.
+     *
+     * @returns the value, or `None` when the queue is empty
+     */
+    pub fn tryRecv(self) Option<T> {
+        let p = unsafe { ofir_channel_try_recv(self.ch) }
+        if none(p) {
+            return Option.None
+        }
+        return Option.Some(unboxed<T>(p))
+    }
+
+    // Later sends fail; the values still queued are dropped here.
+    fn drop(mut self) {
+        unsafe {
+            ofir_channel_close(self.ch)
+        }
+        for {
+            let p = unsafe { ofir_channel_try_recv(self.ch) }
+            if none(p) {
+                break
+            }
+            unsafe {
+                dropInPlace(p as *mut T)
+                ofir_free(p)
+            }
+        }
+        unsafe {
+            ofir_channel_drop_receiver(self.ch)
+        }
+    }
+}
+
+/**
+ * Makes a channel: values sent on the `Sender` arrive at the `Receiver`,
+ * possibly in another task.
+ *
+ * @typeParam T the type of the values, which move between tasks
+ * @returns the sender and the receiver
+ * @example
+ * ```ofir
+ * import std.sync.channel
+ * import std.task
+ *
+ * let (tx, rx) = channel<int>()
+ * let t = task.run(move () => tx.send(42))
+ * println("{rx.recv().unwrap()}")
+ * t.join()
+ * ```
+ */
+pub fn channel<T: Send>() (Sender<T>, Receiver<T>) {
+    let ch = unsafe { ofir_channel_new() }
+    return (Sender{ch: ch}, Receiver{ch: ch})
+}
