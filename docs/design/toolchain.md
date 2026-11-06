@@ -214,9 +214,26 @@ module of an import (its file, at the start), or a type written in a type.
 The range is the whole declaration. Fields, methods and the declarations of
 the prelude are not linked yet; the answer is then `null`.
 
+Completion (`textDocument/completion`, asked for again after `.`) inserts a
+probe, a name no program declares, at the position, and checks the document
+with it. Where the resolver or the type checker reports the probe unknown,
+the names visible there are kept, as for a "did you mean" suggestion
+(`compiler/sema/complete.of`):
+
+- after `module.`, the module's public declarations;
+- after `value.`, the fields of its struct and the methods that take
+  `self`;
+- in a type, the types and modules in scope;
+- elsewhere, the locals in scope, the declarations of the module, those it
+  imports and the prelude's, and the keywords.
+
+The answer is a `CompletionList` of the names that start with the part of a
+name before the position, sorted. The rest of the document must parse, and
+after `value.` it must also resolve: otherwise only the keywords are
+offered.
+
 Other requests are answered with the error -32601 (method not found), and a
-message that is not JSON with -32700. Completion is [planned] (roadmap
-6.3c).
+message that is not JSON with -32700.
 
 `tests/lsp` holds the tests: a `.of` file, an optional `.lsp` file with the
 client's messages, and the server's messages in `.out`, where `$URI` is the
