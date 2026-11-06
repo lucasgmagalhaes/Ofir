@@ -48,6 +48,7 @@ import sema.check.fnOf
 import sema.check.itemOf
 import sema.check.itemTypeParams
 import sema.check_box.boxInner
+import sema.const_eval.ConstKind
 import sema.def.DefKind
 import sema.interfaces.dynMethods
 import sema.interfaces.isAnyMethod
@@ -112,6 +113,8 @@ pub struct Gen {
     pub cUsed: List<bool>
     /** By `DefId`: the functions used as values, which need a thunk. */
     pub fnValues: List<bool>
+    /** By `DefId`: the mutable globals used, which need a definition. */
+    pub mutGlobals: List<bool>
     /** Whether a `move` closure allocates or frees its environment. */
     pub heap: bool
     /** Whether an environment is aligned above 16 (spec 13.7). */
@@ -207,7 +210,7 @@ pub fn newGen() Gen {
                temp: 0, filesEmitted: Map.new(), adtTypes: Map.new(), cUsed: [], heap: false,
                formats: false, packedPlace: false, nicheTag: -1, niches: Map.new(),
                slots: Map.new(),
-               alignedHeap: false,
+               alignedHeap: false, mutGlobals: [],
                fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new(),
                debug: false, di: DebugInfo.new(), scope: 0, dir: "", optimize: false}
 }
@@ -1246,6 +1249,13 @@ fn rvalue(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, rv: &Rvalue,
             g.out.push("  {t} = insertvalue {FN_LLVM} {code}, ptr {env}, 1\n")
             return Value{ty: ty, text: t}
         }
+        RvalueKind.GlobalAddr => {
+            for g.mutGlobals.len() <= rv.flag {
+                g.mutGlobals.push(false)
+            }
+            g.mutGlobals[rv.flag] = true
+            return Value{ty: ty, text: globalName(c, rv.flag)}
+        }
         RvalueKind.Unsize => {
             let thin = operand(g, c, p, body, &rv.a)
             let iface = c.types.get(dynObject(c, rv.to)).data
@@ -1384,6 +1394,40 @@ fn valueCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt
     g.out.push(")\n")
     if hasDest {
         storeAt(g, c, p, body, s.dest, &noPath(), &Value{ty: ret, text: result})
+    }
+}
+
+// The symbol of the mutable global `id`: `@"ofir.g.<module>.<name>"`.
+fn globalName(c: Checker, id: int) str {
+    let def = c.def(id)
+    var out = "@\"ofir.g."
+    if def.module != 0 {
+        out.push(c.r.moduleNames[def.module])
+        out.push(".")
+    }
+    out.push(c.text(def.name))
+    out.push("\"")
+    return out
+}
+
+// The definitions of the mutable globals used, with their initial values.
+fn mutGlobals(g: mut Gen, c: mut Checker, p: Program) {
+    for id in 0..g.mutGlobals.len() {
+        if !g.mutGlobals[id] {
+            continue
+        }
+        let ty = c.info[id].ty
+        let llty = llvmType(g, c, p, ty)
+        var init = "zeroinitializer".toOwned()
+        if let Option.Some(v) = c.info[id].value {
+            init = match v.kind {
+                ConstKind.Int => intText(v.bits, intBits(c.types.get(ty).data))
+                ConstKind.Float => floatText(v.f, c.types.get(ty).data == 32)
+                ConstKind.Bool => if v.b { "true".toOwned() } else { "false".toOwned() }
+                ConstKind.Str => "zeroinitializer".toOwned()
+            }
+        }
+        g.module.push("\n{globalName(c, id)} = internal global {llty} {init}\n")
     }
 }
 
@@ -2104,6 +2148,7 @@ pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>, debug: bool,
         function(g, c, p, &bodies[i])
     }
     thunks(g, c, p)
+    mutGlobals(g, c, p)
     vtables(g, c, p)
     g.module.push(runtimeDecls())
     if g.formats {

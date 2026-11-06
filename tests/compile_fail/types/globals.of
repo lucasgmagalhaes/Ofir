@@ -1,0 +1,16 @@
+// requires: stage1
+// Mutable globals (spec 11.5): access needs `unsafe`, the initial value is
+// constant, and stage 1 stores numbers and `bool` only.
+
+var COUNT: int = 0
+var START: int = start()   // error[E0801]: a constant may only use literals, constants and operators
+var NAME: str = "x"   // error[E0901]: mutable globals of type `str` are not supported yet
+
+fn start() int {
+    return 3
+}
+
+fn main() {
+    COUNT = 1   // error[E0803]: using a mutable global requires an `unsafe` block or function
+    println("{COUNT}")   // error[E0803]: using a mutable global requires an `unsafe` block or function
+}

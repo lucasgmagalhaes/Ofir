@@ -224,6 +224,8 @@ pub copy enum RvalueKind {
     DynFn
     /** the type id in the vtable of the fat pointer a, an `i64` (spec 9.8) */
     TypeId
+    /** the address of the mutable global `flag`, a `*mut T` (spec 11.5) */
+    GlobalAddr
 }
 
 /** The float functions of `RvalueKind.FloatFn`. */

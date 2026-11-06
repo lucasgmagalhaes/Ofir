@@ -1517,10 +1517,6 @@ fn findRoots(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
                     reach(l, c, p, id, UNIT)
                 }
             }
-            ItemKind.Global(_, _) => {
-                c.error("E0901", items[i].span,
-                        "compiling this declaration is not supported yet".toOwned())
-            }
             _ => {}
         }
     }
