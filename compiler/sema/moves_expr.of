@@ -3,7 +3,7 @@
  * Move analysis of expressions and places (spec 5.1; stage 0:
  * bootstrap/src/sema/moves_expr.c). Each expression is walked as a *read*,
  * which only uses its value (an argument of a borrowed parameter, an
- * operand, a condition), or as a *move*, which consumes it (a `let`, a
+ * operand, a condition), or as a *move*, which consumes it (a `const`, a
  * `move` parameter, a field of a literal, a return value). Moving a place
  * of a non-Copy type marks it moved; any later use of it, or of a part of
  * it, is E0600 until it is assigned again.
@@ -94,7 +94,7 @@ fn noPlace(via: Via) Place {
 
 // `m.x`, a declaration of an imported module: the resolver knows it.
 fn moduleMember(c: Checker, e: &Expr) bool {
-    let Res.Def(id) = c.res(e.id.0) else {
+    const Res.Def(id) = c.res(e.id.0) else {
         return false
     }
     return c.def(id).kind != DefKind.Module
@@ -125,7 +125,7 @@ fn stepType(c: Checker, e: &Expr, i: int) int {
  * @returns the step
  */
 pub fn keyStep(c: mut Checker, base: &Expr, index: &Expr) int {
-    let ty = viewType(c, base, -1)
+    const ty = viewType(c, base, -1)
     return keyField(c.types.intern(TyKind.Index, 0, ty, [c.typeOf(index.id.0)]))
 }
 
@@ -138,7 +138,7 @@ pub fn keyStep(c: mut Checker, base: &Expr, index: &Expr) int {
  * @returns the type
  */
 pub fn viewType(c: Checker, e: &Expr, depth: int) int {
-    let count = derefCount(c, e)
+    const count = derefCount(c, e)
     if depth == 0 || count == 0 {
         return c.typeOf(e.id.0)
     }
@@ -151,7 +151,7 @@ pub fn viewType(c: Checker, e: &Expr, depth: int) int {
 // Whether `e` is a slice (`&[T]` or `&mut [T]`): its elements are behind a
 // pointer, not in a place `e` owns.
 fn viewsSlice(c: Checker, e: &Expr) bool {
-    let t = c.types.get(viewType(c, e, -1))
+    const t = c.types.get(viewType(c, e, -1))
     if t.kind != TyKind.Adt || t.data == 0 {
         return false
     }
@@ -245,7 +245,7 @@ pub fn movesNode(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut Stat
         movesView(m, c, p, e, derefCount(c, e), s, Use.Read)
         return
     }
-    let mark = m.carry.len()
+    const mark = m.carry.len()
     movesView(m, c, p, e, derefCount(c, e), s, use)
     // A computed value that holds no reference borrows nothing: `r.len()`.
     if m.carry.len() > mark && !isPlaceView(c, e) && !holdsRef(c, p, c.typeOf(e.id.0)) &&
@@ -306,13 +306,13 @@ fn placeOf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mu
                 movesNode(m, c, p, &*index, s, Use.Read)
                 return noPlace(Via.Deref)
             }
-            var place = placeOf(m, c, p, &*base, derefCount(c, &*base), s)
+            let place = placeOf(m, c, p, &*base, derefCount(c, &*base), s)
             movesNode(m, c, p, &*index, s, Use.Read)
             place.via = Via.Index
             return place
         }
         ExprKind.Unary(_, operand) => {   // `*p`
-            let ty = viewType(c, &*operand, -1)
+            const ty = viewType(c, &*operand, -1)
             if boxInner(c, ty).isSome() {   // `*b` is `*b.ptr`
                 boxPointer(m, c, p, &*operand, derefCount(c, &*operand), s)
                 // The value in a box is lent like a referenced one: a `match` on
@@ -346,13 +346,13 @@ pub fn placeOfNode(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut St
 }
 
 fn ownBox(c: Checker) bool {
-    let box = c.r.langItems[0]
+    const box = c.r.langItems[0]
     return box != 0 && c.def(box).module == c.module()
 }
 
 // Reads `b.ptr`, the pointer field of the box `b` (`e` dereferenced `depth` times).
 fn boxPointer(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mut State) {
-    var place = placeOf(m, c, p, e, depth, s)
+    let place = placeOf(m, c, p, e, depth, s)
     if place.local && place.part.fields.len() < PART_DEPTH {
         place.part.fields.push(0)
     }
@@ -364,7 +364,7 @@ fn boxPointer(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s:
 
 fn fieldPlace(m: mut Moves, c: mut Checker, p: Program, base: &Expr, field: int,
               s: mut State) Place {
-    var place = placeOf(m, c, p, base, derefCount(c, base), s)
+    let place = placeOf(m, c, p, base, derefCount(c, base), s)
     if place.local && place.part.fields.len() < PART_DEPTH {
         place.part.fields.push(field)
     }
@@ -386,14 +386,14 @@ pub fn usePlace(m: mut Moves, c: mut Checker, place: &Place, s: mut State, span:
     if !place.local {
         return
     }
-    let local = place.part.local
+    const local = place.part.local
     useHolder(m, c, s, local)
     carryHolder(m, &s, local)
     if s.uninit[local] {
         moveError(m, c, "E0601", span, "use of possibly uninitialized variable "
                   + "`{localName(c, local)}`")
     } else if s.movedPart(&place.part) {
-        let name = localName(c, local)
+        const name = localName(c, local)
         moveError(m, c, "E0600", span, "use of moved value `{name}`")
         if m.report {
             c.r.diags.help("`{name}` was moved before: clone it there if both copies are needed")
@@ -404,7 +404,7 @@ pub fn usePlace(m: mut Moves, c: mut Checker, place: &Place, s: mut State, span:
 // Moving out of `place`: only out of a place the function owns entirely.
 fn movePlace(m: mut Moves, c: mut Checker, place: &Place, s: mut State, span: Span) {
     if place.via == Via.Index || place.via == Via.Deref {
-        let what = if place.via == Via.Index { "an element of a collection" } else {
+        const what = if place.via == Via.Index { "an element of a collection" } else {
             "a reference"
         }
         moveError(m, c, "E0602", span, "cannot move out of {what}: use `remove`, `swapRemove`, "
@@ -432,7 +432,7 @@ fn assignPlace(m: mut Moves, c: mut Checker, e: &Expr, place: &Place, s: mut Sta
     if s.movedPart(&place.part) {   // the old value may be moved out: it is not dropped
         markFlag(c, e.id.0, MOVES)
     }
-    let local = place.part.local
+    const local = place.part.local
     if place.part.fields.len() > 0 && s.moved[local] {
         usePlace(m, c, &Place{local: true, part: Part{local: local, fields: []}, via: Via.Nothing},
                  s, span)
@@ -453,7 +453,7 @@ fn hasDrop(m: Moves, c: mut Checker, p: Program, e: &Expr, depth: int) bool {
     if depth > 0 {
         return false
     }
-    let base = match e.kind {
+    const base = match e.kind {
         ExprKind.Field(b, _, _) => if fieldOf(c, e, &*b) >= 0 { viewType(c, &*b, -1) } else { -1 }
         ExprKind.TupleField(b, _) => viewType(c, &*b, -1)
         _ => -1
@@ -461,7 +461,7 @@ fn hasDrop(m: Moves, c: mut Checker, p: Program, e: &Expr, depth: int) bool {
     if base < 0 || c.types.kind(base) != TyKind.Adt {
         return false
     }
-    let Option.Some(drop) = c.r.names.find("drop") else {
+    const Option.Some(drop) = c.r.names.find("drop") else {
         return false
     }
     if !hasMethod(c, p, c.types.get(base).data, drop) {
@@ -491,7 +491,7 @@ fn consumeRoot(m: mut Moves, c: mut Checker, e: &Expr, depth: int) {
 
 fn placeExpr(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mut State,
              use: Use) {
-    let place = placeOf(m, c, p, e, depth, s)
+    const place = placeOf(m, c, p, e, depth, s)
     m.lastLocal = place.local
     if place.local {
         m.lastPlace = place.part.clone()
@@ -501,9 +501,9 @@ fn placeExpr(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: 
         return
     }
     usePlace(m, c, &place, s, e.span)
-    let copied = isCopy(c, p, viewType(c, e, depth))
+    const copied = isCopy(c, p, viewType(c, e, depth))
     if place.local && use != Use.Mutate {   // a `mut` argument is borrowed after the others
-        let moves = use == Use.Move && !copied && place.via == Via.Nothing
+        const moves = use == Use.Move && !copied && place.via == Via.Nothing
         access(s, &place.part, if moves { Access.Move } else { Access.Read }, e.span)
     }
     if use != Use.Move || copied {
@@ -524,12 +524,12 @@ fn placeExpr(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: 
 // `Point{x}`: the variable `x`, moved into the field.
 fn shorthand(m: mut Moves, c: mut Checker, p: Program, init: &FieldInit, span: Span,
              s: mut State) {
-    let place = match c.res(init.id.0) {
+    const place = match c.res(init.id.0) {
         Res.Local(id) => Place{local: true, part: Part{local: id, fields: []}, via: Via.Nothing}
         _ => noPlace(Via.Nothing)
     }
     usePlace(m, c, &place, s, span)
-    let copied = isCopy(c, p, c.typeOf(init.id.0))
+    const copied = isCopy(c, p, c.typeOf(init.id.0))
     if place.local {
         access(s, &place.part, if copied { Access.Read } else { Access.Move }, span)
     }
@@ -547,7 +547,7 @@ fn shorthand(m: mut Moves, c: mut Checker, p: Program, init: &FieldInit, span: S
 fn eachArg(m: mut Moves, c: mut Checker, p: Program, args: &List<Arg>, uses: &List<Use>,
            otherwise: Use, s: mut State) {
     for i in 0..args.len() {
-        let use = if i < uses.len() { uses[i] } else { otherwise }
+        const use = if i < uses.len() { uses[i] } else { otherwise }
         movesNode(m, c, p, &args[i].value, s, use)
     }
 }
@@ -582,7 +582,7 @@ fn argument(m: mut Moves, c: mut Checker, p: Program, arg: &Expr, use: Use, para
     if !m.lastLocal || !isPlaceView(c, arg) || use == Use.Move {
         return
     }
-    let ty = viewType(c, arg, -1)
+    const ty = viewType(c, arg, -1)
     if use == Use.Read && isCopy(c, p, ty) {
         return   // passed by value
     }
@@ -599,13 +599,13 @@ fn borrowSource(c: Checker, p: Program, decl: &FnDecl, callId: int, args: &List<
     if decl.isUnsafe {
         return -2
     }
-    var source = -2
-    var count = 0
+    let source = -2
+    let count = 0
     for i in 0..args.len() {
-        let slot = argParam(c, callId, i)
+        const slot = argParam(c, callId, i)
         if slot >= 0 && slot < decl.params.len() {
-            let ty = viewType(c, &args[i].value, -1)
-            let mode = decl.params[slot].mode
+            const ty = viewType(c, &args[i].value, -1)
+            const mode = decl.params[slot].mode
             if holdsRef(c, p, ty) || (mode == Mode.Borrow && !isCopy(c, p, ty)) {
                 source = slot
                 count += 1
@@ -620,28 +620,28 @@ fn borrowSource(c: Checker, p: Program, decl: &FnDecl, callId: int, args: &List<
 // (E0700, E0701). A result that holds a reference borrows the source.
 fn fnCall(m: mut Moves, c: mut Checker, p: Program, e: &Expr, id: int, receiver: &Expr,
           hasReceiver: bool, args: &List<Arg>, s: mut State) {
-    let decl = fnOf(p, c.loc(id))
-    var places: List<ArgPlace> = []
+    const decl = fnOf(p, c.loc(id))
+    let places: List<ArgPlace> = []
     if hasReceiver && decl.hasSelf {
         argument(m, c, p, receiver, modeUse(decl.selfMode), -1, s, places)
     }
     for i in 0..args.len() {
-        let slot = argParam(c, e.id.0, i)
-        let known = slot >= 0 && slot < decl.params.len()
-        let use = if known { modeUse(decl.params[slot].mode) } else { Use.Read }
-        let param = if known { slot } else { decl.params.len() + i }   // never a source
+        const slot = argParam(c, e.id.0, i)
+        const known = slot >= 0 && slot < decl.params.len()
+        const use = if known { modeUse(decl.params[slot].mode) } else { Use.Read }
+        const param = if known { slot } else { decl.params.len() + i }   // never a source
         argument(m, c, p, &args[i].value, use, param, s, places)
     }
     if s.dead {
         return
     }
-    var reported = false
+    let reported = false
     for i in 0..places.len() {
         for j in 0..i {
-            let a = &places[j]
-            let b = &places[i]
+            const a = &places[j]
+            const b = &places[i]
             if !reported && (a.mutable || b.mutable) && a.part.overlaps(&b.part) {
-                let span = if b.mutable { b.span } else { a.span }
+                const span = if b.mutable { b.span } else { a.span }
                 argumentConflict(m, c, &b.part, !(a.mutable && b.mutable), span)
                 reported = true
             }
@@ -655,7 +655,7 @@ fn fnCall(m: mut Moves, c: mut Checker, p: Program, e: &Expr, id: int, receiver:
     if !holdsRef(c, p, c.typeOf(e.id.0)) {
         return
     }
-    let source = borrowSource(c, p, decl, e.id.0, args)
+    const source = borrowSource(c, p, decl, e.id.0, args)
     for i in 0..places.len() {
         if places[i].param == source && places[i].direct && source > -2 {
             lend(m, &places[i].part, places[i].mutable, places[i].span)
@@ -676,14 +676,14 @@ fn isVariant(c: mut Checker, p: Program, owner: int, field: &Expr) bool {
 // A call of a name: a function, a constructor or a variant.
 fn nameCall(m: mut Moves, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
             args: &List<Arg>, s: mut State) {
-    let none: List<Use> = []
+    const none: List<Use> = []
     match c.res(callee.id.0) {
         Res.Def(id) => {
-            let kind = c.def(id).kind
+            const kind = c.def(id).kind
             if kind == DefKind.Fn {
                 fnCall(m, c, p, e, id, callee, false, args, s)
             } else {
-                let build = kind == DefKind.Struct || kind == DefKind.Variant
+                const build = kind == DefKind.Struct || kind == DefKind.Variant
                 eachArg(m, c, p, args, &none, if build { Use.Move } else { Use.Read }, s)
             }
         }
@@ -698,10 +698,10 @@ fn nameCall(m: mut Moves, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
 // and variants) and only reads the others.
 fn call(m: mut Moves, c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<Arg>,
         s: mut State) {
-    let none: List<Use> = []
+    const none: List<Use> = []
     match callee.kind {
         ExprKind.Field(baseBox, _, _) => {
-            let base = &*baseBox
+            const base = &*baseBox
             if moduleMember(c, callee) {   // `m.f(x)`: a function of an imported module
                 nameCall(m, c, p, e, callee, args, s)
                 return
@@ -710,7 +710,7 @@ fn call(m: mut Moves, c: mut Checker, p: Program, e: &Expr, callee: &Expr, args:
                 eachArg(m, c, p, args, &none, Use.Move, s)
                 return
             }
-            let member = c.members[c.module()][callee.id.0]
+            const member = c.members[c.module()][callee.id.0]
             if member > 0 {   // a method, or an associated function
                 fnCall(m, c, p, e, member, base, true, args, s)
                 return
@@ -738,7 +738,7 @@ fn each(m: mut Moves, c: mut Checker, p: Program, list: &List<Expr>, s: mut Stat
 fn conditional(m: mut Moves, c: mut Checker, p: Program, lhs: &Expr, rhs: &Expr, s: mut State,
                use: Use) {
     movesNode(m, c, p, lhs, s, use)
-    var other = s.dup()
+    let other = s.dup()
     movesNode(m, c, p, rhs, other, use)
     s.join(&other)
 }
@@ -747,7 +747,7 @@ fn conditional(m: mut Moves, c: mut Checker, p: Program, lhs: &Expr, rhs: &Expr,
 fn borrow(m: mut Moves, c: mut Checker, p: Program, operand: &Expr, s: mut State,
           mutable: bool) {
     if isPlace(c, operand) {
-        let place = placeOf(m, c, p, operand, derefCount(c, operand), s)
+        const place = placeOf(m, c, p, operand, derefCount(c, operand), s)
         usePlace(m, c, &place, s, operand.span)
         if place.local {
             access(s, &place.part, if mutable { Access.BorrowMut } else { Access.Borrow },
@@ -783,20 +783,20 @@ fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: U
         }
         ExprKind.Cast(value, _) => movesNode(m, c, p, &*value, s, Use.Read)
         ExprKind.Range(lo, hi, _) => {
-            if let Option.Some(l) = lo {
+            if const Option.Some(l) = lo {
                 movesNode(m, c, p, &*l, s, Use.Read)
             }
-            if let Option.Some(h) = hi {
+            if const Option.Some(h) = hi {
                 movesNode(m, c, p, &*h, s, Use.Read)
             }
         }
         ExprKind.Index(base, index) => {   // `xs[a..b]` is `xs.slice(a, b)`: both read
             movesNode(m, c, p, &*base, s, Use.Read)
-            if let ExprKind.Range(lo, hi, _) = index.kind {
-                if let Option.Some(l) = lo {
+            if const ExprKind.Range(lo, hi, _) = index.kind {
+                if const Option.Some(l) = lo {
                     movesNode(m, c, p, &*l, s, Use.Read)
                 }
-                if let Option.Some(h) = hi {
+                if const Option.Some(h) = hi {
                     movesNode(m, c, p, &*h, s, Use.Read)
                 }
             }
@@ -810,7 +810,7 @@ fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: U
                     Option.None => shorthand(m, c, p, &fields[i], e.span, s)
                 }
             }
-            if let Option.Some(b) = base {
+            if const Option.Some(b) = base {
                 movesNode(m, c, p, &*b, s, Use.Move)
             }
         }
@@ -820,7 +820,7 @@ fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: U
             movesNode(m, c, p, &*count, s, Use.Read)
         }
         ExprKind.Variant(_, args, _) => {
-            let none: List<Use> = []
+            const none: List<Use> = []
             eachArg(m, c, p, &args, &none, Use.Move, s)
         }
         ExprKind.If(_, _, _, _) => movesIf(m, c, p, e, s, use)
@@ -836,15 +836,15 @@ fn walk(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: U
 // body is analyzed apart, the captured variables borrowed there.
 fn closure(m: mut Moves, c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
            body: &Expr, isMove: bool, s: mut State) {
-    let captured = closureCaptures(c, e.id.0)
-    var saved: List<bool> = []
+    const captured = closureCaptures(c, e.id.0)
+    let saved: List<bool> = []
     for i in 0..captured.len() {
         saved.push(m.borrowed[captured[i]])
         m.borrowed[captured[i]] = true
     }
-    let carry = mem.replace(m.carry, [])
-    let loops = mem.replace(m.loops, [])
-    var inner = s.dup()
+    const carry = mem.replace(m.carry, [])
+    const loops = mem.replace(m.loops, [])
+    let inner = s.dup()
     for i in 0..params.len() {
         initLocal(m, c.localAt(params[i].id.0), inner, true)
     }
@@ -855,17 +855,17 @@ fn closure(m: mut Moves, c: mut Checker, p: Program, e: &Expr, params: &List<Par
         m.borrowed[captured[i]] = saved[i]
     }
     for i in 0..captured.len() {
-        let local = captured[i]
-        let place = Place{local: true, part: Part{local: local, fields: []}, via: Via.Nothing}
+        const local = captured[i]
+        const place = Place{local: true, part: Part{local: local, fields: []}, via: Via.Nothing}
         usePlace(m, c, &place, s, e.span)
         if isMove {
-            let copied = m.copyLocal[local]
+            const copied = m.copyLocal[local]
             access(s, &place.part, if copied { Access.Read } else { Access.Move }, e.span)
             if !copied {
                 movePlace(m, c, &place, s, e.span)
             }
         } else {
-            let mutable = capturedMut(c, e.id.0, local)
+            const mutable = capturedMut(c, e.id.0, local)
             access(s, &place.part, if mutable { Access.BorrowMut } else { Access.Borrow },
                    e.span)
             if !s.dead {

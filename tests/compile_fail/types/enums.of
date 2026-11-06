@@ -13,23 +13,23 @@ enum Twice {
 }
 
 fn unknownVariant() {
-    let s = Shape.Square(1.0) // error[E0301]: no method `Square` on type `Shape`
+    const s = Shape.Square(1.0) // error[E0301]: no method `Square` on type `Shape`
 }
 
 fn shorthandWithoutType() {
-    let s = .Empty            // error[E0326]: a variant is named through its enum: write `Enum.Empty`
+    const s = .Empty            // error[E0326]: a variant is named through its enum: write `Enum.Empty`
 }
 
 fn arity() {
-    let s: Shape = Shape.Circle()  // error[E0302]: wrong number of arguments: expected 1, found 0
+    const s: Shape = Shape.Circle()  // error[E0302]: wrong number of arguments: expected 1, found 0
 }
 
 fn missingPayload() {
-    let s = Shape.Circle      // error[E0302]: the variant `Circle` takes 1 values
+    const s = Shape.Circle      // error[E0302]: the variant `Circle` takes 1 values
 }
 
 fn extraPayload() {
-    let s: Shape = Shape.Empty(1)  // error[E0302]: the variant `Empty` takes no values: write it without parentheses
+    const s: Shape = Shape.Empty(1)  // error[E0302]: the variant `Empty` takes no values: write it without parentheses
 }
 
 fn nonExhaustive(s: Shape) int {
@@ -52,15 +52,15 @@ fn wrongPattern(s: Shape) {
 }
 
 fn refutableLet(s: Shape) {
-    let Shape.Circle(r) = s        // error[E0501]: this pattern does not match every value: use `match` or `if let`
+    const Shape.Circle(r) = s        // error[E0501]: this pattern does not match every value: use `match` or `if const`
 }
 
 fn tupleArity() {
-    let (a, b) = (1, 2, 3)    // error[E0302]: wrong number of fields in the pattern: expected 3, found 2
+    const (a, b) = (1, 2, 3)    // error[E0302]: wrong number of fields in the pattern: expected 3, found 2
 }
 
 fn fallsThrough(r: Shape) {
-    let Shape.Circle(x) = r else {   // error[E0307]: the `else` block of `let ... else` must not fall through: end it with `return`, `break`, `continue` or a panic
+    const Shape.Circle(x) = r else {   // error[E0307]: the `else` block of `const ... else` must not fall through: end it with `return`, `break`, `continue` or a panic
         println("no")
     }
 }

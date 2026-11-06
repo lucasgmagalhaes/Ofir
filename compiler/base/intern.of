@@ -15,8 +15,8 @@ pub copy struct Symbol(int)
  *
  * @example
  * ```ofir
- * var names = Interner.new()
- * let a = names.intern("main")
+ * let names = Interner.new()
+ * const a = names.intern("main")
  * assert(names.intern("main").0 == a.0 && names.name(a) == "main")
  * ```
  */
@@ -40,10 +40,10 @@ pub struct Interner {
      * @returns its symbol
      */
     pub fn intern(mut self, text: str) Symbol {
-        if let Option.Some(id) = self.ids.get(text) {
+        if const Option.Some(id) = self.ids.get(text) {
             return Symbol(*id)
         }
-        let id = self.names.len()
+        const id = self.names.len()
         self.names.push(text.toOwned())
         self.ids.insert(text.toOwned(), id)
         return Symbol(id)

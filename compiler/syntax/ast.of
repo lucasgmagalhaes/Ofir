@@ -106,7 +106,7 @@ pub enum TypeKind {
 // Patterns
 
 /**
- * A pattern of `let`, `match` and `if let`.
+ * A pattern of `const`, `match` and `if const`.
  */
 pub struct Pattern {
     /** Its number. */
@@ -227,7 +227,7 @@ pub enum ExprKind {
     Tuple(elems: List<Expr>)
     /** `.Some(x)`, `.None` */
     Variant(name: Symbol, args: List<Arg>, hasArgs: bool)
-    /** `if cond { } else { }` and `if let pattern = value { }` */
+    /** `if cond { } else { }` and `if const pattern = value { }` */
     If(letPattern: Option<Pattern>, cond: Box<Expr>, then: Block, otherwise: Option<Box<Expr>>)
     /** `match value { arms }` */
     Match(scrutinee: Box<Expr>, arms: List<MatchArm>)
@@ -307,9 +307,9 @@ pub struct Stmt {
  * The forms of a statement.
  */
 pub enum StmtKind {
-    /** `let pattern: T = value [else { ... }]` */
+    /** `const pattern: T = value [else { ... }]` */
     Let(pattern: Pattern, ty: Option<TypeExpr>, value: Expr, otherwise: Option<Block>)
-    /** `var name: T = value` */
+    /** `let name: T = value` */
     Var(name: Symbol, ty: Option<TypeExpr>, value: Option<Expr>)
     /** `target op= value`; `op` is `Assign` for a plain `=`. */
     Assign(op: Op, target: Expr, value: Expr)
@@ -492,7 +492,7 @@ pub enum ItemKind {
     Enum(isCopy: bool, typeParams: List<Symbol>, variants: List<Variant>, methods: List<FnDecl>)
     /** `const NAME: T = value` */
     Const(ty: Option<TypeExpr>, value: Expr)
-    /** A global `var`. */
+    /** A global `let`. */
     Global(ty: Option<TypeExpr>, value: Expr)
     /** `type Name<T> = T` */
     TypeAlias(typeParams: List<Symbol>, ty: TypeExpr)

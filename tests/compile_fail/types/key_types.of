@@ -21,8 +21,8 @@ fn use(a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H, i: I) {
 }
 
 fn main() {
-    let p = Point{x: 1.0, y: 2.0, id: 3}
-    let _: keyof Point - .id = 1   // error[E0300]: mismatched types: expected .x | .y, found int
-    let z = p[.z]   // error[E0316]: no field `z` on type `Point`
-    let _ = z
+    const p = Point{x: 1.0, y: 2.0, id: 3}
+    const _: keyof Point - .id = 1   // error[E0300]: mismatched types: expected .x | .y, found int
+    const z = p[.z]   // error[E0316]: no field `z` on type `Point`
+    const _ = z
 }

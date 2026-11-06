@@ -14,7 +14,7 @@ struct Countdown {
 }
 
 fn main() {
-    var kept: List<str> = []
+    let kept: List<str> = []
     for s in (Countdown{n: 4}) {
         if s == "item1" {
             break
@@ -25,7 +25,7 @@ fn main() {
         kept.push(s)
     }
     println("{kept.len()} {kept[0]}")
-    var c = Countdown{n: 3}
+    let c = Countdown{n: 3}
     for s in c {
         println(s)
         if s == "item1" {

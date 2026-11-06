@@ -4,12 +4,12 @@
 
 import stats
 
-var HITS: i32 = 0
-var RATE: float = 1.5
-var ON: bool = false
-var BIG: u64 = 1 << 40
+let HITS: i32 = 0
+let RATE: float = 1.5
+let ON: bool = false
+let BIG: u64 = 1 << 40
 const STEP: int = 2
-var NEXT: int = STEP * 10
+let NEXT: int = STEP * 10
 
 fn bump() int {
     unsafe {
@@ -29,7 +29,7 @@ fn main() {
         RATE = RATE * 2.0
         ON = !ON
         BIG -= 1
-        let p = &mut HITS
+        const p = &mut HITS
         *p += 1
         println("{HITS} {RATE} {ON} {BIG}")
         reset()

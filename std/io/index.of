@@ -59,12 +59,12 @@ pub struct IoError {
      * @returns the error, with the system's message
      */
     pub fn fromErrno(code: i32) IoError {
-        var len = 0
-        let text = unsafe { ofir_error_message(code, &mut len as *mut int) }
-        let kinds = [IoErrorKind.NotFound, IoErrorKind.PermissionDenied, IoErrorKind.AlreadyExists,
-                     IoErrorKind.InvalidInput,
-                     IoErrorKind.UnexpectedEof, IoErrorKind.Interrupted, IoErrorKind.Other]
-        let kind = kinds[unsafe { ofir_error_kind(code) } as int]
+        let len = 0
+        const text = unsafe { ofir_error_message(code, &mut len as *mut int) }
+        const kinds = [IoErrorKind.NotFound, IoErrorKind.PermissionDenied,
+                       IoErrorKind.AlreadyExists, IoErrorKind.InvalidInput,
+                       IoErrorKind.UnexpectedEof, IoErrorKind.Interrupted, IoErrorKind.Other]
+        const kind = kinds[unsafe { ofir_error_kind(code) } as int]
         return IoError{kind, message: unsafe { str.fromRaw(text, len) }}
     }
 
@@ -148,8 +148,8 @@ pub struct Stdin {
      * ```ofir
      * import std.io
      *
-     * var line = ""
-     * var input = io.stdin()
+     * let line = ""
+     * let input = io.stdin()
      * for input.readLine(line)? > 0 {
      *     print(line)
      *     line.clear()
@@ -157,9 +157,9 @@ pub struct Stdin {
      * ```
      */
     pub fn readLine(mut self, buf: mut str) Result<int, IoError> {
-        var out = Buffer.new()
+        let out = Buffer.new()
         check(unsafe { ofir_read_line(&mut out as *mut Buffer) })?
-        let n = out.len
+        const n = out.len
         buf.push(unsafe { out.intoStr() })
         return Result.Ok(n)
     }
@@ -170,7 +170,7 @@ pub struct Stdin {
      * @returns the text
      */
     pub fn readToString(mut self) Result<str, IoError> {
-        var out = Buffer.new()
+        let out = Buffer.new()
         check(unsafe { ofir_read_stdin(&mut out as *mut Buffer) })?
         return Result.Ok(unsafe { out.intoStr() })
     }

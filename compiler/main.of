@@ -91,13 +91,13 @@ struct Options {
 }
 
 fn parseOptions(args: &List<str>) Option<Options> {
-    var opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
+    let opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
                        stopAfter: "", release: false, debugInfo: false, deny: false,
                        format: Format.Human}
-    var hasInput = false
-    var i = 2
+    let hasInput = false
+    let i = 2
     for i < args.len() {
-        let arg = args[i].clone()
+        const arg = args[i].clone()
         if arg.startsWith("-") {
             if arg == "-o" && i + 1 < args.len() {
                 opts.output = Option.Some(args[i + 1].clone())
@@ -152,12 +152,12 @@ fn knownPhase(what: str) bool {
 }
 
 fn main() {
-    let args = os.args()
+    const args = os.args()
     if args.len() < 2 {
         printUsage()
         os.exit(2)
     }
-    let command = args[1].clone()
+    const command = args[1].clone()
     if command == "version" {
         println("ofir {VERSION} (stage 1)")
         return
@@ -170,7 +170,7 @@ fn main() {
         os.exit(explain(args[2]))
     }
     if command == "fmt" {
-        var rest: List<str> = []
+        let rest: List<str> = []
         for i in 2..args.len() {
             rest.push(args[i].clone())
         }
@@ -180,13 +180,13 @@ fn main() {
         printUsage()
         return
     }
-    let known = command == "build" || command == "run" || command == "test"
+    const known = command == "build" || command == "run" || command == "test"
     if !known && command != "bench" {
         eprintln("error: unknown command `{command}`\n")
         printUsage()
         os.exit(2)
     }
-    let Option.Some(opts) = parseOptions(&args) else {
+    const Option.Some(opts) = parseOptions(&args) else {
         os.exit(2)
     }
     os.exit(build(opts))
@@ -194,12 +194,12 @@ fn main() {
 
 // `ofir test a/b_test.of` tests the module `a/b.of`, which loads its test file.
 fn testRoot(opts: &Options) str {
-    let input = opts.input.clone()
-    let suffix = "_test.of"
+    const input = opts.input.clone()
+    const suffix = "_test.of"
     if opts.command != "test" || input.len() <= suffix.len() || !input.endsWith(suffix) {
         return input
     }
-    let root = "{input.slice(0, input.len() - suffix.len())}.of"
+    const root = "{input.slice(0, input.len() - suffix.len())}.of"
     return if fs.exists(root) { root } else { input }
 }
 
@@ -230,44 +230,44 @@ fn driverError(format: Format, code: str, message: str) {
 // Runs the phases in order, then the program or its tests. Returns the
 // exit status.
 fn build(given: move Options) int {
-    var opts = given
+    let opts = given
     opts.input = testRoot(&opts)
-    var pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
-    var front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
+    let pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
+    let front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
     front.diags.denyWarnings = opts.deny
-    let Option.Some(file) = front.load(opts.input) else {
+    const Option.Some(file) = front.load(opts.input) else {
         driverError(opts.format, "E0900", "cannot read `{opts.input}`")
         return 1
     }
-    let tokens = tokenize(front.map.file(file).text, file, front.names, front.diags)
+    const tokens = tokenize(front.map.file(file).text, file, front.names, front.diags)
     if opts.emit == "tokens" {
         print(printTokens(tokens, *front.map.file(file), front.names))
     }
-    let lexed = opts.emit == "tokens" || opts.stopAfter == "lex"
+    const lexed = opts.emit == "tokens" || opts.stopAfter == "lex"
     if front.diags.hasErrors() || lexed {
         return finish(front.diags, front.map, &pipeline)
     }
-    let names = mem.replace(front.names, Interner.new())
-    let diags = mem.replace(front.diags, Diagnostics.new())
-    let parsed = parse(file, front.map.file(file).text, tokens, names, diags)
+    const names = mem.replace(front.names, Interner.new())
+    const diags = mem.replace(front.diags, Diagnostics.new())
+    const parsed = parse(file, front.map.file(file).text, tokens, names, diags)
     front.names = parsed.names
     front.diags = parsed.diags
     if opts.emit == "ast" {
         print(printModule(parsed.module, front.names))
     }
-    let done = opts.emit == "ast" || opts.stopAfter == "parse"
+    const done = opts.emit == "ast" || opts.stopAfter == "parse"
     if front.diags.hasErrors() || done {
         return finish(front.diags, front.map, &pipeline)
     }
-    let testing = opts.command == "test"
-    let benching = opts.command == "bench"
-    let target = CfgTarget{os: os.name(), arch: os.arch(), debug: !opts.release, test: testing,
-                           bench: benching}
-    var program = loadProgram(opts.input, parsed.module, front, target)
+    const testing = opts.command == "test"
+    const benching = opts.command == "bench"
+    const target = CfgTarget{os: os.name(), arch: os.arch(), debug: !opts.release, test: testing,
+                             bench: benching}
+    let program = loadProgram(opts.input, parsed.module, front, target)
     if front.diags.hasErrors() {
         return finish(front.diags, front.map, &pipeline)
     }
-    var r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
+    let r = resolveProgram(program, front.names, front.diags, front.map, opts.emit == "names",
                            testing || benching, benching)
     if opts.emit == "names" {
         print(r.trace.out)
@@ -277,7 +277,7 @@ fn build(given: move Options) int {
         return finish(r.diags, r.map, &pipeline)
     }
     desugarInterfaceParams(program, r)
-    var c = checkProgram(program, r)
+    let c = checkProgram(program, r)
     if opts.emit == "types" {
         print(traceTypes(c, program))
         return finish(c.r.diags, c.r.map, &pipeline)
@@ -285,7 +285,7 @@ fn build(given: move Options) int {
     if c.r.diags.hasErrors() || opts.stopAfter == "check" {
         return finish(c.r.diags, c.r.map, &pipeline)
     }
-    let ok = backend(c, program, pipeline)
+    const ok = backend(c, program, pipeline)
     if !ok && !c.r.diags.hasErrors() {
         render(c.r.diags, c.r.map, opts.format)
         return 1
@@ -296,8 +296,8 @@ fn build(given: move Options) int {
 // Lowers the program, then prints its AIR (`--emit=air`), or writes its
 // LLVM IR and links it with clang. Returns false if a step failed.
 fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
-    let opts = pipeline.opts.clone()
-    var l = lowerProgram(c, program)
+    const opts = pipeline.opts.clone()
+    let l = lowerProgram(c, program)
     if l.unsupported {
         driverError(opts.format, "E0901", "stage 1 does not compile {l.missing} yet")
         return false
@@ -306,32 +306,32 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
         foldChecks(c, l.out[i])
     }
     for i in 0..l.tests.len() {
-        let def = c.def(l.tests[i])
+        const def = c.def(l.tests[i])
         pipeline.tests.push("{c.r.moduleNames[def.module]}.{c.text(def.name)}")
     }
     if opts.emit == "air" {
-        var printer = AirPrinter{out: ""}
+        let printer = AirPrinter{out: ""}
         for i in 0..l.out.len() {
             printer.body(c, &l.out[i])
         }
         print(printer.out)
         return true
     }
-    let exe = outputPath(&opts)
-    let ll = "{exe}.ll"
+    const exe = outputPath(&opts)
+    const ll = "{exe}.ll"
     if fs.writeString(ll, generate(c, program, &l.out, opts.debugInfo, opts.release)).isErr() {
         driverError(opts.format, "E0902", "cannot write `{ll}`")
         return false
     }
     if c.r.diags.hasErrors() {   // the lowering reported errors
-        let _ = fs.removeFile(ll)
+        const _ = fs.removeFile(ll)
         return true
     }
     if opts.emit == "llvm" {
         return true
     }
-    let linked = link(&opts, ll, exe.clone(), linkLibraries(c.r, program))
-    let _ = fs.removeFile(ll)
+    const linked = link(&opts, ll, exe.clone(), linkLibraries(c.r, program))
+    const _ = fs.removeFile(ll)
     if linked {
         pipeline.exe = exe
     }
@@ -342,32 +342,32 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
 // `test` a file in the temporary directory named after the input's path,
 // so that parallel runs do not share it.
 fn outputPath(opts: &Options) str {
-    if let Option.Some(output) = opts.output {
+    if const Option.Some(output) = opts.output {
         return output.clone()
     }
-    let input = opts.input.clone()
-    var slash = -1
+    const input = opts.input.clone()
+    let slash = -1
     for i in 0..input.len() {
         if input[i] == b'/' {
             slash = i
         }
     }
-    var base = input.sliceFrom(slash + 1).toOwned()
+    let base = input.sliceFrom(slash + 1).toOwned()
     if base.len() > 3 && base.endsWith(".of") {
         base = base.slice(0, base.len() - 3).toOwned()
     }
     if opts.command == "build" {
         return base
     }
-    let full = match fs.canonicalize(input) {
+    const full = match fs.canonicalize(input) {
         Result.Ok(path) => path
         Result.Err(_) => input.clone()
     }
-    var name = ""
+    let name = ""
     for i in 0..full.len() {
-        let b = full[i]
-        let letter = (b >= b'a' && b <= b'z') || (b >= b'A' && b <= b'Z')
-        let plain = letter || (b >= b'0' && b <= b'9')
+        const b = full[i]
+        const letter = (b >= b'a' && b <= b'z') || (b >= b'A' && b <= b'Z')
+        const plain = letter || (b >= b'0' && b <= b'9')
         name.push(if plain { full.slice(i, i + 1) } else { "_" })
     }
     return "{tempDir()}/ofir-{opts.command}-{name}"
@@ -383,9 +383,9 @@ fn onWindows() bool {
 
 // `TMPDIR`, then `TEMP` (Windows), then `/tmp`.
 fn tempDir() str {
-    let names = ["TMPDIR", "TEMP"]
+    const names = ["TMPDIR", "TEMP"]
     for i in 0..names.len() {
-        if let Option.Some(dir) = os.env(names[i]) {
+        if const Option.Some(dir) = os.env(names[i]) {
             if dir.len() > 0 {
                 return dir.replace("\\", "/")
             }
@@ -396,20 +396,20 @@ fn tempDir() str {
 
 // The runtime library: `OFIR_RUNTIME`, or next to the compiler.
 fn runtimeLibrary() Option<str> {
-    if let Option.Some(path) = os.env("OFIR_RUNTIME") {
+    if const Option.Some(path) = os.env("OFIR_RUNTIME") {
         return Option.Some(path)
     }
-    let Result.Ok(exe) = os.executablePath() else {
+    const Result.Ok(exe) = os.executablePath() else {
         return Option.None
     }
-    var slash = -1
+    let slash = -1
     for i in 0..exe.len() {
         if exe[i] == b'/' {
             slash = i
         }
     }
-    let dir = if slash >= 0 { exe.slice(0, slash).toOwned() } else { ".".toOwned() }
-    let places = ["{dir}/../libofir_rt.a", "{dir}/../lib/ofir/libofir_rt.a"]
+    const dir = if slash >= 0 { exe.slice(0, slash).toOwned() } else { ".".toOwned() }
+    const places = ["{dir}/../libofir_rt.a", "{dir}/../lib/ofir/libofir_rt.a"]
     for i in 0..places.len() {
         if fs.exists(places[i]) {
             return Option.Some(places[i].clone())
@@ -422,19 +422,19 @@ fn runtimeLibrary() Option<str> {
 // `@link` libraries. The module has no target triple: clang uses its
 // default target.
 fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
-    let Option.Some(runtime) = runtimeLibrary() else {
-        let message = "cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)"
+    const Option.Some(runtime) = runtimeLibrary() else {
+        const message = "cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)"
         driverError(opts.format, "E0902", message)
         return false
     }
-    var clang = "clang".toOwned()
-    if let Option.Some(name) = os.env("OFIR_CLANG") {
+    let clang = "clang".toOwned()
+    if const Option.Some(name) = os.env("OFIR_CLANG") {
         if name.len() > 0 {
             clang = name
         }
     }
-    let level = if opts.release { "-O2" } else { "-O0" }
-    var args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime]
+    const level = if opts.release { "-O2" } else { "-O0" }
+    let args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime]
     for i in 0..libraries.len() {
         args.push("-l{libraries[i]}")
     }
@@ -449,7 +449,7 @@ fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
         args.push("--target=x86_64-w64-windows-gnu".toOwned())
         args.push("-Wl,--stack,8388608".toOwned())
     }
-    let ok = match os.run(clang, args) {
+    const ok = match os.run(clang, args) {
         Result.Ok(out) => {
             print(out.stdout)
             eprint(out.stderr)
@@ -472,7 +472,7 @@ fn runProgram(exe: str, args: [str]) int {
         Result.Ok(out) => {
             print(out.stdout)
             eprint(out.stderr)
-            let status = if out.status < 0 { 1 } else { out.status }
+            const status = if out.status < 0 { 1 } else { out.status }
             status
         }
         Result.Err(_) => {
@@ -485,10 +485,10 @@ fn runProgram(exe: str, args: [str]) int {
 // Each test runs in its own process: the program runs the test whose
 // index it is given.
 fn runTests(exe: str, tests: &List<str>) int {
-    var failed = 0
+    let failed = 0
     for i in 0..tests.len() {
         print("test {tests[i]} ... ")
-        let status = runProgram(exe, ["{i}"])
+        const status = runProgram(exe, ["{i}"])
         if status == 0 {
             println("ok")
         } else {
@@ -503,10 +503,10 @@ fn runTests(exe: str, tests: &List<str>) int {
 // `ofir bench` (spec 12.3): each benchmark in its own process, which prints
 // its time.
 fn runBenches(exe: str, benches: &List<str>) int {
-    var failed = 0
+    let failed = 0
     for i in 0..benches.len() {
         print("bench {benches[i]} ... ")
-        let status = runProgram(exe, ["{i}"])
+        const status = runProgram(exe, ["{i}"])
         if status != 0 {
             println("FAILED (exit status {status})")
             failed += 1
@@ -525,9 +525,9 @@ fn finish(diags: Diagnostics, map: SourceMap, pipeline: &Pipeline) int {
     if pipeline.exe.len() == 0 {
         return 0
     }
-    var status = 0
+    let status = 0
     if pipeline.opts.command == "run" {
-        let empty: List<str> = []
+        const empty: List<str> = []
         status = runProgram(pipeline.exe, empty)
     } else if pipeline.opts.command == "test" {
         status = runTests(pipeline.exe, &pipeline.tests)
@@ -535,7 +535,7 @@ fn finish(diags: Diagnostics, map: SourceMap, pipeline: &Pipeline) int {
         status = runBenches(pipeline.exe, &pipeline.tests)
     }
     if pipeline.opts.output.isNone() && pipeline.opts.command != "build" {
-        let _ = fs.removeFile(pipeline.exe)
+        const _ = fs.removeFile(pipeline.exe)
     }
     return status
 }

@@ -36,7 +36,7 @@
     "keywords": {
       "patterns": [
         { "name": "keyword.control.ofir", "match": "\\b(?:break|continue|else|for|if|in|match|return)\\b" },
-        { "name": "storage.modifier.ofir", "match": "\\b(?:const|copy|dyn|extern|fn|import|interface|let|move|mut|pub|ref|struct|type|unsafe|var|where|enum|comptime)\\b" },
+        { "name": "storage.modifier.ofir", "match": "\\b(?:const|copy|dyn|extern|fn|import|interface|let|move|mut|pub|ref|struct|type|unsafe|where|enum|comptime)\\b" },
         { "name": "constant.language.boolean.ofir", "match": "\\b(?:true|false)\\b" },
         { "name": "keyword.operator.ofir", "match": "\\b(?:as|Self|self)\\b|=>|\\?\\?|\\.\\.=|\\.\\." }
       ]

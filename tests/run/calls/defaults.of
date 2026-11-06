@@ -9,7 +9,7 @@ fn connect(host: str, port: int = 443, timeout: int = BASE * 3, verbose: bool = 
 }
 
 fn total(xs: List<int> = []) int {
-    var sum = 0
+    let sum = 0
     for i in 0..xs.len() {
         sum += xs[i]
     }
@@ -49,16 +49,16 @@ fn main() {
     println(connect("example.com", 80, 5))
     println(connect("example.com", 80, 5, true))
     println("{total()} {total([1, 2, 3])}")
-    var xs = [7]
+    let xs = [7]
     grow(xs)
     grow(xs, [8, 9])
     println("{xs.len()} {xs[1]} {xs[4]}")
     println("{keys()}")
     println(tagged("a"))
-    var c = Counter.make()
+    let c = Counter.make()
     c.add()
     c.add(5)
-    var d = Counter.make(100)
+    let d = Counter.make(100)
     d.add()
     println("{c.n} {d.n}")
 }

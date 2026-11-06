@@ -43,9 +43,9 @@ import syntax.ast.StmtKind
  */
 pub fn checkRef(c: mut Checker, p: Program, e: &Expr, operand: &Expr, mutable: bool,
                 expected: int) int {
-    let isRef = c.types.kind(expected) == TyKind.Ref
-    let hint = if isRef { c.types.get(expected).inner } else { ERROR }
-    let ty = checkExpr(c, p, operand, hint)
+    const isRef = c.types.kind(expected) == TyKind.Ref
+    const hint = if isRef { c.types.get(expected).inner } else { ERROR }
+    const ty = checkExpr(c, p, operand, hint)
     if mutable {
         requireMutable(c, p, operand)
     }
@@ -69,7 +69,7 @@ pub fn checkRef(c: mut Checker, p: Program, e: &Expr, operand: &Expr, mutable: b
  * @returns true if it does
  */
 pub fn holdsRef(c: Checker, p: Program, ty: int) bool {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind == TyKind.Ref {
         return true
     }
@@ -95,7 +95,7 @@ pub fn holdsRef(c: Checker, p: Program, ty: int) bool {
  * @returns true if it does
  */
 pub fn holdsBorrowedFn(c: Checker, ty: int) bool {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind == TyKind.Fn {
         return t.data & FN_BORROWED != 0
     }
@@ -151,15 +151,15 @@ pub fn checkStorable(c: mut Checker, p: Program, ty: int, span: Span, where: str
  * @param span where it is named
  */
 pub fn checkInstanceStorable(c: mut Checker, p: Program, ty: int, span: Span) {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind != TyKind.Adt || t.data == c.r.langItems[2] || t.data == c.r.langItems[3] {
         return
     }
     if isRefStruct(c, p, t.data) {
         return
     }
-    let args = t.args.clone()
-    let boxed = t.data == c.r.langItems[0]
+    const args = t.args.clone()
+    const boxed = t.data == c.r.langItems[0]
     for i in 0..args.len() {
         if boxed && c.types.kind(args[i]) == TyKind.Dyn {
             continue   // `Box<dyn I>`
@@ -183,7 +183,7 @@ fn lends(c: Checker, p: Program, mode: Mode, ty: int) bool {
  * @param selfType the type declaring the method
  */
 pub fn checkBorrowSource(c: mut Checker, p: Program, id: int, sig: int, selfType: int) {
-    let ret = c.types.get(sig).inner
+    const ret = c.types.get(sig).inner
     if holdsBorrowedFn(c, ret) {
         c.error("E0702", fnOf(p, c.loc(id)).span, "a function cannot return a borrowed "
                 + "function value: return a `move fn`")
@@ -192,7 +192,7 @@ pub fn checkBorrowSource(c: mut Checker, p: Program, id: int, sig: int, selfType
     if !holdsRef(c, p, ret) {
         return
     }
-    let decl = fnOf(p, c.loc(id))
+    const decl = fnOf(p, c.loc(id))
     c.info[id].returnsBorrow = true
     if decl.hasSelf && decl.selfMode != Mode.Move {
         c.info[id].borrowSource = -1
@@ -203,9 +203,9 @@ pub fn checkBorrowSource(c: mut Checker, p: Program, id: int, sig: int, selfType
         c.info[id].returnsBorrow = false
         return
     }
-    let params = c.types.get(sig).args.clone()
-    var source = -1
-    var count = 0
+    const params = c.types.get(sig).args.clone()
+    let source = -1
+    let count = 0
     for i in 0..decl.params.len() {
         if i < params.len() && lends(c, p, decl.params[i].mode, params[i]) {
             source = i
@@ -213,7 +213,7 @@ pub fn checkBorrowSource(c: mut Checker, p: Program, id: int, sig: int, selfType
         }
     }
     if count != 1 {
-        let which = if count > 0 { "several of" } else { "none of" }
+        const which = if count > 0 { "several of" } else { "none of" }
         c.error("E0702", decl.span, "a function that returns a reference must borrow it from "
                 + "`self` or from its only borrowed parameter, which it has {which}")
         c.info[id].returnsBorrow = false
@@ -239,8 +239,8 @@ pub fn checkReturnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
     if returnedBranches(c, p, fnDef, value) {
         return
     }
-    var target = value
-    if let ExprKind.Call(_, args) = value.kind {
+    let target = value
+    if const ExprKind.Call(_, args) = value.kind {
         if args.len() == 1 {
             target = &args[0].value   // `Some(&x)`, `Ok(&x)`
         }
@@ -250,13 +250,13 @@ pub fn checkReturnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
             if op != Op.Ref && op != Op.RefMut {
                 return
             }
-            let Option.Some(root) = placeRoot(c, &*operand) else {
+            const Option.Some(root) = placeRoot(c, &*operand) else {
                 return
             }
             if root.1 > 0 {
                 return   // through an implicit dereference: not a local
             }
-            let local = match root.0.kind {
+            const local = match root.0.kind {
                 ExprKind.Ident(_) | ExprKind.SelfValue => match c.res(root.0.id.0) {
                     Res.Local(id) => id
                     _ => -1
@@ -266,7 +266,7 @@ pub fn checkReturnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
             if local < 0 || isSource(c, p, fnDef, local) || holdsRef(c, p, c.localTypes[local]) {
                 return
             }
-            let name = c.text(c.locals[local].name).toOwned()
+            const name = c.text(c.locals[local].name).toOwned()
             c.error("E0702", target.span, "cannot return a reference to `{name}`, which ends "
                     + "with the function")
         }
@@ -289,7 +289,7 @@ fn returnedBranches(c: mut Checker, p: Program, fnDef: int, value: &Expr) bool {
         }
         ExprKind.If(_, _, then, otherwise) => {
             returnedTail(c, p, fnDef, &then)
-            if let Option.Some(other) = otherwise {
+            if const Option.Some(other) = otherwise {
                 returnedRef(c, p, fnDef, &*other)
             }
             return true
@@ -305,9 +305,9 @@ fn returnedBranches(c: mut Checker, p: Program, fnDef: int, value: &Expr) bool {
 }
 
 fn returnedTail(c: mut Checker, p: Program, fnDef: int, block: &Block) {
-    let count = block.stmts.len()
+    const count = block.stmts.len()
     if count > 0 {
-        if let StmtKind.ExprStmt(tail) = block.stmts[count - 1].kind {
+        if const StmtKind.ExprStmt(tail) = block.stmts[count - 1].kind {
             returnedRef(c, p, fnDef, &tail)
         }
     }
@@ -324,7 +324,7 @@ fn returnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
             if op != Op.Ref && op != Op.RefMut {
                 return
             }
-            let local = match operand.kind {
+            const local = match operand.kind {
                 ExprKind.Ident(_) | ExprKind.SelfValue => match c.res(operand.id.0) {
                     Res.Local(id) => id
                     _ => -1
@@ -334,7 +334,7 @@ fn returnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
             if local < 0 || isSource(c, p, fnDef, local) || holdsRef(c, p, c.localTypes[local]) {
                 return
             }
-            let name = c.text(c.locals[local].name).toOwned()
+            const name = c.text(c.locals[local].name).toOwned()
             c.error("E0702", value.span, "cannot return a reference to `{name}`, which ends "
                     + "with the function")
         }
@@ -344,8 +344,8 @@ fn returnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
 
 // Whether `local` is the parameter the function borrows from.
 fn isSource(c: Checker, p: Program, fnDef: int, local: int) bool {
-    let decl = fnOf(p, c.loc(fnDef))
-    let source = c.info[fnDef].borrowSource
+    const decl = fnOf(p, c.loc(fnDef))
+    const source = c.info[fnDef].borrowSource
     if source < 0 {
         return decl.hasSelf && local == 0
     }

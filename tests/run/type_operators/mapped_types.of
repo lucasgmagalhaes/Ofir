@@ -26,18 +26,18 @@ fn total(limits: Record<.min | .max, int>) int {
 }
 
 fn main() {
-    let p = Point{x: 1.0, y: 2.0}
-    let q = patch(&p, &Partial<Point>{y: Option.Some(5.0)})
+    const p = Point{x: 1.0, y: 2.0}
+    const q = patch(&p, &Partial<Point>{y: Option.Some(5.0)})
     println("{q.x} {q.y}")
-    let only: Pick<Point, .x> = Pick<Point, .x>{x: 7.5}
+    const only: Pick<Point, .x> = Pick<Point, .x>{x: 7.5}
     println("{only.x}")
-    let u = Omit<User, .email>{name: "ana".toOwned(), age: 31}
+    const u = Omit<User, .email>{name: "ana".toOwned(), age: 31}
     println("{u.name} {u.age}")
     println("{total(Record<.min | .max, int>{min: 3, max: 10})}")
-    let keys: keyof Partial<Point> = .y
-    let empty = Partial<User>{}
+    const keys: keyof Partial<Point> = .y
+    const empty = Partial<User>{}
     println("{empty.name.isNone()} {empty[.age].isNone()}")
-    let named = Pick<User, .name | .email>{name: "bo".toOwned(), email: "b@o".toOwned()}
+    const named = Pick<User, .name | .email>{name: "bo".toOwned(), email: "b@o".toOwned()}
     println("{named.email}")
-    let _ = keys
+    const _ = keys
 }

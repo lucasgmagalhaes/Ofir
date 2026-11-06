@@ -16,15 +16,15 @@ extern "C" fn twice(n: i32) i32 {
 
 fn main() {
     unsafe {
-        let p = malloc(16)
+        const p = malloc(16)
         *p = 72
         *p.add(1) = 105
         *p.add(2) = 0
         println("{strlen(p)} {*p} {*p.add(1)}")
-        let pairs = malloc(32) as *mut Pair
+        const pairs = malloc(32) as *mut Pair
         *pairs = Pair{a: 1, b: 2}
         (*pairs).b += 40
-        let second = pairs.add(1)
+        const second = pairs.add(1)
         (*second).a = 7
         println("{(*pairs).a} {(*pairs).b} {(*second).a} {pairs == pairs} {p as u64 != 0}")
         free(p)

@@ -6,7 +6,7 @@ struct Point {
 }
 
 fn total(values: List<int>) int {
-    var sum = 0
+    let sum = 0
     for v in values {
         sum += v
     }
@@ -14,7 +14,7 @@ fn total(values: List<int>) int {
 }
 
 fn show(values: List<int>) str {
-    var text = ""
+    let text = ""
     for i in 0..values.len() {
         if i > 0 {
             text.push(" ")
@@ -25,40 +25,40 @@ fn show(values: List<int>) str {
 }
 
 fn main() {
-    var xs = [3, 1, 2]
+    let xs = [3, 1, 2]
     println("{xs.len()} {xs[0]} {xs[2]} {total(xs)}")
     xs.push(10)
     xs[1] = 7
     xs[0] += 100
     println(show(xs))
 
-    let empty: List<str> = []
+    const empty: List<str> = []
     println("{empty.len()} {empty.isEmpty()}")
-    let zeros = [0; 5]
+    const zeros = [0; 5]
     println(show(zeros))
 
-    var words = ["b", "c"]
+    let words = ["b", "c"]
     words.insert(0, "a")
     words.push("d")
-    let removed = words.remove(1)
-    let swapped = words.swapRemove(0)
+    const removed = words.remove(1)
+    const swapped = words.swapRemove(0)
     println("{removed} {swapped} {words.len()} {words[0]} {words[1]}")
 
-    var points = [Point{x: 1, y: 2}, Point{x: 3, y: 4}]
+    let points = [Point{x: 1, y: 2}, Point{x: 3, y: 4}]
     points[1].y = 40
     println("{points[0].x} {points[1].y}")
 
-    var grid = [[1, 2], [3, 4]]
+    let grid = [[1, 2], [3, 4]]
     grid[1][0] = 30
     println("{grid[0][1]} {grid[1][0]}")
 
-    var many: List<int> = List.new()
+    let many: List<int> = List.new()
     for i in 0..1000 {
         many.push(i * i)
     }
     println("{many.len()} {many[999]} {many.capacity() >= 1000}")
 
-    var more = [1, 2]
+    let more = [1, 2]
     more.extend([3, 4, 5])
     more.reverse()
     more.truncate(4)

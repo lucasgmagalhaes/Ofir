@@ -33,9 +33,9 @@ import syntax.ast.ExprKind
 fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: int, index: int,
          selfType: int, expected: int) int {
     enumVariants(c, p, id)
-    let name = variantsOf(c, id).variants[index].name
-    let types = variantsOf(c, id).variants[index].types.clone()
-    let count = types.len()
+    const name = variantsOf(c, id).variants[index].name
+    const types = variantsOf(c, id).variants[index].types.clone()
+    const count = types.len()
     if args.isNone() && count > 0 {
         c.error("E0302", at.span, "the variant `{c.text(name)}` takes {count} values")
     }
@@ -43,22 +43,22 @@ fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: in
         c.error("E0302", at.span, "the variant `{c.text(name)}` takes no values: write it "
                 + "without parentheses")
     }
-    let none: List<Arg> = []
-    let given = args ?? &none
-    let owner = itemTypeParams(itemOf(p, c.loc(id)))
+    const none: List<Arg> = []
+    const given = args ?? &none
+    const owner = itemTypeParams(itemOf(p, c.loc(id)))
     if owner.len() > 0 {   // the arguments come from `self`, the expected type or the payload
-        var inf = inferNew(typeGenericsOf(c, p, id))
+        let inf = inferNew(typeGenericsOf(c, p, id))
         inferFromSelf(c, inf, selfType, owner.len())
-        let selfType = ownerType(c, p, id)
-        var params: List<int> = []
+        const selfType = ownerType(c, p, id)
+        let params: List<int> = []
         if args.isSome() && count > 0 {
             params = types
         }
-        let used = if args.isSome() && count > 0 { given } else { &none }
+        const used = if args.isSome() && count > 0 { given } else { &none }
         return checkGenericArgs(c, p, at.id.0, at.span, used, &params, selfType, inf,
                                 expected, 0)
     }
-    let ty = c.types.adt(id, [])
+    const ty = c.types.adt(id, [])
     if args.isNone() || count == 0 {
         return ty
     }
@@ -74,7 +74,7 @@ fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: in
  * @param name the variant
  */
 pub fn unqualifiedVariant(c: mut Checker, span: Span, id: int, name: Symbol) {
-    let text = c.text(name).toOwned()
+    const text = c.text(name).toOwned()
     c.error("E0326", span, "a variant is named through its enum: write "
             + "`{c.text(c.def(id).name)}.{text}`")
 }
@@ -92,8 +92,8 @@ pub fn unqualifiedVariant(c: mut Checker, span: Span, id: int, name: Symbol) {
  */
 pub fn checkPreludeVariant(c: mut Checker, p: Program, e: &Expr, def: int,
                            args: Option<&List<Arg>>, expected: int) int {
-    let id = c.def(def).target
-    let index = c.def(def).member
+    const id = c.def(def).target
+    const index = c.def(def).member
     unqualifiedVariant(c, e.span, id, c.def(def).name)
     c.setMember(e.id.0, index)
     return build(c, p, e, args, id, index, ERROR, expected)
@@ -120,18 +120,18 @@ pub fn checkVariantShorthand(c: mut Checker, p: Program, e: &Expr, expected: int
             if !hasArgs && c.types.kind(expected) == TyKind.Key {
                 return checkKeyLiteral(c, e.span, name, expected)
             }
-            let Option.Some(id) = enumOf(c, p, expected) else {
+            const Option.Some(id) = enumOf(c, p, expected) else {
                 c.error("E0326", e.span, "a variant is named through its enum: write "
                         + "`Enum.{c.text(name)}`")
                 return ERROR
             }
             unqualifiedVariant(c, e.span, id, name)
-            let index = variantIndex(variantsOf(c, id), name)
+            const index = variantIndex(variantsOf(c, id), name)
             if index < 0 {
                 return noVariant(c, e.span, name, expected)
             }
             c.setMember(e.id.0, index)
-            var given: Option<&List<Arg>> = Option.None
+            let given: Option<&List<Arg>> = Option.None
             if hasArgs {
                 given = Option.Some(&args)
             }
@@ -160,7 +160,7 @@ pub fn checkVariantShorthand(c: mut Checker, p: Program, e: &Expr, expected: int
 pub fn checkQualifiedVariant(c: mut Checker, p: Program, e: &Expr, field: &Expr,
                              name: Symbol, args: Option<&List<Arg>>, id: int,
                              selfType: int, expected: int) Option<int> {
-    let index = if enumVariants(c, p, id) { variantIndex(variantsOf(c, id), name) } else { -1 }
+    const index = if enumVariants(c, p, id) { variantIndex(variantsOf(c, id), name) } else { -1 }
     if index < 0 {
         return Option.None
     }

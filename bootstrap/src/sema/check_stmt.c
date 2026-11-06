@@ -19,16 +19,16 @@ static TypeId let_stmt(Checker *c, Stmt *s) {
     TypeId found = s->as.let.type ? coerce(c, s->as.let.value, type)
                                   : check_expr(c, s->as.let.value, NO_TYPE);
     check_pattern(c, pattern, s->as.let.type ? type : found);
-    if (s->as.let.else_) {   // `let pattern = value else { ... }` (spec 4.6)
+    if (s->as.let.else_) {   // `const pattern = value else { ... }` (spec 4.6)
         TypeId other = check_block(c, s->as.let.else_, NO_TYPE, false);
         if (other.id != TID_NEVER) {
             check_error(c, "E0307", s->as.let.else_->span,
-                        "the `else` block of `let ... else` must not fall through: end it "
+                        "the `else` block of `const ... else` must not fall through: end it "
                         "with `return`, `break`, `continue` or a panic");
         }
     } else if (!pattern_irrefutable(c, pattern)) {
         check_error(c, "E0501", pattern->span,
-                    "this pattern does not match every value: use `match` or `if let`");
+                    "this pattern does not match every value: use `match` or `if const`");
     }
     return found.id == TID_NEVER ? found : type_id(TID_UNIT);
 }
@@ -62,7 +62,7 @@ static void check_place(Checker *c, Expr *target) {
         StrView local = local_name(c, (LocalId){res.index});
         check_error(c, "E0304", target->span,
                     "cannot assign twice to immutable variable `" SV_FMT "`", SV_ARG(local));
-        diag_help(&c->sema->session->diags, "declare it with `var " SV_FMT "` to assign to it "
+        diag_help(&c->sema->session->diags, "declare it with `let " SV_FMT "` to assign to it "
                   "again", SV_ARG(local));
     } else if (res.kind == RES_DEF && sema_def(c->sema, (DefId){res.index})->kind != DEF_GLOBAL) {
         check_error(c, "E0304", target->span, "cannot assign to `" SV_FMT "`",
@@ -223,7 +223,7 @@ static TypeId join(Checker *c, Expr *e, TypeId expected, TypeId then, TypeId els
 }
 
 TypeId check_if(Checker *c, Expr *e, TypeId expected, bool as_value) {
-    if (e->as.if_.let_pattern) {   // `if let pattern = value`
+    if (e->as.if_.let_pattern) {   // `if const pattern = value`
         check_pattern(c, e->as.if_.let_pattern, check_expr(c, e->as.if_.cond, NO_TYPE));
     } else {
         coerce(c, e->as.if_.cond, type_id(TID_BOOL));

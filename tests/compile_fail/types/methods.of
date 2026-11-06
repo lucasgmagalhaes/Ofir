@@ -1,43 +1,43 @@
 fn unknown(n: int) {
-    let x = n.size()          // error[E0301]: no method `size` on type `int`
+    const x = n.size()          // error[E0301]: no method `size` on type `int`
 }
 
 fn wrongReceiver(flag: bool) {
-    let x = flag.len()        // error[E0301]: no method `len` on type `bool`
+    const x = flag.len()        // error[E0301]: no method `len` on type `bool`
 }
 
 fn immutable() {
-    let s = "a"
-    s.push("b")               // error[E0315]: this value cannot be modified: declare it with `var`
+    const s = "a"
+    s.push("b")               // error[E0315]: this value cannot be modified: declare it with `let`
 }
 
 fn borrowedParameter(s: str) {
-    s.clear()                 // error[E0315]: this value cannot be modified: declare it with `var`
+    s.clear()                 // error[E0315]: this value cannot be modified: declare it with `let`
 }
 
 fn typeArguments(n: int) {
-    let a = n.wrappingCast()  // error[E0302]: wrong number of type arguments: expected 1, found 0
+    const a = n.wrappingCast()  // error[E0302]: wrong number of type arguments: expected 1, found 0
 }
 
 fn notInteger(n: int) {
-    let b = n.wrappingCast<str>()   // error[E0300]: mismatched types: expected an integer type, found str
+    const b = n.wrappingCast<str>()   // error[E0300]: mismatched types: expected an integer type, found str
 }
 
 fn arguments(s: str) {
-    let c = s.startsWith(1)   // error[E0300]: mismatched types: expected str, found int
+    const c = s.startsWith(1)   // error[E0300]: mismatched types: expected str, found int
 }
 
 fn indexing(n: int) {
-    let d = n[0]              // error[E0313]: type `int` cannot be indexed
+    const d = n[0]              // error[E0313]: type `int` cannot be indexed
 }
 
 fn constants() {
-    let e = i32.LARGEST       // error[E0301]: no constant `LARGEST` on type `i32`
+    const e = i32.LARGEST       // error[E0301]: no constant `LARGEST` on type `i32`
 }
 
-// Accepted: a `mut` parameter and a `var` can be modified.
+// Accepted: a `mut` parameter and a `let` can be modified.
 fn modify(s: mut str) {
     s.push("!")
-    var t = "x"
+    let t = "x"
     t.clear()
 }

@@ -14,7 +14,7 @@ pub copy enum TokenKind {
     // reserved keywords (contextual keywords are lexed as Ident)
     As, Break, Const, Continue, Copy, Dyn, Else, Enum, Extern, False, Fn, For
     If, Import, In, Interface, Let, Match, Mut, Pub, Return, SelfValue, SelfType
-    Struct, True, Unsafe, Var
+    Struct, True, Unsafe
 
     // punctuation; `>` is never combined here (see `punct`)
     LParen, RParen, LBrace, RBrace, LBracket, RBracket

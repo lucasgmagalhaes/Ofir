@@ -10,13 +10,13 @@ fn pair(a: int, b: int) int {
 }
 
 fn main() {
-    let f = pair
-    let a = connect("h", colour: 1)   // error[E0306]: `connect` has no parameter `colour`
-    let b = connect("h", port: 1, port: 2)   // error[E0306]: the parameter `port` is given twice
-    let c = connect(port: 1, "h")   // error[E0306]: a positional argument cannot follow a named one
-    let d = connect("h", 1, true, 4)   // error[E0302]: wrong number of arguments: expected at most 3, found 4
-    let e = connect(port: 1)   // error[E0308]: missing argument for the parameter `host`
-    let g = pair(1)   // error[E0302]: wrong number of arguments: expected 2, found 1
-    let h = f(a: 1, b: 2)   // error[E0306]: this callee has no named parameters: pass the argument by position
+    const f = pair
+    const a = connect("h", colour: 1)   // error[E0306]: `connect` has no parameter `colour`
+    const b = connect("h", port: 1, port: 2)   // error[E0306]: the parameter `port` is given twice
+    const c = connect(port: 1, "h")   // error[E0306]: a positional argument cannot follow a named one
+    const d = connect("h", 1, true, 4)   // error[E0302]: wrong number of arguments: expected at most 3, found 4
+    const e = connect(port: 1)   // error[E0308]: missing argument for the parameter `host`
+    const g = pair(1)   // error[E0302]: wrong number of arguments: expected 2, found 1
+    const h = f(a: 1, b: 2)   // error[E0306]: this callee has no named parameters: pass the argument by position
     println("{a} {b} {c} {d} {e} {g} {h}")
 }

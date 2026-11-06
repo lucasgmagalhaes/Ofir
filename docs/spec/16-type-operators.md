@@ -44,9 +44,9 @@ fn take<T, K: keyof T>(value: move T, key: K) T[K] {
     return value[key]
 }
 
-let p = Point{x: 1.0, y: 2.0}
-let x = *get(&p, .x)             // K = .x, the result is a float
-let y = take(p, .y)
+const p = Point{x: 1.0, y: 2.0}
+const x = *get(&p, .x)             // K = .x, the result is a float
+const y = take(p, .y)
 ```
 
 - A parameter of a key type has no runtime value: it is erased, and each
@@ -75,9 +75,9 @@ type Pick<T, K: keyof T> = { [P in K]: T[P] }
 type Omit<T, K: keyof T> = { [P in keyof T - K]: T[P] }
 type Record<K, V> = { [P in K]: V }
 
-let patch = Partial<Point>{x: Option.Some(3.0)}   // y defaults to Option.None
-let only: Pick<Point, .x> = Pick<Point, .x>{x: 1.0}
-let limits = Record<.min | .max, int>{min: 0, max: 10}
+const patch = Partial<Point>{x: Option.Some(3.0)}   // y defaults to Option.None
+const only: Pick<Point, .x> = Pick<Point, .x>{x: 1.0}
+const limits = Record<.min | .max, int>{min: 0, max: 10}
 ```
 
 - `[K in Keys]: F` gives each key `K` a field of type `F`, where `F` may
@@ -116,9 +116,9 @@ compile-time loops over keys (chapter 15):
 
 ```ofir
 fn merge<T>(base: T, patch: Partial<T>) T {
-    var out = base
+    let out = base
     comptime for key in keyof T {
-        if let Option.Some(value) = patch[key] {
+        if const Option.Some(value) = patch[key] {
             out[key] = value
         }
     }

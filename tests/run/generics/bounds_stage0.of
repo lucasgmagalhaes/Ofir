@@ -5,7 +5,7 @@ struct Bag<T: Eq> {
     items: List<T>
 
     fn count(self, item: T) int {
-        var n = 0
+        let n = 0
         for i in 0..self.items.len() {
             if self.items[i] == item {
                 n += 1
@@ -19,7 +19,7 @@ struct Stack<T> {
     items: List<T>
 
     fn top(self) int where T: Ord {
-        var best = 0
+        let best = 0
         for i in 1..self.items.len() {
             if self.items[best] < self.items[i] {
                 best = i
@@ -38,25 +38,25 @@ fn differ<T>(a: T, b: T) bool where T: Eq {
 }
 
 fn record<K: Eq + Hash>(m: mut Map<K, int>, key: move K) {
-    let at = m.len()
+    const at = m.len()
     m.insert(key, at)
 }
 
 fn main() {
-    let bag = Bag{items: [1, 2, 1, 3]}
+    const bag = Bag{items: [1, 2, 1, 3]}
     println("{bag.count(1)}")
-    let stack = Stack{items: [4, 9, 2]}
+    const stack = Stack{items: [4, 9, 2]}
     println("{stack.top()}")
     println("{smaller("pear", "apple")} {smaller(2.5, 1.5)}")
     println("{differ((1, "a"), (1, "a"))} {differ((1, "a"), (2, "a"))}")
-    var m = Map<(int, bool), int>.new()
+    let m = Map<(int, bool), int>.new()
     record(m, (1, true))
     record(m, (2, false))
     record(m, (1, true))
-    if let Option.Some(at) = m.get((2, false)) {
+    if const Option.Some(at) = m.get((2, false)) {
         println("{m.len()} {*at}")
     }
-    var words = ["mia", "ana", "bob"]
+    let words = ["mia", "ana", "bob"]
     words.sort()
     println("{words[0]} {words[2]}")
 }

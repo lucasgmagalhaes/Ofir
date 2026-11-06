@@ -44,12 +44,12 @@ fn first(p: Pair) int {   // warning[W0006]: `Pair` is deprecated: use `Point`
 }
 
 fn main() {
-    let n = atoi("12")   // warning[W0006]: `atoi` is deprecated: use `parse`
-    let m = LIMIT   // warning[W0006]: `LIMIT` is deprecated
-    var c = Counter{n: 0}
+    const n = atoi("12")   // warning[W0006]: `atoi` is deprecated: use `parse`
+    const m = LIMIT   // warning[W0006]: `LIMIT` is deprecated
+    let c = Counter{n: 0}
     c.inc()   // warning[W0006]: `inc` is deprecated: use `bump`
     c.bump()
-    let p = Pair{a: 1, b: 2}   // warning[W0006]: `Pair` is deprecated: use `Point`
+    const p = Pair{a: 1, b: 2}   // warning[W0006]: `Pair` is deprecated: use `Point`
     println("{n} {m} {c.n} {first(p)} {tolerant()}")
     println("{legacy()}")   // warning[W0006]: `legacy` is deprecated
 }

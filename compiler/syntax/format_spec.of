@@ -31,14 +31,14 @@ pub const MAX_FORMAT_WIDTH: int = 1000
  * @returns the specifier, `valid` false if the text is malformed
  */
 pub fn parseFormatSpec(text: str) FormatSpec {
-    var f = FormatSpec{valid: true, debug: false, left: false, zero: false, width: 0,
+    let f = FormatSpec{valid: true, debug: false, left: false, zero: false, width: 0,
                        precision: -1, radix: 10, upper: false}
     if text == "?" {
         f.debug = true
         return f
     }
-    var i = 0
-    let n = text.len()
+    let i = 0
+    const n = text.len()
     if i < n && text[i] == b'<' {
         f.left = true
         i += 1
@@ -47,7 +47,7 @@ pub fn parseFormatSpec(text: str) FormatSpec {
         f.zero = true
         i += 1
     }
-    let widthStart = i
+    const widthStart = i
     for i < n && text[i] >= b'0' && text[i] <= b'9' && f.width <= MAX_FORMAT_WIDTH {
         f.width = f.width * 10 + (text[i] - b'0') as int
         i += 1
@@ -57,7 +57,7 @@ pub fn parseFormatSpec(text: str) FormatSpec {
     }
     if i < n && text[i] == b'.' {
         i += 1
-        let start = i
+        const start = i
         f.precision = 0
         for i < n && text[i] >= b'0' && text[i] <= b'9' && f.precision <= MAX_FORMAT_WIDTH {
             f.precision = f.precision * 10 + (text[i] - b'0') as int
@@ -86,7 +86,7 @@ pub fn parseFormatSpec(text: str) FormatSpec {
  * @returns the packed padding
  */
 pub fn paddingBits(f: FormatSpec) int {
-    var bits = f.width
+    let bits = f.width
     if f.left {
         bits += 1 << 32
     }

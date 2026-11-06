@@ -1,6 +1,6 @@
 // panic: byte range 0..4 is not on character boundaries
 fn main() {
-    let s = "café"
-    let end = 4
+    const s = "café"
+    const end = 4
     println(s[0..end])
 }

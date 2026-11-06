@@ -25,13 +25,13 @@ import syntax.token.TokenKind
 import syntax.token.TokenValue
 
 pub fn tokenize(src: str, file: FileId, names: mut Interner, diags: mut Diagnostics) List<Token> {
-    var lx = Lexer.new(file)
+    let lx = Lexer.new(file)
     for !lx.cur.atEnd(src) {
         if !lx.skipTrivia(src, diags) {
             lx.tokenAt(src, names, diags)
         }
     }
-    let end = lx.cur.token(TokenKind.Eof, lx.cur.pos)
+    const end = lx.cur.token(TokenKind.Eof, lx.cur.pos)
     lx.out.push(end)
     return lx.out
 }
@@ -58,9 +58,9 @@ struct Lexer {
     // Handles whitespace or a comment at the current position. Returns false
     // if the current byte starts a token.
     fn skipTrivia(mut self, src: str, diags: mut Diagnostics) bool {
-        let start = self.cur.pos
-        let c = self.cur.peek(src, 0)
-        let next = self.cur.peek(src, 1)
+        const start = self.cur.pos
+        const c = self.cur.peek(src, 0)
+        const next = self.cur.peek(src, 1)
         if c == b' ' || c == b'\t' || c == b'\r' {
             self.cur.pos += 1
         } else if c == b'\n' {
@@ -83,9 +83,9 @@ struct Lexer {
     }
 
     fn tokenAt(mut self, src: str, names: mut Interner, diags: mut Diagnostics) {
-        let start = self.cur.pos
-        let c = self.cur.peek(src, 0)
-        let next = self.cur.peek(src, 1)
+        const start = self.cur.pos
+        const c = self.cur.peek(src, 0)
+        const next = self.cur.peek(src, 1)
         if c == b'b' && next == b'\'' {
             self.out.push(scanByteLiteral(self.cur, src, diags))
         } else if c == b'b' && next == b'"' {
@@ -107,7 +107,7 @@ struct Lexer {
     }
 
     fn stringPart(mut self, src: str, start: int, opening: bool, diags: mut Diagnostics) {
-        let token = scanStringPart(self.cur, src, start, opening, diags)
+        const token = scanStringPart(self.cur, src, start, opening, diags)
         if token.kind == TokenKind.StrStart || token.kind == TokenKind.StrMid {
             self.interpolations.push(self.brackets.len())
         }
@@ -120,14 +120,14 @@ struct Lexer {
     // Skips `/* ... */`; `/** ... */` is a documentation comment. Returns
     // true if the comment contained a newline.
     fn blockComment(mut self, src: str, diags: mut Diagnostics) bool {
-        let start = self.cur.pos
-        let third = self.cur.peek(src, 3)
-        let doc = self.cur.peek(src, 2) == b'*' && third != b'/' && third != b'*'
+        const start = self.cur.pos
+        const third = self.cur.peek(src, 3)
+        const doc = self.cur.peek(src, 2) == b'*' && third != b'/' && third != b'*'
         self.cur.pos += 2
-        var newline = false
+        let newline = false
         for {
             if self.cur.atEnd(src) {
-                let message = "unterminated block comment".toOwned()
+                const message = "unterminated block comment".toOwned()
                 diags.error("E0003", self.cur.spanFrom(start), message)
                 return newline
             }
@@ -148,9 +148,9 @@ struct Lexer {
     // `/** ... */` documents the next declaration, or the file when its text
     // starts with `@module` (spec 1.8); the tag is not part of the text.
     fn docComment(mut self, src: str, start: int) {
-        let text = docText(src, start + 3, self.cur.pos - 2)
-        let module = text.startsWith("@module")
-        var from = 0
+        const text = docText(src, start + 3, self.cur.pos - 2)
+        const module = text.startsWith("@module")
+        let from = 0
         if module {
             for from < text.len() && (text[from] == b'@' || text[from] > b' ') {
                 from += 1
@@ -159,7 +159,7 @@ struct Lexer {
                 from += 1
             }
         }
-        let kind: TokenKind = if module { TokenKind.ModuleDoc } else { TokenKind.DocComment }
+        const kind: TokenKind = if module { TokenKind.ModuleDoc } else { TokenKind.DocComment }
         self.out.push(self.cur.tokenWith(kind, start,
                                          TokenValue.Str(text.sliceFrom(from).toOwned())))
     }
@@ -168,20 +168,20 @@ struct Lexer {
     // Words and punctuation
 
     fn word(mut self, src: str, names: mut Interner) Token {
-        let start = self.cur.pos
+        const start = self.cur.pos
         for !self.cur.atEnd(src) && (isLetter(src[self.cur.pos]) || isDigit(src[self.cur.pos])) {
             self.cur.pos += 1
         }
-        let text = src[start..self.cur.pos]
-        if let Option.Some(kind) = self.keywords.get(text) {
+        const text = src[start..self.cur.pos]
+        if const Option.Some(kind) = self.keywords.get(text) {
             return self.cur.token(*kind, start)
         }
         return self.cur.tokenWith(TokenKind.Ident, start, TokenValue.Name(names.intern(text)))
     }
 
     fn punct(mut self, src: str, diags: mut Diagnostics) {
-        let start = self.cur.pos
-        let c = src[start]
+        const start = self.cur.pos
+        const c = src[start]
         self.cur.pos += 1
         if c == b'}' && self.closesInterpolation() {
             self.stringPart(src, start, false, diags)
@@ -190,7 +190,7 @@ struct Lexer {
         if c == b':' && self.atInterpolationDepth() && self.formatSpec(src, start) {
             return
         }
-        let kind = self.punctKind(src, c, start, diags)
+        const kind = self.punctKind(src, c, start, diags)
         self.out.push(self.cur.token(kind, start))
     }
 
@@ -262,12 +262,12 @@ struct Lexer {
     // Mismatched brackets are reported by the parser; the lexer only keeps
     // its stack balanced.
     fn close(mut self, kind: TokenKind) TokenKind {
-        let _ = self.brackets.pop()
+        const _ = self.brackets.pop()
         return kind
     }
 
     fn atInterpolationDepth(self) bool {
-        let Option.Some(depth) = self.interpolations.last() else {
+        const Option.Some(depth) = self.interpolations.last() else {
             return false
         }
         return *depth == self.brackets.len()
@@ -277,7 +277,7 @@ struct Lexer {
     // closes the interpolation as usual. Text with a blank or a quote before
     // the `}` is not a specifier: the `:` is then an ordinary token.
     fn formatSpec(mut self, src: str, start: int) bool {
-        var end = self.cur.pos
+        let end = self.cur.pos
         for end < src.len() && src[end] != b'}' && src[end] != b'"' && src[end] != b' ' &&
             src[end] != b'\t' && src[end] != b'\r' && src[end] != b'\n' {
             end += 1
@@ -285,14 +285,14 @@ struct Lexer {
         if end >= src.len() || src[end] != b'}' {
             return false
         }
-        let text = src.slice(self.cur.pos, end).toOwned()
+        const text = src.slice(self.cur.pos, end).toOwned()
         self.cur.pos = end
         self.out.push(self.cur.tokenWith(TokenKind.FormatSpec, start, TokenValue.Str(text)))
         return true
     }
 
     fn closesInterpolation(mut self) bool {
-        let Option.Some(depth) = self.interpolations.last() else {
+        const Option.Some(depth) = self.interpolations.last() else {
             return false
         }
         if *depth != self.brackets.len() {
@@ -306,28 +306,28 @@ struct Lexer {
 // The text of a documentation comment (spec 1.8): each line without its
 // indentation and leading `*`, blank lines at both ends removed.
 fn docText(src: str, start: int, end: int) str {
-    var text = ""
-    var pos = start
+    let text = ""
+    let pos = start
     for pos < end {
-        var lineEnd = pos
+        let lineEnd = pos
         for lineEnd < end && src[lineEnd] != b'\n' {
             lineEnd += 1
         }
-        var from = pos
+        let from = pos
         for from < lineEnd && (src[from] == b' ' || src[from] == b'\t') {
             from += 1
         }
         if from < lineEnd && src[from] == b'*' {
             from += if from + 1 < lineEnd && src[from + 1] == b' ' { 2 } else { 1 }
         }
-        let line = trimmed(src, from, lineEnd)
+        const line = trimmed(src, from, lineEnd)
         if line.len() > 0 || text.len() > 0 {   // no blank lines at the start
             text.push(line)
             text.push("\n")
         }
         pos = lineEnd + 1
     }
-    var keep = text.len()
+    let keep = text.len()
     for keep > 0 && text[keep - 1] == b'\n' {   // nor at the end
         keep -= 1
     }
@@ -336,11 +336,11 @@ fn docText(src: str, start: int, end: int) str {
 
 // `src[start..end]` without spaces and tabs before it, nor spaces and `\r` after.
 fn trimmed(src: str, start: int, end: int) str {
-    var lo = start
+    let lo = start
     for lo < end && (src[lo] == b' ' || src[lo] == b'\t') {
         lo += 1
     }
-    var hi = end
+    let hi = end
     for hi > lo && (src[hi - 1] == b' ' || src[hi - 1] == b'\r') {
         hi -= 1
     }
@@ -348,7 +348,7 @@ fn trimmed(src: str, start: int, end: int) str {
 }
 
 fn keywordTable() Map<str, TokenKind> {
-    var k = Map<str, TokenKind>.new()
+    let k = Map<str, TokenKind>.new()
     k.insert("as", TokenKind.As)
     k.insert("break", TokenKind.Break)
     k.insert("const", TokenKind.Const)
@@ -375,6 +375,5 @@ fn keywordTable() Map<str, TokenKind> {
     k.insert("struct", TokenKind.Struct)
     k.insert("true", TokenKind.True)
     k.insert("unsafe", TokenKind.Unsafe)
-    k.insert("var", TokenKind.Var)
     return k
 }

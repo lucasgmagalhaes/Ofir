@@ -77,13 +77,13 @@ pub struct Infer {
  * @returns them
  */
 pub fn fnGenerics(c: mut Checker, p: Program, id: int) Generics {
-    let module = c.def(id).module
-    var owner = noGenerics()
+    const module = c.def(id).module
+    let owner = noGenerics()
     if c.def(id).item >= 0 {
         owner = typeGenericsOf(c, p, id)
     }
-    let saved = c.enter(module)
-    let g = fnGenericsIn(c, p, &owner, fnOf(p, c.loc(id)))
+    const saved = c.enter(module)
+    const g = fnGenericsIn(c, p, &owner, fnOf(p, c.loc(id)))
     c.enter(saved)
     return g
 }
@@ -95,7 +95,7 @@ pub fn fnGenerics(c: mut Checker, p: Program, id: int) Generics {
  * @returns the inference
  */
 pub fn inferNew(params: move Generics) Infer {
-    let count = params.owner.len() + params.fnParams.len()
+    const count = params.owner.len() + params.fnParams.len()
     return Infer{params, args: List.filled(ERROR, count), known: List.filled(false, count)}
 }
 
@@ -112,8 +112,8 @@ pub fn inferNew(params: move Generics) Infer {
  */
 pub fn inferExplicit(c: mut Checker, p: Program, inf: mut Infer, ofOwner: bool,
                      list: &List<TypeExpr>, span: Span) {
-    let first = if ofOwner { 0 } else { inf.params.owner.len() }
-    let count = if ofOwner { inf.params.owner.len() } else { namedCount(c, &inf.params) }
+    const first = if ofOwner { 0 } else { inf.params.owner.len() }
+    const count = if ofOwner { inf.params.owner.len() } else { namedCount(c, &inf.params) }
     if list.len() != count {
         c.error("E0302", span, "wrong number of type arguments: expected {count}, "
                 + "found {list.len()}")
@@ -128,7 +128,7 @@ pub fn inferExplicit(c: mut Checker, p: Program, inf: mut Infer, ofOwner: bool,
 // The function's own parameters that are written: the anonymous ones
 // (ADR 0029) come after them and are always inferred.
 fn namedCount(c: Checker, params: &Generics) int {
-    var n = 0
+    let n = 0
     for i in 0..params.fnParams.len() {
         if c.text(params.fnParams[i]).find(" ").isNone() {
             n += 1
@@ -146,7 +146,7 @@ fn namedCount(c: Checker, params: &Generics) int {
  * @param count the number of the type's parameters
  */
 pub fn inferFromSelf(c: Checker, inf: mut Infer, selfType: int, count: int) {
-    let t = c.types.get(selfType)
+    const t = c.types.get(selfType)
     if t.kind != TyKind.Adt {
         return
     }
@@ -159,7 +159,7 @@ pub fn inferFromSelf(c: Checker, inf: mut Infer, selfType: int, count: int) {
 }
 
 fn hasInner(c: Checker, ty: int) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     return kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
            kind == TyKind.Array || kind == TyKind.Fn
 }
@@ -173,7 +173,7 @@ fn hasInner(c: Checker, ty: int) bool {
  * @param actual the type found
  */
 pub fn inferFrom(c: Checker, inf: mut Infer, pattern: int, actual: int) {
-    let pt = c.types.get(pattern)
+    const pt = c.types.get(pattern)
     if !pt.hasParam || actual == ERROR || actual == NEVER {
         return
     }
@@ -184,15 +184,15 @@ pub fn inferFrom(c: Checker, inf: mut Infer, pattern: int, actual: int) {
         }
         return
     }
-    let at = c.types.get(actual)
-    let slice = c.r.langItems[4]
-    let list = c.r.langItems[1]
+    const at = c.types.get(actual)
+    const slice = c.r.langItems[4]
+    const list = c.r.langItems[1]
     if pt.kind == TyKind.Adt && at.kind == TyKind.Adt && slice != 0 && pt.data == slice &&
        at.data == list && at.args.len() == 1 {
         inferFrom(c, inf, pt.args[0], at.args[0])   // a list given for `[T]` is its slice
         return
     }
-    let array = if at.kind == TyKind.Ref { at.inner } else { actual }
+    const array = if at.kind == TyKind.Ref { at.inner } else { actual }
     if pt.kind == TyKind.Adt && slice != 0 && pt.data == slice &&
        c.types.kind(array) == TyKind.Array {
         inferFrom(c, inf, pt.args[0], c.types.get(array).inner)   // an array, or `&[T; N]`
@@ -211,7 +211,7 @@ pub fn inferFrom(c: Checker, inf: mut Infer, pattern: int, actual: int) {
 }
 
 fn allKnown(c: Checker, inf: &Infer, pattern: int) bool {
-    let pt = c.types.get(pattern)
+    const pt = c.types.get(pattern)
     if !pt.hasParam {
         return true
     }
@@ -250,13 +250,13 @@ pub fn inferHint(c: mut Checker, inf: &Infer, pattern: int) int {
  * @returns the type
  */
 pub fn inferApply(c: mut Checker, inf: &Infer, pattern: int) int {
-    let ty = c.types.subst(pattern, inf.args)
+    const ty = c.types.subst(pattern, inf.args)
     return resolveKeyed(c, ty)
 }
 
 // Whether a tuple type has an `ERROR` element.
 fn anyError(c: Checker, tuple: int) bool {
-    let items = &c.types.get(tuple).args
+    const items = &c.types.get(tuple).args
     for i in 0..items.len() {
         if items[i] == ERROR {
             return true
@@ -273,10 +273,10 @@ fn inferFromBounds(c: mut Checker, p: Program, inf: mut Infer) {
             continue
         }
         for k in 0..inf.params.ifaces[i].len() {
-            let pattern = inf.params.ifaceArgs[i][k]
-            let iface = inf.params.ifaces[i][k]
+            const pattern = inf.params.ifaceArgs[i][k]
+            const iface = inf.params.ifaces[i][k]
             if !allKnown(c, &inf, pattern) {
-                let implied = impliedArgs(c, p, inf.args[i], iface)
+                const implied = impliedArgs(c, p, inf.args[i], iface)
                 inferFrom(c, inf, pattern, implied)
             }
         }
@@ -289,14 +289,14 @@ fn impliedArgs(c: mut Checker, p: Program, ty: int, iface: int) int {
     if c.types.kind(ty) == TyKind.Param {
         return paramBoundArgs(c, c.types.get(ty).data, iface)
     }
-    var own = inferNew(typeGenericsOf(c, p, iface))
+    let own = inferNew(typeGenericsOf(c, p, iface))
     own.args[0] = ty
     own.known[0] = true
-    let pairs = implementedSigs(c, p, ty, iface)
+    const pairs = implementedSigs(c, p, ty, iface)
     for j in 0..pairs.len() {
         inferFrom(c, own, pairs[j].0, pairs[j].1)
     }
-    var out: List<int> = []
+    let out: List<int> = []
     for j in 1..own.args.len() {
         out.push(own.args[j])
     }
@@ -315,8 +315,8 @@ pub fn inferFinish(c: mut Checker, inf: mut Infer, span: Span) {
         if inf.known[i] {
             continue
         }
-        let owner = inf.params.owner.len()
-        let name = if i < owner { inf.params.owner[i] } else { inf.params.fnParams[i - owner] }
+        const owner = inf.params.owner.len()
+        const name = if i < owner { inf.params.owner[i] } else { inf.params.fnParams[i - owner] }
         c.error("E0330", span, "cannot infer the type parameter `{c.paramText(name)}`: write the "
                 + "type arguments, as in `f<int>(x)`")
         inf.args[i] = ERROR
@@ -334,7 +334,7 @@ fn genericSlots(c: mut Checker, p: Program, callId: int, span: Span, args: &List
     if args.len() != count {
         c.error("E0302", span, "wrong number of arguments: expected {count}, found {args.len()}")
     }
-    var slots: List<int> = []
+    let slots: List<int> = []
     for i in 0..args.len() {
         if args[i].name.isSome() {
             c.error("E0306", args[i].value.span, "this callee has no named parameters: pass "
@@ -365,17 +365,17 @@ fn genericSlots(c: mut Checker, p: Program, callId: int, span: Span, args: &List
 pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, args: &List<Arg>,
                         params: &List<int>, ret: int, inf: mut Infer, expected: int,
                         callee: int) int {
-    let slots = genericSlots(c, p, callId, span, args, params.len(), callee)
+    const slots = genericSlots(c, p, callId, span, args, params.len(), callee)
     inferFrom(c, inf, ret, expected)
     for i in 0..args.len() {
-        let arg = &args[i].value
-        let param = if slots[i] >= 0 { params[slots[i]] } else { ERROR }
-        let keyParam = isKeyParam(c, &inf.params, param)
-        var hint = if slots[i] >= 0 { inferHint(c, &inf, param) } else { ERROR }
+        const arg = &args[i].value
+        const param = if slots[i] >= 0 { params[slots[i]] } else { ERROR }
+        const keyParam = isKeyParam(c, &inf.params, param)
+        let hint = if slots[i] >= 0 { inferHint(c, &inf, param) } else { ERROR }
         if keyParam && hint == ERROR && isKeyLiteral(arg) {
             hint = keyLiteralType(c, arg)   // `.x` for `K: keyof T`
         }
-        let found = checkExpr(c, p, arg, hint)
+        const found = checkExpr(c, p, arg, hint)
         if keyParam {
             checkKeyArg(c, arg, found)
         }
@@ -386,21 +386,21 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
     checkBoundArgs(c, p, &inf, span)
     for i in 0..args.len() {
         if slots[i] >= 0 {
-            let wanted = inferApply(c, &inf, params[slots[i]])
-            let found = c.typeOf(args[i].value.id.0)
-            let widened = coerceToSlice(c, p, &args[i].value, found, wanted) ||
-                          coerceToUnion(c, &args[i].value, found, wanted) ||
-                          coerceToSend(c, p, &args[i].value, found, wanted)
+            const wanted = inferApply(c, &inf, params[slots[i]])
+            const found = c.typeOf(args[i].value.id.0)
+            const widened = coerceToSlice(c, p, &args[i].value, found, wanted) ||
+                            coerceToUnion(c, &args[i].value, found, wanted) ||
+                            coerceToSend(c, p, &args[i].value, found, wanted)
             if !widened {
                 requireType(c, &args[i].value, found, wanted)
             }
         }
     }
     if callId >= 0 {
-        let targs = c.types.tuple(inf.args)
+        const targs = c.types.tuple(inf.args)
         c.callTypeArgs[c.module()].insert(callId, targs)
     }
-    let result = inferApply(c, &inf, ret)
+    const result = inferApply(c, &inf, ret)
     return result
 }
 
@@ -416,7 +416,7 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
  * @returns its bits: `BOUND_EQ`, ...
  */
 pub fn paramBounds(c: Checker, ty: int) int {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind != TyKind.Param || t.data >= c.generics.bounds.len() {
         return 0
     }
@@ -434,7 +434,7 @@ pub fn paramBounds(c: Checker, ty: int) int {
  * @returns true if they do
  */
 pub fn equatable(c: mut Checker, p: Program, ty: int) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     if kindNumber(kind) <= 6 || kind == TyKind.Ptr {
         return true
     }
@@ -442,7 +442,7 @@ pub fn equatable(c: mut Checker, p: Program, ty: int) bool {
         return paramBounds(c, ty) & BOUND_EQ != 0
     }
     if kind == TyKind.Tuple {
-        let elems = c.types.get(ty).args.clone()
+        const elems = c.types.get(ty).args.clone()
         for i in 0..elems.len() {
             if !equatable(c, p, elems[i]) {
                 return false
@@ -463,9 +463,9 @@ pub fn equatable(c: mut Checker, p: Program, ty: int) bool {
  *   structs and enums that satisfy `Ord` (spec 9.9)
  */
 pub fn orderable(c: mut Checker, p: Program, ty: int) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     if kind == TyKind.Tuple {
-        let elems = c.types.get(ty).args.clone()
+        const elems = c.types.get(ty).args.clone()
         for i in 0..elems.len() {
             if !orderable(c, p, elems[i]) {
                 return false
@@ -489,7 +489,7 @@ pub fn orderable(c: mut Checker, p: Program, ty: int) bool {
  * @returns true if it does
  */
 pub fn satisfies(c: mut Checker, p: Program, ty: int, bit: int) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     if kind == TyKind.Error || kind == TyKind.Never {
         return true
     }
@@ -547,18 +547,18 @@ fn boundName(bit: int) str {
  */
 pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<int>,
                    span: Span) {
-    let owner = params.owner.len()
+    const owner = params.owner.len()
     for i in 0..params.bounds.len() {
         if i >= args.len() {
             return
         }
-        let bits = params.bounds[i]
+        const bits = params.bounds[i]
         for b in 0..BOUND_COUNT {
-            let bit = 1 << b
+            const bit = 1 << b
             if bits & bit == 0 || satisfies(c, p, args[i], bit) {
                 continue
             }
-            let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
+            const name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
             c.error("E0332", span, "the type `{c.typeName(args[i])}` does not satisfy the "
                     + "bound `{boundName(bit)}` of `{c.paramText(name)}`")
         }
@@ -574,17 +574,17 @@ pub fn checkBounds(c: mut Checker, p: Program, params: &Generics, args: &List<in
 // E0332 for each interface bounding parameter `i` that `arg` does not satisfy.
 fn checkInterfaceBounds(c: mut Checker, p: Program, params: &Generics, i: int,
                         args: &List<int>, span: Span) {
-    let owner = params.owner.len()
-    let arg = args[i]
-    let wanted = params.ifaces[i].clone()
+    const owner = params.owner.len()
+    const arg = args[i]
+    const wanted = params.ifaces[i].clone()
     for k in 0..wanted.len() {
-        let ifaceArgs = c.types.subst(params.ifaceArgs[i][k], args.clone())
+        const ifaceArgs = c.types.subst(params.ifaceArgs[i][k], args.clone())
         if anyError(c, ifaceArgs) {
             continue   // reported where it was inferred
         }
-        let why = unsatisfied(c, p, arg, wanted[k], ifaceArgs)
+        const why = unsatisfied(c, p, arg, wanted[k], ifaceArgs)
         if why.len() > 0 {
-            let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
+            const name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
             c.error("E0332", span, "the type `{c.typeName(arg)}` does not satisfy the bound "
                     + "`{interfaceText(c, wanted[k], ifaceArgs)}` of `{c.paramText(name)}`: {why}")
         }

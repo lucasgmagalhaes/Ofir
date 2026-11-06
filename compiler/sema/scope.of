@@ -36,7 +36,7 @@ pub struct Scope {
      * @returns the scope, in module 0
      */
     pub fn new(symbolCount: int, moduleCount: int) Scope {
-        var tables: List<List<int>> = []
+        let tables: List<List<int>> = []
         for _ in 0..moduleCount {
             tables.push(List.filled(0, symbolCount))
         }
@@ -115,9 +115,9 @@ pub struct Scope {
      * Closes the innermost block: its locals are forgotten.
      */
     pub fn leave(mut self) {
-        let mark = self.marks.pop() ?? 0
+        const mark = self.marks.pop() ?? 0
         for self.saved.len() > mark {
-            if let Option.Some(s) = self.saved.pop() {
+            if const Option.Some(s) = self.saved.pop() {
                 self.local[s.name.0] = s.previous
             }
         }
@@ -140,7 +140,7 @@ pub struct Scope {
      * @returns its index, if it is a local
      */
     pub fn localOf(self, name: Symbol) Option<int> {
-        let bound = if name.0 < self.symbolCount { self.local[name.0] } else { 0 }
+        const bound = if name.0 < self.symbolCount { self.local[name.0] } else { 0 }
         return if bound == 0 { Option.None } else { Option.Some(bound - 1) }
     }
 
@@ -151,7 +151,7 @@ pub struct Scope {
      * @returns true if it is
      */
     pub fn inCurrentBlock(self, name: Symbol) bool {
-        if let Option.Some(id) = self.localOf(name) {
+        if const Option.Some(id) = self.localOf(name) {
             return self.depth[id] == self.marks.len()
         }
         return false

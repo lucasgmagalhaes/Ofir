@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Checks the layout rule `"fmt": {"inlineBlocks": false}` (docs/style-guide.md,
 "Layout"): the body of a function, and the block of a statement (`if`,
-`else`, `for`, `unsafe`, a `match` arm, the `else` of `let ... else`), never
+`else`, `for`, `unsafe`, a `match` arm, the `else` of `const ... else`), never
 shares a line with its braces. An `if` or `unsafe` used as a value may stay
 on one line when each of its blocks holds a single expression:
-`let n = if a < b { a } else { b }`. `{ ... }` marks a body left out of
+`const n = if a < b { a } else { b }`. `{ ... }` marks a body left out of
 an example.
 
 Applies to the Ofir sources of the repository and to the `ofir` code
@@ -28,7 +28,7 @@ DOCS = ["docs", "README.md", "bench/README.md", "std/README.md"]
 STATEMENT_START = re.compile(
     r"^(pub\s+)?(unsafe\s+)?fn\b|^(if|for|unsafe|match|else)\b|^\}\s*else\b")
 ASSIGNMENT = r"(^|[^=!<>+\-*/%&|^])(=|\+=|-=|\*=|/=|%=|<<=|>>=|&=|\|=|\^=)(?!=)"
-STATEMENT_IN_BLOCK = re.compile(r"\b(return|break|continue|let|var)\b|" + ASSIGNMENT)
+STATEMENT_IN_BLOCK = re.compile(r"\b(return|break|continue|const|let)\b|" + ASSIGNMENT)
 
 
 class Stripper:

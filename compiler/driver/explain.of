@@ -29,20 +29,20 @@ pub fn isCode(code: str) bool {
 // tried: `OFIR_ERRORS`, then next to an installed compiler, then the
 // repository's docs/errors for a compiler in build/stageN.
 fn places() List<str> {
-    var dirs: List<str> = []
-    if let Option.Some(dir) = os.env("OFIR_ERRORS") {
+    let dirs: List<str> = []
+    if const Option.Some(dir) = os.env("OFIR_ERRORS") {
         dirs.push(dir)
     }
-    let Result.Ok(exe) = os.executablePath() else {
+    const Result.Ok(exe) = os.executablePath() else {
         return dirs
     }
-    var slash = -1
+    let slash = -1
     for i in 0..exe.len() {
         if exe[i] == b'/' {
             slash = i
         }
     }
-    let dir = if slash >= 0 { exe.slice(0, slash).toOwned() } else { ".".toOwned() }
+    const dir = if slash >= 0 { exe.slice(0, slash).toOwned() } else { ".".toOwned() }
     dirs.push("{dir}/../share/ofir/errors")
     dirs.push("{dir}/../../docs/errors")
     return dirs
@@ -60,11 +60,11 @@ pub fn explain(code: str) int {
         eprintln("error: `{code}` is not an error code: write one as `E0600` or `W0001`")
         return 2
     }
-    let dirs = places()
+    const dirs = places()
     for i in 0..dirs.len() {
-        let path = "{dirs[i]}/{code}.md"
+        const path = "{dirs[i]}/{code}.md"
         if fs.exists(path) {
-            if let Result.Ok(text) = fs.readToString(path) {
+            if const Result.Ok(text) = fs.readToString(path) {
                 print(text)
                 return 0
             }

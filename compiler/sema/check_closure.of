@@ -43,16 +43,16 @@ import syntax.ast.TypeKind
  */
 pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
                     ret: &Option<TypeExpr>, body: &Expr, isMove: bool, expected: int) int {
-    let hinted = c.types.kind(expected) == TyKind.Fn && c.types.get(expected).data != 0 &&
-                 c.types.get(expected).args.len() == params.len()
-    var types: List<int> = []
+    const hinted = c.types.kind(expected) == TyKind.Fn && c.types.get(expected).data != 0 &&
+                   c.types.get(expected).args.len() == params.len()
+    let types: List<int> = []
     for i in 0..params.len() {
-        let param = &params[i]
+        const param = &params[i]
         if param.mode != Mode.Borrow {
             c.unsupported(param.ty.span, "`mut` and `move` closure parameters are")
         }
-        let hint = if hinted { c.types.get(expected).args[i] } else { ERROR }
-        var ty = ERROR
+        const hint = if hinted { c.types.get(expected).args[i] } else { ERROR }
+        let ty = ERROR
         if written(&param.ty) {
             ty = resolveType(c, p, &param.ty)
             if hint != ERROR {
@@ -64,20 +64,20 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
             c.error("E0336", param.ty.span, "cannot infer the type of the closure parameter "
                     + "`{c.text(param.name)}`: write its type")
         }
-        let local = c.localAt(param.id.0)
+        const local = c.localAt(param.id.0)
         if local >= 0 {
             c.localTypes[local] = ty
         }
         types.push(ty)
     }
-    var result = ERROR
-    if let Option.Some(t) = *ret {
+    let result = ERROR
+    if const Option.Some(t) = *ret {
         result = resolveType(c, p, &t)
     } else if hinted {
         result = c.types.get(expected).inner
     }
-    let savedRet = c.ret
-    let savedLoops = c.loops.clone()
+    const savedRet = c.ret
+    const savedLoops = c.loops.clone()
     c.loops = []
     c.closures.push(e.id.0)
     c.closureMoves.push(isMove)
@@ -102,10 +102,10 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
     c.closureMoves.pop()
     c.loops = savedLoops
     c.ret = savedRet
-    let fnExpected = c.types.kind(expected) == TyKind.Fn
-    let owned = isMove || (captureCount(c, e.id.0) == 0 && fnExpected &&
-                           c.types.get(expected).data & FN_OWNED != 0)
-    var data = if owned { FN_OWNED } else { FN_BORROWED }
+    const fnExpected = c.types.kind(expected) == TyKind.Fn
+    const owned = isMove || (captureCount(c, e.id.0) == 0 && fnExpected &&
+                             c.types.get(expected).data & FN_OWNED != 0)
+    let data = if owned { FN_OWNED } else { FN_BORROWED }
     if fnExpected && c.types.get(expected).data & FN_SEND != 0 {
         capturesSend(c, p, e, isMove)   // after E0360 it is still `+ Send`, so no E0300 follows
         data = data | FN_SEND
@@ -117,16 +117,16 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
 // (spec 14.3): a `move` closure moves its captures, which must be `Send`;
 // another borrows them, which must be `Sync`.
 fn capturesSend(c: mut Checker, p: Program, e: &Expr, isMove: bool) {
-    let list = match c.r.tables[c.module()].captures.get(e.id.0) {
+    const list = match c.r.tables[c.module()].captures.get(e.id.0) {
         Option.Some(l) => l.clone()
         Option.None => []
     }
     for i in 0..list.len() {
-        let ty = c.localTypes[list[i]]
-        let fits = if isMove { isSend(c, p, ty) } else { isSync(c, p, ty) }
+        const ty = c.localTypes[list[i]]
+        const fits = if isMove { isSend(c, p, ty) } else { isSync(c, p, ty) }
         if !fits {
-            let name = c.text(c.locals[list[i]].name)
-            let need = if isMove { "Send" } else { "Sync" }
+            const name = c.text(c.locals[list[i]].name)
+            const need = if isMove { "Send" } else { "Sync" }
             c.error("E0360", e.span, "the closure captures `{name}` of type "
                     + "`{c.typeName(ty)}`, which is not `{need}`")
         }
@@ -173,10 +173,10 @@ fn contains(list: &List<int>, value: int) bool {
  * @param local the local
  */
 pub fn noteWrite(c: mut Checker, span: Span, local: int) {
-    var k = c.closures.len()
+    let k = c.closures.len()
     for k > 0 {
         k -= 1
-        let closure = c.closures[k]
+        const closure = c.closures[k]
         if !captures(c, closure, local) {
             break
         }
@@ -185,8 +185,8 @@ pub fn noteWrite(c: mut Checker, span: Span, local: int) {
                     + "closure: captured values are immutable")
             return
         }
-        let m = c.module()
-        var written: List<int> = match c.capturesMut[m].get(closure) {
+        const m = c.module()
+        let written: List<int> = match c.capturesMut[m].get(closure) {
             Option.Some(list) => list.clone()
             Option.None => []
         }
@@ -240,14 +240,14 @@ pub fn capturedMut(c: Checker, closure: int, local: int) bool {
  * @returns true if `e` is such a closure
  */
 pub fn coerceToSend(c: mut Checker, p: Program, e: &Expr, found: int, wanted: int) bool {
-    let isMove = match e.kind {
+    const isMove = match e.kind {
         ExprKind.Closure(_, _, _, m) => m
         _ => {
             return false
         }
     }
-    let f = c.types.get(found).clone()
-    let w = c.types.get(wanted).clone()
+    const f = c.types.get(found).clone()
+    const w = c.types.get(wanted).clone()
     if f.kind != TyKind.Fn || w.kind != TyKind.Fn || f.data & FN_SEND != 0 ||
        w.data != (f.data | FN_SEND) || f.inner != w.inner || f.args.len() != w.args.len() {
         return false

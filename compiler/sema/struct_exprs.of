@@ -58,7 +58,7 @@ pub fn structDef(c: Checker, ty: int) int {
     if c.types.kind(ty) != TyKind.Adt {
         return if ty < c.r.lang.len() { c.r.lang[ty] } else { 0 }
     }
-    let id = c.types.get(ty).data
+    const id = c.types.get(ty).data
     return if c.def(id).kind == DefKind.Struct { id } else { 0 }
 }
 
@@ -82,7 +82,7 @@ pub fn fieldIsPub(c: Checker, p: Program, id: int, index: int) bool {
 // known and named.
 fn suggestFields(c: mut Checker, id: int, known: bool, name: Symbol) {
     if known && !fieldsOf(c, id).isTuple {
-        let names = fieldsOf(c, id).names.clone()
+        const names = fieldsOf(c, id).names.clone()
         suggestField(c.r, &names, name)
     }
 }
@@ -98,9 +98,9 @@ fn suggestFields(c: mut Checker, id: int, known: bool, name: Symbol) {
  * @returns the field's type
  */
 pub fn checkStructField(c: mut Checker, p: Program, e: &Expr, name: Symbol, base: int) int {
-    let id = structDef(c, base)
-    let known = id != 0 && structFields(c, p, id)
-    let index = if known { fieldIndex(fieldsOf(c, id), name) } else { -1 }
+    const id = structDef(c, base)
+    const known = id != 0 && structFields(c, p, id)
+    const index = if known { fieldIndex(fieldsOf(c, id), name) } else { -1 }
     if index < 0 {
         if base != ERROR && (id == 0 || known) {
             c.error("E0316", e.span, "no field `{c.text(name)}` on type `{c.typeName(base)}`")
@@ -124,14 +124,14 @@ pub fn checkStructField(c: mut Checker, p: Program, e: &Expr, name: Symbol, base
  * @returns the field's type
  */
 pub fn checkTupleField(c: mut Checker, p: Program, e: &Expr, baseExpr: &Expr, index: int) int {
-    let found = checkExpr(c, p, baseExpr, ERROR)
-    let base = autoDeref(c, p, baseExpr, found)
-    let t = c.types.get(base)
+    const found = checkExpr(c, p, baseExpr, ERROR)
+    const base = autoDeref(c, p, baseExpr, found)
+    const t = c.types.get(base)
     if t.kind == TyKind.Tuple && index < t.args.len() {
         return t.args[index]
     }
-    let id = structDef(c, base)
-    let known = id != 0 && structFields(c, p, id)
+    const id = structDef(c, base)
+    const known = id != 0 && structFields(c, p, id)
     if !known || !fieldsOf(c, id).isTuple || index >= fieldsOf(c, id).types.len() {
         if base != ERROR {
             c.error("E0316", e.span, "no field `{index}` on type `{c.typeName(base)}`")
@@ -155,21 +155,21 @@ pub fn checkTupleField(c: mut Checker, p: Program, e: &Expr, baseExpr: &Expr, in
  */
 pub fn checkConstructor(c: mut Checker, p: Program, call: &Expr, id: int,
                         explicit: &List<TypeExpr>, args: &List<Arg>, expected: int) int {
-    let known = structFields(c, p, id)
-    let ty = ownerType(c, p, id)
+    const known = structFields(c, p, id)
+    const ty = ownerType(c, p, id)
     if !known || !fieldsOf(c, id).isTuple {
         c.error("E0310", call.span, "expected a value, found type `{c.text(c.def(id).name)}`; "
                 + "build a struct with `Name\{field: value\}`")
         return ERROR
     }
-    let params = fieldsOf(c, id).types.clone()
-    let owner = itemTypeParams(itemOf(p, c.loc(id)))
+    const params = fieldsOf(c, id).types.clone()
+    const owner = itemTypeParams(itemOf(p, c.loc(id)))
     if owner.len() == 0 && explicit.len() == 0 {
         return checkArgs(c, p, call.span, args, &params, ty)
     }
-    var inf = inferNew(typeGenericsOf(c, p, id))
+    let inf = inferNew(typeGenericsOf(c, p, id))
     if explicit.len() > 0 {
-        let callee = match call.kind {
+        const callee = match call.kind {
             ExprKind.Call(callee, _) => callee.span
             _ => call.span
         }
@@ -182,11 +182,11 @@ pub fn checkConstructor(c: mut Checker, p: Program, call: &Expr, id: int,
 // their types, which `requireFields` checks after.
 fn checkLiteralFields(c: mut Checker, p: Program, id: int, fields: &List<FieldInit>,
                       given: mut List<bool>, inf: mut Infer, generic: bool) {
-    let types = fieldsOf(c, id).types.clone()
+    const types = fieldsOf(c, id).types.clone()
     for i in 0..fields.len() {
-        let init = &fields[i]
-        let span = valueSpan(c, init)
-        let index = fieldIndex(fieldsOf(c, id), init.name)
+        const init = &fields[i]
+        const span = valueSpan(c, init)
+        const index = fieldIndex(fieldsOf(c, id), init.name)
         if index < 0 {
             c.error("E0316", span, "no field `{c.text(init.name)}` on this struct")
             suggestFields(c, id, true, init.name)
@@ -199,8 +199,8 @@ fn checkLiteralFields(c: mut Checker, p: Program, id: int, fields: &List<FieldIn
         }
         given[index] = true
         if generic {
-            let hint = inferHint(c, &inf, types[index])
-            let found = checkInit(c, p, init, hint)
+            const hint = inferHint(c, &inf, types[index])
+            const found = checkInit(c, p, init, hint)
             inferFrom(c, inf, types[index], found)
         } else {
             coerceInit(c, p, init, types[index])
@@ -219,20 +219,20 @@ fn valueSpan(c: Checker, init: &FieldInit) Span {
 
 // The value of a field, or the variable of the shorthand `x`.
 fn checkInit(c: mut Checker, p: Program, init: &FieldInit, expected: int) int {
-    if let Option.Some(value) = init.value {
+    if const Option.Some(value) = init.value {
         return checkExpr(c, p, &value, expected)
     }
-    let ty = checkName(c, p, c.res(init.id.0), c.shorthandSpan)
+    const ty = checkName(c, p, c.res(init.id.0), c.shorthandSpan)
     c.setType(init.id.0, ty)
     return ty
 }
 
 fn coerceInit(c: mut Checker, p: Program, init: &FieldInit, expected: int) {
-    if let Option.Some(value) = init.value {
+    if const Option.Some(value) = init.value {
         coerce(c, p, &value, expected)
         return
     }
-    let ty = checkInit(c, p, init, expected)
+    const ty = checkInit(c, p, init, expected)
     if ty != expected && ty != ERROR && expected != ERROR {
         c.error("E0300", c.shorthandSpan, "mismatched types: expected {c.typeName(expected)}, "
                 + "found {c.typeName(ty)}")
@@ -244,11 +244,11 @@ fn aliasStruct(c: mut Checker, p: Program, name: &Expr, id: int) int {
     if c.def(id).kind != DefKind.TypeAlias {
         return id
     }
-    var args: List<TypeExpr> = []
-    if let ExprKind.Generic(_, written) = name.kind {
+    let args: List<TypeExpr> = []
+    if const ExprKind.Generic(_, written) = name.kind {
         args = written.clone()
     }
-    let ty = resolveAlias(c, p, id, &args, name.span)
+    const ty = resolveAlias(c, p, id, &args, name.span)
     if c.types.kind(ty) != TyKind.Adt || !isMappedStruct(c, p, c.types.get(ty).data) {
         return id
     }
@@ -267,45 +267,45 @@ fn aliasStruct(c: mut Checker, p: Program, name: &Expr, id: int) int {
 pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) int {
     match e.kind {
         ExprKind.Struct(name, fields, base) => {
-            let Res.Def(named) = c.res(name.id.0) else {
+            const Res.Def(named) = c.res(name.id.0) else {
                 return c.unsupported(name.span, "this struct literal is")
             }
-            let id = aliasStruct(c, p, &*name, named)
-            let known = c.def(id).kind == DefKind.Struct && structFields(c, p, id)
+            const id = aliasStruct(c, p, &*name, named)
+            const known = c.def(id).kind == DefKind.Struct && structFields(c, p, id)
             if !known || fieldsOf(c, id).isTuple {
                 c.error("E0310", name.span, "`{c.text(c.def(id).name)}` is not a struct with named "
                         + "fields")
                 return ERROR
             }
             c.shorthandSpan = e.span
-            let count = fieldsOf(c, id).types.len()
-            var given = List.filled(false, count)
-            let owner = itemTypeParams(itemOf(p, c.loc(id)))
-            var explicit: Option<List<TypeExpr>> = Option.None
-            if let ExprKind.Generic(_, args) = name.kind {
+            const count = fieldsOf(c, id).types.len()
+            let given = List.filled(false, count)
+            const owner = itemTypeParams(itemOf(p, c.loc(id)))
+            let explicit: Option<List<TypeExpr>> = Option.None
+            if const ExprKind.Generic(_, args) = name.kind {
                 if id == named {   // a mapped type's arguments are its alias's
                     explicit = Option.Some(args.clone())
                 }
             }
-            var ty = ERROR
+            let ty = ERROR
             if owner.len() > 0 || explicit.isSome() {
-                var inf = inferNew(typeGenericsOf(c, p, id))
-                if let Option.Some(args) = explicit {
+                let inf = inferNew(typeGenericsOf(c, p, id))
+                if const Option.Some(args) = explicit {
                     inferExplicit(c, p, inf, true, &args, name.span)
                 }
-                let selfType = ownerType(c, p, id)
+                const selfType = ownerType(c, p, id)
                 inferFrom(c, inf, selfType, expected)
                 checkLiteralFields(c, p, id, &fields, given, inf, true)
-                var finished = inf
+                let finished = inf
                 inferFinish(c, finished, name.span)
                 checkBoundArgs(c, p, &finished, name.span)
-                let types = fieldsOf(c, id).types.clone()
+                const types = fieldsOf(c, id).types.clone()
                 for i in 0..fields.len() {
-                    let index = fieldIndex(fieldsOf(c, id), fields[i].name)
+                    const index = fieldIndex(fieldsOf(c, id), fields[i].name)
                     if index >= 0 {
-                        let wanted = inferApply(c, &finished, types[index])
-                        let found = c.typeOf(fields[i].id.0)
-                        if let Option.Some(value) = fields[i].value {
+                        const wanted = inferApply(c, &finished, types[index])
+                        const found = c.typeOf(fields[i].id.0)
+                        if const Option.Some(value) = fields[i].value {
                             requireType(c, &value, c.typeOf(value.id.0), wanted)
                         } else if found != wanted && found != ERROR && wanted != ERROR {
                             c.error("E0300", e.span, "mismatched types: expected "
@@ -316,16 +316,16 @@ pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) i
                 ty = inferApply(c, &finished, selfType)
             } else {
                 ty = c.types.adt(id, [])
-                var none = inferNew(noGenerics())
+                let none = inferNew(noGenerics())
                 checkLiteralFields(c, p, id, &fields, given, none, false)
             }
             c.setType(name.id.0, ty)
-            if let Option.Some(rest) = base {
+            if const Option.Some(rest) = base {
                 coerce(c, p, &*rest, ty)
                 return ty
             }
-            let defaults = fieldsOf(c, id).defaults.clone()
-            let names = fieldsOf(c, id).names.clone()
+            const defaults = fieldsOf(c, id).defaults.clone()
+            const names = fieldsOf(c, id).names.clone()
             for i in 0..count {
                 if !given[i] && !defaults[i] {
                     c.error("E0308", e.span, "missing field `{c.text(names[i])}` in "

@@ -1,5 +1,5 @@
 // panic: value out of range for the target type of `as`
 fn main() {
-    let byte: u8 = 200
+    const byte: u8 = 200
     println("{byte as i8}")
 }

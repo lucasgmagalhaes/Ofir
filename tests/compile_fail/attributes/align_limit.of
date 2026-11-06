@@ -12,6 +12,6 @@ struct Huge {
 }
 
 fn main() {
-    let _p = Page{a: 1}
-    let _h = Huge{a: 2}
+    const _p = Page{a: 1}
+    const _h = Huge{a: 2}
 }

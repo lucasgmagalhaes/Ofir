@@ -48,13 +48,13 @@ fn report(o: move Outcome<(), str>) str {
 }
 
 fn main() {
-    let unit: () = identity(())
+    const unit: () = identity(())
     println(report(check(1)))
     println(report(check(-1)))
     println("{depth(5, "x")} {depth(3, (1, 2.0))}")
-    let b = Box1.wrap(1).map("mapped")
+    const b = Box1.wrap(1).map("mapped")
     println(b.get())
-    let nothing: Box1<()> = Box1{value: unit}
-    let () = nothing.get()
+    const nothing: Box1<()> = Box1{value: unit}
+    const () = nothing.get()
     println("done")
 }

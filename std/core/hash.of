@@ -7,7 +7,7 @@
 
 // splitmix64's finalizer: every bit of `x` affects every bit of the result.
 fn hashU64(x: u64) u64 {
-    var z = x
+    let z = x
     z = (z ^ (z >> 30)).wrappingMul(0xbf58476d1ce4e5b9)
     z = (z ^ (z >> 27)).wrappingMul(0x94d049bb133111eb)
     return z ^ (z >> 31)
@@ -15,7 +15,7 @@ fn hashU64(x: u64) u64 {
 
 // FNV-1a over the bytes, then mixed: short keys spread over the table.
 fn hashStr(s: str) u64 {
-    var h: u64 = 0xcbf29ce484222325
+    let h: u64 = 0xcbf29ce484222325
     for i in 0..s.len() {
         h = (h ^ (s[i] as u64)).wrappingMul(0x100000001b3)
     }

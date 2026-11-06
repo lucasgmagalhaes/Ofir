@@ -107,7 +107,7 @@ static void if_expr(Printer *p, const Expr *e) {
     line(p, "if");
     p->depth++;
     if (e->as.if_.let_pattern) {
-        pattern_line(p, "let", e->as.if_.let_pattern);
+        pattern_line(p, "const", e->as.if_.let_pattern);
     }
     print_expr(p, e->as.if_.cond);
     print_block(p, "then", e->as.if_.then);
@@ -248,7 +248,7 @@ static void variant(Printer *p, const Expr *e) {
 }
 
 void print_expr(Printer *p, const Expr *e) {
-    if (!e) {   // missing after a syntax error (`let x` without `= value`)
+    if (!e) {   // missing after a syntax error (`const x` without `= value`)
         line(p, "<missing>");
         return;
     }
@@ -300,7 +300,7 @@ static void for_stmt(Printer *p, const Stmt *s) {
 static void stmt(Printer *p, const Stmt *s) {
     switch (s->kind) {
     case STMT_LET:
-        pattern_line(p, "let", s->as.let.pattern);
+        pattern_line(p, "const", s->as.let.pattern);
         p->depth++;
         type_line(p, "type", s->as.let.type);
         print_expr(p, s->as.let.value);
@@ -311,7 +311,7 @@ static void stmt(Printer *p, const Stmt *s) {
         break;
     case STMT_VAR:
         line_start(p);
-        fprintf(p->out, "var %s\n", name(p, s->as.var.name));
+        fprintf(p->out, "let %s\n", name(p, s->as.var.name));
         p->depth++;
         type_line(p, "type", s->as.var.type);
         if (s->as.var.value) {

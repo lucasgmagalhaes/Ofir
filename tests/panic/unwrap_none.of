@@ -1,5 +1,5 @@
 // panic: called `unwrap` on a `None` value
 fn main() {
-    var xs: List<int> = []
-    let x = xs.pop().unwrap()
+    let xs: List<int> = []
+    const x = xs.pop().unwrap()
 }

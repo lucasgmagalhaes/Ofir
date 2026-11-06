@@ -36,5 +36,5 @@ fn measure<T: Shape>(s: T) float {
 }
 
 fn main() {
-    let a = measure(Point{x: 1})    // error[E0332]: the type `Point` does not satisfy the bound `Shape` of `T`: missing method `area`
+    const a = measure(Point{x: 1})    // error[E0332]: the type `Point` does not satisfy the bound `Shape` of `T`: missing method `area`
 }

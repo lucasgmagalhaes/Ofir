@@ -43,8 +43,8 @@ pub fn alignAttr(c: Checker, p: Program, id: int) int {
     if c.def(id).kind != DefKind.Struct || c.def(id).item < 0 {
         return 0
     }
-    let attributes = &itemOf(p, c.loc(id)).attributes
-    let Option.Some(at) = findAttribute(c.r, attributes.clone(), "align") else {
+    const attributes = &itemOf(p, c.loc(id)).attributes
+    const Option.Some(at) = findAttribute(c.r, attributes.clone(), "align") else {
         return 0
     }
     return match attributes[at].args[0].kind {
@@ -67,7 +67,7 @@ pub fn fixedOrder(c: Checker, p: Program, id: int) bool {
     if c.def(id).kind != DefKind.Struct || c.def(id).item < 0 {
         return true
     }
-    let attributes = &itemOf(p, c.loc(id)).attributes
+    const attributes = &itemOf(p, c.loc(id)).attributes
     return findAttribute(c.r, attributes.clone(), "repr").isSome() ||
            findAttribute(c.r, attributes.clone(), "packed").isSome() ||
            findAttribute(c.r, attributes.clone(), "lang").isSome()
@@ -75,7 +75,7 @@ pub fn fixedOrder(c: Checker, p: Program, id: int) bool {
 
 // The types a field of a `@packed` struct may have.
 fn packable(c: Checker, p: Program, ty: int) bool {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     return match t.kind {
         TyKind.Bool | TyKind.Int | TyKind.Float | TyKind.Error => true
         TyKind.Adt => isPacked(c, p, t.data)
@@ -91,22 +91,22 @@ fn packable(c: Checker, p: Program, ty: int) bool {
  * @param id the struct's `DefId`
  */
 pub fn checkStructAttrs(c: mut Checker, p: Program, id: int) {
-    let item = itemOf(p, c.loc(id))
-    let align = findAttribute(c.r, item.attributes.clone(), "align")
-    if let Option.Some(at) = align {
+    const item = itemOf(p, c.loc(id))
+    const align = findAttribute(c.r, item.attributes.clone(), "align")
+    if const Option.Some(at) = align {
         if isPacked(c, p, id) {
-            let span = item.attributes[at].span
+            const span = item.attributes[at].span
             c.error("E0808", span, "`@align` does not apply to a `@packed` struct".toOwned())
         }
     }
     if !isPacked(c, p, id) || c.info[id].fields.isNone() {
         return
     }
-    let fields = match item.kind {
+    const fields = match item.kind {
         ItemKind.Struct(_, _, _, _, fields, _) => fields.clone()
         _ => []
     }
-    let types = fieldsOf(c, id).types.clone()
+    const types = fieldsOf(c, id).types.clone()
     for i in 0..types.len() {
         if i < fields.len() && !packable(c, p, types[i]) {
             c.error("E0811", fields[i].span, "a field of a `@packed` struct must be `bool`, a "
@@ -123,8 +123,8 @@ pub fn checkStructAttrs(c: mut Checker, p: Program, id: int) {
  * @param id the enum's `DefId`
  */
 pub fn checkEnumAttrs(c: mut Checker, p: Program, id: int) {
-    let item = itemOf(p, c.loc(id))
-    let Option.Some(at) = findAttribute(c.r, item.attributes.clone(), "repr") else {
+    const item = itemOf(p, c.loc(id))
+    const Option.Some(at) = findAttribute(c.r, item.attributes.clone(), "repr") else {
         return
     }
     if c.info[id].variants.isSome() && variantsOf(c, id).hasPayload {
@@ -141,7 +141,7 @@ pub fn checkEnumAttrs(c: mut Checker, p: Program, id: int) {
  * @param e the borrowed place
  */
 pub fn checkPackedBorrow(c: mut Checker, p: Program, e: &Expr) {
-    let base = match e.kind {
+    const base = match e.kind {
         ExprKind.Field(base, _, _) => base.id.0
         ExprKind.TupleField(base, _) => base.id.0
         _ => -1
@@ -149,7 +149,7 @@ pub fn checkPackedBorrow(c: mut Checker, p: Program, e: &Expr) {
     if base < 0 {
         return
     }
-    var ty = c.typeOf(base)
+    let ty = c.typeOf(base)
     if c.types.kind(ty) == TyKind.Ref {
         ty = c.types.get(ty).inner
     }

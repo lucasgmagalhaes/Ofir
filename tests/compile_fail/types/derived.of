@@ -35,12 +35,12 @@ struct Sample {
 }
 
 fn main() {
-    let a = Bag{items: []}
-    let same = a == a                    // error[E0313]: operator cannot be applied to type `Bag`
-    let m: Map<Weight, int> = Map.new()  // error[E0332]: the type `Weight` does not satisfy the bound `Eq` of `K`
-    let n: Map<Loose, int> = Map.new()   // error[E0332]: the type `Loose` does not satisfy the bound `Hash` of `K`
-    let odd = Odd{a: 1} == Odd{a: 1}     // error[E0313]: operator cannot be applied to type `Odd`
-    let less = Flag.Off < Flag.Off       // error[E0313]: operator cannot be applied to type `Flag`
-    let s = Sample{at: (1, 2.0)}
-    let equal = s == s                   // error[E0313]: operator cannot be applied to type `Sample`
+    const a = Bag{items: []}
+    const same = a == a                    // error[E0313]: operator cannot be applied to type `Bag`
+    const m: Map<Weight, int> = Map.new()  // error[E0332]: the type `Weight` does not satisfy the bound `Eq` of `K`
+    const n: Map<Loose, int> = Map.new()   // error[E0332]: the type `Loose` does not satisfy the bound `Hash` of `K`
+    const odd = Odd{a: 1} == Odd{a: 1}     // error[E0313]: operator cannot be applied to type `Odd`
+    const less = Flag.Off < Flag.Off       // error[E0313]: operator cannot be applied to type `Flag`
+    const s = Sample{at: (1, 2.0)}
+    const equal = s == s                   // error[E0313]: operator cannot be applied to type `Sample`
 }

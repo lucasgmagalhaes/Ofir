@@ -1,6 +1,6 @@
 // panic: integer overflow
 fn main() {
-    let min: i32 = -2147483648
-    let minus = -1
+    const min: i32 = -2147483648
+    const minus = -1
     println("{min / (minus as i32)}")
 }

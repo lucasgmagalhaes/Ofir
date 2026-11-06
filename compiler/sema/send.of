@@ -35,7 +35,7 @@ import sema.types.TyKind
  * @returns true if they may
  */
 pub fn isSend(c: mut Checker, p: Program, ty: int) bool {
-    var seen: List<int> = []
+    let seen: List<int> = []
     return markedIn(c, p, ty, false, &mut seen)
 }
 
@@ -49,22 +49,22 @@ pub fn isSend(c: mut Checker, p: Program, ty: int) bool {
  * @returns true if they may
  */
 pub fn isSync(c: mut Checker, p: Program, ty: int) bool {
-    var seen: List<int> = []
+    let seen: List<int> = []
     return markedIn(c, p, ty, true, &mut seen)
 }
 
 // `sync`: decides `Sync`, else `Send`. `seen`: the structs and enums being
 // decided, which a recursive type reaches again; they count as marked there.
 fn markedIn(c: mut Checker, p: Program, ty: int, sync: bool, seen: &mut List<int>) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     if kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool ||
        kind == TyKind.Str || kind == TyKind.Unit || kind == TyKind.Never ||
        kind == TyKind.Error || kind == TyKind.Key {
         return true
     }
     if kind == TyKind.Ref {   // `&T` is `Send` when `T` is `Sync`; `&mut T` when `T` is `Send`
-        let inner = c.types.get(ty).inner
-        let mutable = c.types.get(ty).data != 0
+        const inner = c.types.get(ty).inner
+        const mutable = c.types.get(ty).data != 0
         return markedIn(c, p, inner, sync || !mutable, seen)
     }
     if kind == TyKind.Slice || kind == TyKind.Array {
@@ -74,7 +74,7 @@ fn markedIn(c: mut Checker, p: Program, ty: int, sync: bool, seen: &mut List<int
         return !sync && c.types.get(ty).data & FN_SEND != 0
     }
     if kind == TyKind.Param {
-        let bit = if sync { BOUND_SYNC } else { BOUND_SEND }
+        const bit = if sync { BOUND_SYNC } else { BOUND_SEND }
         return paramBounds(c, ty) & bit != 0
     }
     if kind != TyKind.Tuple && kind != TyKind.Adt {
@@ -89,7 +89,7 @@ fn markedIn(c: mut Checker, p: Program, ty: int, sync: bool, seen: &mut List<int
     if sync && kind == TyKind.Adt && c.types.get(ty).data == c.r.langItems[6] {
         return false   // `UnsafeCell<T>` (and so `Cell<T>`) is never `Sync`
     }
-    let args = c.types.get(ty).args.clone()
+    const args = c.types.get(ty).args.clone()
     if kind == TyKind.Tuple || threadsafe(c, p, c.types.get(ty).data) {
         for i in 0..args.len() {
             if !markedIn(c, p, args[i], sync, seen) {
@@ -98,12 +98,12 @@ fn markedIn(c: mut Checker, p: Program, ty: int, sync: bool, seen: &mut List<int
         }
         return true
     }
-    let id = c.types.get(ty).data
+    const id = c.types.get(ty).data
     if c.def(id).kind == DefKind.Struct {
         if !structFields(c, p, id) {
             return false
         }
-        let count = fieldsOf(c, id).types.len()
+        const count = fieldsOf(c, id).types.len()
         for i in 0..count {
             if !markedIn(c, p, structFieldType(c, p, ty, i), sync, seen) {
                 return false
@@ -114,9 +114,9 @@ fn markedIn(c: mut Checker, p: Program, ty: int, sync: bool, seen: &mut List<int
     if enumOf(c, p, ty).isNone() {
         return false
     }
-    let count = variantsOf(c, id).variants.len()
+    const count = variantsOf(c, id).variants.len()
     for v in 0..count {
-        let fields = variantsOf(c, id).variants[v].types.len()
+        const fields = variantsOf(c, id).variants[v].types.len()
         for i in 0..fields {
             if !markedIn(c, p, variantFieldType(c, p, ty, v, i), sync, seen) {
                 return false

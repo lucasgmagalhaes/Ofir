@@ -32,12 +32,12 @@ fn show(s: dyn Shape) {
 }
 
 fn main() {
-    let sq = Square{side: 3}
+    const sq = Square{side: 3}
     show(sq)
     show(Rect{w: 2, h: 5})
-    let r: &dyn Shape = &sq
+    const r: &dyn Shape = &sq
     println("{r.area()}")
-    let shapes: List<Box<dyn Shape>> = [Box.new(Square{side: 2}), Box.new(Rect{w: 1, h: 7})]
+    const shapes: List<Box<dyn Shape>> = [Box.new(Square{side: 2}), Box.new(Rect{w: 1, h: 7})]
     for i in 0..shapes.len() {
         println(shapes[i].describe())
     }

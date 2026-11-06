@@ -1,15 +1,15 @@
 module
   fn generics
     body
-      let a
+      const a
         call
           generic parse<int>
           str "1"
-      let b
+      const b
         binary <
           ident x
           ident y
-      let c
+      const c
         tuple
           binary <
             ident x
@@ -17,15 +17,15 @@ module
           binary >
             ident z
             ident w
-      let d
+      const d
         call
           field new
             generic List<List<int>>
-      let e
+      const e
         binary >=
           ident value
           ident limit
-      let f
+      const f
         struct
           generic Pair<int, str>
           field first
@@ -40,15 +40,15 @@ module
           return
   fn newlines
     body
-      let list
+      const list
         array
           lit 1
           lit 2
-      let sum
+      const sum
         binary +
           ident first
           ident second
-      let chained
+      const chained
         call
           field add
             call
@@ -56,7 +56,7 @@ module
                 ident builder
               lit 1
           lit 2
-      let nested
+      const nested
         call
           ident call
           struct

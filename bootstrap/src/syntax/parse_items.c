@@ -49,7 +49,7 @@ static void import(Parser *p, Item *item) {
     TO_LIST(p, path, item->as.import.path);
 }
 
-// `const NAME: T = value` and the global `var NAME: T = value`.
+// `const NAME: T = value` and the global `let NAME: T = value`.
 static void value_item(Parser *p, Item *item) {
     const Token *name = expect(p, TOK_IDENT, "a name");
     item->name = name ? name->as.symbol : (Symbol){0};
@@ -126,7 +126,7 @@ static void item_body(Parser *p, Item *item, ItemHeader header) {
         advance(p);
         item->kind = ITEM_IMPORT;
         import(p, item);
-    } else if (t->kind == TOK_KW_CONST || t->kind == TOK_KW_VAR) {
+    } else if (t->kind == TOK_KW_CONST || t->kind == TOK_KW_LET) {
         advance(p);
         item->kind = t->kind == TOK_KW_CONST ? ITEM_CONST : ITEM_GLOBAL;
         value_item(p, item);

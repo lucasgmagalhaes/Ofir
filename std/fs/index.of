@@ -28,11 +28,11 @@ extern "C" {
  * ```ofir
  * import std.fs
  *
- * let bytes = fs.read("data.bin")?
+ * const bytes = fs.read("data.bin")?
  * ```
  */
 pub fn read(path: str) Result<List<u8>, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_read_file(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoList() })
 }
@@ -46,11 +46,11 @@ pub fn read(path: str) Result<List<u8>, IoError> {
  * ```ofir
  * import std.fs
  *
- * let text = fs.readToString("notes.txt")?
+ * const text = fs.readToString("notes.txt")?
  * ```
  */
 pub fn readToString(path: str) Result<str, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_read_file(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoStr() })
 }
@@ -107,11 +107,11 @@ pub fn exists(path: str) bool {
  * ```ofir
  * import std.fs
  *
- * let here = fs.canonicalize(".")?
+ * const here = fs.canonicalize(".")?
  * ```
  */
 pub fn canonicalize(path: str) Result<str, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_canonicalize(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoStr() })
 }
@@ -162,10 +162,10 @@ pub struct DirEntry {
  * ```
  */
 pub fn readDir(path: str) Result<List<DirEntry>, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_read_dir(path.asPtr(), path.len(), &mut out as *mut Buffer) })?
-    let names = unsafe { out.intoStr() }
-    var entries: List<DirEntry> = []
+    const names = unsafe { out.intoStr() }
+    let entries: List<DirEntry> = []
     for name in names.split("\0") {
         if name.len() > 0 {
             entries.push(DirEntry{name: name.toOwned(), path: "{path}/{name}"})

@@ -25,9 +25,9 @@ fn peek(h: &Hits) int {
 }
 
 fn main() {
-    var s = "a"
-    let p = Point{x: 1, y: 2}
+    let s = "a"
+    const p = Point{x: 1, y: 2}
     append(s, &p)
-    let h = Hits{n: Cell.new(3)}
+    const h = Hits{n: Cell.new(3)}
     println("{s} {peek(&h)}")
 }

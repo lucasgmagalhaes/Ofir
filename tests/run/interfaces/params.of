@@ -41,7 +41,7 @@ fn describe(s: Shape) str {
 }
 
 fn total(shapes: [Shape]) int {
-    var sum = 0
+    let sum = 0
     for s in shapes {
         sum += s.area()
     }
@@ -61,7 +61,7 @@ fn enlarge(s: mut Growable, by: int) {
 }
 
 fn largest(shapes: List<Shape>) int {
-    var best = 0
+    let best = 0
     for s in shapes {
         if s.area() > best {
             best = s.area()
@@ -91,11 +91,11 @@ struct Board {
 }
 
 fn main() {
-    var r = Rect{w: 2, h: 3}
-    let q = Square{side: 4}
+    let r = Rect{w: 2, h: 3}
+    const q = Square{side: 4}
     println(describe(r))
     println(describe(q))
-    let rects = [Rect{w: 1, h: 1}, Rect{w: 2, h: 2}]
+    const rects = [Rect{w: 1, h: 1}, Rect{w: 2, h: 2}]
     println("{total(rects)}")
     println(bigger(r, q))
     enlarge(r, 5)
@@ -103,7 +103,7 @@ fn main() {
     println("{largest([Square{side: 1}, Square{side: 3}])}")
     println(first(Option.Some(Square{side: 5})))
     println(scaled<int>(2, &r))
-    var b = Board{count: 0}
+    let b = Board{count: 0}
     println("{b.place(q) + b.place(r)}")
     println("{b.count}")
 }

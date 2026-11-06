@@ -15,7 +15,7 @@ struct E {
 }
 
 fn show(otherwise: &Option<Box<E>>) {
-    if let Option.Some(e) = *otherwise {
+    if const Option.Some(e) = *otherwise {
         match e.kind {
             Kind.Blk(block) => println("block {block.stmts.len()}")
             _ => println("other")
@@ -24,8 +24,8 @@ fn show(otherwise: &Option<Box<E>>) {
 }
 
 fn main() {
-    let inner = E{kind: Kind.Blk(Block{stmts: ["a".toOwned()]})}
-    let o: Option<Box<E>> = Option.Some(Box.new(inner))
+    const inner = E{kind: Kind.Blk(Block{stmts: ["a".toOwned()]})}
+    const o: Option<Box<E>> = Option.Some(Box.new(inner))
     show(&o)
     show(&o)
 }

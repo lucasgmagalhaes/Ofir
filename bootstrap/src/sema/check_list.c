@@ -55,7 +55,7 @@ TypeId check_list_literal(Checker *c, Expr *e, TypeId expected) {
     }
     if (!known) {
         check_error(c, "E0330", e->span, "cannot infer the element type of `[]`: write the "
-                    "type, as in `let names: List<str> = []`");
+                    "type, as in `const names: List<str> = []`");
         return type_id(TID_ERROR);
     }
     TypeId type = list_of(c, elem);

@@ -13,8 +13,8 @@ fn check(what: str, result: Result<(), io.IoError>) {
 }
 
 fn main() {
-    let base = "{os.env("TMPDIR") ?? "/tmp"}/ofir-fs-test"
-    let dir = "{base}/a/b"
+    const base = "{os.env("TMPDIR") ?? "/tmp"}/ofir-fs-test"
+    const dir = "{base}/a/b"
     check("createDirAll", fs.createDirAll(dir))
     check("createDirAll again", fs.createDirAll(dir))
     println("exists {fs.exists(dir)} {fs.exists("{dir}/none")}")

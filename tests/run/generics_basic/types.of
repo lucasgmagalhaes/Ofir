@@ -32,7 +32,7 @@ enum Opt<T> {
     }
 
     fn isSome(self) bool {
-        if let Opt.Some(_) = self {
+        if const Opt.Some(_) = self {
             return true
         }
         return false
@@ -52,7 +52,7 @@ fn describe(e: Either<int, str>) str {
 }
 
 fn find(values: (int, int, int), wanted: int) Opt<int> {
-    let (a, b, c) = values
+    const (a, b, c) = values
     if a == wanted {
         return Opt.Some(0)
     }
@@ -66,27 +66,27 @@ fn find(values: (int, int, int), wanted: int) Opt<int> {
 }
 
 fn main() {
-    let p = Pair{first: 1, second: "one"}
+    const p = Pair{first: 1, second: "one"}
     println("{p.first} {p.second}")
-    let q = p.swapped()
+    const q = p.swapped()
     println("{q.first} {q.second}")
-    let r = Pair.new(2.5, true).withFirst("two")
+    const r = Pair.new(2.5, true).withFirst("two")
     println("{r.first} {r.second}")
-    let typed = Pair<u8, i8>{first: 255, second: -1}
+    const typed = Pair<u8, i8>{first: 255, second: -1}
     println("{typed.first} {typed.second}")
 
-    let w = Wrap(Wrap("nested"))
-    let Wrap(inner) = w
+    const w = Wrap(Wrap("nested"))
+    const Wrap(inner) = w
     println(inner.0)
 
     println("{find((4, 5, 6), 6).getOr(-1)} {find((4, 5, 6), 9).getOr(-1)}")
-    let none: Opt<str> = Opt.None
+    const none: Opt<str> = Opt.None
     println("{none.isSome()} {Opt.Some("x").isSome()}")
     println(describe(Either.Left(3)))
     println(describe(Either.Right("r")))
 
-    let deep = Opt.Some(Pair{first: Opt.Some(7), second: Wrap(8)})
-    if let Opt.Some(Pair{first: Opt.Some(seven), second: Wrap(eight)}) = deep {
+    const deep = Opt.Some(Pair{first: Opt.Some(7), second: Wrap(8)})
+    if const Opt.Some(Pair{first: Opt.Some(seven), second: Wrap(eight)}) = deep {
         println("{seven + eight}")
     }
 }

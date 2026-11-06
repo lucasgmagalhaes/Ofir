@@ -17,7 +17,7 @@ fn reset(xs: mut List<int>) {   // modifies the caller's list
 }
 fn keep(xs: move List<int>) { ... }             // takes ownership
 
-var nums = [1, 2, 3]
+let nums = [1, 2, 3]
 println("{total(nums)}")
 reset(nums)
 keep(nums)                                      // nums is moved here
@@ -27,19 +27,19 @@ keep(nums)                                      // nums is moved here
 
 ```ofir
 fn main() {
-    let a = "hello"           // a owns the string
-    let b = a                 // ownership moves to b
+    const a = "hello"           // a owns the string
+    const b = a                 // ownership moves to b
     println(a)                // error: use of moved value `a`
 }
 ```
 
 - Assigning a move type to a variable or field, passing it to a `move`
   parameter, or returning it **moves** it. The source can no longer be used
-  (unless it is a `var` that is assigned a new value).
+  (unless it is a `let` that is assigned a new value).
 - Copy types (chapter 2.9) are copied instead of moved.
 - To duplicate a move type explicitly, call `.clone()`.
 - A value can only be moved out of a place the function owns entirely.
-  `let x = list[i]`, or moving a field out of a borrowed parameter, is an
+  `const x = list[i]`, or moving a field out of a borrowed parameter, is an
   error; use `list.remove(i)`, `list.swapRemove(i)`, `mem.replace(list[i], v)`,
   `mem.take(opt)` or `.clone()` instead.
 
@@ -50,7 +50,7 @@ referenced place, or a `mut` parameter left without a value).
 ### Partial and conditional moves
 
 ```ofir
-var v = makeList()
+let v = makeList()
 if flag {
     consume(v)          // fn consume(xs: move List<int>)
 }
@@ -70,7 +70,7 @@ Values are dropped in reverse order of declaration. Dropping a value:
 2. then drops each field, in declaration order.
 
 Temporaries are dropped at the end of the statement that created them
-(of a condition, for the condition of an `if` or a loop). `let _ = value`
+(of a condition, for the condition of an `if` or a loop). `const _ = value`
 drops the value at once. A struct or enum with a `drop` method is dropped
 whole: moving a field out of it is an error (E0602).
 
@@ -98,7 +98,7 @@ std reaches the clone of any `T` with the `cloneOf<T>` intrinsic.
 | Declaration | Mode | The function may | The caller passes |
 |-------------|------|------------------|-------------------|
 | `x: T` | **borrow** (default) | read `x` | any expression; it keeps ownership |
-| `x: mut T` | **mutable borrow** | read, modify and reassign `x` | a mutable place (a `var`, a field or element of one, or a `mut` parameter) |
+| `x: mut T` | **mutable borrow** | read, modify and reassign `x` | a mutable place (a `let`, a field or element of one, or a `mut` parameter) |
 | `x: move T` | **move** | own `x`: store it, return it, drop it | a value, which is moved (or copied, for Copy types) |
 
 The `self` parameter of a method (chapter 3.6) uses the same modes:
@@ -117,8 +117,8 @@ struct Point {
 ### Borrowed parameters
 
 - A borrowed parameter is read-only: assigning to it, mutating it, or moving
-  out of it is an error. To work on a local copy, write `var x = x.clone()`
-  (or `var n = n` for Copy types).
+  out of it is an error. To work on a local copy, write `let x = x.clone()`
+  (or `let n = n` for Copy types).
 - Any expression can be passed: a variable, a field, a literal or the result
   of a call. A temporary lives until the end of the statement, so
   `println(user.describe())` needs nothing special.
@@ -128,7 +128,7 @@ struct Point {
 
 ### Mutable parameters
 
-- The caller's place must be mutable: passing a `let` binding or a borrowed
+- The caller's place must be mutable: passing a `const` binding or a borrowed
   parameter to a `mut` parameter is an error. Nothing is written at the call
   site: `reset(nums)`.
 - Assigning a new value to the whole parameter (`x = T{...}`) replaces the
@@ -141,7 +141,7 @@ struct Point {
 - The callee owns the value: it can store it in a struct or collection,
   return it, or let it be dropped at the end of the function.
 - Inside the function, a `move` parameter is an immutable binding; rebind it
-  with `var x = x` to modify it.
+  with `let x = x` to modify it.
 - If a function tries to store a borrowed parameter, the error suggests the
   fix: *"declare `item: move str`, or call `item.clone()`"*.
 
@@ -205,7 +205,7 @@ value instead of owning it:
 |---------|------|
 | `for x in list` | borrows each element (Copy elements are copied) |
 | `for mut x in list` | borrows each element mutably; `list` must be a mutable place |
-| `match` / `if let` on a place that is not owned (a borrowed parameter, a field of one, an element) | bindings borrow the matched parts (Copy parts are copied) |
+| `match` / `if const` on a place that is not owned (a borrowed parameter, a field of one, an element) | bindings borrow the matched parts (Copy parts are copied) |
 | `match` on an owned value | bindings take ownership of the parts |
 
 ```ofir
@@ -218,14 +218,14 @@ for mut item in cart.items {
 
 The types `&T` and `&mut T` still exist for the cases parameter modes do not
 cover. They are **second-class**: a reference may be bound to a local
-(`let r = &list`), returned from a function under the rule below, or stored
+(`const r = &list`), returned from a function under the rule below, or stored
 in a `ref struct`, but never stored in an ordinary struct, enum or
 container. Because a reference can never outlive the call or block that
 created it, no lifetime annotations are ever needed.
 
 ```ofir
-var list = [1, 2, 3]
-let r = &list
+let list = [1, 2, 3]
+const r = &list
 println("{r.len()}")   // last use of r: the borrow ends here
 list.push(4)           // ok
 ```
@@ -241,9 +241,9 @@ self-hosted compiler also checks that a borrow does not outlive the block
 of the value it borrows (E0706):
 
 ```ofir
-var r = &outer
+let r = &outer
 {
-    let inner = [1, 2, 3]
+    const inner = [1, 2, 3]
     r = &inner          // error: `inner` does not live long enough
 }
 println("{r.len()}")
@@ -267,7 +267,7 @@ error.
 // in List<T>:  fn first(self) Option<&T> { ... }
 // in User:     fn nameMut(mut self) &mut str { ... }
 
-let f = list.first()     // f borrows `list`
+const f = list.first()     // f borrows `list`
 list.push(4)             // error: `list` is borrowed by `f`
 ```
 

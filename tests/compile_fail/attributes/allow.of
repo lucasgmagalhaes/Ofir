@@ -3,7 +3,7 @@
 
 @allow(unused)
 fn quiet() {
-    let x = 1
+    const x = 1
 }
 
 @allow(unreachable)
@@ -13,7 +13,7 @@ fn early() int {
 }
 
 fn loud() {
-    let y = 2   // warning[W0001]: unused variable `y`: use it, or start its name with `_`
+    const y = 2   // warning[W0001]: unused variable `y`: use it, or start its name with `_`
 }
 
 struct Counter {
@@ -21,12 +21,12 @@ struct Counter {
 
     @allow(unused)
     fn reset(mut self) {
-        let old = self.n
+        const old = self.n
         self.n = 0
     }
 
     fn bump(mut self) {
-        let old = self.n   // warning[W0001]: unused variable `old`: use it, or start its name with `_`
+        const old = self.n   // warning[W0001]: unused variable `old`: use it, or start its name with `_`
         self.n = self.n + 1
     }
 }
@@ -38,8 +38,8 @@ fn old() {
 fn main() {
     quiet()
     loud()
-    let _ = early()
-    var c = Counter{n: 0}
+    const _ = early()
+    let c = Counter{n: 0}
     c.reset()
     c.bump()
     old()

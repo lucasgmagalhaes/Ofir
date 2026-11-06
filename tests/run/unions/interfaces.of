@@ -9,26 +9,26 @@ struct Point {
 type Value = int | str | bool
 
 fn main() {
-    let a: Value = 3
-    let b: Value = "hi"
-    let c: Value = true
+    const a: Value = 3
+    const b: Value = "hi"
+    const c: Value = true
     println("{a} {b} {c}")
-    let text = "[{a}, {b}, {c}]"
+    const text = "[{a}, {b}, {c}]"
     println(text)
     println("{a:?} {b:?} {c:?}")
-    let p: int | Point = Point { x: 1, y: 2 }
+    const p: int | Point = Point { x: 1, y: 2 }
     println("{p:?}")
-    let some: Option<Value> = Option.Some(b.clone())
+    const some: Option<Value> = Option.Some(b.clone())
     println("{some:?}")
-    let three: Value = 3
+    const three: Value = 3
     println("{a == three} {a == b} {a != c}")
-    let twin = b.clone()
+    const twin = b.clone()
     println("{twin == b}")
-    var counts: Map<Value, int> = Map.new()
+    let counts: Map<Value, int> = Map.new()
     counts.insert(a, 1)
     counts.insert(b, 2)
     counts.insert(three, 3)
     println("{counts.len()}")
-    let f: f64 | int = 1.5
+    const f: f64 | int = 1.5
     println("{f}")
 }

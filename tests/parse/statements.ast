@@ -1,22 +1,22 @@
 module
   fn statements
     body
-      let x
+      const x
         lit 1
-      let y
+      const y
         type int
         lit 2
-      let (a, b)
+      const (a, b)
         ident pair
-      let .Some(value)
+      const .Some(value)
         ident maybe
         else
           return
-      var count
+      let count
         lit 0
-      var name
+      let name
         type str
-      var items
+      let items
         type List<int>
         array
       assign =

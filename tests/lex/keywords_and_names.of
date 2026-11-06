@@ -1,6 +1,7 @@
 pub fn main() {
-    let type = move
-    var x: Self = self
+    const type = move
+    let var = 0
+    let x: Self = self
     if true && false {
         return
     } else {

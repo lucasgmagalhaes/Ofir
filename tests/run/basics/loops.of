@@ -1,5 +1,5 @@
 fn main() {
-    var sum = 0
+    let sum = 0
     for i in 0..10 {
         sum += i
     }
@@ -14,13 +14,13 @@ fn main() {
     for _ in 6..=5 {
         println("never")
     }
-    let top: u8 = 255
-    var count = 0
+    const top: u8 = 255
+    let count = 0
     for _ in 250..=top {   // stops at the maximum without overflowing
         count += 1
     }
     println("count {count}")
-    var n = 0
+    let n = 0
     for {
         n += 1
         if n == 3 {
@@ -32,7 +32,7 @@ fn main() {
         print("{n} ")
     }
     println("")
-    var k = 10
+    let k = 10
     for k > 0 {
         k -= 3
     }

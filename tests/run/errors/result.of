@@ -17,7 +17,7 @@ fn parse(s: str) Result<int, ParseError> {
     if s.isEmpty() {
         return Result.Err(ParseError.Empty)
     }
-    var n = 0
+    let n = 0
     for i in 0..s.len() {
         n = n * 10 + digit(s[i])?
         if n > 65535 {
@@ -28,7 +28,7 @@ fn parse(s: str) Result<int, ParseError> {
 }
 
 fn port(s: str) Result<u16, ParseError> {
-    let n = parse(s)?
+    const n = parse(s)?
     return Result.Ok(n as u16)
 }
 
@@ -47,9 +47,9 @@ fn main() {
     println("{show(port("8080"))} | {show(port(""))} | {show(port("80a"))} | {show(port("99999"))}")
     println("{parse("12").isOk()} {parse("x").isErr()} {parse("7").unwrap()}")
     println("{parse("x").unwrapOr(0)} {parse("42").ok().unwrapOr(0)} {parse("x").err().isSome()}")
-    let _ = parse("ignored")
-    let unit: Result<(), str> = Result.Ok(())
-    if let Result.Ok(()) = unit {
+    const _ = parse("ignored")
+    const unit: Result<(), str> = Result.Ok(())
+    if const Result.Ok(()) = unit {
         println("ok")
     }
 }

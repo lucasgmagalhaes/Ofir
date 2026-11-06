@@ -14,7 +14,7 @@ pub copy struct FileId(int)
  *
  * @example
  * ```ofir
- * let span = Span{file: FileId(0), start: 4, end: 9}
+ * const span = Span{file: FileId(0), start: 4, end: 9}
  * assert(span.len() == 5)
  * ```
  */
@@ -76,7 +76,7 @@ pub struct SourceFile {
      * @returns the file
      */
     pub fn new(path: move str, text: move str) SourceFile {
-        var starts = [0]
+        let starts = [0]
         for i in 0..text.len() {
             if text[i] == b'\n' {
                 starts.push(i + 1)
@@ -91,7 +91,7 @@ pub struct SourceFile {
      * @returns the line count
      */
     pub fn lineCount(self) int {
-        let n = self.lineStarts.len()
+        const n = self.lineStarts.len()
         return if n > 1 && self.lineStarts[n - 1] == self.text.len() { n - 1 } else { n }
     }
 
@@ -102,10 +102,10 @@ pub struct SourceFile {
      * @returns its position
      */
     pub fn lineCol(self, offset: int) LineCol {
-        var lo = 0
-        var hi = self.lineStarts.len()
+        let lo = 0
+        let hi = self.lineStarts.len()
         for hi - lo > 1 {   // lineStarts[lo] <= offset < lineStarts[hi]
-            let mid = (lo + hi) / 2
+            const mid = (lo + hi) / 2
             if self.lineStarts[mid] <= offset {
                 lo = mid
             } else {
@@ -123,8 +123,8 @@ pub struct SourceFile {
      * @panics unless `1 <= line <= lineCount()`
      */
     pub fn lineText(self, line: int) str {
-        let start = self.lineStarts[line - 1]
-        var end = if line < self.lineStarts.len() { self.lineStarts[line] } else { self.text.len() }
+        const start = self.lineStarts[line - 1]
+        let end = if line < self.lineStarts.len() { self.lineStarts[line] } else { self.text.len() }
         for end > start && (self.text[end - 1] == b'\n' || self.text[end - 1] == b'\r') {
             end -= 1
         }

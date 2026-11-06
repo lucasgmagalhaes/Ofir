@@ -1,5 +1,5 @@
 // fake-diag: 3 E0300 mismatched types
 fn main() {
-    let a: int = "x"   // error[E0300]: mismatched types: expected int, found str
-    let b: str = 1     // error[E0300]: mismatched types: expected str, found int
+    const a: int = "x"   // error[E0300]: mismatched types: expected int, found str
+    const b: str = 1     // error[E0300]: mismatched types: expected str, found int
 }

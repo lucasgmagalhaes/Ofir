@@ -48,11 +48,11 @@ extern "intrinsic" {
 
 // Moves a value to memory of its own, as the channel's queue holds it.
 fn boxed<T>(value: move T) *mut T {
-    let p = unsafe {
+    const p = unsafe {
         if alignOf<T>() > 16 {
-            ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
+              ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
         } else {
-            ofir_alloc(sizeOf<T>()) as *mut T
+              ofir_alloc(sizeOf<T>()) as *mut T
         }
     }
     unsafe {
@@ -69,7 +69,7 @@ fn none(p: *mut u8) bool {
 // Moves the value out of memory from `boxed` and frees it.
 fn unboxed<T>(p: *mut u8) T {
     unsafe {
-        let value = *(p as *mut T)
+        const value = *(p as *mut T)
         ofir_free(p)
         return value
     }
@@ -92,8 +92,8 @@ pub struct Sender<T> {
      * @param value the value to send
      */
     pub fn send(self, value: move T) {
-        let p = boxed(value)
-        let sent = unsafe { ofir_channel_send(self.ch, p as *mut u8) }
+        const p = boxed(value)
+        const sent = unsafe { ofir_channel_send(self.ch, p as *mut u8) }
         if !sent {
             unsafe {
                 dropInPlace(p)
@@ -138,7 +138,7 @@ pub struct Receiver<T> {
      *          sender is dropped
      */
     pub fn recv(self) Option<T> {
-        let p = unsafe { ofir_channel_recv(self.ch) }
+        const p = unsafe { ofir_channel_recv(self.ch) }
         if none(p) {
             return Option.None
         }
@@ -151,7 +151,7 @@ pub struct Receiver<T> {
      * @returns the value, or `None` when the queue is empty
      */
     pub fn tryRecv(self) Option<T> {
-        let p = unsafe { ofir_channel_try_recv(self.ch) }
+        const p = unsafe { ofir_channel_try_recv(self.ch) }
         if none(p) {
             return Option.None
         }
@@ -164,7 +164,7 @@ pub struct Receiver<T> {
             ofir_channel_close(self.ch)
         }
         for {
-            let p = unsafe { ofir_channel_try_recv(self.ch) }
+            const p = unsafe { ofir_channel_try_recv(self.ch) }
             if none(p) {
                 break
             }
@@ -190,14 +190,14 @@ pub struct Receiver<T> {
  * import std.sync.channel
  * import std.task
  *
- * let (tx, rx) = channel<int>()
- * let t = task.run(move () => tx.send(42))
+ * const (tx, rx) = channel<int>()
+ * const t = task.run(move () => tx.send(42))
  * println("{rx.recv().unwrap()}")
  * t.join()
  * ```
  */
 pub fn channel<T: Send>() (Sender<T>, Receiver<T>) {
-    let ch = unsafe { ofir_channel_new() }
+    const ch = unsafe { ofir_channel_new() }
     return (Sender{ch: ch}, Receiver{ch: ch})
 }
 
@@ -210,9 +210,9 @@ pub fn channel<T: Send>() (Sender<T>, Receiver<T>) {
  * ```ofir
  * import std.sync.AtomicInt
  *
- * let hits = AtomicInt.new(0)
+ * const hits = AtomicInt.new(0)
  * hits.fetchAdd(2)
- * let old = hits.swap(10)   // old == 2, hits.load() == 10
+ * const old = hits.swap(10)   // old == 2, hits.load() == 10
  * ```
  */
 @threadsafe
@@ -290,7 +290,7 @@ pub struct AtomicInt {
  * ```ofir
  * import std.sync.AtomicBool
  *
- * let stop = AtomicBool.new(false)
+ * const stop = AtomicBool.new(false)
  * stop.store(true)   // stop.load() == true
  * ```
  */
@@ -358,9 +358,9 @@ struct ArcInner<T> {
  * import std.sync.Arc
  * import std.task
  *
- * let names = Arc.new(["ana", "bia"])
- * let mine = names.clone()
- * let t = task.run(move () int => mine.get().len())
+ * const names = Arc.new(["ana", "bia"])
+ * const mine = names.clone()
+ * const t = task.run(move () int => mine.get().len())
  * println("{t.join()} {names.get()[0]}")   // 2 ana
  * ```
  */
@@ -438,9 +438,9 @@ pub struct Arc<T: Send + Sync> {
  * ```ofir
  * import std.sync.Mutex
  *
- * let names = Mutex.new(List<str>.new())
+ * const names = Mutex.new(List<str>.new())
  * {
- *     var guard = names.lock()
+ *     let guard = names.lock()
  *     guard.getMut().push("ana")
  * }   // unlocked here
  * println("{names.lock().get().len()}")   // 1
@@ -524,9 +524,9 @@ pub ref struct MutexGuard<T> {
  * ```ofir
  * import std.sync.RwLock
  *
- * let config = RwLock.new("fast")
+ * const config = RwLock.new("fast")
  * {
- *     var w = config.write()
+ *     let w = config.write()
  *     *w.getMut() = "safe"
  * }
  * println("{config.read().get()}")   // safe
@@ -648,10 +648,10 @@ pub ref struct WriteGuard<T> {
  * import std.sync.WaitGroup
  * import std.task
  *
- * let group = Arc.new(WaitGroup.new())
+ * const group = Arc.new(WaitGroup.new())
  * group.get().add(1)
- * let mine = group.clone()
- * let t = task.run(move () => mine.get().done())
+ * const mine = group.clone()
+ * const t = task.run(move () => mine.get().done())
  * group.get().wait()   // returns once the task called done
  * t.join()
  * ```

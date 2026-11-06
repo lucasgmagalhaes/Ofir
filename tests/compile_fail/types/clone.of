@@ -16,10 +16,10 @@ fn dup<T>(x: T) T {
 }
 
 fn main() {
-    let w = Wrap{h: Handle{fd: 1}}
-    let _a = w.clone()           // error[E0322]: type `Wrap` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
-    let l = [Handle{fd: 2}]
-    let _b = l.clone()           // error[E0322]: type `List<Handle>` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
-    let _c = (1, Handle{fd: 3}).clone()   // error[E0322]: type `(int, Handle)` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
-    let _d = 5.clone(1)          // error[E0302]: `clone` takes no arguments
+    const w = Wrap{h: Handle{fd: 1}}
+    const _a = w.clone()           // error[E0322]: type `Wrap` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
+    const l = [Handle{fd: 2}]
+    const _b = l.clone()           // error[E0322]: type `List<Handle>` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
+    const _c = (1, Handle{fd: 3}).clone()   // error[E0322]: type `(int, Handle)` cannot be cloned: declare a `clone` method, or give it only parts that can be cloned
+    const _d = 5.clone(1)          // error[E0302]: `clone` takes no arguments
 }

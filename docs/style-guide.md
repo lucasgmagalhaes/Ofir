@@ -14,7 +14,7 @@ naming and documentation rules are for the author.
 - **One statement per line.**
 - **No inline blocks** (`"fmt": {"inlineBlocks": false}`, the default): the
   body of a function and the block of a statement (`if`, `else`, `for`,
-  `unsafe`, a `match` arm, the `else` of `let ... else`) always start on
+  `unsafe`, a `match` arm, the `else` of `const ... else`) always start on
   the line after `{`, and `}` closes on a line of its own, even for a
   single statement:
 
@@ -29,8 +29,8 @@ naming and documentation rules are for the author.
   ```
 
   An `if` or `unsafe` used as a value may stay on one line when each of its
-  blocks holds a single expression: `let n = if a < b { a } else { b }`,
-  `let byte = unsafe { *p }`. `tools/check_format.py` (`make check-format`,
+  blocks holds a single expression: `const n = if a < b { a } else { b }`,
+  `const byte = unsafe { *p }`. `tools/check_format.py` (`make check-format`,
   part of `make test`) enforces the rule on every Ofir source and every
   `ofir` code block of the documentation; `--fix` breaks the lines.
 - **Blank lines:** one between top-level items and between methods; none at
@@ -41,8 +41,8 @@ naming and documentation rules are for the author.
   brackets, before `(` in calls, or around `.` and `..`.
 
 ```ofir
-let total = items.len() + extra
-let point = Point{x: 1.0, y: 2.0}
+const total = items.len() + extra
+const point = Point{x: 1.0, y: 2.0}
 for i in 0..n {
     process(list[i], options)
 }
@@ -88,15 +88,15 @@ Spec 1.4 defines the conventions (`camelCase`, `PascalCase`,
 ## Control flow
 
 - Handle the failure case first and keep the main path unindented with
-  `let ... else` or early `return`.
+  `const ... else` or early `return`.
 - Prefer `match` over chains of `if` on the same enum.
 - `match` arms are one line when they fit; otherwise use a block.
 - Use `??` for defaults instead of `match` on `Option`.
 
 ```ofir
 fn load(path: str) Result<Config, IoError> {
-    let text = fs.readToString(path)?
-    let Option.Some(first) = text.lines().first() else {
+    const text = fs.readToString(path)?
+    const Option.Some(first) = text.lines().first() else {
         return Result.Ok(Config{})
     }
     return parseConfig(first)

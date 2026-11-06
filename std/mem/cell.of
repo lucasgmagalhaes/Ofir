@@ -62,7 +62,7 @@ pub struct UnsafeCell<T> {
  *     hits.set(hits.get() + 1)
  * }
  *
- * let hits = Cell.new(0)
+ * const hits = Cell.new(0)
  * bump(&hits)
  * bump(&hits)   // hits.get() == 2
  * ```
@@ -107,7 +107,7 @@ pub struct Cell<T: Copy> {
      * @returns the value it held
      */
     pub fn replace(self, value: T) T {
-        let old = self.get()
+        const old = self.get()
         self.set(value)
         return old
     }

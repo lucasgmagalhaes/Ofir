@@ -6,9 +6,9 @@ import diag.Diagnostics
 import syntax.token.TokenKind
 
 fn expectKinds(src: str, expected: [TokenKind]) {
-    var names = Interner.new()
-    var diags = Diagnostics.new()
-    let tokens = tokenize(src, FileId(0), names, diags)
+    let names = Interner.new()
+    let diags = Diagnostics.new()
+    const tokens = tokenize(src, FileId(0), names, diags)
     assert(!diags.hasErrors())
     assert(tokens.len() == expected.len())
     for i, token in tokens {
@@ -18,8 +18,8 @@ fn expectKinds(src: str, expected: [TokenKind]) {
 
 @test
 fn genericsCloseWithSingleGtTokens() {
-    expectKinds("var b: List<List<u8>>", [
-        TokenKind.Var, TokenKind.Ident, TokenKind.Colon, TokenKind.Ident, TokenKind.Lt,
+    expectKinds("let b: List<List<u8>>", [
+        TokenKind.Let, TokenKind.Ident, TokenKind.Colon, TokenKind.Ident, TokenKind.Lt,
         TokenKind.Ident, TokenKind.Lt, TokenKind.Ident, TokenKind.Gt, TokenKind.Gt, TokenKind.Eof,
     ])
 }

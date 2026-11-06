@@ -26,7 +26,7 @@ import syntax.ast.Expr
  * @returns T, if `ty` is a box
  */
 pub fn boxInner(c: Checker, ty: int) Option<int> {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if c.r.langItems[0] == 0 || t.kind != TyKind.Adt || t.data != c.r.langItems[0] {
         return Option.None
     }
@@ -44,12 +44,12 @@ pub fn boxInner(c: Checker, ty: int) Option<int> {
  */
 pub fn boxTarget(c: mut Checker, p: Program, box: int) int {
     structFields(c, p, c.r.langItems[0])
-    let ptr = structFieldType(c, p, box, 0)
+    const ptr = structFieldType(c, p, box, 0)
     return c.types.get(ptr).inner
 }
 
 fn ownBox(c: Checker) bool {
-    let box = c.r.langItems[0]
+    const box = c.r.langItems[0]
     return box != 0 && c.def(box).module == c.module()
 }
 
@@ -82,10 +82,10 @@ fn record(c: mut Checker, e: &Expr, steps: move List<int>, result: int) {
  * @returns the type of the dereferenced value
  */
 pub fn autoDeref(c: mut Checker, p: Program, e: &Expr, ty: int) int {
-    var steps: List<int> = []
-    var current = ty
+    let steps: List<int> = []
+    let current = ty
     for {
-        let next = derefStep(c, p, current)
+        const next = derefStep(c, p, current)
         if next == current {
             break
         }
@@ -108,12 +108,12 @@ pub fn autoDeref(c: mut Checker, p: Program, e: &Expr, ty: int) int {
  * @returns the type of the receiver
  */
 pub fn methodReceiver(c: mut Checker, p: Program, e: &Expr, ty: int, name: Symbol) int {
-    var steps: List<int> = []
-    var current = ty
+    let steps: List<int> = []
+    let current = ty
     for {
-        let viaBox = boxInner(c, current).isSome() && !hasMethod(c, p, c.r.langItems[0], name)
-        let through = c.types.kind(current) == TyKind.Ref || viaBox
-        let next = if through { derefStep(c, p, current) } else { current }
+        const viaBox = boxInner(c, current).isSome() && !hasMethod(c, p, c.r.langItems[0], name)
+        const through = c.types.kind(current) == TyKind.Ref || viaBox
+        const next = if through { derefStep(c, p, current) } else { current }
         if next == current {
             break
         }

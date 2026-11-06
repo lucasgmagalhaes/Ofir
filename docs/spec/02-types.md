@@ -24,9 +24,9 @@ There are no implicit numeric conversions. Conversions are explicit with
 `as`:
 
 ```ofir
-let a: i32 = 10
-let b = a as i64
-let c = 3.9 as int      // 3 (truncates toward zero)
+const a: i32 = 10
+const b = a as i64
+const c = 3.9 as int      // 3 (truncates toward zero)
 ```
 
 `as` between integer types panics if the value does not fit the target
@@ -91,10 +91,10 @@ greet("Ana")            // no allocation
 ```
 
 ```ofir
-var s = "hello"
+let s = "hello"
 s.push(", world")
 println("{s.len()}")    // 12 (bytes)
-let b: u8 = s[0]        // indexing yields bytes
+const b: u8 = s[0]      // indexing yields bytes
 ```
 
 ## 2.4 Structs
@@ -139,9 +139,9 @@ through the prelude. User-defined generics are described in chapter 8.
 | `Box<T>` | owned heap allocation (needed for recursive types) |
 
 ```ofir
-let xs: List<int> = [1, 2, 3]
-var ages = Map<str, int>.new()
-let first: Option<&int> = xs.first()   // borrows xs (chapter 5.6)
+const xs: List<int> = [1, 2, 3]
+let ages = Map<str, int>.new()
+const first: Option<&int> = xs.first()   // borrows xs (chapter 5.6)
 ```
 
 `T?` is shorthand for `Option<T>`: `fn find(xs: [int], x: int) int?`.
@@ -158,8 +158,8 @@ A seeded, DoS-resistant hasher for maps filled from untrusted input is
 `[T; N]` is an array of exactly `N` elements stored inline.
 
 ```ofir
-let grid: [u8; 4] = [0, 0, 0, 0]
-let zeros: [int; 8] = [0; 8]
+const grid: [u8; 4] = [0, 0, 0, 0]
+const zeros: [int; 8] = [0; 8]
 ```
 
 - A list literal or `[value; N]` is an array where an array type is
@@ -219,8 +219,8 @@ fn divMod(a: int, b: int) (int, int) {
     return (a / b, a % b)
 }
 
-let (q, r) = divMod(17, 5)
-let pair = (1, "one")
+const (q, r) = divMod(17, 5)
+const pair = (1, "one")
 println("{pair.0}")
 ```
 
@@ -238,10 +238,10 @@ A slice is a borrowed view of a contiguous sequence: a pointer and a length.
 | `&str` | read-only view of UTF-8 bytes |
 
 ```ofir
-let xs = [10, 20, 30, 40]
-let middle: &[int] = xs[1..3]     // [20, 30]
-let s = "hello, world"
-let hello: &str = s[0..5]
+const xs = [10, 20, 30, 40]
+const middle: &[int] = xs[1..3]     // [20, 30]
+const s = "hello, world"
+const hello: &str = s[0..5]
 ```
 
 - `&List<T>` and `&[T; N]` convert implicitly to `&[T]`; `&str` borrowed
@@ -275,7 +275,7 @@ fn double(x: int) int {
     return x * 2
 }
 
-let y = apply(double, 21)
+const y = apply(double, 21)
 ```
 
 ## 2.14 Type aliases
@@ -312,7 +312,7 @@ do not declare bounds; bounds on the resulting type are checked at each use.
 which makes code like this valid:
 
 ```ofir
-let n = match input {
+const n = match input {
     Option.Some(v) => v
     Option.None => panic("missing input")
 }

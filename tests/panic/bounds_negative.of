@@ -1,6 +1,6 @@
 // panic: index out of bounds: the length is 3 but the index is -1
 fn main() {
-    let s = "abc"
-    let i = -1
+    const s = "abc"
+    const i = -1
     println("{s[i]}")
 }

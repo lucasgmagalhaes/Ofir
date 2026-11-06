@@ -22,7 +22,7 @@ import syntax.ast.ExprKind
 
 // The dotted name of the first `count` segments of `path`.
 fn dotted(r: Resolver, path: &List<Symbol>, count: int) str {
-    var out = ""
+    let out = ""
     for i in 0..count {
         if i > 0 {
             out.push(".")
@@ -34,7 +34,7 @@ fn dotted(r: Resolver, path: &List<Symbol>, count: int) str {
 
 // The module named by the first `count` segments of `path`, or -1.
 fn findModule(r: Resolver, path: &List<Symbol>, count: int) int {
-    let name = dotted(r, path, count)
+    const name = dotted(r, path, count)
     if name.len() >= 511 {   // as stage 0's buffer
         return -1
     }
@@ -57,7 +57,7 @@ fn findModule(r: Resolver, path: &List<Symbol>, count: int) int {
  * @returns its `DefId`, or 0 when it is missing
  */
 pub fn moduleMember(r: mut Resolver, index: int, name: Symbol, span: Span) int {
-    let id = r.scope.moduleIn(index, name)
+    const id = r.scope.moduleIn(index, name)
     if id == 0 || r.def(id).inPrelude || r.def(id).module != index {
         r.error("E0200", span,
                 "cannot find `{r.text(name)}` in module `{r.programName(index)}`")
@@ -73,13 +73,13 @@ pub fn moduleMember(r: mut Resolver, index: int, name: Symbol, span: Span) int {
 // The same declaration, or the same module imported twice (a test file may
 // repeat its module's imports).
 fn sameTarget(r: Resolver, a: int, b: int) bool {
-    let x = r.def(a)
-    let y = r.def(b)
+    const x = r.def(a)
+    const y = r.def(b)
     return a == b || (x.kind == DefKind.Module && y.kind == DefKind.Module && x.target == y.target)
 }
 
 fn bind(r: mut Resolver, name: Symbol, id: int, span: Span) {
-    let existing = r.scope.module(name)
+    const existing = r.scope.module(name)
     if existing != 0 && sameTarget(r, existing, id) {
         return
     }
@@ -101,27 +101,27 @@ fn bind(r: mut Resolver, name: Symbol, id: int, span: Span) {
  */
 pub fn resolveImport(r: mut Resolver, program: Program, path: &List<Symbol>,
                      alias: Option<Symbol>, span: Span) {
-    let name = alias ?? path[path.len() - 1]
+    const name = alias ?? path[path.len() - 1]
     r.imports.push(ImportUse{module: r.current, name, span, used: false})
     bindImport(r, path, name, span)
     traceUse(r, "import", name, span, Res.Def(r.scope.module(name)))
 }
 
 fn bindImport(r: mut Resolver, path: &List<Symbol>, name: Symbol, span: Span) {
-    let module = findModule(r, path, path.len())
+    const module = findModule(r, path, path.len())
     if module >= 0 {   // a module
-        var def = Def{kind: DefKind.Module, name, span, isPub: false, inPrelude: false, lang: false,
+        let def = Def{kind: DefKind.Module, name, span, isPub: false, inPrelude: false, lang: false,
                       module: r.current, item: -1, member: -1, target: module, primitive: -1}
-        let id = r.addDef(def)
+        const id = r.addDef(def)
         bind(r, name, id, span)
         return
     }
-    let owner = if path.len() > 1 { findModule(r, path, path.len() - 1) } else { -1 }
+    const owner = if path.len() > 1 { findModule(r, path, path.len() - 1) } else { -1 }
     if owner < 0 {
         r.error("E0204", span, "cannot find module `{dotted(r, path, path.len())}`")
         return
     }
-    let member = moduleMember(r, owner, path[path.len() - 1], span)   // a declaration
+    const member = moduleMember(r, owner, path[path.len() - 1], span)   // a declaration
     if member != 0 {
         bind(r, name, member, span)
     }
@@ -136,20 +136,20 @@ fn bindImport(r: mut Resolver, path: &List<Symbol>, name: Symbol, span: Span) {
  * @param name the field's name
  */
 pub fn resolveQualified(r: mut Resolver, e: &Expr, base: &Expr, name: Symbol) {
-    let isName = match base.kind {
+    const isName = match base.kind {
         ExprKind.Ident(_) => true
         ExprKind.Field(_, _, _) => true   // `a.b.c` where `a.b` was a module member
         _ => false
     }
-    let target = match r.tables[r.current].res[base.id.0] {
+    const target = match r.tables[r.current].res[base.id.0] {
         Res.Def(id) => id
         _ => 0
     }
     if !isName || target == 0 || r.def(target).kind != DefKind.Module {
         return
     }
-    let member = moduleMember(r, r.def(target).target, name, e.span)
-    let res: Res = if member != 0 { Res.Def(member) } else { Res.Error }
+    const member = moduleMember(r, r.def(target).target, name, e.span)
+    const res: Res = if member != 0 { Res.Def(member) } else { Res.Error }
     r.setRes(e.id.0, res)
     traceUse(r, "member", name, e.span, res)
     warnDeprecated(r, member, e.span)
@@ -157,7 +157,7 @@ pub fn resolveQualified(r: mut Resolver, e: &Expr, base: &Expr, name: Symbol) {
 
 // `std.core` and its submodules form the prelude.
 fn inCore(r: Resolver, m: int) bool {
-    let name = r.programName(m)
+    const name = r.programName(m)
     return name == "std.core" || (name.len() > 9 && name.startsWith("std.core."))
 }
 
@@ -165,12 +165,12 @@ fn inCore(r: Resolver, m: int) bool {
 // every other module, below the module's own declarations (spec 7.4).
 fn exportCore(r: mut Resolver, core: int) {
     for name in 0..r.scope.symbols() {
-        let id = r.scope.moduleIn(core, Symbol(name))
+        const id = r.scope.moduleIn(core, Symbol(name))
         if id == 0 || !r.def(id).isPub || r.def(id).module != core {
             continue
         }
         for m in 0..r.moduleNames.len() {
-            let own = r.scope.moduleIn(m, Symbol(name))
+            const own = r.scope.moduleIn(m, Symbol(name))
             if m != core && (own == 0 || r.def(own).inPrelude) {
                 r.scope.setIn(m, Symbol(name), id)
             }

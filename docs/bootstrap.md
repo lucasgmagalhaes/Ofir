@@ -107,14 +107,14 @@ M4, the code in `compiler/` must be written in this subset.
 
 **Included:**
 
-- functions, `let`/`var`, `const`, all integer types, `float`, `bool`
+- functions, `const`/`let`, `const`, all integer types, `float`, `bool`
 - arithmetic (checked), comparisons, logic, bitwise operators, `as`
 - `if`, `for` (all forms), `break`, `continue`, `return`
 - `str`, string interpolation (without format specifiers), `print`/`println`
 - structs and enums with methods and associated functions declared in
   their body, `copy struct`, default field values, tuple structs
-- enums with data, `match` (exhaustiveness checked), `if let`,
-  `let ... else`, the `??` operator
+- enums with data, `match` (exhaustiveness checked), `if const`,
+  `const ... else`, the `??` operator
 - tuples
 - `==` and `!=` on integers, floats, `bool`, `str` and fieldless enums
   (derived equality for other types comes with interfaces in stage 1)

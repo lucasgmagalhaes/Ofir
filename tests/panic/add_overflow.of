@@ -1,6 +1,6 @@
 // panic: integer overflow
 fn main() {
-    let a: u8 = 250
-    let b = a + 10
+    const a: u8 = 250
+    const b = a + 10
     println("{b}")
 }

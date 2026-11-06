@@ -16,20 +16,20 @@ fn aSwapOfAdjacentBytesCostsOne() {
 
 @test
 fn theLimitIsAThirdOfTheName() {
-    var s = Suggestion.new("wdth")   // limit 1
+    let s = Suggestion.new("wdth")   // limit 1
     s.offer(Symbol(3), "width")
     assert(s.best == 3)
-    var far = Suggestion.new("wd")   // limit 0: no suggestion
+    let far = Suggestion.new("wd")   // limit 0: no suggestion
     far.offer(Symbol(3), "w")
     assert(far.best < 0)
-    var same = Suggestion.new("width")   // the name itself is not offered
+    let same = Suggestion.new("width")   // the name itself is not offered
     same.offer(Symbol(3), "width")
     assert(same.best < 0)
 }
 
 @test
 fn theClosestThenTheFirstInternedWins() {
-    var s = Suggestion.new("lenght")
+    let s = Suggestion.new("lenght")
     s.offer(Symbol(5), "lengths")
     s.offer(Symbol(9), "length")
     assert(s.best == 9 && s.distance == 1)

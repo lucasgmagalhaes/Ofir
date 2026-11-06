@@ -4,7 +4,7 @@ const GREETING: str = "hello"
 const TIMES: int = 2
 
 pub fn greet(name: str, greeting: str = GREETING, times: int = TIMES + 1) str {
-    var out = ""
+    let out = ""
     for _ in 0..times {
         out = out + "{greeting} {name};"
     }

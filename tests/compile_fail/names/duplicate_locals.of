@@ -1,28 +1,28 @@
 // Spec 3.1: shadowing an enclosing scope is allowed, the same scope is not.
 fn same_scope() {
-    let x = 1
-    let x = 2   // error[E0201]: `x` is defined more than once in this scope
+    const x = 1
+    const x = 2   // error[E0201]: `x` is defined more than once in this scope
 }
 
 fn parameters(a: int, a: int) {}   // error[E0201]: `a` is defined more than once in this scope
 
 fn parameter_and_body(count: int) {
-    var count = 0   // error[E0201]: `count` is defined more than once in this scope
+    let count = 0   // error[E0201]: `count` is defined more than once in this scope
 }
 
 fn pattern(pair: (int, int)) {
-    let (a, a) = pair   // error[E0201]: `a` is defined more than once in this scope
+    const (a, a) = pair   // error[E0201]: `a` is defined more than once in this scope
 }
 
 // Accepted: every other diagnostic in this file would be unexpected.
 fn shadowing(value: int) {
     if true {
-        let value = "inner"
+        const value = "inner"
         println(value)
     }
-    let pair = (1, 2)
+    const pair = (1, 2)
     for value in 0..3 {
-        let pair = value
+        const pair = value
     }
     match value {
         1 | 2 => println("small")

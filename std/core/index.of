@@ -35,7 +35,8 @@ import std.core.print
  *
  * @example
  * ```ofir
- * let order = if a < b { Ordering.Less } else if a > b { Ordering.Greater } else { Ordering.Equal }
+ * const less = if a < b { Ordering.Less } else { Ordering.Equal }
+ * const order = if a > b { Ordering.Greater } else { less }
  * ```
  */
 pub copy enum Ordering {
@@ -94,7 +95,7 @@ pub copy enum Ordering {
      * @returns `self`, or `other` when `self` is `Equal`
      * @example
      * ```ofir
-     * let order = compareInt(a.age, b.age).then(compareStr(a.name, b.name))
+     * const order = compareInt(a.age, b.age).then(compareStr(a.name, b.name))
      * ```
      */
     pub fn then(self, other: Ordering) Ordering {

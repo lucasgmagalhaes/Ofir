@@ -3,8 +3,8 @@ import lib.Account
 import missing.module            // error[E0204]: cannot find module `missing.module`
 
 fn main() {
-    let a = Account.open("ana")
+    const a = Account.open("ana")
     println(a.owner)
-    let n = lib.visible()
-    let h = lib.hidden()          // error[E0202]: `hidden` is private to module `lib`
+    const n = lib.visible()
+    const h = lib.hidden()          // error[E0202]: `hidden` is private to module `lib`
 }

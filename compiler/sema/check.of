@@ -152,7 +152,7 @@ pub const BOUND_COUNT: int = 8
  *          `BOUND_DEBUG`, `BOUND_SEND`, `BOUND_SYNC` or 0
  */
 pub fn boundBit(c: Checker, t: &TypeExpr) int {
-    let name = match t.kind {
+    const name = match t.kind {
         TypeKind.Path(segments, args) => if segments.len() == 1 && args.len() == 0 {
             segments[0]
         } else {
@@ -162,7 +162,7 @@ pub fn boundBit(c: Checker, t: &TypeExpr) int {
             return 0
         }
     }
-    let text = c.text(name)
+    const text = c.text(name)
     return if text == "Eq" {
         BOUND_EQ
     } else if text == "Ord" {
@@ -193,7 +193,7 @@ pub fn boundBit(c: Checker, t: &TypeExpr) int {
  * @returns its number: the type's first, then the function's
  */
 pub fn boundedParam(t: &TypeExpr, owner: &List<Symbol>, fnParams: &List<Symbol>) int {
-    let name = match t.kind {
+    const name = match t.kind {
         TypeKind.Path(segments, args) => if segments.len() == 1 && args.len() == 0 {
             segments[0]
         } else {
@@ -232,9 +232,9 @@ pub fn interfaceOf(c: Checker, t: &TypeExpr) int {
 }
 
 fn interfaceAt(c: Checker, segments: &List<Symbol>) int {
-    var id = c.r.scope.module(segments[0])
+    let id = c.r.scope.module(segments[0])
     if segments.len() == 2 && id != 0 && c.def(id).kind == DefKind.Module {
-        let target = c.def(id).target
+        const target = c.def(id).target
         id = c.r.scope.moduleIn(target, segments[1])
         if id != 0 && c.def(id).module != target {   // an import of that module
             return 0
@@ -247,7 +247,7 @@ fn interfaceAt(c: Checker, segments: &List<Symbol>) int {
 
 // Empty interface lists, one per type parameter.
 fn noIfaces(n: int) List<List<int>> {
-    var ifaces: List<List<int>> = []
+    let ifaces: List<List<int>> = []
     for _ in 0..n {
         ifaces.push([])
     }
@@ -257,7 +257,7 @@ fn noIfaces(n: int) List<List<int>> {
 // The bounds of `preds`, added to `g`, whose parameters are already set.
 fn addBounds(c: mut Checker, p: Program, preds: &List<WherePred>, g: mut Generics) {
     for i in 0..preds.len() {
-        let index = boundedParam(&preds[i].ty, &g.owner, &g.fnParams)
+        const index = boundedParam(&preds[i].ty, &g.owner, &g.fnParams)
         if index < 0 {
             continue   // E0334, reported with the declaration
         }
@@ -268,10 +268,10 @@ fn addBounds(c: mut Checker, p: Program, preds: &List<WherePred>, g: mut Generic
                 continue
             }
             g.bounds[index] = g.bounds[index] | boundBit(c, &preds[i].bounds[j])
-            let iface = interfaceOf(c, &preds[i].bounds[j])
+            const iface = interfaceOf(c, &preds[i].bounds[j])
             if iface != 0 {
                 g.ifaces[index].push(iface)
-                let args = boundArgs(c, p, &preds[i].bounds[j], &g)
+                const args = boundArgs(c, p, &preds[i].bounds[j], &g)
                 g.ifaceArgs[index].push(args)
             }
         }
@@ -296,17 +296,17 @@ pub fn isKeyBound(t: &TypeExpr) bool {
 // The key type of a key bound, resolved once with the parameters of the
 // declaration, or 0 when it is not a key type.
 fn keyBound(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
-    let key = (t.span.file.0, t.span.start)
-    if let Option.Some(known) = c.boundArgs.get(key) {
+    const key = (t.span.file.0, t.span.start)
+    if const Option.Some(known) = c.boundArgs.get(key) {
         return *known
     }
-    let inner = Generics{owner: g.owner.clone(), fnParams: g.fnParams.clone(), bounds: [],
-                         ifaces: [], ifaceArgs: [], aliasArgs: [], keys: []}
-    let saved = c.enterGenerics(inner)
-    let ty = resolveType(c, p, t)
+    const inner = Generics{owner: g.owner.clone(), fnParams: g.fnParams.clone(), bounds: [],
+                           ifaces: [], ifaceArgs: [], aliasArgs: [], keys: []}
+    const saved = c.enterGenerics(inner)
+    const ty = resolveType(c, p, t)
     c.enterGenerics(saved)
-    let kind = c.types.kind(ty)
-    let bound = if kind == TyKind.Key || kind == TyKind.KeyOf { ty } else { 0 }
+    const kind = c.types.kind(ty)
+    const bound = if kind == TyKind.Key || kind == TyKind.KeyOf { ty } else { 0 }
     c.boundArgs.insert(key, bound)
     return bound
 }
@@ -322,7 +322,7 @@ fn keyBound(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
  * @returns the tuple, or `UNIT` when it has none
  */
 pub fn boundArgs(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
-    let list = match t.kind {
+    const list = match t.kind {
         TypeKind.Path(_, args) => args.clone()
         _ => {
             return UNIT
@@ -331,20 +331,20 @@ pub fn boundArgs(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
     if list.len() == 0 {
         return UNIT
     }
-    let key = (t.span.file.0, t.span.start)
-    if let Option.Some(known) = c.boundArgs.get(key) {
+    const key = (t.span.file.0, t.span.start)
+    if const Option.Some(known) = c.boundArgs.get(key) {
         return *known
     }
-    let inner = Generics{owner: g.owner.clone(), fnParams: g.fnParams.clone(), bounds: [],
-                         ifaces: [], ifaceArgs: [], aliasArgs: [], keys: []}
-    let saved = c.enterGenerics(inner)
-    var types: List<int> = []
+    const inner = Generics{owner: g.owner.clone(), fnParams: g.fnParams.clone(), bounds: [],
+                           ifaces: [], ifaceArgs: [], aliasArgs: [], keys: []}
+    const saved = c.enterGenerics(inner)
+    let types: List<int> = []
     for i in 0..list.len() {
-        let ty = resolveType(c, p, &list[i])
+        const ty = resolveType(c, p, &list[i])
         types.push(ty)
     }
     c.enterGenerics(saved)
-    let tuple = c.types.tuple(types)
+    const tuple = c.types.tuple(types)
     c.boundArgs.insert(key, tuple)
     return tuple
 }
@@ -358,8 +358,8 @@ pub fn boundArgs(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
  */
 pub fn interfaceDef(c: Checker, item: &Item) int {
     for id in 1..c.r.defs.len() {
-        let def = &c.r.defs[id]
-        let sameSpan = def.span.file.0 == item.span.file.0 && def.span.start == item.span.start
+        const def = &c.r.defs[id]
+        const sameSpan = def.span.file.0 == item.span.file.0 && def.span.start == item.span.start
         if def.kind == DefKind.Interface && sameSpan {
             return id
         }
@@ -376,12 +376,12 @@ pub fn interfaceDef(c: Checker, item: &Item) int {
  * @returns them
  */
 pub fn typeGenerics(c: mut Checker, p: Program, item: &Item) Generics {
-    let owner = itemTypeParams(item)
-    var g = Generics{owner: owner.clone(), fnParams: [], bounds: List.filled(0, owner.len()),
+    const owner = itemTypeParams(item)
+    let g = Generics{owner: owner.clone(), fnParams: [], bounds: List.filled(0, owner.len()),
                      ifaces: noIfaces(owner.len()), ifaceArgs: noIfaces(owner.len()),
                      aliasArgs: [], keys: List.filled(0, owner.len())}
     addBounds(c, p, &item.bounds, g)
-    let isInterface = match item.kind {
+    const isInterface = match item.kind {
         ItemKind.Interface(_, _, _) => true
         _ => false
     }
@@ -402,8 +402,8 @@ pub fn typeGenerics(c: mut Checker, p: Program, item: &Item) Generics {
  * @returns them
  */
 pub fn typeGenericsOf(c: mut Checker, p: Program, id: int) Generics {
-    let saved = c.enter(c.def(id).module)
-    let g = typeGenerics(c, p, itemOf(p, c.loc(id)))
+    const saved = c.enter(c.def(id).module)
+    const g = typeGenerics(c, p, itemOf(p, c.loc(id)))
     c.enter(saved)
     return g
 }
@@ -411,7 +411,7 @@ pub fn typeGenericsOf(c: mut Checker, p: Program, id: int) Generics {
 // The arguments an interface's own parameters stand for inside it: the
 // parameters themselves, after `Self`.
 fn ownArgs(c: mut Checker, owner: &List<Symbol>) int {
-    var params: List<int> = []
+    let params: List<int> = []
     for i in 1..owner.len() {
         params.push(c.types.param(i, owner[i].0))
     }
@@ -429,8 +429,8 @@ fn ownArgs(c: mut Checker, owner: &List<Symbol>) int {
  * @returns them
  */
 pub fn fnGenericsIn(c: mut Checker, p: Program, outer: &Generics, decl: &FnDecl) Generics {
-    let n = outer.owner.len() + decl.typeParams.len()
-    var g = Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(),
+    const n = outer.owner.len() + decl.typeParams.len()
+    let g = Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(),
                      bounds: List.filled(0, n), ifaces: noIfaces(n), ifaceArgs: noIfaces(n),
                      aliasArgs: [], keys: List.filled(0, n)}
     for i in 0..outer.owner.len() {
@@ -599,8 +599,8 @@ pub struct Checker {
      * @returns the text
      */
     pub fn paramText(self, name: Symbol) str {
-        let text = self.r.names.name(name)
-        if let Option.Some(at) = text.find(" ") {
+        const text = self.r.names.name(name)
+        if const Option.Some(at) = text.find(" ") {
             return text.slice(0, at)
         }
         return text
@@ -623,7 +623,7 @@ pub struct Checker {
      * @returns its location
      */
     pub fn loc(self, id: int) Loc {
-        let def = &self.r.defs[id]
+        const def = &self.r.defs[id]
         return Loc{module: def.module, item: def.item, member: def.member}
     }
 
@@ -643,7 +643,7 @@ pub struct Checker {
      * @returns the previous one
      */
     pub fn enter(mut self, m: int) int {
-        let previous = self.r.current
+        const previous = self.r.current
         self.r.current = m
         self.r.moduleName = self.r.moduleNames[m].clone()
         self.r.scope.useModule(m)
@@ -717,7 +717,7 @@ pub struct Checker {
      * @returns its text
      */
     pub fn typeName(self, ty: int) str {
-        var out = ""
+        let out = ""
         self.appendType(out, ty, false)
         return out
     }
@@ -731,7 +731,7 @@ pub struct Checker {
      * @returns its text
      */
     pub fn qualifiedTypeName(self, ty: int) str {
-        var out = ""
+        let out = ""
         self.appendType(out, ty, true)
         return out
     }
@@ -746,7 +746,7 @@ pub struct Checker {
     }
 
     fn appendType(self, out: mut str, ty: int, qualified: bool) {
-        let t = self.types.get(ty)
+        const t = self.types.get(ty)
         match t.kind {
             TyKind.Error => out.push("\{error\}")
             TyKind.Unit => out.push("()")
@@ -790,7 +790,7 @@ pub struct Checker {
                 if t.kind == TyKind.Dyn {
                     out.push("dyn ")
                 }
-                let module = self.r.defs[t.data].module
+                const module = self.r.defs[t.data].module
                 if qualified && module != 0 {
                     out.push(self.r.moduleNames[module])
                     out.push(".")
@@ -804,7 +804,7 @@ pub struct Checker {
             }
             TyKind.Param => out.push(self.paramText(Symbol(t.inner)))
             TyKind.Key => {
-                let names = self.types.keyNames(ty)
+                const names = self.types.keyNames(ty)
                 if names.len() == 0 {
                     out.push("keyof ()")
                 }
@@ -829,7 +829,7 @@ pub struct Checker {
 
 // The 64-bit types are printed with their usual alias names.
 fn intName(kind: int) str {
-    let names = ["i8", "i16", "i32", "int", "u8", "u16", "u32", "uint"]
+    const names = ["i8", "i16", "i32", "int", "u8", "u16", "u32", "uint"]
     return names[kind].sliceFrom(0)
 }
 
@@ -883,7 +883,7 @@ pub fn itemTypeParams(item: &Item) List<Symbol> {
  * @returns the function
  */
 pub fn fnOf(p: Program, def: Loc) &FnDecl {
-    let item = &p.modules[def.module].module.items[def.item]
+    const item = &p.modules[def.module].module.items[def.item]
     return match item.kind {
         ItemKind.Fn(decl) => &*decl
         ItemKind.Struct(_, _, _, _, _, methods) => &methods[def.member]
@@ -911,21 +911,21 @@ pub fn emptyInfo() DefInfo {
  * @returns the checker
  */
 pub fn newChecker(p: Program, r: move Resolver) Checker {
-    var info: List<DefInfo> = []
-    var itemDefs: List<List<int>> = []
-    var nodeTypes: List<List<int>> = []
-    var localTypesOf: List<Map<int, List<int>>> = []
-    var derefs: List<Map<int, List<int>>> = []
-    var adjusted: List<Map<int, int>> = []
-    var members: List<List<int>> = []
-    var callTypeArgs: List<Map<int, int>> = []
-    var argSlots: List<Map<int, List<int>>> = []
-    var sliceCoercions: List<Map<int, int>> = []
-    var arrayCoercions: List<Map<int, int>> = []
-    var dynCoercions: List<Map<int, int>> = []
-    var unionCoercions: List<Map<int, int>> = []
-    var moveFlags: List<Map<int, int>> = []
-    var capturesMut: List<Map<int, List<int>>> = []
+    let info: List<DefInfo> = []
+    let itemDefs: List<List<int>> = []
+    let nodeTypes: List<List<int>> = []
+    let localTypesOf: List<Map<int, List<int>>> = []
+    let derefs: List<Map<int, List<int>>> = []
+    let adjusted: List<Map<int, int>> = []
+    let members: List<List<int>> = []
+    let callTypeArgs: List<Map<int, int>> = []
+    let argSlots: List<Map<int, List<int>>> = []
+    let sliceCoercions: List<Map<int, int>> = []
+    let arrayCoercions: List<Map<int, int>> = []
+    let dynCoercions: List<Map<int, int>> = []
+    let unionCoercions: List<Map<int, int>> = []
+    let moveFlags: List<Map<int, int>> = []
+    let capturesMut: List<Map<int, List<int>>> = []
     for m in 0..p.modules.len() {
         itemDefs.push(List.filled(0, p.modules[m].module.items.len()))
         nodeTypes.push(List.filled(ERROR, p.modules[m].module.nodeCount))
@@ -944,8 +944,8 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     }
     for id in 0..r.defs.len() {
         info.push(emptyInfo())
-        let def = &r.defs[id]
-        let named = def.kind != DefKind.Module && def.kind != DefKind.Variant && def.member < 0
+        const def = &r.defs[id]
+        const named = def.kind != DefKind.Module && def.kind != DefKind.Variant && def.member < 0
         if id > 0 && named && def.item >= 0 && itemDefs[def.module][def.item] == 0 {
             itemDefs[def.module][def.item] = id
         }
@@ -976,11 +976,11 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
  * @param selfType the type declaring the method, or `ERROR`
  */
 pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
-    let decl = fnOf(p, c.loc(id))
-    let inner = fnGenericsIn(c, p, &c.generics.clone(), decl)
-    let outer = c.enterGenerics(inner)
+    const decl = fnOf(p, c.loc(id))
+    const inner = fnGenericsIn(c, p, &c.generics.clone(), decl)
+    const outer = c.enterGenerics(inner)
     checkDeclBounds(c, p, &decl.bounds)
-    let sig = fnSignature(c, p, id)
+    const sig = fnSignature(c, p, id)
     checkBorrowSource(c, p, id, sig, selfType)   // what callers need, now
     c.info[id].cellParams = cellParams(c, p, decl, sig, selfType)
     c.enterGenerics(outer)
@@ -994,11 +994,11 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
 // The `cellParams` of a function: its borrowed parameters whose types have
 // interior mutability.
 fn cellParams(c: mut Checker, p: Program, decl: &FnDecl, sig: int, selfType: int) int {
-    var bits = 0
+    let bits = 0
     if decl.hasSelf && decl.selfMode == Mode.Borrow && hasInteriorMutability(c, p, selfType) {
         bits = 1
     }
-    let params = c.types.get(sig).args.clone()
+    const params = c.types.get(sig).args.clone()
     for i in 0..decl.params.len() {
         if i < params.len() && decl.params[i].mode == Mode.Borrow &&
            hasInteriorMutability(c, p, params[i]) {
@@ -1018,22 +1018,22 @@ fn cellParams(c: mut Checker, p: Program, decl: &FnDecl, sig: int, selfType: int
  */
 pub fn checkLate(c: mut Checker, p: Program, id: int) {
     if c.movesPending.get(id).isSome() {   // checked with the root, analyzed now
-        let _ = c.movesPending.remove(id)
+        const _ = c.movesPending.remove(id)
         lateMoves(c, p, id)
         return
     }
     if c.bodyChecked.get(id).isSome() || fnOf(p, c.loc(id)).body.isNone() {
         return
     }
-    let module = c.def(id).module
-    let previous = c.enter(module)
-    let selfType = if isTypeMember(c, p, id) {
+    const module = c.def(id).module
+    const previous = c.enter(module)
+    const selfType = if isTypeMember(c, p, id) {
         ownerTypeOf(c, p, module, c.def(id).item)
     } else {
         ERROR
     }
-    let owner = ownerGenerics(c, p, id)
-    let outer = c.enterGenerics(owner)
+    const owner = ownerGenerics(c, p, id)
+    const outer = c.enterGenerics(owner)
     checkBody(c, p, id, selfType, true)
     c.enterGenerics(outer)
     c.enter(previous)
@@ -1059,9 +1059,9 @@ fn ownerGenerics(c: mut Checker, p: Program, id: int) Generics {
 // The move analysis of a std function checked with the root module (stage
 // 0: `sema_moves_late`), with the function's locals and their types.
 fn lateMoves(c: mut Checker, p: Program, id: int) {
-    let decl = fnOf(p, c.loc(id))
-    let module = c.def(id).module
-    let previous = c.enter(module)
+    const decl = fnOf(p, c.loc(id))
+    const module = c.def(id).module
+    const previous = c.enter(module)
     c.locals = match c.r.tables[module].fnLocals.get(decl.id.0) {
         Option.Some(list) => list.clone()
         Option.None => []
@@ -1072,9 +1072,9 @@ fn lateMoves(c: mut Checker, p: Program, id: int) {
     }
     c.fnNode = decl.id.0
     c.fnDef = id
-    let owner = ownerGenerics(c, p, id)   // a `Copy` bound makes a parameter Copy
-    let inner = fnGenericsIn(c, p, &owner, decl)
-    let outer = c.enterGenerics(inner)
+    const owner = ownerGenerics(c, p, id)   // a `Copy` bound makes a parameter Copy
+    const inner = fnGenericsIn(c, p, &owner, decl)
+    const outer = c.enterGenerics(inner)
     checkMoves(c, p, id)
     c.enterGenerics(outer)
     c.enter(previous)
@@ -1082,11 +1082,11 @@ fn lateMoves(c: mut Checker, p: Program, id: int) {
 
 fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
     c.bodyChecked.insert(id, true)
-    let decl = fnOf(p, c.loc(id))
-    let inner = fnGenericsIn(c, p, &c.generics.clone(), decl)
-    let outer = c.enterGenerics(inner)
-    let sig = fnSignature(c, p, id)
-    let locals = c.r.tables[c.module()].fnLocals.get(decl.id.0)
+    const decl = fnOf(p, c.loc(id))
+    const inner = fnGenericsIn(c, p, &c.generics.clone(), decl)
+    const outer = c.enterGenerics(inner)
+    const sig = fnSignature(c, p, id)
+    const locals = c.r.tables[c.module()].fnLocals.get(decl.id.0)
     c.locals = match locals {
         Option.Some(list) => list.clone()
         Option.None => []
@@ -1100,7 +1100,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
         c.localTypes[0] = selfType
     }
     for i in 0..decl.params.len() {
-        let local = c.localAt(decl.params[i].id.0)
+        const local = c.localAt(decl.params[i].id.0)
         if local >= 0 {
             c.localTypes[local] = c.types.get(sig).args[i]
         }
@@ -1110,9 +1110,9 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
         return
     }
     c.unsafeDepth = if decl.isUnsafe { 1 } else { 0 }
-    let errors = c.r.diags.errorCount()
-    var found = UNIT
-    if let Option.Some(body) = decl.body {
+    const errors = c.r.diags.errorCount()
+    let found = UNIT
+    if const Option.Some(body) = decl.body {
         found = checkBlock(c, p, &body, ERROR, false)
     }
     c.unsafeDepth = 0
@@ -1128,7 +1128,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
             c.movesPending.insert(id, true)
         }
     }
-    let types = mem.replace(c.localTypes, [])
+    const types = mem.replace(c.localTypes, [])
     c.localTypesOf[c.module()].insert(decl.id.0, types)
     c.enterGenerics(outer)
 }
@@ -1137,11 +1137,11 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
 // Items
 
 fn checkMethods(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>) {
-    let item = &p.modules[c.module()].module.items[index]
-    let selfType = ownerTypeOf(c, p, c.module(), index)
-    let outer = c.enterGenerics(typeGenerics(c, p, item))
+    const item = &p.modules[c.module()].module.items[index]
+    const selfType = ownerTypeOf(c, p, c.module(), index)
+    const outer = c.enterGenerics(typeGenerics(c, p, item))
     for i in 0..methods.len() {
-        let def = c.r.tables[c.module()].fnDefs[methods[i].id.0]
+        const def = c.r.tables[c.module()].fnDefs[methods[i].id.0]
         if def != 0 {
             checkFn(c, p, def, selfType)
         }
@@ -1180,13 +1180,13 @@ fn checkExtern(c: mut Checker, p: Program, item: &Item, abi: str, fns: &List<FnD
  */
 pub fn checkDeclBounds(c: mut Checker, p: Program, preds: &List<WherePred>) {
     for i in 0..preds.len() {
-        let pred = &preds[i]
+        const pred = &preds[i]
         if boundedParam(&pred.ty, &c.generics.owner, &c.generics.fnParams) < 0 {
             c.error("E0334", pred.ty.span, "`{typeText(&pred.ty, c.r.names)}` is not a type "
                     + "parameter of this declaration: only type parameters take bounds")
         }
         for j in 0..pred.bounds.len() {
-            let iface = interfaceOf(c, &pred.bounds[j])
+            const iface = interfaceOf(c, &pred.bounds[j])
             if boundBit(c, &pred.bounds[j]) == 0 && iface == 0 && !isKeyBound(&pred.bounds[j]) {
                 c.error("E0333", pred.bounds[j].span, "`{typeText(&pred.bounds[j], c.r.names)}` "
                         + "is not an interface")
@@ -1197,17 +1197,17 @@ pub fn checkDeclBounds(c: mut Checker, p: Program, preds: &List<WherePred>) {
 }
 
 fn checkTypeBounds(c: mut Checker, p: Program, item: &Item) {
-    let outer = c.enterGenerics(typeGenerics(c, p, item))
+    const outer = c.enterGenerics(typeGenerics(c, p, item))
     checkDeclBounds(c, p, &item.bounds)
     c.enterGenerics(outer)
 }
 
 fn checkItem(c: mut Checker, p: Program, index: int) {
-    let item = &p.modules[c.module()].module.items[index]
-    let id = c.itemDefs[c.module()][index]
+    const item = &p.modules[c.module()].module.items[index]
+    const id = c.itemDefs[c.module()][index]
     match item.kind {
         ItemKind.Fn(decl) => {
-            let def = c.r.tables[c.module()].fnDefs[decl.id.0]
+            const def = c.r.tables[c.module()].fnDefs[decl.id.0]
             if def == 0 {
                 return
             }
@@ -1250,7 +1250,7 @@ fn checkItem(c: mut Checker, p: Program, index: int) {
 // An interface: embedding only interfaces, with its default methods checked
 // once, generically over `Self` and its parameters.
 fn checkInterface(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>) {
-    let item = &p.modules[c.module()].module.items[index]
+    const item = &p.modules[c.module()].module.items[index]
     match item.kind {
         ItemKind.Interface(_, embeds, _) => {
             notInterfaces(c, p, &embeds)
@@ -1269,7 +1269,7 @@ fn checkInterface(c: mut Checker, p: Program, index: int, methods: &List<FnDecl>
 // interface given the wrong number of type arguments.
 fn notInterfaces(c: mut Checker, p: Program, list: &List<TypeExpr>) {
     for i in 0..list.len() {
-        let iface = interfaceOf(c, &list[i])
+        const iface = interfaceOf(c, &list[i])
         if iface == 0 {
             c.error("E0333", list[i].span, "`{typeText(&list[i], c.r.names)}` is not an "
                     + "interface")
@@ -1292,8 +1292,8 @@ fn checkArity(c: mut Checker, p: Program, t: &TypeExpr, iface: int) {
     if iface == 0 {
         return
     }
-    let expected = interfaceArity(c, p, iface)
-    let found = typeArgCount(t)
+    const expected = interfaceArity(c, p, iface)
+    const found = typeArgCount(t)
     if found != expected {
         c.error("E0302", t.span, "wrong number of type arguments for "
                 + "`{c.text(c.def(iface).name)}`: expected {expected}, found {found}")
@@ -1303,20 +1303,20 @@ fn checkArity(c: mut Checker, p: Program, t: &TypeExpr, iface: int) {
 // `struct C: Shape`: E0335 unless the type satisfies each interface it
 // asserts (spec 9.2).
 fn checkAsserts(c: mut Checker, p: Program, index: int) {
-    let item = &p.modules[c.module()].module.items[index]
+    const item = &p.modules[c.module()].module.items[index]
     if item.asserts.len() == 0 || c.itemDefs[c.module()][index] == 0 {
         return
     }
     notInterfaces(c, p, &item.asserts)
-    let ty = ownerTypeOf(c, p, c.module(), index)
-    let generics = typeGenerics(c, p, item)
+    const ty = ownerTypeOf(c, p, c.module(), index)
+    const generics = typeGenerics(c, p, item)
     for i in 0..item.asserts.len() {
-        let iface = interfaceOf(c, &item.asserts[i])
+        const iface = interfaceOf(c, &item.asserts[i])
         if iface == 0 || typeArgCount(&item.asserts[i]) != interfaceArity(c, p, iface) {
             continue   // E0333, E0302
         }
-        let args = boundArgs(c, p, &item.asserts[i], &generics)
-        let why = unsatisfied(c, p, ty, iface, args)
+        const args = boundArgs(c, p, &item.asserts[i], &generics)
+        const why = unsatisfied(c, p, ty, iface, args)
         if why.len() > 0 {
             c.error("E0335", item.asserts[i].span, "the type `{c.typeName(ty)}` does not "
                     + "satisfy `{interfaceText(c, iface, args)}`: {why}")
@@ -1334,17 +1334,17 @@ fn checkAsserts(c: mut Checker, p: Program, index: int) {
  * @returns true to skip it
  */
 pub fn skippedTest(c: Checker, p: Program, item: &Item) bool {
-    let isFn = match item.kind {
+    const isFn = match item.kind {
         ItemKind.Fn(_) => true
         _ => false
     }
-    let test = isFn && findAttribute(c.r, item.attributes, "test").isSome()
-    let bench = isFn && findAttribute(c.r, item.attributes, "bench").isSome()
+    const test = isFn && findAttribute(c.r, item.attributes, "test").isSome()
+    const bench = isFn && findAttribute(c.r, item.attributes, "bench").isSome()
     if !test && !bench {
         return false
     }
-    let wanted = (test && !c.r.benching) || (bench && c.r.benching)
-    let tested = c.module() == 0 || !moduleInStd(p, c.module())
+    const wanted = (test && !c.r.benching) || (bench && c.r.benching)
+    const tested = c.module() == 0 || !moduleInStd(p, c.module())
     return !c.r.testing || !tested || !wanted
 }
 
@@ -1356,7 +1356,7 @@ pub fn skippedTest(c: Checker, p: Program, item: &Item) bool {
  * @returns the checker, with its results
  */
 pub fn checkProgram(p: Program, r: move Resolver) Checker {
-    var c = newChecker(p, r)
+    let c = newChecker(p, r)
     for m in 0..p.modules.len() {
         c.enter(m)
         for i in 0..p.modules[m].module.items.len() {
@@ -1373,14 +1373,14 @@ pub fn checkProgram(p: Program, r: move Resolver) Checker {
 
 fn warnUnusedImports(c: mut Checker, p: Program) {
     for i in 0..c.r.imports.len() {
-        let use = &c.r.imports[i]
+        const use = &c.r.imports[i]
         // std modules other than the root are checked in part: they are
         // checked whole as roots.
-        let partlyChecked = use.module != 0 && moduleInStd(p, use.module)
-        let preludeRoot = c.r.moduleNames[use.module] == "std.core"
+        const partlyChecked = use.module != 0 && moduleInStd(p, use.module)
+        const preludeRoot = c.r.moduleNames[use.module] == "std.core"
         if !use.used && !preludeRoot && !partlyChecked {
-            let span = use.span
-            let name = c.text(use.name).toOwned()
+            const span = use.span
+            const name = c.text(use.name).toOwned()
             c.r.diags.warning("W0002", span, "unused import `{name}`")
         }
     }

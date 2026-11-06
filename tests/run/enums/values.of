@@ -43,17 +43,17 @@ enum Shape {
 }
 
 fn main() {
-    var d = Direction.North
+    let d = Direction.North
     for _ in 0..5 {
         print("{d.name()} ")
         d = d.turned()
     }
     println("")
     println("{d == Direction.East} {d == Direction.West} {d != Direction.North}")
-    var s: Shape = Shape.Square(2.0)
+    let s: Shape = Shape.Square(2.0)
     s = s.scaled(1.5)
-    let c = Shape.Circle(1.0).scaled(2.0)
+    const c = Shape.Circle(1.0).scaled(2.0)
     println("{s.area()} {c.area()}")
-    let pair = (d, s)
+    const pair = (d, s)
     println("{pair.0.name()} {pair.1.area()}")
 }

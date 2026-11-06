@@ -23,9 +23,9 @@ struct Free {
 }
 
 fn main() {
-    let o = Ordered{a: 5, b: 6, c: 7}
-    let w = Wire{a: 1, b: 2, c: 3}
-    let f = Free{a: 8, b: 9, c: 10}
+    const o = Ordered{a: 5, b: 6, c: 7}
+    const w = Wire{a: 1, b: 2, c: 3}
+    const f = Free{a: 8, b: 9, c: 10}
     println("{o.a} {o.b} {o.c} {sizeOf<Ordered>()}")
     println("{w.a} {w.b} {w.c} {sizeOf<Wire>()}")
     println("{f.a} {f.b} {f.c} {sizeOf<Free>()}")

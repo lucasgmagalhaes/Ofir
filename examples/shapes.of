@@ -13,13 +13,13 @@ copy enum Shape {
 }
 
 fn main() {
-    let shapes: List<Shape> = [
+    const shapes: List<Shape> = [
         Shape.Circle(1.0),
         Shape.Rect(2.0, 3.0),
         Shape.Empty,
     ]
 
-    var total = 0.0
+    let total = 0.0
     for shape in shapes {
         total += shape.area()
     }

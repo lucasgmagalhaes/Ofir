@@ -42,7 +42,7 @@ fn size(e: move Expr) int {
 
 fn main() {
     // (2 + 3) * -(4)
-    let e = Expr.Mul(Box.new(Expr.Add(num(2), num(3))), Box.new(Expr.Neg(num(4))))
+    const e = Expr.Mul(Box.new(Expr.Add(num(2), num(3))), Box.new(Expr.Neg(num(4))))
     println("{show(e)} = {eval(e)}")
     println("{size(e)} nodes")
 }

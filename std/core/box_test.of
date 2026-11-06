@@ -2,8 +2,8 @@
 
 @test
 fn cloneCopiesTheValue() {
-    let a = Box.new("text".toOwned())
-    var b = a.clone()
+    const a = Box.new("text".toOwned())
+    let b = a.clone()
     (*b).push("!")   // no automatic dereference inside std.core.box
     assert(*a == "text" && *b == "text!")
     assert(b.unbox() == "text!")

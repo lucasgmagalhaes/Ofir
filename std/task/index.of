@@ -24,11 +24,11 @@ struct Job {
 // The runtime calls this on the new thread with the job `run` handed it.
 @export("ofir_task_entry")
 extern "C" fn taskEntry(job: *mut u8) {
-    let j = unsafe { *(job as *mut Job) }
+    const j = unsafe { *(job as *mut Job) }
     unsafe {
         ofir_free(job)
     }
-    let body = j.run
+    const body = j.run
     body()
 }
 
@@ -49,7 +49,7 @@ pub struct Task<T> {
     pub fn join(move self) T {
         unsafe {
             ofir_task_join(self.thread)
-            let value = *self.slot
+            const value = *self.slot
             ofir_free(self.slot as *mut u8)
             return value
         }
@@ -67,25 +67,25 @@ pub struct Task<T> {
  * ```ofir
  * import std.task
  *
- * let handle = task.run(move () int => 40 + 2)
+ * const handle = task.run(move () int => 40 + 2)
  * println("{handle.join()}")
  * ```
  */
 pub fn run<T: Send>(f: move fn() T + Send) Task<T> {
-    let slot = unsafe {
+    const slot = unsafe {
         if alignOf<T>() > 16 {
             ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
         } else {
             ofir_alloc(sizeOf<T>()) as *mut T
         }
     }
-    let job = Job{run: move () => {
+    const job = Job{run: move () => {
         unsafe {
-            *slot = f()
+              *slot = f()
         }
     }}
-    let thread = unsafe {
-        let p = ofir_alloc(sizeOf<Job>()) as *mut Job
+    const thread = unsafe {
+        const p = ofir_alloc(sizeOf<Job>()) as *mut Job
         *p = job
         ofir_task_spawn(p as *mut u8)
     }

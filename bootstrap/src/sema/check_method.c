@@ -89,7 +89,7 @@ void require_mutable(Checker *c, Expr *place) {
         ok = e->type.id == TID_ERROR;
     }
     if (!ok) {
-        check_error(c, "E0315", e->span, "this value cannot be modified: declare it with `var`");
+        check_error(c, "E0315", e->span, "this value cannot be modified: declare it with `let`");
     }
 }
 

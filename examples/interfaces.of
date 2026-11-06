@@ -58,7 +58,7 @@ fn main() {
     printArea(Circle{radius: 1.0})
 
     // Dynamic dispatch: a list of different shapes.
-    let shapes: List<Box<dyn Shape>> = [
+    const shapes: List<Box<dyn Shape>> = [
         Box.new(Circle{radius: 2.0}),
         Box.new(Square{side: 3.0}),
     ]

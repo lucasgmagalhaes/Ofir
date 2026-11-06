@@ -11,27 +11,27 @@ fn lookup(key: int) Reply {
 }
 
 fn doubled(key: int) int {
-    let Reply.Value(v) = lookup(key) else {
+    const Reply.Value(v) = lookup(key) else {
         return -1
     }
     return v * 2
 }
 
 fn main() {
-    if let Reply.Value(v) = lookup(3) {
+    if const Reply.Value(v) = lookup(3) {
         println("found {v}")
     }
-    if let Reply.Value(v) = lookup(0) {
+    if const Reply.Value(v) = lookup(0) {
         println("unexpected {v}")
     } else {
         println("missing")
     }
-    let label = if let Reply.Value(v) = lookup(1) { "v={v}" } else { "none" }
+    const label = if const Reply.Value(v) = lookup(1) { "v={v}" } else { "none" }
     println(label)
     println("{doubled(4)} {doubled(-2)}")
-    var total = 0
+    let total = 0
     for k in -2..4 {
-        let Reply.Value(v) = lookup(k) else {
+        const Reply.Value(v) = lookup(k) else {
             continue
         }
         total += v

@@ -34,7 +34,7 @@ fn bump(r: &mut int) {
 
 // The only borrowed parameter lends the result.
 fn longest(team: Team) &str {
-    var best = &team.members[0]
+    let best = &team.members[0]
     for i in 1..team.members.len() {
         if team.members[i].len() > best.len() {
             best = &team.members[i]
@@ -44,17 +44,17 @@ fn longest(team: Team) &str {
 }
 
 fn main() {
-    var n = 1
-    let r = &n
+    let n = 1
+    const r = &n
     println("{*r} {r}")
-    var m = 10
-    let w = &mut m
+    let m = 10
+    const w = &mut m
     *w = 20
     bump(&mut m)
     println("{m}")
 
-    var p = Point{x: 1, y: 2}
-    let pr = &mut p
+    let p = Point{x: 1, y: 2}
+    const pr = &mut p
     pr.x = 5
     pr.shift(10)
     println("{pr.sum()} {p.x}")
@@ -62,15 +62,15 @@ fn main() {
     *p.yMut() = 40
     println("{p.y}")
 
-    let team = Team{name: "core", members: ["ana", "bartholomew", "cy"]}
+    const team = Team{name: "core", members: ["ana", "bartholomew", "cy"]}
     println(longest(team))
 
-    var xs = [10, 20, 30]
-    if let Option.Some(first) = xs.get(0) {
+    let xs = [10, 20, 30]
+    if const Option.Some(first) = xs.get(0) {
         println("first {first}")
     }
     println("{xs.get(5).isNone()} {*xs.last().unwrap()}")
-    if let Option.Some(slot) = xs.getMut(1) {
+    if const Option.Some(slot) = xs.getMut(1) {
         *slot = 21
     }
     println("{xs[1]}")

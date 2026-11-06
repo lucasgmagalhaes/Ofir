@@ -83,8 +83,8 @@ pub copy struct i64 {
      * @returns `Some(self + other)`, or `None` on overflow
      */
     pub fn checkedAdd(self, other: i64) Option<i64> {
-        let sum = self.wrappingAdd(other)
-        let overflow = (self >= 0) == (other >= 0) && (sum >= 0) != (self >= 0)
+        const sum = self.wrappingAdd(other)
+        const overflow = (self >= 0) == (other >= 0) && (sum >= 0) != (self >= 0)
         return if overflow { Option.None } else { Option.Some(sum) }
     }
 
@@ -95,8 +95,8 @@ pub copy struct i64 {
      * @returns `Some(self - other)`, or `None` on overflow
      */
     pub fn checkedSub(self, other: i64) Option<i64> {
-        let difference = self.wrappingSub(other)
-        let overflow = (self >= 0) != (other >= 0) && (difference >= 0) != (self >= 0)
+        const difference = self.wrappingSub(other)
+        const overflow = (self >= 0) != (other >= 0) && (difference >= 0) != (self >= 0)
         return if overflow { Option.None } else { Option.Some(difference) }
     }
 
@@ -113,7 +113,7 @@ pub copy struct i64 {
         if (self == -1 && other == i64.MIN) || (other == -1 && self == i64.MIN) {
             return Option.None
         }
-        let product = self.wrappingMul(other)
+        const product = self.wrappingMul(other)
         return if product / other != self { Option.None } else { Option.Some(product) }
     }
 
@@ -143,27 +143,27 @@ pub copy struct i64 {
      * ```
      */
     pub fn parse(text: str) Result<i64, ParseError> {
-        let negative = text.len() > 0 && text[0] == b'-'
-        let start = if negative || (text.len() > 0 && text[0] == b'+') { 1 } else { 0 }
+        const negative = text.len() > 0 && text[0] == b'-'
+        const start = if negative || (text.len() > 0 && text[0] == b'+') { 1 } else { 0 }
         if start == text.len() {
             return Result.Err(ParseError{})
         }
-        var value: i64 = 0
+        let value: i64 = 0
         for i in start..text.len() {
-            let c = text[i]
+            const c = text[i]
             if c < b'0' || c > b'9' {
                 return Result.Err(ParseError{})
             }
-            let digit = (c - b'0') as i64
-            let Option.Some(shifted) = value.checkedMul(10) else {
+            const digit = (c - b'0') as i64
+            const Option.Some(shifted) = value.checkedMul(10) else {
                 return Result.Err(ParseError{})
             }
-            let next = if negative {
+            const next = if negative {
                 shifted.checkedSub(digit)
             } else {
                 shifted.checkedAdd(digit)
             }
-            let Option.Some(updated) = next else {
+            const Option.Some(updated) = next else {
                 return Result.Err(ParseError{})
             }
             value = updated
@@ -226,9 +226,9 @@ pub copy struct i64 {
      * ```
      */
     pub fn pow(self, exp: u32) i64 {
-        var result: i64 = 1
-        var base = self
-        var e = exp
+        let result: i64 = 1
+        let base = self
+        let e = exp
         for e > 0 {
             if e & 1 == 1 {
                 result *= base

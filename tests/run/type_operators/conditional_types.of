@@ -25,17 +25,17 @@ fn port(c: &Required<Config>) int {
 }
 
 fn main() {
-    let r = Required<Config>{host: "localhost".toOwned(), port: 8080, retries: 2}
+    const r = Required<Config>{host: "localhost".toOwned(), port: 8080, retries: 2}
     println("{r.host} {port(&r)}")
-    let i = Ints<Mixed>{a: 1, c: 3}
+    const i = Ints<Mixed>{a: 1, c: 3}
     println("{i.a + i.c}")
-    let w: Unwrap<int> = 4
-    let v: Unwrap<Option<int>> = 5
+    const w: Unwrap<int> = 4
+    const v: Unwrap<Option<int>> = 5
     println("{w + v}")
-    let pair: Pick2<int> = (6, 7)
-    let one: Pick2<str> = "eight"
+    const pair: Pick2<int> = (6, 7)
+    const one: Pick2<str> = "eight"
     println("{pair.0 + pair.1} {one}")
-    let same: Same<(int, int)> = 9
-    let other: Same<(int, str)> = true
+    const same: Same<(int, int)> = 9
+    const other: Same<(int, str)> = true
     println("{same} {other}")
 }

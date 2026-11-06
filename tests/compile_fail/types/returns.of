@@ -1,5 +1,5 @@
 fn noReturn() int {   // error[E0303]: function may reach its end without returning a value
-    let x = 1
+    const x = 1
 }
 
 fn oneBranch(flag: bool) int {   // error[E0303]: function may reach its end without returning a value

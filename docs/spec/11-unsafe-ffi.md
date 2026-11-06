@@ -8,7 +8,7 @@ Ofir itself, and so programs can call C libraries.
 
 ```ofir
 unsafe {
-    let p = alloc(sizeOf<int>() * 4) as *mut int
+    const p = alloc(sizeOf<int>() * 4) as *mut int
     *p = 42
 }
 
@@ -32,8 +32,8 @@ responsibility.
 
 | Operation | Example |
 |-----------|---------|
-| from reference (safe) | `let p = &x as *int` |
-| null pointer (safe) | `let p: *u8 = nullPtr()` |
+| from reference (safe) | `const p = &x as *int` |
+| null pointer (safe) | `const p: *u8 = nullPtr()` |
 | dereference (unsafe) | `*p` |
 | offset (unsafe) | `p.add(3)` |
 | compare (safe) | `p == q` |
@@ -50,7 +50,7 @@ extern "C" {
 }
 
 fn cLen(s: str) uint {
-    let c = s.toCString()          // owned, null-terminated copy
+    const c = s.toCString()          // owned, null-terminated copy
     return unsafe { strlen(c.ptr()) }
 }
 ```
@@ -90,7 +90,7 @@ extern "C" fn add(a: i32, b: i32) i32 {
 ## 11.5 Mutable globals
 
 ```ofir
-var COUNTER: int = 0          // mutable global: access requires unsafe
+let COUNTER: int = 0          // mutable global: access requires unsafe
 const LIMIT: int = 10         // constants are always safe
 ```
 

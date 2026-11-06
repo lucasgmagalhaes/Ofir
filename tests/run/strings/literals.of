@@ -2,7 +2,7 @@
 // Raw strings, multi-line strings and byte strings (spec 1.7).
 
 fn sum(bytes: &[u8]) int {
-    var total = 0
+    let total = 0
     for b in bytes {
         total += b as int
     }
@@ -13,11 +13,11 @@ fn main() {
     println(r"C:\path\{name}")
     println(r"")
 
-    let request = b"GET \xff\"\n"
+    const request = b"GET \xff\"\n"
     println("{request.len()} {request[0]} {request[4]} {request[5]} {request[6]}")
     println("{sum(b"ab")} {b"".len()}")
 
-    let text = """
+    const text = """
         first
           indented
 

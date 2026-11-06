@@ -14,15 +14,15 @@ struct NotIter {
 }
 
 fn main() {
-    let fixed = Numbers{n: 3}
-    for x in fixed {             // error[E0315]: this value cannot be modified: declare it with `var`
+    const fixed = Numbers{n: 3}
+    for x in fixed {             // error[E0315]: this value cannot be modified: declare it with `let`
         println("{x}")
     }
-    var pairs = Numbers{n: 2}
+    let pairs = Numbers{n: 2}
     for i, x in pairs {          // error[E0300]: an iterator gives one value at a time: `for item in iterator`
         println("{i + x}")
     }
-    let other = NotIter{n: 1}
+    const other = NotIter{n: 1}
     for y in other {             // error[E0300]: mismatched types: `for` needs a range, a list, a slice, a map or an iterator, found NotIter
         println("{y}")
     }

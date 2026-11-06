@@ -8,13 +8,13 @@ import std.sync.RwLock
 import std.task
 
 fn main() {
-    let total = Arc.new(Mutex.new(0))
-    var tasks: List<task.Task<()>> = []
+    const total = Arc.new(Mutex.new(0))
+    let tasks: List<task.Task<()>> = []
     for _ in 0..4 {
-        let mine = total.clone()
+        const mine = total.clone()
         tasks.push(task.run(move () => {
             for _ in 0..1000 {
-                var guard = mine.get().lock()
+                let guard = mine.get().lock()
                 *guard.getMut() = *guard.get() + 1
             }
         }))
@@ -23,20 +23,20 @@ fn main() {
         tasks.pop().unwrap().join()
     }
     println("{*total.get().lock().get()}")
-    let names = Mutex.new(List<str>.new())
+    const names = Mutex.new(List<str>.new())
     {
-        var guard = names.lock()
+        let guard = names.lock()
         guard.getMut().push("ana")
         guard.getMut().push("bia")
     }
-    let guard = names.lock()   // one guard: a second `lock()` here would wait forever
+    const guard = names.lock()   // one guard: a second `lock()` here would wait forever
     println("{guard.get().len()} {guard.get()[1]}")
-    let config = RwLock.new("fast")
+    const config = RwLock.new("fast")
     {
-        var w = config.write()
+        let w = config.write()
         *w.getMut() = "safe"
     }
-    let r1 = config.read()
-    let r2 = config.read()
+    const r1 = config.read()
+    const r2 = config.read()
     println("{r1.get()} {r2.get()}")
 }

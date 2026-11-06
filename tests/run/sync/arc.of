@@ -14,18 +14,18 @@ struct Noisy {
 }
 
 fn main() {
-    let shared = Arc.new(Noisy{name: "ana"})
+    const shared = Arc.new(Noisy{name: "ana"})
     println("{shared.owners()}")
-    let other = shared.clone()
+    const other = shared.clone()
     println("{shared.owners()} {other.get().name}")
-    let t = task.run(move () str => {
+    const t = task.run(move () str => {
         return "task saw {other.get().name}"
     })
     println(t.join())
     println("{shared.owners()}")
     {
-        let _a = shared.clone()
-        let _b = shared.clone()
+        const _a = shared.clone()
+        const _b = shared.clone()
         println("{shared.owners()}")
     }
     println("{shared.owners()}")

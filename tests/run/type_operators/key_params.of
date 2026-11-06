@@ -29,14 +29,14 @@ fn coord<K: .x | .y>(p: &Point, key: K) float {
 }
 
 fn main() {
-    var p = Point{x: 1.0, y: 2.0, name: "p".toOwned()}
+    let p = Point{x: 1.0, y: 2.0, name: "p".toOwned()}
     set(p, .y, 5.0)
     set(p, .name, "q".toOwned())
     println("{*forward(&p, .y)} {forward(&p, .name)} {coord(&p, .x)} {coord(&p, .y)}")
-    let t = ("a".toOwned(), "b".toOwned(), 3)
+    const t = ("a".toOwned(), "b".toOwned(), 3)
     println("{*get(&t, .2)}")
-    let second = take(t, .1)
+    const second = take(t, .1)
     println("{second}")
-    let name = take(p, .name)
+    const name = take(p, .name)
     println("{name}")
 }

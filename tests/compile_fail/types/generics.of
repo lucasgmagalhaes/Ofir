@@ -41,13 +41,13 @@ extern "C" fn callback<T>(x: int) int {   // error[E0804]: a function that cross
 }
 
 fn main() {
-    let a = none()               // error[E0330]: cannot infer the type parameter `T`: write the type arguments, as in `f<int>(x)`
-    let b = Opt.None             // error[E0330]: cannot infer the type parameter `T`: write the type arguments, as in `f<int>(x)`
-    let c = identity<int, str>(1)   // error[E0302]: wrong number of type arguments: expected 1, found 2
-    let d: Pair<int> = Pair{first: 1, second: 2}   // error[E0302]: wrong number of type arguments for `Pair`: expected 2, found 1
-    let e: int = identity("text")   // error[E0300]: mismatched types: expected int, found str
-    let f = Pair<int, str>{first: 1, second: 2}   // error[E0300]: mismatched types: expected str, found int
-    let g: Opt<str> = Opt.Some(3)   // error[E0300]: mismatched types: expected str, found int
-    let h = main<int>()          // error[E0302]: `main` takes no type arguments
-    let i: int<u8> = 1           // error[E0302]: `int` takes no type arguments
+    const a = none()               // error[E0330]: cannot infer the type parameter `T`: write the type arguments, as in `f<int>(x)`
+    const b = Opt.None             // error[E0330]: cannot infer the type parameter `T`: write the type arguments, as in `f<int>(x)`
+    const c = identity<int, str>(1)   // error[E0302]: wrong number of type arguments: expected 1, found 2
+    const d: Pair<int> = Pair{first: 1, second: 2}   // error[E0302]: wrong number of type arguments for `Pair`: expected 2, found 1
+    const e: int = identity("text")   // error[E0300]: mismatched types: expected int, found str
+    const f = Pair<int, str>{first: 1, second: 2}   // error[E0300]: mismatched types: expected str, found int
+    const g: Opt<str> = Opt.Some(3)   // error[E0300]: mismatched types: expected str, found int
+    const h = main<int>()          // error[E0302]: `main` takes no type arguments
+    const i: int<u8> = 1           // error[E0302]: `int` takes no type arguments
 }

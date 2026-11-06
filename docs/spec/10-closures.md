@@ -9,14 +9,14 @@ in 10.2; the closures themselves are written as arrow functions (10.1).
 Closures are arrow functions, as in JavaScript (ADR 0023):
 
 ```ofir
-let names = users.map(u => u.name.clone())      // one parameter, types inferred
+const names = users.map(u => u.name.clone())      // one parameter, types inferred
 users.sortBy((a, b) => a.age - b.age)           // several parameters
 test(arg => println(arg))
-let add = (a: int, b: int) int => a + b         // written types
-let double = (x: int) int => {                  // block body
+const add = (a: int, b: int) int => a + b         // written types
+const double = (x: int) int => {                  // block body
     return x * 2
 }
-let greet = move () => println("hi {name}")     // captures by value
+const greet = move () => println("hi {name}")     // captures by value
 ```
 
 ```ebnf
@@ -88,8 +88,8 @@ from how the body uses it:
 | modified | exclusive reference `&mut` |
 
 ```ofir
-var count = 0
-let increment = () => {   // captures `count` by &mut
+let count = 0
+const increment = () => {   // captures `count` by &mut
     count += 1
 }
 increment()

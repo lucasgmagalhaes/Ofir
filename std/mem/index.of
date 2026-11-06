@@ -17,14 +17,14 @@
  * ```ofir
  * import std.mem
  *
- * var names = ["ana", "bob"]
- * let old = mem.replace(names[0], "cy")   // old is "ana"; names is ["cy", "bob"]
+ * let names = ["ana", "bob"]
+ * const old = mem.replace(names[0], "cy")   // old is "ana"; names is ["cy", "bob"]
  * ```
  */
 pub fn replace<T>(dest: mut T, value: move T) T {
     unsafe {
-        let place = &mut dest as *mut T
-        let old = *place
+        const place = &mut dest as *mut T
+        const old = *place
         *place = value
         return old
     }
@@ -39,9 +39,9 @@ pub fn replace<T>(dest: mut T, value: move T) T {
  */
 pub fn swap<T>(a: mut T, b: mut T) {
     unsafe {
-        let pa = &mut a as *mut T
-        let pb = &mut b as *mut T
-        let saved = *pa
+        const pa = &mut a as *mut T
+        const pb = &mut b as *mut T
+        const saved = *pa
         *pa = *pb
         *pb = saved
     }

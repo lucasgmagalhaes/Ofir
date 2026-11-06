@@ -26,8 +26,8 @@ fn parse(n: int) Result<int, ParseError> {
 }
 
 fn load(ok: bool, extra: int) Result<int, LoadError> {
-    let n = read(ok)?
-    let m = parse(n + extra)?
+    const n = read(ok)?
+    const m = parse(n + extra)?
     return Result.Ok(m)
 }
 

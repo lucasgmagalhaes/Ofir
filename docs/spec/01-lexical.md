@@ -24,14 +24,14 @@ Ofir has no semicolons. The rule is:
 The lexer emits a newline token at the end of each line; the parser treats
 it as a terminator only where the grammar allows the current statement to
 end, and skips it otherwise. (Unlike Go's token-based rule, this works with
-`<...>` generics: `var buffer: List<u8>` at the end of a line is complete,
+`<...>` generics: `let buffer: List<u8>` at the end of a line is complete,
 while `a >` at the end of a line clearly continues.)
 
 ```ofir
-var buffer: List<u8>          // complete: the newline ends the statement
-let ok = width > 0 &&
+let buffer: List<u8>          // complete: the newline ends the statement
+const ok = width > 0 &&
     height > 0                // `&&` needs an operand: the newline is ignored
-let total = price
+const total = price
     + tax                     // error: `price` was complete, `+ tax` is a new statement
 ```
 
@@ -42,7 +42,7 @@ Newlines directly inside `(...)` and `[...]` are always ignored, so long
 argument lists and array literals can span several lines:
 
 ```ofir
-let total = add(
+const total = add(
     first,
     second,
 )
@@ -55,7 +55,7 @@ statements:
 
 ```ofir
 task.run(move () => {
-    let x = compute()       // the newline ends this statement
+    const x = compute()       // the newline ends this statement
     send(x)
 })
 ```
@@ -95,7 +95,7 @@ Reserved keywords cannot be used as identifiers:
 as        break     const     continue  copy      dyn       else
 enum      extern    false     fn        for       if        import
 in        interface let       match     mut       pub       return
-self      Self      struct    true      unsafe    var
+self      Self      struct    true      unsafe
 ```
 
 Contextual keywords are keywords only in one position and remain valid
@@ -111,7 +111,7 @@ names:
 | `comptime` | it starts a declaration, block, `for`, `if` or expression (chapter 15) |
 
 ```ofir
-let type = token.type      // fine: `type` is an ordinary identifier here
+const type = token.type      // fine: `type` is an ordinary identifier here
 ```
 
 ## 1.6 Operators and punctuation
@@ -156,7 +156,7 @@ compile error.
 ```
 
 A float literal defaults to `float` (64 bits). An integer literal may be used
-where a float is expected (`let x: float = 1`).
+where a float is expected (`const x: float = 1`).
 
 ### Strings
 
@@ -213,8 +213,8 @@ be indented less; any other line indented less than the closing `"""` is an
 error (E0007). A `\r` before a line break is dropped.
 
 ```ofir
-let pattern = r"C:\path\{name}"
-let text = """
+const pattern = r"C:\path\{name}"
+const text = """
     first line
     second line
     """                        // "first line\nsecond line\n"

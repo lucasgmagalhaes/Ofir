@@ -3,8 +3,8 @@
 // (both short, so that reaching the limit takes little time).
 
 fn deep(tag: str, n: int) int {
-    let label = "{tag}{n % 10}"
-    let items = [n, n + 1, n + 2]
+    const label = "{tag}{n % 10}"
+    const items = [n, n + 1, n + 2]
     return deep(label.slice(0, 1), n + 1) + items[0]
 }
 

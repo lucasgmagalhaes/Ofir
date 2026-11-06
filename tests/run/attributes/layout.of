@@ -47,20 +47,20 @@ fn bump(w: mut Wire) {
 }
 
 fn main() {
-    var w = Wire{tag: 1, len: 70000, flags: 3}
+    let w = Wire{tag: 1, len: 70000, flags: 3}
     w.len = w.len * 2
     bump(w)
     println("{sizeOf<Header>()} {sizeOf<Wire>()} {sizeOf<Frame>()}")
     println("{w.tag} {w.len} {w.flags}")
-    var f = Frame{kind: 9, wire: w}
+    let f = Frame{kind: 9, wire: w}
     f.wire.flags = f.wire.flags + 4
     println("{f.kind} {f.wire.tag} {f.wire.len} {f.wire.flags}")
-    let frames = [f, Frame{kind: 2, wire: Wire{tag: 5, len: 6, flags: 7}}]
+    const frames = [f, Frame{kind: 2, wire: Wire{tag: 5, len: 6, flags: 7}}]
     println("{frames[1].wire.len} {frames[0].wire.flags}")
     println("{sizeOf<Block>()} {sizeOf<Holder>()} {sizeOf<Slot>()}")
-    let h = Holder{b: 1, block: Block{a: 2}}
-    let s = Slot.Full(Block{a: 3})
-    let inner = match s {
+    const h = Holder{b: 1, block: Block{a: 2}}
+    const s = Slot.Full(Block{a: 3})
+    const inner = match s {
         Slot.Full(b) => b.a
         Slot.Empty => 0
     }

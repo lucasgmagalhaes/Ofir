@@ -17,7 +17,7 @@ fn append(dst: mut List<int>, src: List<int>) {
 }
 
 fn total(xs: List<int>) int {
-    var sum = 0
+    let sum = 0
     for x in xs {
         sum += x
     }
@@ -26,34 +26,34 @@ fn total(xs: List<int>) int {
 
 // A borrow lasts until the last use of the reference.
 fn lastUse() {
-    var list = [1, 2, 3]
-    let r = &list
+    let list = [1, 2, 3]
+    const r = &list
     println("{r.len()}")
     list.push(4)
 }
 
 // Arguments are evaluated before the exclusive borrow of `mut self`.
 fn twoPhase() {
-    var list = [1, 2, 3]
+    let list = [1, 2, 3]
     list.push(list.len())
-    var other = [4]
+    let other = [4]
     append(list, other)
     append(other, list)
 }
 
 // Distinct fields are borrowed independently.
 fn disjointFields() {
-    var lx = Lexer{interpolations: [], brackets: [1]}
+    let lx = Lexer{interpolations: [], brackets: [1]}
     lx.interpolations.push(lx.brackets.len())
-    var pair = Pair{a: [1], b: [2]}
-    let r = &pair.a
+    let pair = Pair{a: [1], b: [2]}
+    const r = &pair.a
     pair.b.push(3)
     println("{r.len()}")
 }
 
 // A loop that leaves right after modifying what it iterates.
 fn breakAfterPush() {
-    var list = [1, 2, 3]
+    let list = [1, 2, 3]
     for x in list {
         if x == 2 {
             list.push(4)
@@ -65,8 +65,8 @@ fn breakAfterPush() {
 
 // The reference is used on one branch, the list modified on the other.
 fn branches(flag: bool) {
-    var list = [1, 2, 3]
-    let r = &list
+    let list = [1, 2, 3]
+    const r = &list
     if flag {
         println("{r.len()}")
     } else {
@@ -76,9 +76,9 @@ fn branches(flag: bool) {
 
 // A reference given a new value no longer borrows the old place.
 fn reassigned() {
-    var a = [1]
-    var b = [2]
-    var r = &a
+    let a = [1]
+    let b = [2]
+    let r = &a
     println("{r.len()}")
     r = &b
     a.push(3)
@@ -87,17 +87,17 @@ fn reassigned() {
 
 // Shared borrows may overlap.
 fn shared() {
-    let list = [1, 2, 3]
-    let r = &list
-    let s = &list
+    const list = [1, 2, 3]
+    const r = &list
+    const s = &list
     println("{total(list)} {r.len()} {s.len()}")
 }
 
 // A borrow made in each iteration ends within it.
 fn eachIteration() {
-    var list = [1, 2, 3]
+    let list = [1, 2, 3]
     for i in 0..3 {
-        let r = &list
+        const r = &list
         println("{r.len()} {i}")
         list.push(i)
     }
@@ -105,9 +105,9 @@ fn eachIteration() {
 
 // A result that holds no reference does not borrow.
 fn copied() {
-    var list = [1, 2, 3]
-    let n = list.len()
-    let first = match list.first() {
+    let list = [1, 2, 3]
+    const n = list.len()
+    const first = match list.first() {
         Option.Some(x) => *x
         Option.None => 0
     }

@@ -21,11 +21,11 @@ fn orZero<T: Copy>(v: T?, zero: T) T {
 }
 
 fn main() {
-    let xs = [3, 5, 8]
+    const xs = [3, 5, 8]
     println("{find(xs, 5) ?? -1} {find(xs, 4) ?? -1}")
-    let u = User{name: "ana", email: Option.None}
-    let v = User{name: "bia", email: Option.Some("b@x")}
+    const u = User{name: "ana", email: Option.None}
+    const v = User{name: "bia", email: Option.Some("b@x")}
     println("{u.email ?? "none"} {v.email ?? "none"}")
-    let n: int? = Option.Some(7)
+    const n: int? = Option.Some(7)
     println("{orZero(n, 0)} {orZero<int>(Option.None, 1)}")
 }

@@ -20,11 +20,11 @@ fn keep() Noisy | int {
 fn main() {
     give(Noisy{name: "arg"})
     give(3)
-    let k = keep()
-    var list: List<Noisy | int> = []
+    const k = keep()
+    let list: List<Noisy | int> = []
     list.push(Noisy{name: "in list"})
     list.push(1)
     println("len {list.len()}")
-    let _moved = k
+    const _moved = k
     println("end")
 }

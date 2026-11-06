@@ -2,7 +2,7 @@
 // value is an iterator when its type declares `fn next(mut self)
 // Option<T>`: the loop calls `next` until it returns `None`, and `x` owns
 // each item. An iterator held in a variable is advanced in place, so the
-// variable must be a `var`; the loop leaves it where it stopped.
+// variable must be a `let`; the loop leaves it where it stopped.
 
 #include "sema/check_internal.h"
 

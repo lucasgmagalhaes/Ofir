@@ -8,10 +8,10 @@ import std.sync.AtomicInt
 import std.task
 
 fn main() {
-    let counter = Arc.new(AtomicInt.new(0))
-    var tasks: List<task.Task<()>> = []
+    const counter = Arc.new(AtomicInt.new(0))
+    let tasks: List<task.Task<()>> = []
     for _ in 0..4 {
-        let mine = counter.clone()
+        const mine = counter.clone()
         tasks.push(task.run(move () => {
             for _ in 0..1000 {
                 mine.get().fetchAdd(1)
@@ -21,13 +21,13 @@ fn main() {
     for _ in 0..4 {
         tasks.pop().unwrap().join()
     }
-    let n = counter.get()
+    const n = counter.get()
     println("{n.load()}")
     println("{n.swap(7)} {n.load()}")
     println("{n.compareExchange(7, 8)} {n.compareExchange(7, 9)} {n.load()}")
     n.store(-1)
     println("{n.fetchAdd(2)} {n.load()}")
-    let flag = AtomicBool.new(false)
+    const flag = AtomicBool.new(false)
     println("{flag.load()} {flag.swap(true)} {flag.load()}")
     flag.store(false)
     println("{flag.load()}")

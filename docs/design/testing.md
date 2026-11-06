@@ -45,7 +45,7 @@ Expected diagnostics are annotations on the line where they are reported:
 
 ```ofir
 fn main() {
-    let x = 1
+    const x = 1
     x = 2   // error[E0304]: cannot assign twice to immutable variable `x`
 }
 ```
@@ -72,8 +72,8 @@ Error codes come from the registry in [`docs/errors`](../errors/README.md).
 ```ofir
 // panic: index out of bounds: the length is 3 but the index is 5
 fn main() {
-    let xs = [1, 2, 3]
-    let i = 5
+    const xs = [1, 2, 3]
+    const i = 5
     println("{xs[i]}")
 }
 ```

@@ -13,12 +13,12 @@ static TypeExpr *optional_type(Parser *p) {
     return accept(p, TOK_COLON) ? parse_type(p) : NULL;
 }
 
-// `let pattern: T = value` and `let pattern = value else { ... }`.
+// `const pattern: T = value` and `const pattern = value else { ... }`.
 static Stmt *let_stmt(Parser *p, Span start) {
     Stmt *s = new_stmt(p, STMT_LET, start);
     s->as.let.pattern = parse_pattern(p);
     s->as.let.type = optional_type(p);
-    if (expect(p, TOK_EQ, "`=` in `let`")) {
+    if (expect(p, TOK_EQ, "`=` in `const`")) {
         skip_newlines(p);
         s->as.let.value = parse_expr(p);
     }
@@ -31,7 +31,7 @@ static Stmt *let_stmt(Parser *p, Span start) {
 
 static Stmt *var_stmt(Parser *p, Span start) {
     Stmt *s = new_stmt(p, STMT_VAR, start);
-    const Token *name = expect(p, TOK_IDENT, "a variable name after `var`");
+    const Token *name = expect(p, TOK_IDENT, "a variable name after `let`");
     s->as.var.name = name ? name->as.symbol : (Symbol){0};
     s->as.var.type = optional_type(p);
     if (accept(p, TOK_EQ)) {
@@ -128,8 +128,8 @@ static Stmt *expr_stmt(Parser *p, Span start) {
 Stmt *parse_stmt(Parser *p) {
     Span start = peek_token(p, 0)->span;
     switch (peek(p)) {
-    case TOK_KW_LET: advance(p); return let_stmt(p, start);
-    case TOK_KW_VAR: advance(p); return var_stmt(p, start);
+    case TOK_KW_CONST: advance(p); return let_stmt(p, start);
+    case TOK_KW_LET: advance(p); return var_stmt(p, start);
     case TOK_KW_FOR: advance(p); return for_stmt(p, start);
     case TOK_KW_BREAK: advance(p); return new_stmt(p, STMT_BREAK, start);
     case TOK_KW_CONTINUE: advance(p); return new_stmt(p, STMT_CONTINUE, start);

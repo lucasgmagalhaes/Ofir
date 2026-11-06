@@ -15,7 +15,7 @@ user.age = 31
 items[0] = 5
 ```
 
-The left side must be a mutable place: a `var` binding, a `mut` parameter,
+The left side must be a mutable place: a `let` binding, a `mut` parameter,
 a field or element of a mutable place, or a place reached through a `&mut`
 reference.
 Assignment is a statement, not an expression.
@@ -31,7 +31,7 @@ if x > 0 {
     println("zero")
 }
 
-let sign = if x >= 0 { 1 } else { -1 }
+const sign = if x >= 0 { 1 } else { -1 }
 ```
 
 The condition must be `bool` (no truthiness). When `if` is used as a value,
@@ -69,7 +69,7 @@ A value whose type has `fn next(mut self) Option<T>` is an iterator
 and the variable owns each item, which is dropped at the end of its
 iteration unless the body moves it. A temporary iterator lives until the
 end of the loop; an iterator in a variable is advanced in place, so the
-variable must be a `var`, and the loop leaves it where it stopped. Stage 0
+variable must be a `let`, and the loop leaves it where it stopped. Stage 0
 recognizes the method by its name and signature, until interfaces
 (roadmap 5.1).
 
@@ -79,7 +79,7 @@ recognizes the method by its name and signature, until interfaces
 ## 4.5 `match`
 
 ```ofir
-let area = match shape {
+const area = match shape {
     Shape.Circle(r) => 3.14159 * r * r
     Shape.Rect(w, h) => w * h
     Shape.Empty => 0.0
@@ -106,28 +106,28 @@ match code {
   or element of one) borrows the matched parts instead; Copy parts are
   copied. See chapter 5.5.
 
-## 4.6 `if let` and `let ... else`
+## 4.6 `if const` and `const ... else`
 
-`if let` is a shorthand for a `match` with one interesting arm:
+`if const` is a shorthand for a `match` with one interesting arm:
 
 ```ofir
-if let Option.Some(user) = findUser(id) {
+if const Option.Some(user) = findUser(id) {
     println("{user.name}")
 } else {
     println("not found")
 }
 ```
 
-`let ... else` binds a refutable pattern for the **rest of the block**, or
+`const ... else` binds a refutable pattern for the **rest of the block**, or
 runs the `else` block, which must leave the block (`return`, `break`,
 `continue` or `panic`):
 
 ```ofir
 fn greet(id: UserId) Result<str, str> {
-    let Option.Some(user) = findUser(id) else {
+    const Option.Some(user) = findUser(id) else {
         return Result.Err("user {id.0} not found")
     }
-    let Role.Admin(level) = user.role else {
+    const Role.Admin(level) = user.role else {
         return Result.Ok("hello, {user.name}")
     }
     return Result.Ok("welcome back, admin level {level}")
@@ -170,13 +170,13 @@ type of the content, or be another `Option` of it (then the result is an
 `Option`). It is right-associative, so defaults chain:
 
 ```ofir
-let name = user.nickname ?? user.firstName ?? "anonymous"
-let port = env("PORT") ?? "8080"
+const name = user.nickname ?? user.firstName ?? "anonymous"
+const port = env("PORT") ?? "8080"
 ```
 
 For a `Result`, use `r.unwrapOr(default)` or `?`. There is no `?.`
 operator; inside functions returning `Option`, `?` already short-circuits:
-`let city = user.address?.city`.
+`const city = user.address?.city`.
 
 Bitwise operators sit at the same level as the matching arithmetic
 operators, as in Go, so `a & mask == 0` means `(a & mask) == 0`.

@@ -68,7 +68,7 @@ struct Point {
 }
 
 fn main() {
-    let p = Point{x: 3.0, y: 4.0}
+    const p = Point{x: 3.0, y: 4.0}
     println("length = {p.length()}")
 }
 ```

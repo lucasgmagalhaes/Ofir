@@ -35,7 +35,7 @@ pub struct DebugInfo {
 
     // A new node number.
     fn next(mut self) int {
-        let n = self.count
+        const n = self.count
         self.count += 1
         return n
     }
@@ -49,10 +49,10 @@ pub struct DebugInfo {
      * @returns its node number
      */
     pub fn file(mut self, id: int, path: str, dir: str) int {
-        if let Option.Some(n) = self.files.get(id) {
+        if const Option.Some(n) = self.files.get(id) {
             return *n
         }
-        let n = self.next()
+        const n = self.next()
         self.files.insert(id, n)
         self.nodes.push("!{n} = !DIFile(filename: \"{path}\", directory: \"{dir}\")\n")
         return n
@@ -67,7 +67,7 @@ pub struct DebugInfo {
      * @returns its node number
      */
     pub fn subprogram(mut self, name: str, file: int, line: int) int {
-        let n = self.next()
+        const n = self.next()
         self.nodes.push("!{n} = distinct !DISubprogram(name: \"{name}\", scope: !{file}, ")
         self.nodes.push("file: !{file}, line: {line}, type: !2, scopeLine: {line}, ")
         self.nodes.push("spFlags: DISPFlagDefinition, unit: !0)\n")
@@ -87,7 +87,7 @@ pub struct DebugInfo {
            scope == self.lastScope {
             return self.lastNode
         }
-        let n = self.next()
+        const n = self.next()
         self.nodes.push("!{n} = !DILocation(line: {line}, column: {column}, scope: !{scope})\n")
         self.lastLine = line
         self.lastColumn = column
@@ -103,7 +103,7 @@ pub struct DebugInfo {
      * @returns the named metadata and every node
      */
     pub fn finish(self, root: int) str {
-        var out = "!llvm.dbg.cu = !\{!0\}\n!llvm.module.flags = !\{!1\}\n\n"
+        let out = "!llvm.dbg.cu = !\{!0\}\n!llvm.module.flags = !\{!1\}\n\n"
         out.push("!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !{root}, ")
         out.push("producer: \"ofir\", isOptimized: false, runtimeVersion: 0, ")
         out.push("emissionKind: FullDebug)\n")

@@ -35,8 +35,8 @@ import syntax.ast.TypeExpr
  * @returns the key type
  */
 pub fn keyofType(c: mut Checker, p: Program, inner: &TypeExpr, span: Span) int {
-    let ty = resolveType(c, p, inner)
-    let kind = c.types.kind(ty)
+    const ty = resolveType(c, p, inner)
+    const kind = c.types.kind(ty)
     if ty == ERROR {
         return ERROR
     }
@@ -47,7 +47,7 @@ pub fn keyofType(c: mut Checker, p: Program, inner: &TypeExpr, span: Span) int {
     if kind == TyKind.Tuple {
         return indexKeys(c, c.types.get(ty).args.len())
     }
-    let id = if kind == TyKind.Adt { structDef(c, ty) } else { 0 }
+    const id = if kind == TyKind.Adt { structDef(c, ty) } else { 0 }
     if id == 0 {
         c.error("E0340", span, "`keyof` needs a struct or tuple type, found `{c.typeName(ty)}`")
         return ERROR
@@ -58,8 +58,8 @@ pub fn keyofType(c: mut Checker, p: Program, inner: &TypeExpr, span: Span) int {
     if fieldsOf(c, id).isTuple {
         return indexKeys(c, fieldsOf(c, id).types.len())
     }
-    let inside = c.def(id).module == c.module()
-    var names: List<int> = []
+    const inside = c.def(id).module == c.module()
+    let names: List<int> = []
     for i in 0..fieldsOf(c, id).names.len() {
         if inside || fieldIsPub(c, p, id, i) {
             names.push(fieldsOf(c, id).names[i].0)
@@ -78,7 +78,7 @@ pub fn useIndexNames(c: mut Checker) {
     if c.types.hasIndexNames() {
         return
     }
-    var names: List<int> = []
+    let names: List<int> = []
     for i in 0..INDEX_KEYS {
         names.push(c.r.names.intern("{i}").0)
     }
@@ -97,7 +97,7 @@ const INDEX_KEYS: int = 32
  * @returns its key bound, or 0
  */
 pub fn paramKey(c: Checker, ty: int) int {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     if t.kind != TyKind.Param || t.data >= c.generics.keys.len() {
         return 0
     }
@@ -106,7 +106,7 @@ pub fn paramKey(c: Checker, ty: int) int {
 
 // The keys `.0` to `.(count - 1)`.
 fn indexKeys(c: mut Checker, count: int) int {
-    var names: List<int> = []
+    let names: List<int> = []
     for i in 0..count {
         names.push(c.r.names.intern("{i}").0)
     }
@@ -126,25 +126,25 @@ fn indexKeys(c: mut Checker, count: int) int {
  */
 pub fn keyOpType(c: mut Checker, p: Program, op: Op, left: &TypeExpr, right: &TypeExpr,
                  span: Span) int {
-    let a = resolveType(c, p, left)
-    let b = resolveType(c, p, right)
+    const a = resolveType(c, p, left)
+    const b = resolveType(c, p, right)
     if a == ERROR || b == ERROR {
         return ERROR
     }
-    let keysA = c.types.kind(a) == TyKind.Key
-    let keysB = c.types.kind(b) == TyKind.Key
+    const keysA = c.types.kind(a) == TyKind.Key
+    const keysB = c.types.kind(b) == TyKind.Key
     if !keysA || !keysB {
         if op == Op.Or {
             return unionType(c, a, left.span, b, right.span, span)
         }
-        let found = if keysA { b } else { a }
-        let symbol = if op == Op.And { "&" } else { "-" }
+        const found = if keysA { b } else { a }
+        const symbol = if op == Op.And { "&" } else { "-" }
         c.error("E0340", span, "`{symbol}` needs key types, found `{c.typeName(found)}`")
         return ERROR
     }
-    let namesA = c.types.keyNames(a)
-    let namesB = c.types.keyNames(b)
-    var names: List<int> = []
+    const namesA = c.types.keyNames(a)
+    const namesB = c.types.keyNames(b)
+    let names: List<int> = []
     if op == Op.Or {
         names = namesA.clone()
         for i in 0..namesB.len() {
@@ -181,12 +181,12 @@ fn contains(names: &List<int>, name: int) bool {
  */
 pub fn indexType(c: mut Checker, p: Program, baseExpr: &TypeExpr, keyExpr: &TypeExpr,
                  span: Span) int {
-    let base = resolveType(c, p, baseExpr)
-    let key = resolveType(c, p, keyExpr)
+    const base = resolveType(c, p, baseExpr)
+    const key = resolveType(c, p, keyExpr)
     if base == ERROR || key == ERROR {
         return ERROR
     }
-    let bound = paramKey(c, key)
+    const bound = paramKey(c, key)
     if c.types.kind(key) != TyKind.Key && bound == 0 {
         c.error("E0340", keyExpr.span, "an indexed access type needs a key type, "
                 + "found `{c.typeName(key)}`")
@@ -203,15 +203,15 @@ pub fn indexType(c: mut Checker, p: Program, baseExpr: &TypeExpr, keyExpr: &Type
 
 // The type of the fields `key` of `base`, which must all be the same.
 fn keysType(c: mut Checker, p: Program, base: int, key: int, keySpan: Span, span: Span) int {
-    let names = c.types.keyNames(key)
+    const names = c.types.keyNames(key)
     if names.len() == 0 {
         c.error("E0341", keySpan, "`{c.typeName(base)}` has no field for the empty key "
                 + "type `keyof ()`")
         return ERROR
     }
-    var result = ERROR
+    let result = ERROR
     for i in 0..names.len() {
-        let field = fieldType(c, p, base, names[i], keySpan)
+        const field = fieldType(c, p, base, names[i], keySpan)
         if field == ERROR {
             return ERROR
         }
@@ -239,7 +239,7 @@ fn keysType(c: mut Checker, p: Program, base: int, key: int, keySpan: Span, span
  */
 pub fn paramIndexType(c: mut Checker, p: Program, base: int, key: int, bound: int,
                       span: Span) int {
-    let b = c.types.get(bound)
+    const b = c.types.get(bound)
     if b.kind == TyKind.KeyOf && b.inner == base {
         return c.types.intern(TyKind.Index, 0, base, [key])
     }
@@ -254,15 +254,15 @@ pub fn paramIndexType(c: mut Checker, p: Program, base: int, key: int, bound: in
 // The type of field `name` of `base`, or ERROR after an error.
 fn fieldType(c: mut Checker, p: Program, base: int, name: int, span: Span) int {
     if c.types.kind(base) == TyKind.Tuple {
-        let count = c.types.get(base).args.len()
-        let index = tupleIndex(c, count, name)
+        const count = c.types.get(base).args.len()
+        const index = tupleIndex(c, count, name)
         if index >= 0 {
             return c.types.get(base).args[index]
         }
         return noField(c, base, name, span)
     }
-    let isAdt = c.types.kind(base) == TyKind.Adt
-    let id = if isAdt { structDef(c, base) } else { 0 }
+    const isAdt = c.types.kind(base) == TyKind.Adt
+    const id = if isAdt { structDef(c, base) } else { 0 }
     if id == 0 {
         c.error("E0340", span, "an indexed access type needs a struct or tuple type, "
                 + "found `{c.typeName(base)}`")
@@ -271,7 +271,7 @@ fn fieldType(c: mut Checker, p: Program, base: int, name: int, span: Span) int {
     if !structFields(c, p, id) {
         return c.unsupported(span, "indexing a struct in its own fields is")
     }
-    let index = if fieldsOf(c, id).isTuple {
+    const index = if fieldsOf(c, id).isTuple {
         tupleIndex(c, fieldsOf(c, id).types.len(), name)
     } else {
         fieldIndex(fieldsOf(c, id), Symbol(name))
@@ -368,7 +368,7 @@ pub fn checkKeyArg(c: mut Checker, arg: &Expr, found: int) {
  * @returns true for a key parameter
  */
 pub fn isKeyParam(c: Checker, params: &Generics, pattern: int) bool {
-    let t = c.types.get(pattern)
+    const t = c.types.get(pattern)
     return t.kind == TyKind.Param && t.data < params.keys.len() && params.keys[t.data] != 0
 }
 
@@ -388,8 +388,8 @@ pub fn checkKeyBound(c: mut Checker, p: Program, params: &Generics, i: int, args
     for j in 0..args.len() {
         ensureFields(c, p, args[j])
     }
-    let arg = args[i]
-    let isKey = c.types.kind(arg) == TyKind.Key
+    const arg = args[i]
+    const isKey = c.types.kind(arg) == TyKind.Key
     if arg == ERROR || (!isKey && paramKey(c, arg) == 0) {
         return   // E0343 or E0330, reported with the argument
     }
@@ -398,12 +398,12 @@ pub fn checkKeyBound(c: mut Checker, p: Program, params: &Generics, i: int, args
                 + "`{c.typeName(arg)}`")
         return
     }
-    let bound = c.types.subst(params.keys[i], args.clone())
+    const bound = c.types.subst(params.keys[i], args.clone())
     if bound == ERROR || included(c, arg, bound) {
         return
     }
-    let owner = params.owner.len()
-    let name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
+    const owner = params.owner.len()
+    const name = if i < owner { params.owner[i] } else { params.fnParams[i - owner] }
     c.error("E0332", span, "the key `{c.typeName(arg)}` is not in the bound "
             + "`{c.typeName(bound)}` of `{c.paramText(name)}`")
 }
@@ -411,7 +411,7 @@ pub fn checkKeyBound(c: mut Checker, p: Program, params: &Generics, i: int, args
 // The fields of a struct type, computed for `keyof T` resolved after
 // substitution.
 fn ensureFields(c: mut Checker, p: Program, ty: int) {
-    let id = if c.types.kind(ty) == TyKind.Adt { structDef(c, ty) } else { 0 }
+    const id = if c.types.kind(ty) == TyKind.Adt { structDef(c, ty) } else { 0 }
     if id != 0 {
         structFields(c, p, id)
     }
@@ -419,7 +419,7 @@ fn ensureFields(c: mut Checker, p: Program, ty: int) {
 
 // Whether the keys of `key` are keys of `bound`.
 pub fn included(c: Checker, key: int, bound: int) bool {
-    var keys = key
+    let keys = key
     if c.types.kind(key) == TyKind.Param {
         keys = paramKey(c, key)
         if keys == bound {
@@ -429,8 +429,8 @@ pub fn included(c: Checker, key: int, bound: int) bool {
     if c.types.kind(keys) != TyKind.Key || c.types.kind(bound) != TyKind.Key {
         return false
     }
-    let names = c.types.keyNames(keys)
-    let wanted = c.types.keyNames(bound)
+    const names = c.types.keyNames(keys)
+    const wanted = c.types.keyNames(bound)
     for i in 0..names.len() {
         if !contains(&wanted, names[i]) {
             return false
@@ -451,7 +451,7 @@ pub fn included(c: Checker, key: int, bound: int) bool {
  * @returns the field's type
  */
 pub fn keyIndex(c: mut Checker, p: Program, base: int, index: &Expr, found: int) Option<int> {
-    let bound = paramKey(c, found)
+    const bound = paramKey(c, found)
     if bound == 0 {
         return Option.None
     }
@@ -467,22 +467,22 @@ pub fn keyIndex(c: mut Checker, p: Program, base: int, index: &Expr, found: int)
  * @returns the type
  */
 pub fn resolveKeyed(c: mut Checker, ty: int) int {
-    let t = c.types.get(ty).clone()
+    const t = c.types.get(ty).clone()
     if !t.hasParam || t.kind == TyKind.Param {
         return ty
     }
     if t.kind == TyKind.Index && !c.types.get(t.inner).hasParam {
-        let bound = paramKey(c, t.args[0])
+        const bound = paramKey(c, t.args[0])
         if bound != 0 && c.types.kind(bound) == TyKind.Key {
-            let field = c.types.indexFields(t.inner, bound)
+            const field = c.types.indexFields(t.inner, bound)
             return if field == ERROR { ty } else { field }
         }
         return ty
     }
-    var args: List<int> = []
+    let args: List<int> = []
     for i in 0..t.args.len() {
         args.push(resolveKeyed(c, t.args[i]))
     }
-    let inner = if t.inner > 0 { resolveKeyed(c, t.inner) } else { t.inner }
+    const inner = if t.inner > 0 { resolveKeyed(c, t.inner) } else { t.inner }
     return c.types.intern(t.kind, t.data, inner, args)
 }

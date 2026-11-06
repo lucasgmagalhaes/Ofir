@@ -110,7 +110,7 @@ pub struct Local {
     pub name: Symbol
     /** Where it is declared. */
     pub span: Span
-    /** `var`, `mut` parameter or binding. */
+    /** `let`, `mut` parameter or binding. */
     pub mutable: bool
     /** Whether it is read somewhere. */
     pub used: bool

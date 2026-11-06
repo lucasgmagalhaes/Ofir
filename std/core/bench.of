@@ -22,7 +22,7 @@ const TARGET_NANOS: int = 500_000_000
  * ```ofir
  * @bench
  * fn benchSum(b: mut Bencher) {
- *     var xs: List<int> = []
+ *     let xs: List<int> = []
  *     for i in 0..1000 {
  *         xs.push(i)
  *     }
@@ -44,13 +44,13 @@ pub copy struct Bencher {
      */
     pub fn run(mut self, f: fn()) {
         f()   // a warm-up call
-        var n = 1
+        let n = 1
         for {
-            let start = unsafe { ofir_now_ns() }
+            const start = unsafe { ofir_now_ns() }
             for _ in 0..n {
                 f()
             }
-            let elapsed = unsafe { ofir_now_ns() } - start
+            const elapsed = unsafe { ofir_now_ns() } - start
             self.iters = n
             self.nanos = elapsed as int
             if elapsed as int >= TARGET_NANOS || n >= 1 << 40 {

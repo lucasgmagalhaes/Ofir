@@ -3,14 +3,14 @@
 // is in use (spec 5.6).
 
 fn main() {
-    var xs = [1, 2]
+    let xs = [1, 2]
     for x in xs.iter() {
         xs.push(*x)             // error[E0701]: cannot borrow `xs` as mutable because it is also borrowed as shared by the `for` loop
     }
-    var it = xs.iter()
+    let it = xs.iter()
     xs.push(3)                  // error[E0701]: cannot borrow `xs` as mutable because it is also borrowed as shared by `it`
-    let _y = it.next()
-    var later = xs.iter()
-    let _z = later.next()
+    const _y = it.next()
+    let later = xs.iter()
+    const _z = later.next()
     xs.push(4)
 }

@@ -4,9 +4,9 @@ import std.strings
 
 fn main() {
     println(strings.join(["a", "b", "c"], ", "))
-    let empty: List<str> = []
+    const empty: List<str> = []
     println("[{strings.join(empty, ",")}]")
-    var s = "caf"
+    let s = "caf"
     s.pushChar(0xE9)
     s.pushChar(0x20AC)
     s.pushChar(0x1F600)
@@ -15,15 +15,15 @@ fn main() {
         Result.Ok(t) => println("ok {t}")
         Result.Err(e) => println("err {e.offset}")
     }
-    let cases: List<List<u8>> = [[0x61, 0xFF], [0xC0, 0x80], [0xED, 0xA0, 0x80], [0xE2, 0x82]]
+    const cases: List<List<u8>> = [[0x61, 0xFF], [0xC0, 0x80], [0xED, 0xA0, 0x80], [0xE2, 0x82]]
     for k in 0..cases.len() {
-        let bad = cases[k].clone()
+        const bad = cases[k].clone()
         match strings.fromUtf8(bad) {
             Result.Ok(t) => println("ok {t}")
             Result.Err(e) => println("err {e.offset}")
         }
     }
-    var b = strings.Builder.new()
+    let b = strings.Builder.new()
     b.push("n = ")
     b.pushChar(0x31)
     println("{b.len()} {b.finish()}")

@@ -2,18 +2,18 @@
 
 @test
 fn filesAreCreatedOnce() {
-    var di = DebugInfo.new()
-    let a = di.file(0, "a.of", "/src")
-    let b = di.file(1, "b.of", "/src")
+    let di = DebugInfo.new()
+    const a = di.file(0, "a.of", "/src")
+    const b = di.file(1, "b.of", "/src")
     assert(a == 4 && b == 5 && di.file(0, "a.of", "/src") == 4)
 }
 
 @test
 fn locationsAreShared() {
-    var di = DebugInfo.new()
-    let file = di.file(0, "a.of", "/src")
-    let f = di.subprogram("main", file, 3)
-    let first = di.location(4, 5, f)
+    let di = DebugInfo.new()
+    const file = di.file(0, "a.of", "/src")
+    const f = di.subprogram("main", file, 3)
+    const first = di.location(4, 5, f)
     assert(di.location(4, 5, f) == first)
     assert(di.location(5, 5, f) == first + 1)
     assert(di.location(4, 5, f) == first + 2)
@@ -21,11 +21,11 @@ fn locationsAreShared() {
 
 @test
 fn finishWritesTheFixedNodes() {
-    var di = DebugInfo.new()
-    let file = di.file(0, "a.of", "/src")
-    let f = di.subprogram("main", file, 1)
+    let di = DebugInfo.new()
+    const file = di.file(0, "a.of", "/src")
+    const f = di.subprogram("main", file, 1)
     di.location(2, 1, f)
-    let out = di.finish(file)
+    const out = di.finish(file)
     assert(out.startsWith("!llvm.dbg.cu = !\{!0\}\n"))
     assert(out.contains("file: !4, producer: \"ofir\""))
     assert(out.contains("!5 = distinct !DISubprogram(name: \"main\", scope: !4, "))

@@ -8,8 +8,8 @@ fn nested<A, B>(a: move A, b: move B) (Identity<B>, Identity<A>) {
 }
 
 fn main() {
-    let a: defs.Pair<str> = ("module", 42)
-    let b = nested(1, "caller")
-    let c: Identity<Hidden> = "scope"
+    const a: defs.Pair<str> = ("module", 42)
+    const b = nested(1, "caller")
+    const c: Identity<Hidden> = "scope"
     println("{a.0} {a.1} {b.0} {b.1} {c}")
 }

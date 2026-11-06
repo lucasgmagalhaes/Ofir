@@ -124,6 +124,6 @@ void check_unused_result(Checker *c, const Expr *e) {
     TypeId value, error;
     if (result_parts(c, e->type, &value, &error)) {
         check_error(c, "E0305", e->span, "unused `Result` that must be used: handle the error, "
-                    "or ignore it explicitly with `let _ = ...`");
+                    "or ignore it explicitly with `const _ = ...`");
     }
 }

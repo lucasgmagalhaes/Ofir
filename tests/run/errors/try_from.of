@@ -29,12 +29,12 @@ fn digit(text: str) Result<int, ParseError> {
 }
 
 fn run(text: str) Result<int, AppError> {
-    let n = digit(text)?
+    const n = digit(text)?
     return Result.Ok(n * 2)
 }
 
 fn main() {
-    let inputs = ["7", "", "x"]
+    const inputs = ["7", "", "x"]
     for text in inputs {
         match run(text) {
             Result.Ok(n) => println("ok {n}")

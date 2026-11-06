@@ -3,7 +3,7 @@ fn add(a: int, b: int) int {
 }
 
 fn count() {
-    let x = add(1)          // error[E0302]: wrong number of arguments: expected 2, found 1
+    const x = add(1)          // error[E0302]: wrong number of arguments: expected 2, found 1
 }
 
 fn extra() {
@@ -15,13 +15,13 @@ fn notCallable(n: int) {
 }
 
 fn typeAsValue() {
-    let t = int             // error[E0310]: expected a value, found type `int`
+    const t = int             // error[E0310]: expected a value, found type `int`
 }
 
 fn valueAsType() {
-    let x: add = 1          // error[E0310]: expected a type, found `add`
+    const x: add = 1          // error[E0310]: expected a type, found `add`
 }
 
 fn unknownType() {
-    let x: Missing = 1      // error[E0200]: cannot find type `Missing` in this scope
+    const x: Missing = 1      // error[E0200]: cannot find type `Missing` in this scope
 }

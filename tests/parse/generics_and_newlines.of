@@ -1,26 +1,26 @@
 fn generics() {
-    let a = parse<int>("1")
-    let b = x < y
-    let c = (x < y, z > w)
-    let d = List<List<int>>.new()
-    let e = value >= limit
-    let f = Pair<int, str> { first: 1, second: "a" }
+    const a = parse<int>("1")
+    const b = x < y
+    const c = (x < y, z > w)
+    const d = List<List<int>>.new()
+    const e = value >= limit
+    const f = Pair<int, str> { first: 1, second: "a" }
     if a < b {
         return
     }
 }
 
 fn newlines() {
-    let list = [
+    const list = [
         1,
         2,
     ]
-    let sum = first +
+    const sum = first +
         second
-    let chained = builder.
+    const chained = builder.
         add(1).
         add(2)
-    let nested = call(Point {
+    const nested = call(Point {
         x: 1,
         y: 2,
     })

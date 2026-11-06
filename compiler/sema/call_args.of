@@ -35,7 +35,7 @@ fn isType(c: Checker, e: &Expr) bool {
         ExprKind.SelfType => true
         _ => match c.res(e.id.0) {
             Res.Def(id) => {
-                let kind = c.def(id).kind
+                const kind = c.def(id).kind
                 kind == DefKind.Struct || kind == DefKind.Enum || kind == DefKind.Primitive ||
                 kind == DefKind.TypeAlias
             }
@@ -94,11 +94,11 @@ pub fn checkDefaults(c: mut Checker, p: Program, id: int) {
         return
     }
     c.defaultsChecked.insert(id, true)
-    let decl = fnOf(p, c.loc(id))
-    let sig = fnSignature(c, p, id)
-    let params = c.types.get(sig).args.clone()
-    let saved = c.enter(c.def(id).module)
-    var seen = false
+    const decl = fnOf(p, c.loc(id))
+    const sig = fnSignature(c, p, id)
+    const params = c.types.get(sig).args.clone()
+    const saved = c.enter(c.def(id).module)
+    let seen = false
     for i in 0..decl.params.len() {
         match decl.params[i].defaultValue {
             Option.Some(value) => {
@@ -139,7 +139,7 @@ fn hasDefaults(decl: &FnDecl) bool {
 
 // The parameter a named argument gives, or -1 (E0306).
 fn namedSlot(c: mut Checker, decl: &FnDecl, arg: &Arg, name: Symbol, given: &List<bool>) int {
-    let slot = paramNamed(decl, name)
+    const slot = paramNamed(decl, name)
     if slot < 0 {
         c.error("E0306", arg.value.span, "`{c.text(decl.name)}` has no parameter "
                 + "`{c.text(name)}`")
@@ -167,16 +167,16 @@ fn namedSlot(c: mut Checker, decl: &FnDecl, arg: &Arg, name: Symbol, given: &Lis
  */
 pub fn arrangeArgs(c: mut Checker, p: Program, callId: int, span: Span, args: &List<Arg>,
                    id: int) List<int> {
-    let decl = fnOf(p, c.loc(id))
-    let count = decl.params.len()
-    let defaults = hasDefaults(decl)
-    var given = List.filled(false, count)
-    var slots: List<int> = []
-    var named = false
-    var extra = false
-    var misplaced = false
+    const decl = fnOf(p, c.loc(id))
+    const count = decl.params.len()
+    const defaults = hasDefaults(decl)
+    let given = List.filled(false, count)
+    let slots: List<int> = []
+    let named = false
+    let extra = false
+    let misplaced = false
     for i in 0..args.len() {
-        var slot = -1
+        let slot = -1
         match args[i].name {
             Option.Some(name) => {
                 named = true
@@ -210,7 +210,7 @@ pub fn arrangeArgs(c: mut Checker, p: Program, callId: int, span: Span, args: &L
         c.error("E0302", span, "wrong number of arguments: expected at most {count}, "
                 + "found {args.len()}")
     }
-    var omitted = false
+    let omitted = false
     for i in 0..count {
         if !given[i] {
             if decl.params[i].defaultValue.isSome() {

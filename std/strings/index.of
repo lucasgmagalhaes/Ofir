@@ -14,15 +14,15 @@
  * ```ofir
  * import std.strings
  *
- * let csv = strings.join(["a", "b", "c"], ",")   // "a,b,c"
+ * const csv = strings.join(["a", "b", "c"], ",")   // "a,b,c"
  * ```
  */
 pub fn join(parts: [str], sep: str) str {
-    var size = 0
+    let size = 0
     for i in 0..parts.len() {
         size += parts[i].len() + sep.len()
     }
-    var out = str.withCapacity(size)
+    let out = str.withCapacity(size)
     for i in 0..parts.len() {
         if i > 0 {
             out.push(sep)
@@ -51,15 +51,15 @@ pub struct Utf8Error {
  * ```ofir
  * import std.strings
  *
- * let ok = strings.fromUtf8([0x68, 0x69])   // Ok("hi")
- * let bad = strings.fromUtf8([0xFF])        // Err(Utf8Error{offset: 0})
+ * const ok = strings.fromUtf8([0x68, 0x69])   // Ok("hi")
+ * const bad = strings.fromUtf8([0xFF])        // Err(Utf8Error{offset: 0})
  * ```
  */
 pub fn fromUtf8(bytes: move List<u8>) Result<str, Utf8Error> {
-    var out = str.withCapacity(bytes.len())
-    var i = 0
+    let out = str.withCapacity(bytes.len())
+    let i = 0
     for i < bytes.len() {
-        let Option.Some(decoded) = decode(bytes, i) else {
+        const Option.Some(decoded) = decode(bytes, i) else {
             return Result.Err(Utf8Error{offset: i})
         }
         out.pushChar(decoded.0)
@@ -70,11 +70,11 @@ pub fn fromUtf8(bytes: move List<u8>) Result<str, Utf8Error> {
 
 // The scalar value of the UTF-8 sequence at `i` and its length, or None.
 fn decode(b: List<u8>, i: int) Option<(u32, int)> {
-    let first = b[i] as u32
+    const first = b[i] as u32
     if first < 0x80 {
         return Option.Some((first, 1))
     }
-    let n = if first >= 0xC2 && first <= 0xDF {
+    const n = if first >= 0xC2 && first <= 0xDF {
         2
     } else if first >= 0xE0 && first <= 0xEF {
         3
@@ -86,16 +86,16 @@ fn decode(b: List<u8>, i: int) Option<(u32, int)> {
     if n == 0 || i + n > b.len() {
         return Option.None
     }
-    let mask: u32 = 0x7F
-    var c = first & (mask >> n as u32)
+    const mask: u32 = 0x7F
+    let c = first & (mask >> n as u32)
     for k in 1..n {
-        let next = b[i + k] as u32
+        const next = b[i + k] as u32
         if next & 0xC0 != 0x80 {
             return Option.None
         }
         c = (c << 6) | (next & 0x3F)
     }
-    let min: u32 = if n == 2 { 0x80 } else if n == 3 { 0x800 } else { 0x10000 }
+    const min: u32 = if n == 2 { 0x80 } else if n == 3 { 0x800 } else { 0x10000 }
     if c < min || c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF) {
         return Option.None
     }
@@ -110,10 +110,10 @@ fn decode(b: List<u8>, i: int) Option<(u32, int)> {
  * ```ofir
  * import std.strings
  *
- * var b = strings.Builder.new()
+ * let b = strings.Builder.new()
  * b.push("n = ")
  * b.pushChar(0x31)
- * let text = b.finish()   // "n = 1"
+ * const text = b.finish()   // "n = 1"
  * ```
  */
 pub struct Builder {

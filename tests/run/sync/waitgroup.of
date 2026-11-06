@@ -7,13 +7,13 @@ import std.sync.WaitGroup
 import std.task
 
 fn main() {
-    let group = Arc.new(WaitGroup.new())
-    let done = Arc.new(AtomicInt.new(0))
-    var tasks: List<task.Task<()>> = []
+    const group = Arc.new(WaitGroup.new())
+    const done = Arc.new(AtomicInt.new(0))
+    let tasks: List<task.Task<()>> = []
     for _ in 0..3 {
         group.get().add(1)
-        let g = group.clone()
-        let d = done.clone()
+        const g = group.clone()
+        const d = done.clone()
         tasks.push(task.run(move () => {
             d.get().fetchAdd(1)
             g.get().done()
@@ -24,7 +24,7 @@ fn main() {
     for _ in 0..3 {
         tasks.pop().unwrap().join()
     }
-    let empty = WaitGroup.new()
+    const empty = WaitGroup.new()
     empty.wait()
     println("an empty group does not wait")
 }

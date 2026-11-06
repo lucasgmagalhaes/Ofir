@@ -1,11 +1,11 @@
 // requires: stage1
 fn main() {
-    let n = 42
-    let x = 1.5
-    let s = "a"
-    let _a = "{n:.2}" // error[E0357]: the format specifier `.2` does not apply to a value of type `int`
-    let _b = "{x:x}" // error[E0357]: the format specifier `x` does not apply to a value of type `float`
-    let _c = "{s:05}" // error[E0357]: the format specifier `05` does not apply to a value of type `str`
-    let _d = "{n:5q}" // error[E0357]: invalid format specifier `5q`
-    let _e = "{n:<}" // error[E0357]: invalid format specifier `<`
+    const n = 42
+    const x = 1.5
+    const s = "a"
+    const _a = "{n:.2}" // error[E0357]: the format specifier `.2` does not apply to a value of type `int`
+    const _b = "{x:x}" // error[E0357]: the format specifier `x` does not apply to a value of type `float`
+    const _c = "{s:05}" // error[E0357]: the format specifier `05` does not apply to a value of type `str`
+    const _d = "{n:5q}" // error[E0357]: invalid format specifier `5q`
+    const _e = "{n:<}" // error[E0357]: invalid format specifier `<`
 }

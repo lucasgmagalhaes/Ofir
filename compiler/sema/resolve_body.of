@@ -36,7 +36,7 @@ fn declareLocal(r: mut Resolver, name: Symbol, span: Span, mutable: bool) int {
     if r.scope.inCurrentBlock(name) {
         r.error("E0201", span, "`{r.text(name)}` is defined more than once in this scope")
     }
-    let id = r.locals.len()
+    const id = r.locals.len()
     traceAt(r, span, "local {id} {r.text(name)}")
     r.locals.push(Local{name, span, mutable, used: false})
     r.scope.declare(name, id)
@@ -46,9 +46,9 @@ fn declareLocal(r: mut Resolver, name: Symbol, span: Span, mutable: bool) int {
 // A use of `local`: each closure being resolved that starts after it
 // captures it (spec 10.3).
 fn capture(r: mut Resolver, local: int) {
-    var k = r.closureBases.len() - 1
+    let k = r.closureBases.len() - 1
     for k >= 0 && local < r.closureBases[k] {
-        var known = false
+        let known = false
         for c in 0..r.closureCaptures[k].len() {
             known = known || r.closureCaptures[k][c] == local
         }
@@ -66,34 +66,34 @@ fn resolveClosure(r: mut Resolver, e: &Expr, params: &List<Param>, body: &Expr) 
     r.closureCaptures.push([])
     r.scope.enter()
     for i in 0..params.len() {
-        let param = &params[i]
-        let local = declareLocal(r, param.name, param.span, param.mode == Mode.Mut)
+        const param = &params[i]
+        const local = declareLocal(r, param.name, param.span, param.mode == Mode.Mut)
         r.locals[local].used = true   // parameters are exempt from W0001
         r.setLocal(param.id.0, local)
     }
     resolveExpr(r, body)
     r.scope.leave()
-    let _ = r.closureBases.pop()
-    let captures = r.closureCaptures.pop() ?? []
+    const _ = r.closureBases.pop()
+    const captures = r.closureCaptures.pop() ?? []
     r.tables[r.current].captures.insert(e.id.0, captures)
 }
 
 fn lookup(r: mut Resolver, name: Symbol, span: Span) Res {
-    let res = find(r, name, span)
+    const res = find(r, name, span)
     traceUse(r, "use", name, span, res)
-    if let Res.Def(def) = res {
+    if const Res.Def(def) = res {
         warnDeprecated(r, def, span)
     }
     return res
 }
 
 fn find(r: mut Resolver, name: Symbol, span: Span) Res {
-    if let Option.Some(local) = r.scope.localOf(name) {
+    if const Option.Some(local) = r.scope.localOf(name) {
         r.locals[local].used = true
         capture(r, local)
         return Res.Local(local)
     }
-    let def = r.scope.module(name)
+    const def = r.scope.module(name)
     if def != 0 {
         if r.def(def).module != r.current || r.def(def).kind == DefKind.Module {   // maybe imported
             r.noteImportUse(name)
@@ -111,7 +111,7 @@ fn find(r: mut Resolver, name: Symbol, span: Span) Res {
 // `None` and `Some(x)` in a pattern name the prelude's variants, not a new
 // binding or a tuple struct. Their `DefId`, or 0.
 fn preludeVariant(r: mut Resolver, p: &Pattern) int {
-    let name = match p.kind {
+    const name = match p.kind {
         PatternKind.Binding(name, _) => name
         PatternKind.TupleStruct(path, _) => {
             if path.len() != 1 {
@@ -123,11 +123,11 @@ fn preludeVariant(r: mut Resolver, p: &Pattern) int {
             return 0
         }
     }
-    let def = r.scope.module(name)
+    const def = r.scope.module(name)
     if def == 0 || r.def(def).kind != DefKind.Variant {
         return 0
     }
-    if let PatternKind.Binding(_, mutable) = p.kind {
+    if const PatternKind.Binding(_, mutable) = p.kind {
         if mutable {
             r.error("E0200", p.span, "`{r.text(name)}` is a variant, not a variable")
         }
@@ -142,7 +142,7 @@ fn preludeVariant(r: mut Resolver, p: &Pattern) int {
 fn declareBinding(r: mut Resolver, id: int, name: Symbol, span: Span, mutable: bool,
                   reuse: bool) {
     if reuse && r.scope.inCurrentBlock(name) {
-        if let Option.Some(existing) = r.scope.localOf(name) {
+        if const Option.Some(existing) = r.scope.localOf(name) {
             r.setLocal(id, existing)
             return
         }
@@ -153,7 +153,7 @@ fn declareBinding(r: mut Resolver, id: int, name: Symbol, span: Span, mutable: b
 // The shorthand field `Point{x}` of a pattern binds `x`, unless it names a
 // prelude variant.
 fn declareShorthand(r: mut Resolver, id: int, name: Symbol, span: Span, reuse: bool) {
-    let def = r.scope.module(name)
+    const def = r.scope.module(name)
     if def != 0 && r.def(def).kind == DefKind.Variant {
         r.setRes(id, Res.Def(def))
         traceUse(r, "variant", name, span, Res.Def(def))
@@ -164,7 +164,7 @@ fn declareShorthand(r: mut Resolver, id: int, name: Symbol, span: Span, reuse: b
 
 fn declarePattern(r: mut Resolver, p: &Pattern, reuse: bool) {
     if preludeVariant(r, p) != 0 {
-        if let PatternKind.TupleStruct(_, args) = p.kind {
+        if const PatternKind.TupleStruct(_, args) = p.kind {
             declarePatterns(r, &args, reuse)
         }
         return
@@ -182,7 +182,7 @@ fn declarePattern(r: mut Resolver, p: &Pattern, reuse: bool) {
         PatternKind.TupleStruct(_, args) => declarePatterns(r, &args, reuse)
         PatternKind.Struct(_, fields, _) => {
             for i in 0..fields.len() {
-                if let Option.Some(inner) = fields[i].pattern {
+                if const Option.Some(inner) = fields[i].pattern {
                     declarePattern(r, &inner, reuse)
                 } else {
                     declareShorthand(r, fields[i].id.0, fields[i].name, p.span, reuse)
@@ -195,7 +195,7 @@ fn declarePattern(r: mut Resolver, p: &Pattern, reuse: bool) {
             }
         }
         PatternKind.TypeTest(name, _) => {
-            if let Option.Some(n) = name {
+            if const Option.Some(n) = name {
                 declareBinding(r, p.id.0, n, p.span, false, reuse)
             }
         }
@@ -225,13 +225,13 @@ fn resolveArgs(r: mut Resolver, args: &List<Arg>) {
 }
 
 fn resolveOptional(r: mut Resolver, e: &Option<Box<Expr>>) {
-    if let Option.Some(inner) = *e {
+    if const Option.Some(inner) = *e {
         resolveExpr(r, &*inner)
     }
 }
 
 fn resolveSelf(r: mut Resolver, e: &Expr) {
-    if let Option.Some(local) = r.scope.localOf(r.selfName) {
+    if const Option.Some(local) = r.scope.localOf(r.selfName) {
         capture(r, local)
         r.setRes(e.id.0, Res.Local(local))
         traceUse(r, "use", r.selfName, e.span, Res.Local(local))
@@ -243,12 +243,12 @@ fn resolveSelf(r: mut Resolver, e: &Expr) {
 
 // `Self` in a method names the enclosing type.
 fn resolveSelfType(r: mut Resolver, e: &Expr) {
-    let Option.Some(owner) = r.owner else {
+    const Option.Some(owner) = r.owner else {
         r.error("E0200", e.span, "`Self` is only available inside a type".toOwned())
         r.setRes(e.id.0, Res.Error)
         return
     }
-    let res: Res = Res.Def(r.scope.module(owner))
+    const res: Res = Res.Def(r.scope.module(owner))
     r.setRes(e.id.0, res)
     traceUse(r, "use Self as", owner, e.span, res)
 }
@@ -266,12 +266,12 @@ pub fn resolveExpr(r: mut Resolver, e: &Expr) {
         ExprKind.SelfType => resolveSelfType(r, e)
         ExprKind.Interp(parts, _) => resolveExprs(r, &parts)
         ExprKind.Ident(name) => {
-            let res = lookup(r, name, e.span)
+            const res = lookup(r, name, e.span)
             r.setRes(e.id.0, res)
         }
         ExprKind.SelfValue => resolveSelf(r, e)
         ExprKind.Generic(name, _) => {
-            let res = lookup(r, name, e.span)
+            const res = lookup(r, name, e.span)
             r.setRes(e.id.0, res)
         }
         ExprKind.Unary(_, operand) => resolveExpr(r, &*operand)
@@ -302,10 +302,10 @@ pub fn resolveExpr(r: mut Resolver, e: &Expr) {
         ExprKind.Struct(typeName, fields, base) => {
             resolveExpr(r, &*typeName)
             for i in 0..fields.len() {
-                if let Option.Some(value) = fields[i].value {
+                if const Option.Some(value) = fields[i].value {
                     resolveExpr(r, &value)
                 } else {   // `Point{x}` is `Point{x: x}`
-                    let res = lookup(r, fields[i].name, e.span)
+                    const res = lookup(r, fields[i].name, e.span)
                     r.setRes(fields[i].id.0, res)
                 }
             }
@@ -320,8 +320,8 @@ pub fn resolveExpr(r: mut Resolver, e: &Expr) {
         ExprKind.Variant(_, args, _) => resolveArgs(r, &args)
         ExprKind.If(letPattern, cond, then, otherwise) => {
             resolveExpr(r, &*cond)
-            r.scope.enter()   // `if let` bindings are visible in `then` only
-            if let Option.Some(pattern) = letPattern {
+            r.scope.enter()   // `if const` bindings are visible in `then` only
+            if const Option.Some(pattern) = letPattern {
                 declarePattern(r, &pattern, false)
             }
             resolveBlock(r, &then)
@@ -333,7 +333,7 @@ pub fn resolveExpr(r: mut Resolver, e: &Expr) {
             for i in 0..arms.len() {
                 r.scope.enter()
                 declarePattern(r, &arms[i].pattern, false)
-                if let Option.Some(guard) = arms[i].guard {
+                if const Option.Some(guard) = arms[i].guard {
                     resolveExpr(r, &guard)
                 }
                 resolveExpr(r, &arms[i].body)
@@ -352,14 +352,14 @@ pub fn resolveExpr(r: mut Resolver, e: &Expr) {
 fn resolveStmt(r: mut Resolver, s: &Stmt) {
     match s.kind {
         StmtKind.Let(pattern, _, value, otherwise) => {
-            resolveExpr(r, &value)   // `let x = x + 1` reads the outer `x`
-            if let Option.Some(block) = otherwise {
+            resolveExpr(r, &value)   // `const x = x + 1` reads the outer `x`
+            if const Option.Some(block) = otherwise {
                 resolveBlock(r, &block)
             }
             declarePattern(r, &pattern, false)
         }
         StmtKind.Var(name, _, value) => {
-            if let Option.Some(init) = value {
+            if const Option.Some(init) = value {
                 resolveExpr(r, &init)
             }
             r.setLocal(s.id.0, declareLocal(r, name, s.span, true))
@@ -369,13 +369,13 @@ fn resolveStmt(r: mut Resolver, s: &Stmt) {
             resolveExpr(r, &value)
         }
         StmtKind.For(kind, mutable, first, second, expr, body) => {
-            if let Option.Some(iterable) = expr {
+            if const Option.Some(iterable) = expr {
                 resolveExpr(r, &iterable)
             }
             r.scope.enter()
             if kind == ForKind.In {
-                let firstName = first ?? r.selfName
-                if let Option.Some(secondName) = second {
+                const firstName = first ?? r.selfName
+                if const Option.Some(secondName) = second {
                     r.setLocal(s.id.0, declareLocal(r, firstName, s.span, false))
                     declareLocal(r, secondName, s.span, mutable)
                 } else {
@@ -386,7 +386,7 @@ fn resolveStmt(r: mut Resolver, s: &Stmt) {
             r.scope.leave()
         }
         StmtKind.Return(value) => {
-            if let Option.Some(inner) = value {
+            if const Option.Some(inner) = value {
                 resolveExpr(r, &inner)
             }
         }
@@ -410,9 +410,9 @@ fn resolveBlock(r: mut Resolver, block: &Block) {
 // W0001 for the variables never read; parameters and names starting with
 // `_` are exempt (spec 12.6).
 fn warnUnusedLocals(r: mut Resolver, decl: &FnDecl) {
-    let params = decl.params.len() + if decl.hasSelf { 1 } else { 0 }
+    const params = decl.params.len() + if decl.hasSelf { 1 } else { 0 }
     for i in params..r.locals.len() {
-        let name = r.text(r.locals[i].name)
+        const name = r.text(r.locals[i].name)
         if !r.locals[i].used && name.len() > 0 && !name.startsWith("_") {
             r.diags.warning("W0001", r.locals[i].span,
                             "unused variable `{name}`: use it, or start its name with `_`")
@@ -427,7 +427,7 @@ fn warnUnusedLocals(r: mut Resolver, decl: &FnDecl) {
  * @param decl the function
  */
 pub fn resolveFn(r: mut Resolver, decl: &FnDecl) {
-    if let Option.Some(owner) = r.owner {
+    if const Option.Some(owner) = r.owner {
         traceAt(r, decl.span, "fn {r.text(owner)}.{r.text(decl.name)}")
     } else {
         traceAt(r, decl.span, "fn {r.text(decl.name)}")
@@ -439,18 +439,18 @@ pub fn resolveFn(r: mut Resolver, decl: &FnDecl) {
         declareLocal(r, r.selfName, decl.span, decl.selfMode == Mode.Mut)
     }
     for i in 0..decl.params.len() {
-        let param = &decl.params[i]
-        if let Option.Some(value) = param.defaultValue {
+        const param = &decl.params[i]
+        if const Option.Some(value) = param.defaultValue {
             resolveExpr(r, &value)
         }
         r.setLocal(param.id.0, declareLocal(r, param.name, param.span, param.mode == Mode.Mut))
     }
-    if let Option.Some(body) = decl.body {
+    if const Option.Some(body) = decl.body {
         resolveStmts(r, &body.stmts)   // the same scope as the parameters
     }
     r.scope.leave()
     warnUnusedLocals(r, decl)
-    let locals = r.locals
+    const locals = r.locals
     r.locals = []
     r.tables[r.current].fnLocals.insert(decl.id.0, locals)
 }

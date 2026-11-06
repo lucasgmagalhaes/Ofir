@@ -49,7 +49,7 @@ pub struct Front {
      * @returns its id, or `None` when it cannot be read
      */
     pub fn load(mut self, path: str) Option<FileId> {
-        let Result.Ok(text) = fs.readToString(path) else {
+        const Result.Ok(text) = fs.readToString(path) else {
             return Option.None
         }
         return Option.Some(self.map.add(path.toOwned(), text))
@@ -74,13 +74,13 @@ pub struct Front {
      * @returns its tree
      */
     pub fn parseFileFrom(mut self, file: FileId, firstId: int) Option<Module> {
-        let tokens = tokenize(self.map.file(file).text, file, self.names, self.diags)
+        const tokens = tokenize(self.map.file(file).text, file, self.names, self.diags)
         if self.diags.hasErrors() {
             return Option.None
         }
-        let names = mem.replace(self.names, Interner.new())
-        let diags = mem.replace(self.diags, Diagnostics.new())
-        let parsed = parseFrom(file, self.map.file(file).text, tokens, names, diags, firstId)
+        const names = mem.replace(self.names, Interner.new())
+        const diags = mem.replace(self.diags, Diagnostics.new())
+        const parsed = parseFrom(file, self.map.file(file).text, tokens, names, diags, firstId)
         self.names = parsed.names
         self.diags = parsed.diags
         return Option.Some(parsed.module)
@@ -99,18 +99,18 @@ struct Loader {
 // of the same module, so that they may use its private declarations. The
 // test file of a module outside std, or of the root, joins its items.
 fn addTestFile(ld: Loader, front: mut Front, module: mut Module, name: str, path: str) {
-    let inStd = name.startsWith("std")
+    const inStd = name.startsWith("std")
     if !ld.testing || (inStd && ld.modules.len() > 0) || path.len() < 3 {
         return
     }
-    let test = "{path.slice(0, path.len() - 3)}_test.of"
+    const test = "{path.slice(0, path.len() - 3)}_test.of"
     if !fs.exists(test) {
         return
     }
-    let Option.Some(file) = front.load(test) else {
+    const Option.Some(file) = front.load(test) else {
         return
     }
-    let Option.Some(tests) = front.parseFileFrom(file, module.nodeCount) else {
+    const Option.Some(tests) = front.parseFileFrom(file, module.nodeCount) else {
         return
     }
     if tests.items.len() == 0 {
@@ -122,8 +122,8 @@ fn addTestFile(ld: Loader, front: mut Front, module: mut Module, name: str, path
 
 // The position of the last `/` of `path`, or -1.
 fn lastSlash(path: str) int {
-    var found = -1
-    var i = 0
+    let found = -1
+    let i = 0
     for b in path.bytes() {
         if b == b'/' {
             found = i
@@ -144,22 +144,22 @@ fn isLoaded(ld: Loader, name: str) bool {
 
 // The file of module `name`, if it exists.
 fn moduleFile(ld: Loader, name: str) Option<str> {
-    let inStd = name.startsWith("std.")
-    var dir = ld.rootDir.clone()
-    var rest = name.toOwned()
+    const inStd = name.startsWith("std.")
+    let dir = ld.rootDir.clone()
+    let rest = name.toOwned()
     if inStd {
-        let Option.Some(std) = ld.stdDir.clone() else {
+        const Option.Some(std) = ld.stdDir.clone() else {
             return Option.None
         }
         dir = std.clone()
         rest = name.sliceFrom(4).toOwned()
     }
-    let relative = rest.replace(".", "/")
-    let file = "{dir}/{relative}.of"
+    const relative = rest.replace(".", "/")
+    const file = "{dir}/{relative}.of"
     if fs.exists(file) {
         return Option.Some(file)
     }
-    let index = "{dir}/{relative}/index.of"
+    const index = "{dir}/{relative}/index.of"
     if fs.exists(index) {
         return Option.Some(index)
     }
@@ -167,11 +167,11 @@ fn moduleFile(ld: Loader, name: str) Option<str> {
 }
 
 fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
-    let Option.Some(file) = front.load(path) else {
+    const Option.Some(file) = front.load(path) else {
         return
     }
-    if let Option.Some(parsed) = front.parseFile(file) {
-        var module = parsed
+    if const Option.Some(parsed) = front.parseFile(file) {
+        let module = parsed
         addTestFile(ld, front, module, name, path)
         stripCfg(module, &ld.target, front.names, front.diags)
         ld.modules.push(ProgramModule{name: name.toOwned(), module})
@@ -179,7 +179,7 @@ fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
 }
 
 fn dottedName(names: Interner, path: &List<Symbol>, count: int) str {
-    var out = ""
+    let out = ""
     for i in 0..count {
         if i > 0 {
             out.push(".")
@@ -191,13 +191,13 @@ fn dottedName(names: Interner, path: &List<Symbol>, count: int) str {
 
 // The module named by the path, then its parent.
 fn loadImport(ld: mut Loader, front: mut Front, path: &List<Symbol>) {
-    var count = path.len()
+    let count = path.len()
     for count >= 1 && count + 1 >= path.len() {
-        let name = dottedName(front.names, path, count)
+        const name = dottedName(front.names, path, count)
         if isLoaded(ld, name) {
             return
         }
-        if let Option.Some(file) = moduleFile(ld, name) {
+        if const Option.Some(file) = moduleFile(ld, name) {
             loadModule(ld, front, name, file)
             return
         }
@@ -208,10 +208,10 @@ fn loadImport(ld: mut Loader, front: mut Front, path: &List<Symbol>) {
 // The module name of a root file outside std and the project: its name
 // without the directory and `.of`; the directory's name for an `index.of`.
 fn rootName(input: str) str {
-    let slash = lastSlash(input)
-    let base = input.sliceFrom(slash + 1)
+    const slash = lastSlash(input)
+    const base = input.sliceFrom(slash + 1)
     if base == "index.of" && slash >= 0 {
-        let dir = input.slice(0, slash)
+        const dir = input.slice(0, slash)
         return dir.sliceFrom(lastSlash(dir) + 1).toOwned()
     }
     if base.len() > 3 && base.endsWith(".of") {
@@ -223,34 +223,34 @@ fn rootName(input: str) str {
 // The dotted name of `input` relative to the directory `dir`, with `prefix`
 // (`std.` for the standard library), if `input` is inside it.
 fn nameUnder(input: str, dir: str, prefix: str) Option<str> {
-    let Result.Ok(file) = fs.canonicalize(input) else {
+    const Result.Ok(file) = fs.canonicalize(input) else {
         return Option.None
     }
-    let Result.Ok(base) = fs.canonicalize(dir) else {
+    const Result.Ok(base) = fs.canonicalize(dir) else {
         return Option.None
     }
     if !file.startsWith("{base}/") {
         return Option.None
     }
-    let dotted = "{prefix}{file.sliceFrom(base.len() + 1)}"
-    let min = prefix.len() + 4   // at least `x.of`
+    const dotted = "{prefix}{file.sliceFrom(base.len() + 1)}"
+    const min = prefix.len() + 4   // at least `x.of`
     if dotted.len() < min {
         return Option.None
     }
-    let isIndex = dotted.len() > min + 5 && dotted.endsWith("/index.of")
-    let cut = dotted.len() - if isIndex { 9 } else { 3 }   // or `.of`
+    const isIndex = dotted.len() > min + 5 && dotted.endsWith("/index.of")
+    const cut = dotted.len() - if isIndex { 9 } else { 3 }   // or `.of`
     return Option.Some(dotted.slice(0, cut).replace("/", "."))
 }
 
 // The project root (spec 7.2): the nearest directory above the root file
 // that holds an `ofir.json`.
 fn projectDir(input: str) Option<str> {
-    let Result.Ok(path) = fs.canonicalize(input) else {
+    const Result.Ok(path) = fs.canonicalize(input) else {
         return Option.None
     }
-    var dir = path
+    let dir = path
     for {
-        let slash = lastSlash(dir)
+        const slash = lastSlash(dir)
         if slash <= 0 {
             return Option.None
         }
@@ -263,18 +263,18 @@ fn projectDir(input: str) Option<str> {
 
 // The standard library: `$OFIR_STD`, or installed next to the compiler.
 fn findStd() Option<str> {
-    if let Option.Some(given) = os.env("OFIR_STD") {
+    if const Option.Some(given) = os.env("OFIR_STD") {
         if given.len() > 0 {
             return Option.Some(given)
         }
     }
-    let Result.Ok(exe) = os.executablePath() else {
+    const Result.Ok(exe) = os.executablePath() else {
         return Option.None
     }
-    let dir = exe.slice(0, if lastSlash(exe) >= 0 { lastSlash(exe) } else { exe.len() })
-    let places = ["../../std", "../lib/ofir/std"]
+    const dir = exe.slice(0, if lastSlash(exe) >= 0 { lastSlash(exe) } else { exe.len() })
+    const places = ["../../std", "../lib/ofir/std"]
     for i in 0..places.len() {
-        let place = "{dir}/{places[i]}"
+        const place = "{dir}/{places[i]}"
         if fs.exists(place) {
             return Option.Some(place)
         }
@@ -285,13 +285,13 @@ fn findStd() Option<str> {
 // The name of the root module: a file inside std is that std module, and a
 // file of a project is named from the project root (`base.intern`).
 fn rootModuleName(ld: Loader, input: str, inProject: bool) str {
-    if let Option.Some(std) = ld.stdDir.clone() {
-        if let Option.Some(name) = nameUnder(input, std, "std.") {
+    if const Option.Some(std) = ld.stdDir.clone() {
+        if const Option.Some(name) = nameUnder(input, std, "std.") {
             return name
         }
     }
     if inProject {
-        if let Option.Some(name) = nameUnder(input, ld.rootDir, "") {
+        if const Option.Some(name) = nameUnder(input, ld.rootDir, "") {
             return name
         }
     }
@@ -310,31 +310,31 @@ fn rootModuleName(ld: Loader, input: str, inProject: bool) str {
  */
 pub fn loadProgram(input: str, root: move Module, front: mut Front,
                    target: move CfgTarget) Program {
-    let slash = lastSlash(input)
-    var rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
-    let project = projectDir(input)
-    let inProject = project.isSome()
-    if let Option.Some(dir) = project {
+    const slash = lastSlash(input)
+    let rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
+    const project = projectDir(input)
+    const inProject = project.isSome()
+    if const Option.Some(dir) = project {
         rootDir = dir
     }
-    let testing = target.test
-    var ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, target}
-    let name = rootModuleName(ld, input, inProject)
-    var module = root
+    const testing = target.test
+    let ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, target}
+    const name = rootModuleName(ld, input, inProject)
+    let module = root
     addTestFile(ld, front, module, name, input)
     stripCfg(module, &ld.target, front.names, front.diags)
     ld.modules.push(ProgramModule{name, module})
     if !isLoaded(ld, "std.core") {   // the prelude, in every program
-        if let Option.Some(core) = moduleFile(ld, "std.core") {
+        if const Option.Some(core) = moduleFile(ld, "std.core") {
             loadModule(ld, front, "std.core", core)
         }
     }
-    var m = 0
+    let m = 0
     for m < ld.modules.len() {   // grows while it is walked
-        var imports: List<List<Symbol>> = []
-        let items = &ld.modules[m].module.items
+        let imports: List<List<Symbol>> = []
+        const items = &ld.modules[m].module.items
         for i in 0..items.len() {
-            if let ItemKind.Import(path, _) = items[i].kind {
+            if const ItemKind.Import(path, _) = items[i].kind {
                 imports.push(path.clone())
             }
         }
@@ -347,7 +347,7 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
             // that stage 0 cannot read, so `std.core` does not import them;
             // loaded last, they leave the numbers of the other modules as
             // stage 0 gives them.
-            var late = ["std.core.any", "std.core.iter"]
+            let late = ["std.core.any", "std.core.iter"]
             if ld.target.bench {
                 late.push("std.core.bench")   // `Bencher` (spec 12.3)
             }
@@ -355,7 +355,7 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
                 if isLoaded(ld, late[k]) {
                     continue
                 }
-                if let Option.Some(file) = moduleFile(ld, late[k]) {
+                if const Option.Some(file) = moduleFile(ld, late[k]) {
                     loadModule(ld, front, late[k], file)
                 }
             }

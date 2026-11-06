@@ -28,17 +28,17 @@ fn describe(n: int) str {
 }
 
 fn main() {
-    let shapes = (Shape.Circle(1.0), Shape.Rect(2.0, 3.0), Shape.Empty)
+    const shapes = (Shape.Circle(1.0), Shape.Rect(2.0, 3.0), Shape.Empty)
     println("{shapes.0.area()} {shapes.1.area()} {shapes.2.area()}")
-    let (_, b, _) = shapes
+    const (_, b, _) = shapes
     println("{b.area()}")
-    let c: Color = Color.Green
+    const c: Color = Color.Green
     println("{c == Color.Green} {c != Color.Red}")
     for n in -1..12 {
         print("{describe(n)} ")
     }
     println("")
-    let s: Shape = Shape.Rect(1.0, 1.0)
+    const s: Shape = Shape.Rect(1.0, 1.0)
     match s {
         Shape.Circle(r) => println("circle {r}")
         Shape.Rect(w, h) if w == h => println("square {w}")

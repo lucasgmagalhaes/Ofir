@@ -12,15 +12,15 @@ fn wrap<U>(value: move U) Identity<U> {
 }
 
 fn main() {
-    let a: Pair<int> = (1, 2)
-    let b: Pair<str> = ("a", "b")
-    let nested: Pair<Pair<int>> = (a, (3, 4))
-    let flipped: Flipped<str, int> = (5, "five")
-    let lists: Nested<int> = ([1, 2], [3])
-    let maybe: Maybe<int> = Option.Some(7)
-    var table: Table<int> = Map.new()
+    const a: Pair<int> = (1, 2)
+    const b: Pair<str> = ("a", "b")
+    const nested: Pair<Pair<int>> = (a, (3, 4))
+    const flipped: Flipped<str, int> = (5, "five")
+    const lists: Nested<int> = ([1, 2], [3])
+    const maybe: Maybe<int> = Option.Some(7)
+    let table: Table<int> = Map.new()
     table.insert("answer", 42)
-    let text: View<str> = "view"
+    const text: View<str> = "view"
     println("{a.0} {a.1} {b.0}{b.1} {nested.1.0}")
     println("{flipped.0} {flipped.1} {lists.0.len()} {maybe.unwrap()}")
     println("{table.len()} {text} {wrap(8)}")

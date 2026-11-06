@@ -3,6 +3,6 @@
 import std.sync.WaitGroup
 
 fn main() {
-    let group = WaitGroup.new()
+    const group = WaitGroup.new()
     group.done()
 }

@@ -27,22 +27,22 @@ fn describe(err: LoadError) str {
 
 fn read(fail: bool) Result<int, ReadError> {
     if fail {
-        let err: ReadError = ParseError { line: 7 }
+        const err: ReadError = ParseError { line: 7 }
         return Result.Err(err)
     }
     return Result.Ok(1)
 }
 
 fn load(fail: bool) Result<int, LoadError> {
-    let n = read(fail)?
+    const n = read(fail)?
     return Result.Ok(n + 1)
 }
 
 fn main() {
-    let small: ReadError = IoError { path: "a.txt" }
-    let big: LoadError = small
+    const small: ReadError = IoError { path: "a.txt" }
+    const big: LoadError = small
     println(describe(big))
-    let other: ReadError = ParseError { line: 3 }
+    const other: ReadError = ParseError { line: 3 }
     println(describe(other))
     match load(false) {
         Result.Ok(n) => println("ok {n}")

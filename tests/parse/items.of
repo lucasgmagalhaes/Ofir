@@ -68,7 +68,7 @@ enum Tree<T> {
 
 const MAX_SIZE: int = 1 << 16
 const NAME = "ofir"
-var counter: u64 = 0
+let counter: u64 = 0
 type Grid<T> = List<List<T>>
 
 extern "C" {

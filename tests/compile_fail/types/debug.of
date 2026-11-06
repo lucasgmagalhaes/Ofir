@@ -18,9 +18,9 @@ fn noBound<T>(x: T) {
 fn needs<T: Debug>(_x: T) {}
 
 fn main() {
-    let f = main
-    let h = Handler{run: unsafe { 0 as *mut u8 }}
-    let o = Odd{n: 1}
+    const f = main
+    const h = Handler{run: unsafe { 0 as *mut u8 }}
+    const o = Odd{n: 1}
     println("{f:?}") // error[E0314]: a value of type `fn()` has no debug representation (`Debug`)
     println("{h:?}") // error[E0314]: a value of type `Handler` has no debug representation (`Debug`)
     println("{o:?}") // error[E0314]: a value of type `Odd` has no debug representation (`Debug`)

@@ -28,7 +28,7 @@ extern "C" {
  * ```ofir
  * import std.os
  *
- * let args = os.args()
+ * const args = os.args()
  * if args.len() < 2 {
  *     eprintln("usage: tool <file>")
  *     os.exit(2)
@@ -36,11 +36,11 @@ extern "C" {
  * ```
  */
 pub fn args() List<str> {
-    let count = unsafe { ofir_arg_count() }
-    var out: List<str> = List.withCapacity(count)
+    const count = unsafe { ofir_arg_count() }
+    let out: List<str> = List.withCapacity(count)
     for i in 0..count {
-        var len = 0
-        let ptr = unsafe { ofir_arg(i, &mut len as *mut int) }
+        let len = 0
+        const ptr = unsafe { ofir_arg(i, &mut len as *mut int) }
         out.push(unsafe { str.fromRaw(ptr, len) })
     }
     return out
@@ -55,12 +55,12 @@ pub fn args() List<str> {
  * ```ofir
  * import std.os
  *
- * let home = os.env("HOME") ?? "/"
+ * const home = os.env("HOME") ?? "/"
  * ```
  */
 pub fn env(name: str) Option<str> {
-    var len = 0
-    let ptr = unsafe { ofir_env(name.asPtr(), name.len(), &mut len as *mut int) }
+    let len = 0
+    const ptr = unsafe { ofir_env(name.asPtr(), name.len(), &mut len as *mut int) }
     if unsafe { ptr as u64 } == 0 {
         return Option.None
     }
@@ -110,17 +110,17 @@ struct Captured {
  * ```ofir
  * import std.os
  *
- * let out = os.run("clang", ["--version"])?
+ * const out = os.run("clang", ["--version"])?
  * println(out.stdout)
  * ```
  */
 pub fn run(program: str, args: [str]) Result<Output, IoError> {
-    var packed = "{program}\0"
+    let packed = "{program}\0"
     for i in 0..args.len() {
         packed.push(args[i])
         packed.push("\0")
     }
-    var captured = Captured{status: 0, out: Buffer.new(), err: Buffer.new()}
+    let captured = Captured{status: 0, out: Buffer.new(), err: Buffer.new()}
     io.check(unsafe {
         ofir_run(packed.asPtr(), packed.len(), args.len() + 1, &mut captured as *mut Captured)
     })?
@@ -134,7 +134,7 @@ pub fn run(program: str, args: [str]) Result<Output, IoError> {
  * @returns its absolute path
  */
 pub fn currentDir() Result<str, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_current_dir(&mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoStr() })
 }
@@ -145,7 +145,7 @@ pub fn currentDir() Result<str, IoError> {
  * @returns its absolute path
  */
 pub fn executablePath() Result<str, IoError> {
-    var out = Buffer.new()
+    let out = Buffer.new()
     io.check(unsafe { ofir_executable_path(&mut out as *mut Buffer) })?
     return Result.Ok(unsafe { out.intoStr() })
 }
@@ -156,8 +156,8 @@ pub fn executablePath() Result<str, IoError> {
  * @returns `"linux"`, `"macos"` or `"windows"`
  */
 pub fn name() str {
-    var len = 0
-    let ptr = unsafe { ofir_os_name(&mut len as *mut int) }
+    let len = 0
+    const ptr = unsafe { ofir_os_name(&mut len as *mut int) }
     return unsafe { str.fromRaw(ptr, len) }
 }
 
@@ -167,7 +167,7 @@ pub fn name() str {
  * @returns `"x86_64"` or `"aarch64"`
  */
 pub fn arch() str {
-    var len = 0
-    let ptr = unsafe { ofir_arch_name(&mut len as *mut int) }
+    let len = 0
+    const ptr = unsafe { ofir_arch_name(&mut len as *mut int) }
     return unsafe { str.fromRaw(ptr, len) }
 }

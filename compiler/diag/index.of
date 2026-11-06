@@ -72,7 +72,7 @@ pub struct Diagnostic {
  *
  * @example
  * ```ofir
- * var diags = Diagnostics.new()
+ * let diags = Diagnostics.new()
  * diags.error("E0001", span, "unexpected character")
  * assert(diags.hasErrors())
  * ```
@@ -191,10 +191,10 @@ pub struct Diagnostics {
      * @returns the text, as stage 0 writes it to standard error
      */
     pub fn render(self, map: SourceMap, format: Format) str {
-        var out = ""
-        let order = self.sortedOrder()
+        let out = ""
+        const order = self.sortedOrder()
         for k in 0..order.len() {
-            let d = &self.items[order[k]]
+            const d = &self.items[order[k]]
             if k > 0 && same(d, &self.items[order[k - 1]]) {
                 continue
             }
@@ -211,7 +211,7 @@ pub struct Diagnostics {
 
     fn isAllowed(self, code: str, span: Span) bool {
         for i in 0..self.allowedCodes.len() {
-            let a = self.allowedSpans[i]
+            const a = self.allowedSpans[i]
             if self.allowedCodes[i] == code && a.file.0 == span.file.0 && a.start <= span.start &&
                 span.end <= a.end {
                 return true
@@ -229,7 +229,7 @@ pub struct Diagnostics {
     }
 
     fn addNote(mut self, kind: NoteKind, message: move str) {
-        let last = self.items.len() - 1
+        const last = self.items.len() - 1
         if last < 0 || self.silenced || self.items[last].notes.len() == MAX_NOTES {
             return
         }
@@ -239,12 +239,12 @@ pub struct Diagnostics {
     // The indices of the diagnostics by (file, start, code), stable: an
     // insertion sort, as a compilation reports few diagnostics.
     fn sortedOrder(self) List<int> {
-        var order: List<int> = []
+        let order: List<int> = []
         for i in 0..self.items.len() {
             order.push(i)
-            var k = order.len() - 1
+            let k = order.len() - 1
             for k > 0 && before(&self.items[order[k]], &self.items[order[k - 1]]) {
-                let previous = order[k - 1]
+                const previous = order[k - 1]
                 order[k - 1] = order[k]
                 order[k] = previous
                 k -= 1
@@ -278,8 +278,8 @@ fn severityName(s: Severity) str {
 }
 
 fn shortLine(d: &Diagnostic, map: SourceMap) str {
-    let file = map.file(d.span.file)
-    let at = file.lineCol(d.span.start)
+    const file = map.file(d.span.file)
+    const at = file.lineCol(d.span.start)
     return "{file.path}:{at.line}:{at.column}: {severityName(d.severity)}[{d.code}]: {d.message}\n"
 }
 
@@ -290,10 +290,10 @@ fn shortLine(d: &Diagnostic, map: SourceMap) str {
  * @returns the literal
  */
 pub fn jsonString(text: str) str {
-    var out = "\""
-    var copied = 0   // text before it is in `out`
+    let out = "\""
+    let copied = 0   // text before it is in `out`
     for i in 0..text.len() {
-        let escape = jsonEscape(text[i])
+        const escape = jsonEscape(text[i])
         if escape.len() > 0 {
             out.push(text.slice(copied, i))
             out.push(escape)
@@ -316,9 +316,9 @@ fn jsonEscape(b: u8) str {
     } else if b == b'\t' {
         return "\\t".toOwned()
     } else if b < 32 {
-        let digits = "0123456789abcdef"
-        let high = b as int / 16
-        let low = b as int % 16
+        const digits = "0123456789abcdef"
+        const high = b as int / 16
+        const low = b as int % 16
         return "\\u00{digits.slice(high, high + 1)}{digits.slice(low, low + 1)}"
     }
     return "".toOwned()
@@ -338,20 +338,20 @@ pub fn jsonNoSource(severity: Severity, code: str, message: str) str {
 
 // The opening `{` and the fields every JSON diagnostic has.
 fn jsonFields(severity: Severity, code: str, message: str) str {
-    let head = "\{\"severity\":\"{severityName(severity)}\",\"code\":{jsonString(code)}"
+    const head = "\{\"severity\":\"{severityName(severity)}\",\"code\":{jsonString(code)}"
     return "{head},\"message\":{jsonString(message)}"
 }
 
 fn jsonLine(d: &Diagnostic, map: SourceMap) str {
-    let file = map.file(d.span.file)
-    let at = file.lineCol(d.span.start)
-    let end = file.lineCol(if d.span.end > d.span.start { d.span.end } else { d.span.start })
-    var out = jsonFields(d.severity, d.code, d.message)
+    const file = map.file(d.span.file)
+    const at = file.lineCol(d.span.start)
+    const end = file.lineCol(if d.span.end > d.span.start { d.span.end } else { d.span.start })
+    let out = jsonFields(d.severity, d.code, d.message)
     out.push(",\"file\":{jsonString(file.path)},\"line\":{at.line},\"column\":{at.column},")
     out.push("\"endLine\":{end.line},\"endColumn\":{end.column},\"notes\":[")
     for i in 0..d.notes.len() {
-        let kind = if d.notes[i].kind == NoteKind.Help { "help" } else { "note" }
-        let separator = if i > 0 { "," } else { "" }
+        const kind = if d.notes[i].kind == NoteKind.Help { "help" } else { "note" }
+        const separator = if i > 0 { "," } else { "" }
         out.push("{separator}\{\"kind\":\"{kind}\",\"message\":{jsonString(d.notes[i].message)}\}")
     }
     out.push("]\}\n")
@@ -360,12 +360,12 @@ fn jsonLine(d: &Diagnostic, map: SourceMap) str {
 
 // The message, the location, the line and a caret line under the span.
 fn excerpt(d: &Diagnostic, map: SourceMap) str {
-    let file = map.file(d.span.file)
-    let at = file.lineCol(d.span.start)
-    let line = file.lineText(at.line)
-    let number = "{at.line}"
-    let pad = " ".repeat(number.len())
-    var out = "{severityName(d.severity)}[{d.code}]: {d.message}\n"
+    const file = map.file(d.span.file)
+    const at = file.lineCol(d.span.start)
+    const line = file.lineText(at.line)
+    const number = "{at.line}"
+    const pad = " ".repeat(number.len())
+    let out = "{severityName(d.severity)}[{d.code}]: {d.message}\n"
     out.push("{pad}--> {file.path}:{at.line}:{at.column}\n")
     out.push("{pad} |\n")
     out.push("{number} | {line}\n")
@@ -373,7 +373,7 @@ fn excerpt(d: &Diagnostic, map: SourceMap) str {
     for i in 0..at.column - 1 {   // tabs are kept so the caret stays under the text
         out.push(if line[i] == b'\t' { "\t" } else { " " })
     }
-    var len = if d.span.end > d.span.start { d.span.end - d.span.start } else { 1 }
+    let len = if d.span.end > d.span.start { d.span.end - d.span.start } else { 1 }
     if at.column - 1 + len > line.len() + 1 {   // a span running past the line is clipped
         len = line.len() + 1 - (at.column - 1)
     }
@@ -383,7 +383,7 @@ fn excerpt(d: &Diagnostic, map: SourceMap) str {
         out.push("{pad} |\n")
     }
     for i in 0..d.notes.len() {
-        let kind = if d.notes[i].kind == NoteKind.Help { "help" } else { "note" }
+        const kind = if d.notes[i].kind == NoteKind.Help { "help" } else { "note" }
         out.push("{pad} = {kind}: {d.notes[i].message}\n")
     }
     out.push("\n")

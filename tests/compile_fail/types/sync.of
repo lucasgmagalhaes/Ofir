@@ -14,6 +14,6 @@ unsafe fn raw() Raw {
 }
 
 fn main() {
-    let _ = Arc.new(Cell.new(1))   // error[E0332]: `Cell<int>` does not satisfy the bound `Sync`
-    let _ = Arc.new(unsafe { raw() })   // error[E0332]: `Raw` does not satisfy the bound `Send`
+    const _ = Arc.new(Cell.new(1))   // error[E0332]: `Cell<int>` does not satisfy the bound `Sync`
+    const _ = Arc.new(unsafe { raw() })   // error[E0332]: `Raw` does not satisfy the bound `Send`
 }

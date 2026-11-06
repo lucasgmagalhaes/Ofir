@@ -15,7 +15,7 @@ fn each<T>(items: &List<T>, f: fn(&T)) {
 }
 
 fn count<T>(items: &List<T>, keep: fn(&T) bool) int {
-    var n = 0
+    let n = 0
     each(items, item => {
         if keep(item) {
             n += 1
@@ -25,7 +25,7 @@ fn count<T>(items: &List<T>, keep: fn(&T) bool) int {
 }
 
 fn bump(total: mut int, by: int) {
-    let add = () => {
+    const add = () => {
         total += by
     }
     add()
@@ -42,13 +42,13 @@ fn twice(f: fn()) {
 }
 
 fn main() {
-    var total = 0
-    let k = 3
-    let add = (a: int, b: int) int => a + b + k
+    let total = 0
+    const k = 3
+    const add = (a: int, b: int) int => a + b + k
     println("{add(1, 2)}")
     println("{apply(x => x * 2 + k, 4)}")
-    let name = "ofir"
-    let greet = () => {
+    const name = "ofir"
+    const greet = () => {
         println("hi {name}")
     }
     greet()
@@ -56,32 +56,32 @@ fn main() {
         total += 10
     })
     println("{total}")
-    let s = "a" + "b"
-    let len = () => s.len()
+    const s = "a" + "b"
+    const len = () => s.len()
     println("{len()}")
-    let list = [1, 5, 8, 2, 9]
-    let limit = 4
+    const list = [1, 5, 8, 2, 9]
+    const limit = 4
     println("{count(&list, x => *x > limit)}")
-    var t = 1
+    let t = 1
     bump(t, 5)
     println("{t}")
-    let p = Point{x: 2, y: 3}
-    let norm = () int => p.x * p.x + p.y * p.y
+    const p = Point{x: 2, y: 3}
+    const norm = () int => p.x * p.x + p.y * p.y
     println("{norm()}")
-    let prefix = "n="
-    let show = (n: int) str => "{prefix}{n}"
+    const prefix = "n="
+    const show = (n: int) str => "{prefix}{n}"
     println(show(7))
-    var sum = 0
+    let sum = 0
     for i in 0..4 {
-        let addI = () => {
+        const addI = () => {
             sum += i
         }
         addI()
     }
     println("{sum}")
-    let outer = 10
-    let mk = (a: int) int => {
-        let inner = (b: int) int => a + b + outer
+    const outer = 10
+    const mk = (a: int) int => {
+        const inner = (b: int) int => a + b + outer
         inner(1)
     }
     println("{mk(5)}")

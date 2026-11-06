@@ -8,7 +8,7 @@
 // then once more to report errors.
 //
 // Stage 0 runs this on the typed AST rather than on AIR: the AST still says
-// which uses consume a value (a `let`, a `move` parameter, a return) and
+// which uses consume a value (a `const`, a `move` parameter, a return) and
 // which only borrow it, and its control flow is structured.
 
 #ifndef OFIR_MOVES_INTERNAL_H

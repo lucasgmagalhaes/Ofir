@@ -3,7 +3,7 @@
  * The borrow checker (spec 5.4, 5.5, 5.6), run with the move analysis.
  *
  * A *loan* is a borrow of a place of a local, held by a *holder*: a local
- * that holds a reference (`let r = &list`, `let f = list.first()`), a
+ * that holds a reference (`const r = &list`, `const f = list.first()`), a
  * binding that borrows (`for x in list`, `match` on a borrowed place), or a
  * `for` loop, which borrows what it iterates. The state at each program
  * point keeps the loans that may be alive. An access to a place that
@@ -178,7 +178,7 @@ pub fn joinLoans(s: mut State, other: &State) {
  * @param holder the holder
  */
 pub fn killHolder(s: mut State, holder: int) {
-    var loans: List<Loan> = []
+    let loans: List<Loan> = []
     for i in 0..s.loans.len() {
         if s.loans[i].holder != holder {
             loans.push(s.loans[i].clone())
@@ -189,7 +189,7 @@ pub fn killHolder(s: mut State, holder: int) {
 }
 
 fn dropConflicts(s: mut State, holder: int) {
-    var kept: List<Conflict> = []
+    let kept: List<Conflict> = []
     for i in 0..s.conflicts.len() {
         if s.conflicts[i].loan.holder != holder {
             kept.push(s.conflicts[i].clone())
@@ -210,7 +210,7 @@ pub fn bindLoans(s: mut State, holder: int, loans: &List<Loan>) {
         return
     }
     for i in 0..loans.len() {
-        var loan = loans[i].clone()
+        let loan = loans[i].clone()
         loan.holder = holder
         addLoan(s, &loan)
     }
@@ -224,7 +224,7 @@ pub fn bindLoans(s: mut State, holder: int, loans: &List<Loan>) {
  * @returns a copy of them
  */
 pub fn loansOf(s: &State, holder: int) List<Loan> {
-    var loans: List<Loan> = []
+    let loans: List<Loan> = []
     for i in 0..s.loans.len() {
         if s.loans[i].holder == holder {
             loans.push(s.loans[i].clone())
@@ -241,7 +241,7 @@ pub fn loansOf(s: &State, holder: int) List<Loan> {
  * @returns a copy of them
  */
 pub fn carriedSince(m: Moves, mark: int) List<Loan> {
-    var loans: List<Loan> = []
+    let loans: List<Loan> = []
     for i in mark..m.carry.len() {
         loans.push(m.carry[i].clone())
     }
@@ -306,8 +306,8 @@ pub fn access(s: mut State, part: &Part, kind: Access, span: Span) {
     }
     for i in 0..s.loans.len() {
         if s.loans[i].part.overlaps(part) && conflicts(&s.loans[i], kind) {
-            let conflict = Conflict{loan: s.loans[i].clone(), access: kind, part: part.clone(),
-                                    span}
+            const conflict = Conflict{loan: s.loans[i].clone(), access: kind, part: part.clone(),
+                                      span}
             addConflict(s, &conflict)
         }
     }
@@ -325,7 +325,7 @@ pub fn useHolder(m: Moves, c: mut Checker, s: mut State, holder: int) {
     if s.dead || s.conflicts.len() == 0 {
         return
     }
-    var found: List<Conflict> = []
+    let found: List<Conflict> = []
     for i in 0..s.conflicts.len() {
         if s.conflicts[i].loan.holder == holder {
             found.push(s.conflicts[i].clone())
@@ -335,7 +335,7 @@ pub fn useHolder(m: Moves, c: mut Checker, s: mut State, holder: int) {
         return
     }
     dropConflicts(s, holder)
-    let by = holderName(m, c, holder)
+    const by = holderName(m, c, holder)
     for i in 0..found.len() {
         reportConflict(m, c, &found[i], by)
     }
@@ -349,8 +349,8 @@ fn holderName(m: Moves, c: Checker, holder: int) str {
 }
 
 fn reportConflict(m: Moves, c: mut Checker, conflict: &Conflict, by: str) {
-    let place = placeText(c, &conflict.part)
-    let span = conflict.span
+    const place = placeText(c, &conflict.part)
+    const span = conflict.span
     match conflict.access {
         Access.BorrowMut => {
             if conflict.loan.mutable {
@@ -392,7 +392,7 @@ fn reportConflict(m: Moves, c: mut Checker, conflict: &Conflict, by: str) {
  */
 pub fn endScope(m: Moves, c: mut Checker, s: mut State, base: int, span: Span) {
     for i in base..m.scope.len() {
-        let local = m.scope[i]
+        const local = m.scope[i]
         access(s, &Part{local, fields: []}, Access.Drop, span)
         killHolder(s, local)
     }
@@ -407,10 +407,10 @@ pub fn endScope(m: Moves, c: mut Checker, s: mut State, base: int, span: Span) {
  */
 pub fn escapesBlock(m: Moves, c: mut Checker, base: int) {
     for i in 0..m.carry.len() {
-        let loan = &m.carry[i]
+        const loan = &m.carry[i]
         for j in base..m.scope.len() {
             if loan.part.local == m.scope[j] {
-                let place = placeText(c, &loan.part)
+                const place = placeText(c, &loan.part)
                 moveError(m, c, "E0706", loan.span, "`{place}` does not live long enough: "
                           + "the value of its block borrows it")
             }
@@ -429,7 +429,7 @@ pub fn escapesBlock(m: Moves, c: mut Checker, base: int) {
  * @param span where
  */
 pub fn argumentConflict(m: Moves, c: mut Checker, a: &Part, shared: bool, span: Span) {
-    let place = placeText(c, a)
+    const place = placeText(c, a)
     if shared {
         moveError(m, c, "E0701", span, "cannot borrow `{place}` as mutable because it is also "
                   + "borrowed as shared")
@@ -446,28 +446,28 @@ pub fn argumentConflict(m: Moves, c: mut Checker, a: &Part, shared: bool, span: 
  * @returns its text
  */
 pub fn placeText(c: mut Checker, part: &Part) str {
-    var text = localName(c, part.local)
-    var ty = if part.local < c.localTypes.len() { c.localTypes[part.local] } else { -1 }
+    let text = localName(c, part.local)
+    let ty = if part.local < c.localTypes.len() { c.localTypes[part.local] } else { -1 }
     for i in 0..part.fields.len() {
-        let field = part.fields[i]
-        var name = "{field}"
-        var next = -1
+        const field = part.fields[i]
+        let name = "{field}"
+        let next = -1
         if ty >= 0 {
-            let kind = c.types.kind(ty)
+            const kind = c.types.kind(ty)
             if kind == TyKind.Tuple {
                 if field < c.types.get(ty).args.len() {
                     next = c.types.get(ty).args[field]
                 }
             } else if kind == TyKind.Adt {
-                let def = c.types.get(ty).data
+                const def = c.types.get(ty).data
                 if c.def(def).kind == DefKind.Struct && c.info[def].fields.isSome() {
-                    let info = fieldsOf(c, def)
+                    const info = fieldsOf(c, def)
                     if field < info.types.len() {
                         if !info.isTuple {
                             name = c.text(info.names[field]).toOwned()
                         }
-                        let declared = info.types[field]
-                        let args = c.types.get(ty).args.clone()
+                        const declared = info.types[field]
+                        const args = c.types.get(ty).args.clone()
                         next = c.types.subst(declared, args)
                     }
                 }

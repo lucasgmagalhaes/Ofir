@@ -1,19 +1,19 @@
 fn compute(x: int, unusedParam: int) int {   // parameters are not reported
-    let doubled = x * 2
-    let ignored = 5              // warning[W0001]: unused variable `ignored`: use it, or start its name with `_`
-    let _silent = 6
-    var assigned = 0
+    const doubled = x * 2
+    const ignored = 5              // warning[W0001]: unused variable `ignored`: use it, or start its name with `_`
+    const _silent = 6
+    let assigned = 0
     assigned = doubled
     for i in 0..3 {              // warning[W0001]: unused variable `i`: use it, or start its name with `_`
     }
     for _ in 0..3 {
     }
-    if let Option.Some(value) = Option.Some(1) {   // warning[W0001]: unused variable `value`: use it, or start its name with `_`
+    if const Option.Some(value) = Option.Some(1) {   // warning[W0001]: unused variable `value`: use it, or start its name with `_`
     }
     return assigned
 }
 
 fn main() {
-    let n = compute(1, 2)
+    const n = compute(1, 2)
     println("{n}")
 }

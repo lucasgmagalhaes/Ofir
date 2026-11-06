@@ -5,34 +5,39 @@
 1:13 )
 1:15 {
 1:16 newline
-2:5 let
-2:9 ident type
-2:14 =
-2:16 ident move
-2:20 newline
-3:5 var
-3:9 ident x
-3:10 :
-3:12 Self
-3:17 =
-3:19 self
-3:23 newline
-4:5 if
-4:8 true
-4:13 &&
-4:16 false
-4:22 {
+2:5 const
+2:11 ident type
+2:16 =
+2:18 ident move
+2:22 newline
+3:5 let
+3:9 ident var
+3:13 =
+3:15 int 0
+3:16 newline
+4:5 let
+4:9 ident x
+4:10 :
+4:12 Self
+4:17 =
+4:19 self
 4:23 newline
-5:9 return
-5:15 newline
-6:5 }
-6:7 else
-6:12 {
-6:13 newline
-7:9 break
-7:14 newline
-8:5 }
-8:6 newline
-9:1 }
-9:2 newline
-10:1 eof
+5:5 if
+5:8 true
+5:13 &&
+5:16 false
+5:22 {
+5:23 newline
+6:9 return
+6:15 newline
+7:5 }
+7:7 else
+7:12 {
+7:13 newline
+8:9 break
+8:14 newline
+9:5 }
+9:6 newline
+10:1 }
+10:2 newline
+11:1 eof

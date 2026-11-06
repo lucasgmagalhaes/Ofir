@@ -30,7 +30,7 @@ typedef struct {
     uint32_t unsafe_depth;   // > 0 inside an `unsafe` block or function
     Arena scratch;           // reset per function: the move analysis states
     // Whether the function moves a value that is not trivially Copy (into a
-    // variable, a `move` parameter, an aggregate, its result) or has a `var`
+    // variable, a `move` parameter, an aggregate, its result) or has a `let`
     // without a value: else the move analysis has nothing to find, and the
     // drops treat every new value as a temporary.
     bool owned_values;
@@ -269,7 +269,7 @@ void check_exhaustive(Checker *c, Expr *e, TypeId type);
 // check_pattern.c
 // Checks `p` against a value of `type` and gives its bindings their types.
 void check_pattern(Checker *c, Pattern *p, TypeId type);
-// Whether `p` matches every value of its type (`let` needs such a pattern).
+// Whether `p` matches every value of its type (`const` needs such a pattern).
 bool pattern_irrefutable(Checker *c, const Pattern *p);
 
 // check_stmt.c

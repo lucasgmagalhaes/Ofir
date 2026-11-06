@@ -82,13 +82,13 @@ pub fn fieldDeclAt(p: Program, at: Loc, i: int) &FieldDecl {
  * @returns true for Copy types
  */
 pub fn isCopy(c: Checker, p: Program, ty: int) bool {
-    let t = c.types.get(ty)
+    const t = c.types.get(ty)
     return match t.kind {
         TyKind.Adt => {
             if t.data == c.r.langItems[2] || t.data == c.r.langItems[3] {
                 return argsAreCopy(c, p, &t.args)
             }
-            if let Option.Some(members) = c.unionDefs.get(t.data) {
+            if const Option.Some(members) = c.unionDefs.get(t.data) {
                 return isCopy(c, p, *members)   // a tuple of the members
             }
             match itemOf(p, c.loc(t.data)).kind {
@@ -128,12 +128,12 @@ fn argsAreCopy(c: Checker, p: Program, args: &List<int>) bool {
  */
 pub fn structFieldType(c: mut Checker, p: Program, ty: int, i: int) int {
     if c.types.kind(ty) != TyKind.Adt {
-        let lang = c.r.lang[ty]
+        const lang = c.r.lang[ty]
         return fieldsOf(c, lang).types[i]
     }
-    let def = c.types.get(ty).data
-    let field = fieldsOf(c, def).types[i]
-    let args = c.types.get(ty).args.clone()
+    const def = c.types.get(ty).data
+    const field = fieldsOf(c, def).types[i]
+    const args = c.types.get(ty).args.clone()
     return c.types.subst(field, args)
 }
 
@@ -157,14 +157,14 @@ pub fn fieldsOf(c: Checker, id: int) &StructInfo {
 // The fields of an instance of a generic type hold its type arguments by
 // value: `Wrap<Node>` inside `Node` contains `Node`.
 fn checkInstanceFields(c: mut Checker, p: Program, ty: int, span: Span) {
-    let def = c.types.get(ty).data
+    const def = c.types.get(ty).data
     if c.def(def).kind == DefKind.Struct && c.info[def].fields.isSome() {
         for i in 0..fieldsOf(c, def).types.len() {
             checkNotRecursive(c, p, structFieldType(c, p, ty, i), span)
         }
     }
     if c.def(def).kind == DefKind.Enum && c.info[def].variants.isSome() {
-        let count = variantCount(c, def)
+        const count = variantCount(c, def)
         for v in 0..count {
             for i in 0..variantFieldCount(c, def, v) {
                 checkNotRecursive(c, p, variantFieldType(c, p, ty, v, i), span)
@@ -198,12 +198,12 @@ fn variantFieldCount(c: Checker, def: int, v: int) int {
  * @returns its type
  */
 pub fn variantFieldType(c: mut Checker, p: Program, ty: int, v: int, i: int) int {
-    let def = c.types.get(ty).data
-    let field = match c.info[def].variants {
+    const def = c.types.get(ty).data
+    const field = match c.info[def].variants {
         Option.Some(info) => info.variants[v].types[i]
         Option.None => ERROR
     }
-    let args = c.types.get(ty).args.clone()
+    const args = c.types.get(ty).args.clone()
     return c.types.subst(field, args)
 }
 
@@ -219,9 +219,9 @@ pub fn variantFieldType(c: mut Checker, p: Program, ty: int, v: int, i: int) int
  * @returns true if it does
  */
 pub fn hasInteriorMutability(c: mut Checker, p: Program, ty: int) bool {
-    let kind = c.types.kind(ty)
+    const kind = c.types.kind(ty)
     if kind == TyKind.Tuple {
-        let parts = c.types.get(ty).args.clone()
+        const parts = c.types.get(ty).args.clone()
         for i in 0..parts.len() {
             if hasInteriorMutability(c, p, parts[i]) {
                 return true
@@ -235,7 +235,7 @@ pub fn hasInteriorMutability(c: mut Checker, p: Program, ty: int) bool {
     if kind != TyKind.Adt {
         return false
     }
-    let def = c.types.get(ty).data
+    const def = c.types.get(ty).data
     if def == c.r.langItems[6] {
         return true
     }
@@ -275,7 +275,7 @@ pub fn hasInteriorMutability(c: mut Checker, p: Program, ty: int) bool {
  */
 pub fn checkNotRecursive(c: mut Checker, p: Program, ty: int, span: Span) {
     if c.types.kind(ty) == TyKind.Tuple {
-        let items = c.types.get(ty).args.clone()
+        const items = c.types.get(ty).args.clone()
         for i in 0..items.len() {
             checkNotRecursive(c, p, items[i], span)
         }
@@ -283,7 +283,7 @@ pub fn checkNotRecursive(c: mut Checker, p: Program, ty: int, span: Span) {
     if c.types.kind(ty) != TyKind.Adt {
         return
     }
-    let id = c.types.get(ty).data
+    const id = c.types.get(ty).data
     if c.info[id].checking {
         c.error("E0318", span,
                 "a type cannot contain itself by value; use Box<T> or a collection".toOwned())
@@ -314,17 +314,17 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     if c.info[id].checking {
         return false
     }
-    let declared = declaredFlags(p, c.loc(id))
-    let saved = c.enter(c.def(id).module)
-    let savedSelf = c.selfType
-    let outer = c.enterGenerics(typeGenericsOf(c, p, id))
+    const declared = declaredFlags(p, c.loc(id))
+    const saved = c.enter(c.def(id).module)
+    const savedSelf = c.selfType
+    const outer = c.enterGenerics(typeGenericsOf(c, p, id))
     c.selfType = if c.def(id).lang { c.def(id).primitive } else { ownerType(c, p, id) }
     c.info[id].checking = true
-    var info = StructInfo{names: [], types: [], defaults: [], isTuple: declared.2,
+    let info = StructInfo{names: [], types: [], defaults: [], isTuple: declared.2,
                           isCopy: declared.0}
     for i in 0..declared.3 {
-        let field = fieldDeclAt(p, c.loc(id), i)
-        let ty = resolveType(c, p, &field.ty)
+        const field = fieldDeclAt(p, c.loc(id), i)
+        const ty = resolveType(c, p, &field.ty)
         info.names.push(field.name ?? Symbol(-1))
         info.types.push(ty)
         info.defaults.push(field.defaultValue.isSome())
@@ -332,7 +332,7 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
             checkStorable(c, p, ty, field.span, "a struct field")
         }
         checkNotRecursive(c, p, ty, field.span)
-        if let Option.Some(value) = field.defaultValue {
+        if const Option.Some(value) = field.defaultValue {
             coerce(c, p, &value, ty)
         }
         if info.isCopy && !isCopy(c, p, ty) && ty != ERROR {
@@ -345,13 +345,13 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     c.selfType = savedSelf
     c.enter(saved)
     if !c.def(id).lang {
-        var names: List<int> = []
-        var pubs: List<bool> = []
+        let names: List<int> = []
+        let pubs: List<bool> = []
         for i in 0..info.names.len() {
             names.push(info.names[i].0)
             pubs.push(fieldDeclAt(p, c.loc(id), i).isPub)
         }
-        let module = c.def(id).module
+        const module = c.def(id).module
         c.types.setFields(id, KeyFields{module, isTuple: info.isTuple, names, pubs,
                                         types: info.types.clone()})
     }
@@ -392,12 +392,12 @@ pub fn checkStructLayouts(c: mut Checker, p: Program, id: int) {
         return
     }
     if c.def(id).lang {
-        let ty = c.def(id).primitive
-        let span = c.def(id).span
-        let types = fieldsOf(c, id).types.clone()
+        const ty = c.def(id).primitive
+        const span = c.def(id).span
+        const types = fieldsOf(c, id).types.clone()
         if ty == STR {
-            let bytes = c.types.ptr(U8, false)
-            let ok = types.len() == 3 && types[0] == bytes && types[1] == I64 && types[2] == I64
+            const bytes = c.types.ptr(U8, false)
+            const ok = types.len() == 3 && types[0] == bytes && types[1] == I64 && types[2] == I64
             if !ok {
                 c.error("E0806", span, "`@lang(\"str\")` must declare `ptr: *u8`, `len: int`, "
                         + "`cap: int`")
@@ -407,8 +407,8 @@ pub fn checkStructLayouts(c: mut Checker, p: Program, id: int) {
         }
     }
     if id == c.r.langItems[1] {
-        let types = fieldsOf(c, id).types.clone()
-        let ok = types.len() == 3 && c.types.kind(types[0]) == TyKind.Ptr && types[1] == I64
+        const types = fieldsOf(c, id).types.clone()
+        const ok = types.len() == 3 && c.types.kind(types[0]) == TyKind.Ptr && types[1] == I64
         if !ok {
             c.error("E0806", c.def(id).span, "`@lang(\"list\")` must declare `ptr: *mut T`, "
                     + "`len: int`, `cap: int`")

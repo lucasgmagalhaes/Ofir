@@ -2,12 +2,12 @@
 // A `&mut [T]` borrows its list or array exclusively (spec 2.12, 5.4).
 
 fn main() {
-    var list = [1, 2, 3]
-    let view: &mut [int] = &mut list
+    let list = [1, 2, 3]
+    const view: &mut [int] = &mut list
     println("{list[0]}")   // error[E0703]: cannot use `list` while it is borrowed as mutable by `view`
     view[0] = 4
-    var grid: [int; 2] = [0, 0]
-    let cells: &mut [int] = &mut grid
+    let grid: [int; 2] = [0, 0]
+    const cells: &mut [int] = &mut grid
     grid[0] = 1   // error[E0704]: cannot assign to `grid` while it is borrowed by `cells`
     cells[1] = 2
 }

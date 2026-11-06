@@ -141,7 +141,7 @@ and can be inlined:
 
 ```ofir
 fn totalArea<S: Shape>(shapes: [S]) float {
-    var sum = 0.0
+    let sum = 0.0
     for s in shapes {
         sum += s.area()
     }
@@ -162,7 +162,7 @@ fn totalArea<S: Shape>(shapes: [S]) float { ... }
 
 - It is allowed anywhere in the type of a parameter of a function or a
   method (`s: Shape`, `s: mut Shape`, `items: List<Shape>`), and nowhere
-  else: not in return types, fields, `let`, type arguments, `fn(...)`
+  else: not in return types, fields, `const`, type arguments, `fn(...)`
   types or closure parameters (E0356).
 - Each occurrence is a type parameter of its own:
   `fn f(a: Shape, b: Shape)` accepts a `Circle` and a `Square`. Values that must share a
@@ -197,7 +197,7 @@ draw(Circle{radius: 1.0})
 ```
 
 ```ofir
-let shapes: List<Box<dyn Shape>> = [
+const shapes: List<Box<dyn Shape>> = [
     Box.new(Circle{radius: 1.0}),
     Box.new(Square{side: 2.0}),
 ]
@@ -279,7 +279,7 @@ fn takeConfig(value: move Box<dyn Any>) Option<Config> {
 }
 ```
 
-`if let c: Config = value { ... }` tests a single type. There is no `any`
+`if const c: Config = value { ... }` tests a single type. There is no `any`
 type, no `is` operator and no reflection: a type test, which the compiler
 checks, is the only way to the concrete value. Two `dyn Any` values cannot
 be compared or hashed.
@@ -349,10 +349,10 @@ struct Version {
     minor: int
 }
 
-let a = Version{major: 1, minor: 2}
-let b = Version{major: 1, minor: 10}
+const a = Version{major: 1, minor: 2}
+const b = Version{major: 1, minor: 10}
 a < b                                  // true: `major` ties, `minor` decides
-var seen: Map<Version, bool> = Map.new()
+let seen: Map<Version, bool> = Map.new()
 seen.insert(a, true)
 ```
 

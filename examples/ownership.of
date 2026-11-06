@@ -22,7 +22,7 @@ fn discard(inv: move Inventory) {
 }
 
 fn main() {
-    var inv = Inventory.new()
+    let inv = Inventory.new()
     inv.add("sword")
     inv.add("shield")
     println("items: {inv.count()}")

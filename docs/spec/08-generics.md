@@ -15,8 +15,8 @@ fn max<T: Ord>(a: move T, b: move T) T {
     return b
 }
 
-let m = max(3, 7)           // T inferred as int
-let s = max("a", "b")       // T inferred as str
+const m = max(3, 7)           // T inferred as int
+const s = max("a", "b")       // T inferred as str
 ```
 
 ```ebnf
@@ -119,9 +119,9 @@ that none of them determines is an error (E0330). They can be written
 explicitly:
 
 ```ofir
-let xs = List<int>.new()
-let n = parse<u16>("8080")?
-let size = sizeOf<Point>()
+const xs = List<int>.new()
+const n = parse<u16>("8080")?
+const size = sizeOf<Point>()
 ```
 
 **Disambiguation.** Because comparison operators do not chain (chapter
