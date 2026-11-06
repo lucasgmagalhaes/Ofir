@@ -117,7 +117,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0341 | `T` has no field `.k` (spec 16) | stage 1 |
 | E0342 | the fields of these keys have different types (spec 16) | stage 1 |
 | E0343 | a key must be known at compile time (spec 16) | stage 1 |
-| E0344 | the condition of a conditional type is not decided for this instantiation (spec 16) | planned |
+| E0344 | the condition of a conditional type is not decided for this instantiation (spec 16) | stage 1 |
+| E0345 | `infer` is only allowed in the pattern of a conditional type (spec 16) | stage 1 |
 | E0350 | the members `A` and `B` of a union can be the same type (spec 17) | planned |
 | E0351 | type `T` cannot be a member of a union (spec 17) | planned |
 | E0352 | `T` is not a member of the union `U` (spec 17) | planned |
