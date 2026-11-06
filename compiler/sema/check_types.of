@@ -377,6 +377,11 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
         TypeKind.Key(name) => c.types.keys([name.0])
         TypeKind.KeyOp(op, left, right) => keyOpType(c, p, op, &*left, &*right, t.span)
         TypeKind.Index(base, key) => indexType(c, p, &*base, &*key, t.span)
+        TypeKind.Mapped(_, _, _, _, _) => c.unsupported(t.span, "mapped types are")
+        TypeKind.Is(_, _) |
+        TypeKind.Cond(_, _, _) |
+        TypeKind.Infer(_) |
+        TypeKind.Bool(_) => c.unsupported(t.span, "conditional types are")
     }
 }
 
