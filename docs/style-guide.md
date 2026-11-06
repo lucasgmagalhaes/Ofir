@@ -1,7 +1,8 @@
 # Ofir style guide
 
 The style `ofir fmt` produces and that all code in this repository follows.
-When the formatter exists it is the authority; until then, this document is.
+`ofir fmt` (docs/design/toolchain.md) applies the layout rules below; the
+naming and documentation rules are for the author.
 
 ## Layout
 
