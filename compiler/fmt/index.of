@@ -1,0 +1,235 @@
+/**
+ * @module
+ * `ofir fmt`: formats source files in the style of docs/style-guide.md
+ * (docs/design/toolchain.md).
+ *
+ * The formatter works on the tokens and the comments of a file, not on its
+ * syntax tree: it keeps the line breaks the author chose and every comment,
+ * and only changes the whitespace, the breaking of blocks written on one
+ * line, the trailing `,` of multi-line lists and the order of a run of
+ * imports. A file that does not parse is left as it is. Before a file is
+ * written, its new tokens are checked against the old ones.
+ */
+
+import base.intern.Interner
+import base.span.SourceMap
+import diag.Diagnostics
+import diag.Format
+import fmt.blocks.brokenBlocks
+import fmt.layout.layout
+import fmt.units.units
+import std.fs
+import syntax.lexer.tokenize
+import syntax.parser.parse
+import syntax.token.TokenKind
+
+/**
+ * The formatted text of a file.
+ *
+ * @param path the name of the file, for the diagnostics
+ * @param src its text
+ * @returns the text, or the rendered errors if the file does not parse
+ */
+pub fn formatFile(path: str, src: str) Result<str, str> {
+    var map = SourceMap.new()
+    let file = map.add(path.toOwned(), src.toOwned())
+    var names = Interner.new()
+    var diags = Diagnostics.new()
+    let tokens = tokenize(src, file, names, diags)
+    let parsed = tokenize(src, file, names, diags)
+    if diags.hasErrors() {
+        return Result.Err(diags.render(map, Format.Human))
+    }
+    let tree = parse(file, src, parsed, names, diags)
+    if tree.diags.hasErrors() {
+        return Result.Err(tree.diags.render(map, Format.Human))
+    }
+    let all = units(src, tokens)
+    let forced = brokenBlocks(src, all)
+    let text = layout(src, all, forced)
+    if !sameTokens(src, text) {
+        return Result.Err("error: internal: formatting would change the tokens of `{path}`\n")
+    }
+    return Result.Ok(sortImports(text))
+}
+
+/**
+ * Runs `ofir fmt [--check] [--stdout] [paths]`: formats the `.of` files of
+ * the paths, by default of the current directory, in place. `--check` only
+ * lists the files that would change; `--stdout` prints the formatted text.
+ *
+ * @param args the arguments after `fmt`
+ * @returns the exit status: 1 if a file would change under `--check`, or
+ *          does not parse
+ */
+pub fn fmtCommand(args: List<str>) int {
+    var check = false
+    var stdout = false
+    var paths: List<str> = []
+    for i in 0..args.len() {
+        if args[i] == "--check" {
+            check = true
+        } else if args[i] == "--stdout" {
+            stdout = true
+        } else if args[i].startsWith("-") {
+            eprintln("error: unknown option `{args[i]}` for `fmt`")
+            return 2
+        } else {
+            paths.push(args[i].clone())
+        }
+    }
+    if paths.isEmpty() {
+        paths.push(".")
+    }
+    var files: List<str> = []
+    for i in 0..paths.len() {
+        if !collect(paths[i], true, files) {
+            eprintln("error: cannot read `{paths[i]}`")
+            return 2
+        }
+    }
+    var status = 0
+    for i in 0..files.len() {
+        if !formatOne(files[i], check, stdout) {
+            status = 1
+        }
+    }
+    return status
+}
+
+// Formats one file; false if it does not parse, or would change under
+// `--check`.
+fn formatOne(path: str, check: bool, stdout: bool) bool {
+    let Result.Ok(src) = fs.readToString(path) else {
+        eprintln("error: cannot read `{path}`")
+        return false
+    }
+    let text = match formatFile(path, src) {
+        Result.Ok(text) => text
+        Result.Err(errors) => {
+            eprint(errors)
+            return false
+        }
+    }
+    if stdout {
+        print(text)
+        return true
+    }
+    if text == src {
+        return true
+    }
+    if check {
+        println(path)
+        return false
+    }
+    if fs.writeString(path, text).isErr() {
+        eprintln("error: cannot write `{path}`")
+        return false
+    }
+    return true
+}
+
+// Adds the `.of` files of `path` (a file, or a directory read recursively,
+// leaving out hidden entries) to `files`. False if `path` cannot be read.
+fn collect(path: str, given: bool, files: mut List<str>) bool {
+    let Result.Ok(entries) = fs.readDir(path) else {
+        if given && !fs.exists(path) {
+            return false
+        }
+        if path.endsWith(".of") {
+            files.push(path.toOwned())
+        }
+        return true
+    }
+    for i in 0..entries.len() {
+        if !entries[i].name.startsWith(".") {
+            collect(entries[i].path, false, files)
+        }
+    }
+    return true
+}
+
+// Whether two texts have the same tokens, but for the `,` the formatter
+// adds before a closing bracket.
+fn sameTokens(before: str, after: str) bool {
+    let old = significant(before)
+    let new = significant(after)
+    var j = 0
+    for i in 0..new.len() {
+        let t = new[i]
+        let text = after.slice(t.start, t.end)
+        let added = t.kind == TokenKind.Comma && i + 1 < new.len() &&
+            (new[i + 1].kind == TokenKind.RParen || new[i + 1].kind == TokenKind.RBracket)
+        if j < old.len() && old[j].kind == t.kind && sameText(before, old[j], text) {
+            j += 1
+        } else if !added {
+            return false
+        }
+    }
+    return j == old.len()
+}
+
+// Whether a token of `src` has the text `text`; doc comments are indented
+// again, so only their kinds are compared.
+fn sameText(src: str, t: Tok, text: str) bool {
+    if t.kind == TokenKind.DocComment || t.kind == TokenKind.ModuleDoc {
+        return true
+    }
+    return src.slice(t.start, t.end) == text
+}
+
+// A token without its value.
+copy struct Tok {
+    kind: TokenKind
+    start: int
+    end: int
+}
+
+// The tokens of a text but the newlines.
+fn significant(src: str) List<Tok> {
+    var map = SourceMap.new()
+    let file = map.add("", src.toOwned())
+    var names = Interner.new()
+    var diags = Diagnostics.new()
+    let tokens = tokenize(src, file, names, diags)
+    var out: List<Tok> = []
+    for i in 0..tokens.len() {
+        let t = &tokens[i]
+        if t.kind != TokenKind.Newline {
+            out.push(Tok{kind: t.kind, start: t.span.start, end: t.span.end})
+        }
+    }
+    return out
+}
+
+// Sorts each run of single-line imports at the start of lines.
+fn sortImports(text: str) str {
+    var lines: List<str> = []
+    var run: List<str> = []
+    for line in text.split("\n") {
+        let plain = !line.contains("//") && !line.contains("/*")
+        if line.startsWith("import ") && plain {
+            run.push(line.toOwned())
+            continue
+        }
+        flushImports(lines, run)
+        lines.push(line.toOwned())
+    }
+    flushImports(lines, run)
+    var out = ""
+    for i in 0..lines.len() {
+        if i > 0 {
+            out.push("\n")
+        }
+        out.push(lines[i])
+    }
+    return out
+}
+
+fn flushImports(lines: mut List<str>, run: mut List<str>) {
+    run.sort()
+    for i in 0..run.len() {
+        lines.push(run[i].clone())
+    }
+    run.clear()
+}
