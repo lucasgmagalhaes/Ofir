@@ -29,14 +29,14 @@ pub fn isCode(code: str) bool {
 // tried: `OFIR_ERRORS`, then next to an installed compiler, then the
 // repository's docs/errors for a compiler in build/stageN.
 fn places() List<str> {
-    var dirs: List<str> = []
+    let dirs: List<str> = []
     if const Option.Some(dir) = os.env("OFIR_ERRORS") {
         dirs.push(dir)
     }
     const Result.Ok(exe) = os.executablePath() else {
         return dirs
     }
-    var slash = -1
+    let slash = -1
     for i in 0..exe.len() {
         if exe[i] == b'/' {
             slash = i

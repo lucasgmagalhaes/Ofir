@@ -122,8 +122,8 @@ fn addTestFile(ld: Loader, front: mut Front, module: mut Module, name: str, path
 
 // The position of the last `/` of `path`, or -1.
 fn lastSlash(path: str) int {
-    var found = -1
-    var i = 0
+    let found = -1
+    let i = 0
     for b in path.bytes() {
         if b == b'/' {
             found = i
@@ -145,8 +145,8 @@ fn isLoaded(ld: Loader, name: str) bool {
 // The file of module `name`, if it exists.
 fn moduleFile(ld: Loader, name: str) Option<str> {
     const inStd = name.startsWith("std.")
-    var dir = ld.rootDir.clone()
-    var rest = name.toOwned()
+    let dir = ld.rootDir.clone()
+    let rest = name.toOwned()
     if inStd {
         const Option.Some(std) = ld.stdDir.clone() else {
             return Option.None
@@ -171,7 +171,7 @@ fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
         return
     }
     if const Option.Some(parsed) = front.parseFile(file) {
-        var module = parsed
+        let module = parsed
         addTestFile(ld, front, module, name, path)
         stripCfg(module, &ld.target, front.names, front.diags)
         ld.modules.push(ProgramModule{name: name.toOwned(), module})
@@ -179,7 +179,7 @@ fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
 }
 
 fn dottedName(names: Interner, path: &List<Symbol>, count: int) str {
-    var out = ""
+    let out = ""
     for i in 0..count {
         if i > 0 {
             out.push(".")
@@ -191,7 +191,7 @@ fn dottedName(names: Interner, path: &List<Symbol>, count: int) str {
 
 // The module named by the path, then its parent.
 fn loadImport(ld: mut Loader, front: mut Front, path: &List<Symbol>) {
-    var count = path.len()
+    let count = path.len()
     for count >= 1 && count + 1 >= path.len() {
         const name = dottedName(front.names, path, count)
         if isLoaded(ld, name) {
@@ -248,7 +248,7 @@ fn projectDir(input: str) Option<str> {
     const Result.Ok(path) = fs.canonicalize(input) else {
         return Option.None
     }
-    var dir = path
+    let dir = path
     for {
         const slash = lastSlash(dir)
         if slash <= 0 {
@@ -311,16 +311,16 @@ fn rootModuleName(ld: Loader, input: str, inProject: bool) str {
 pub fn loadProgram(input: str, root: move Module, front: mut Front,
                    target: move CfgTarget) Program {
     const slash = lastSlash(input)
-    var rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
+    let rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
     const project = projectDir(input)
     const inProject = project.isSome()
     if const Option.Some(dir) = project {
         rootDir = dir
     }
     const testing = target.test
-    var ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, target}
+    let ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, target}
     const name = rootModuleName(ld, input, inProject)
-    var module = root
+    let module = root
     addTestFile(ld, front, module, name, input)
     stripCfg(module, &ld.target, front.names, front.diags)
     ld.modules.push(ProgramModule{name, module})
@@ -329,9 +329,9 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
             loadModule(ld, front, "std.core", core)
         }
     }
-    var m = 0
+    let m = 0
     for m < ld.modules.len() {   // grows while it is walked
-        var imports: List<List<Symbol>> = []
+        let imports: List<List<Symbol>> = []
         const items = &ld.modules[m].module.items
         for i in 0..items.len() {
             if const ItemKind.Import(path, _) = items[i].kind {
@@ -347,7 +347,7 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
             // that stage 0 cannot read, so `std.core` does not import them;
             // loaded last, they leave the numbers of the other modules as
             // stage 0 gives them.
-            var late = ["std.core.any", "std.core.iter"]
+            let late = ["std.core.any", "std.core.iter"]
             if ld.target.bench {
                 late.push("std.core.bench")   // `Bencher` (spec 12.3)
             }

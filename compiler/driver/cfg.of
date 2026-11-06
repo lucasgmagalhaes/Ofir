@@ -151,14 +151,14 @@ fn keeps(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
 // The functions that stay, `None` if they all do.
 fn keptFns(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
            fns: &List<FnDecl>) Option<List<FnDecl>> {
-    var any = false
+    let any = false
     for i in 0..fns.len() {
         any = any || hasCfg(names, &fns[i].attributes)
     }
     if !any {
         return Option.None
     }
-    var out: List<FnDecl> = []
+    let out: List<FnDecl> = []
     for i in 0..fns.len() {
         if keeps(t, names, diags, &fns[i].attributes) {
             out.push(fns[i].clone())
@@ -170,14 +170,14 @@ fn keptFns(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
 // The fields that stay, `None` if they all do.
 fn keptFields(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
               fields: &List<FieldDecl>) Option<List<FieldDecl>> {
-    var any = false
+    let any = false
     for i in 0..fields.len() {
         any = any || hasCfg(names, &fields[i].attributes)
     }
     if !any {
         return Option.None
     }
-    var out: List<FieldDecl> = []
+    let out: List<FieldDecl> = []
     for i in 0..fields.len() {
         if keeps(t, names, diags, &fields[i].attributes) {
             out.push(fields[i].clone())
@@ -231,7 +231,7 @@ fn keptMembers(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
  * @param diags where invalid conditions are reported (E0809)
  */
 pub fn stripCfg(module: mut Module, t: &CfgTarget, names: Interner, diags: mut Diagnostics) {
-    var i = 0
+    let i = 0
     for i < module.items.len() {
         const stays = !hasCfg(names, &module.items[i].attributes) ||
                       keeps(t, names, diags, &module.items[i].attributes)
