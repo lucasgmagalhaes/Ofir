@@ -1,0 +1,367 @@
+/**
+ * @module
+ * The layout of `ofir fmt` (docs/style-guide.md): the line breaks of the
+ * source are kept, and each line is indented again from the brackets open
+ * at its start.
+ *
+ * - The lines inside `{ }` are indented by 4 spaces from the statement that
+ *   opens the block; a line that continues a statement (after an operator,
+ *   or inside `( )` and `[ ]`) by 4 more. A continuation indented further,
+ *   say aligned with an opening `(`, keeps its alignment.
+ * - A line that starts with a closing bracket is indented as the line that
+ *   opened it.
+ * - Spaces: none inside brackets, before `,`, `:` and postfix `?`, or
+ *   around `.`; one after `,` and `:` and around the binary operators. Other
+ *   spacing is kept, as one space or none, and so is the alignment of the
+ *   comments at the end of lines.
+ * - At most one blank line in a row, none at the start or end of a block.
+ * - A multi-line list in `( )` or `[ ]` with a `,` ends with a `,`.
+ */
+
+import fmt.units.Unit
+import fmt.units.UnitKind
+import syntax.token.TokenKind
+
+const INDENT: int = 4
+
+/**
+ * The formatted text of a file.
+ *
+ * @param src the text of the file
+ * @param units its units
+ * @param forced the units that must start a line, from `brokenBlocks`
+ * @returns the text, ending with a newline unless it is empty
+ */
+pub fn layout(src: str, units: List<Unit>, forced: List<bool>) str {
+    var l = Layout{}
+    for i in 0..units.len() {
+        let u = units[i]
+        let starts = i == 0 || u.breaks > 0 || forced[i]
+        if starts {
+            let orig = if u.breaks > 0 || i == 0 { u.space } else { -1 }
+            l.newLine(units, i, orig)
+        } else {
+            l.line.push(" ".repeat(spacing(units, forced, i)))
+        }
+        l.put(src, u)
+    }
+    l.flush()
+    var out = ""
+    for i in 0..l.lines.len() {
+        out.push(l.lines[i])
+        out.push("\n")
+    }
+    return out
+}
+
+// A bracket open at the current point of the layout.
+copy struct Open {
+    kind: TokenKind
+    base: int        // the indentation of the line that closes it
+    origBase: int    // the indentation of that line in the source
+    comma: bool = false   // a `,` directly inside
+    literal: bool = false   // a `{` of a struct literal: `Point{x: 1}`
+}
+
+struct Layout {
+    lines: List<str> = []
+    line: str = ""
+    open: bool = false       // whether `line` holds a line
+    indent: int = 0          // of `line`
+    orig: int = 0            // of `line` in the source
+    stmt: int = 0            // the indentation of the current statement
+    stmtOrig: int = 0        // the same in the source
+    stack: List<Open> = []
+    last: TokenKind = TokenKind.Invalid   // the kind of the last token
+    lastIsCode: bool = false   // whether the last unit is a token
+    codeLine: int = -1       // the line of the last token; `lines.len()` for `line`
+    codeEnd: int = 0         // the byte after the last token on that line
+    inWhere: bool = false    // after a `where` that ends its line
+
+    fn flush(mut self) {
+        if self.open {
+            self.lines.push(self.line.trimEnd().toOwned())
+            self.open = false
+        }
+    }
+
+    // Starts the line of `units[i]`, `orig` its indentation in the source
+    // (-1 for a line made by breaking a block).
+    fn newLine(mut self, units: List<Unit>, i: int, orig: int) {
+        let u = units[i]
+        let closer = u.kind == UnitKind.Code && isCloser(u.tok)
+        if closer && u.tok != TokenKind.RBrace {
+            self.trailingComma()
+        }
+        self.flush()
+        let opener = self.lastIsCode && isOpener(self.last)
+        if u.breaks >= 2 && self.lines.len() > 0 && !opener && !closer {
+            self.lines.push("")
+        }
+        self.indent = self.indentOf(u, orig)
+        self.orig = if orig >= 0 { orig } else { self.indent }
+        self.line = " ".repeat(self.indent)
+        self.open = true
+    }
+
+    // Adds the `,` that ends a multi-line list before its closing bracket.
+    fn trailingComma(mut self) {
+        let Option.Some(top) = self.stack.last() else {
+            return
+        }
+        if !top.comma || self.last == TokenKind.Comma || isOpener(self.last) {
+            return
+        }
+        if self.codeLine == self.lines.len() {
+            let head = self.line.slice(0, self.codeEnd)
+            let tail = self.line.sliceFrom(self.codeEnd)
+            self.line = "{head},{tail}"
+        } else if self.codeLine >= 0 {
+            let text = self.lines[self.codeLine].clone()
+            let head = text.slice(0, self.codeEnd)
+            let tail = text.sliceFrom(self.codeEnd)
+            self.lines[self.codeLine] = "{head},{tail}"
+        }
+    }
+
+    fn indentOf(mut self, u: Unit, orig: int) int {
+        var inner = 0
+        if let Option.Some(top) = self.stack.last() {
+            let base = top.base
+            let origBase = top.origBase
+            let kind = top.kind
+            if u.kind == UnitKind.Code && isCloser(u.tok) {
+                if u.tok == TokenKind.RBrace {
+                    self.stmt = base
+                    self.stmtOrig = if orig >= 0 { orig } else { base }
+                }
+                return base
+            }
+            if kind != TokenKind.LBrace || top.literal {
+                return aligned(base, origBase, orig)
+            }
+            inner = base + INDENT
+        }
+        if self.inWhere {
+            // the bounds of a `where` on their own lines, then the `{`
+            if u.kind == UnitKind.Code && u.tok == TokenKind.LBrace {
+                self.inWhere = false
+                return self.stmt
+            }
+            return self.stmt + INDENT
+        }
+        if self.last == TokenKind.Pipe && orig >= 0 {
+            // the next alternative of a pattern: `A |` then `B => ...`
+            let kept = orig + self.stmt - self.stmtOrig
+            return if kept > self.stmt { kept } else { self.stmt }
+        }
+        if isContinuation(self.last) {
+            return aligned(self.stmt, self.stmtOrig, orig)
+        }
+        if u.kind == UnitKind.Code {
+            self.stmt = inner
+            self.stmtOrig = if orig >= 0 { orig } else { inner }
+        }
+        return inner
+    }
+
+    fn put(mut self, src: str, u: Unit) {
+        let text = src.slice(u.start, u.end)
+        if u.kind == UnitKind.Code && u.tok != TokenKind.DocComment &&
+                u.tok != TokenKind.ModuleDoc {
+            self.line.push(text)
+            self.codeLine = self.lines.len()
+            self.codeEnd = self.line.len()
+            self.inWhere = self.inWhere || (self.last != TokenKind.Dot && endsWhere(src, u))
+            self.last = u.tok
+            self.lastIsCode = true
+            self.bracket(u.tok, u.space == 0)
+            return
+        }
+        self.line.push(reindented(text, self.indent))
+        if u.kind == UnitKind.Code {
+            self.last = u.tok
+        }
+        self.lastIsCode = u.kind == UnitKind.Code
+    }
+
+    // `joined`: the token follows the one before it without a space.
+    fn bracket(mut self, kind: TokenKind, joined: bool) {
+        if kind == TokenKind.LParen || kind == TokenKind.LBracket {
+            self.stack.push(Open{kind, base: self.indent, origBase: self.orig})
+        } else if kind == TokenKind.LBrace && joined && self.codeEnd > self.indent + 1 {
+            let open = Open{kind, base: self.indent, origBase: self.orig, literal: true}
+            self.stack.push(open)
+        } else if kind == TokenKind.LBrace {
+            self.inWhere = false
+            let inBlock = match self.stack.last() {
+                Option.Some(top) => top.kind == TokenKind.LBrace
+                Option.None => true
+            }
+            if inBlock {
+                self.stack.push(Open{kind, base: self.stmt, origBase: self.stmtOrig})
+            } else {
+                self.stack.push(Open{kind, base: self.indent, origBase: self.orig})
+            }
+        } else if isCloser(kind) {
+            self.stack.pop()
+        } else if kind == TokenKind.Comma && self.stack.len() > 0 {
+            let top = self.stack.len() - 1
+            self.stack[top].comma = true
+        }
+    }
+}
+
+// The indentation of a continuation line: the alignment it had in the
+// source, if it is deeper than `base`, else 4 more than `base`.
+fn aligned(base: int, origBase: int, orig: int) int {
+    let kept = orig + base - origBase
+    return if orig >= 0 && kept > base { kept } else { base + INDENT }
+}
+
+// A comment or doc comment over several lines, its lines that start with
+// `*` indented again under the first.
+fn reindented(text: str, indent: int) str {
+    if !text.contains("\n") {
+        return text.toOwned()
+    }
+    var out = ""
+    var first = true
+    for part in text.split("\n") {
+        if !first {
+            out.push("\n")
+            let rest = part.trimStart()
+            if rest.startsWith("*") {
+                out.push(" ".repeat(indent + 1))
+                out.push(rest)
+            } else {
+                out.push(part)
+            }
+        } else {
+            out.push(part)
+        }
+        first = false
+    }
+    return out
+}
+
+// The spaces between `units[i]` and the unit before it on the same line.
+fn spacing(units: List<Unit>, forced: List<bool>, i: int) int {
+    let p = units[i - 1]
+    let u = units[i]
+    let orig = if u.space > 0 { 1 } else { 0 }
+    if u.kind == UnitKind.LineComment {
+        return if u.space > 0 { u.space } else { 1 }   // keeps aligned comments
+    }
+    if p.kind != UnitKind.Code || u.kind != UnitKind.Code {
+        return orig
+    }
+    let a = p.tok
+    let b = u.tok
+    if b == TokenKind.Comma || b == TokenKind.RParen || b == TokenKind.RBracket {
+        return 0
+    }
+    if a == TokenKind.LParen || a == TokenKind.LBracket || a == TokenKind.Dot ||
+            a == TokenKind.At {
+        return 0
+    }
+    if a == TokenKind.Comma || a == TokenKind.Colon {
+        return 1
+    }
+    if b == TokenKind.Question || b == TokenKind.Colon {
+        return 0
+    }
+    if b == TokenKind.Dot {
+        return if endsOperand(a) { 0 } else { orig }
+    }
+    if a == TokenKind.Gt && u.space == 0 && (b == TokenKind.Gt || b == TokenKind.Eq) {
+        return 0   // `>=` and `>>` are two tokens
+    }
+    if isBinary(a) || isBinary(b) || startsGe(units, i) {
+        return 1
+    }
+    if isPrefix(b) {
+        return if endsOperand(a) && a != TokenKind.RParen { 1 } else { orig }
+    }
+    if isPrefix(a) {
+        // `a - b` or `-b`; `fn f() &T` and `fn f() *u8` are kept as written
+        let joined = i >= 2 && p.breaks == 0 && !forced[i - 1]
+        if !joined {
+            return orig   // a `+` that starts a line
+        }
+        let before = units[i - 2]
+        if before.kind != UnitKind.Code || !endsOperand(before.tok) {
+            return 0
+        }
+        return if before.tok == TokenKind.RParen { orig } else { 1 }
+    }
+    return orig
+}
+
+// Whether `units[i]` is the `>` of a `>=`.
+fn startsGe(units: List<Unit>, i: int) bool {
+    if i + 1 >= units.len() || units[i].tok != TokenKind.Gt {
+        return false
+    }
+    let next = units[i + 1]
+    return next.kind == UnitKind.Code && next.tok == TokenKind.Eq && next.space == 0 &&
+        next.breaks == 0
+}
+
+// Whether a unit is a `where` that ends its line.
+fn endsWhere(src: str, u: Unit) bool {
+    if u.tok != TokenKind.Ident || src.slice(u.start, u.end) != "where" {
+        return false
+    }
+    var i = u.end
+    for i < src.len() && src[i] == b' ' {
+        i += 1
+    }
+    return i >= src.len() || src[i] == b'\n' || src[i] == b'\r' || src[i] == b'/'
+}
+
+fn isOpener(kind: TokenKind) bool {
+    return kind == TokenKind.LParen || kind == TokenKind.LBracket || kind == TokenKind.LBrace
+}
+
+fn isCloser(kind: TokenKind) bool {
+    return kind == TokenKind.RParen || kind == TokenKind.RBracket || kind == TokenKind.RBrace
+}
+
+// Whether a token can end an operand, so that a `-` after it subtracts.
+fn endsOperand(kind: TokenKind) bool {
+    return kind == TokenKind.Ident || kind == TokenKind.Int || kind == TokenKind.Float ||
+        kind == TokenKind.Byte || kind == TokenKind.Str || kind == TokenKind.StrEnd ||
+        kind == TokenKind.ByteStr || kind == TokenKind.RParen ||
+        kind == TokenKind.RBracket || kind == TokenKind.RBrace ||
+        kind == TokenKind.SelfValue || kind == TokenKind.SelfType ||
+        kind == TokenKind.True || kind == TokenKind.False || kind == TokenKind.Question
+}
+
+// The operators that are binary wherever they appear.
+fn isBinary(kind: TokenKind) bool {
+    return isAssign(kind) || kind == TokenKind.EqEq || kind == TokenKind.Ne ||
+        kind == TokenKind.Le || kind == TokenKind.AndAnd || kind == TokenKind.OrOr ||
+        kind == TokenKind.FatArrow || kind == TokenKind.QuestionQuestion ||
+        kind == TokenKind.Slash || kind == TokenKind.Percent || kind == TokenKind.Caret ||
+        kind == TokenKind.Shl
+}
+
+fn isAssign(kind: TokenKind) bool {
+    return kind == TokenKind.Eq || kind == TokenKind.PlusEq || kind == TokenKind.MinusEq ||
+        kind == TokenKind.StarEq || kind == TokenKind.SlashEq ||
+        kind == TokenKind.PercentEq || kind == TokenKind.AmpEq ||
+        kind == TokenKind.PipeEq || kind == TokenKind.CaretEq || kind == TokenKind.ShlEq
+}
+
+// The operators that are also prefix operators.
+fn isPrefix(kind: TokenKind) bool {
+    return kind == TokenKind.Minus || kind == TokenKind.Star || kind == TokenKind.Amp ||
+        kind == TokenKind.Plus
+}
+
+// Whether a line that follows this token continues its statement.
+fn isContinuation(kind: TokenKind) bool {
+    return isBinary(kind) || isPrefix(kind) ||
+        kind == TokenKind.Dot || kind == TokenKind.Colon || kind == TokenKind.As
+}

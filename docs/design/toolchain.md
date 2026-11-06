@@ -12,7 +12,7 @@ A single executable provides every tool:
 | `ofir check` | run every phase up to the borrow checker, no code generation |
 | `ofir test [filter]` | build and run `@test` functions and doc tests |
 | `ofir bench [filter]` | build with optimizations and run `@bench` functions |
-| `ofir fmt [--check]` | format source files **[planned]** |
+| `ofir fmt [--check] [--stdout] [paths]` | format source files (below) |
 | `ofir doc` | generate HTML documentation **[planned]** |
 | `ofir explain <code>` | describe an error code |
 | `ofir version` | print version and LLVM/clang versions in use |
@@ -157,8 +157,36 @@ allowed, the format of `tsconfig.json` (ADR 0026). Keys are camelCase.
 |----------|---------|---------|
 | `inlineBlocks` | `false` | when `false`, the body of every function and of every statement (`if`, `else`, `for`, `unsafe`, `match` arm, `let ... else`) is broken onto its own lines; an `if` or `unsafe` used as a value may stay on one line if each block holds one expression. `true` lets a body of a single statement stay on one line. |
 
-Until `ofir fmt` exists, `tools/check_format.py` checks the repository
-against the default, and `--fix` applies it.
+`ofir fmt` (stage 1) does not read the manifest yet: it always applies the
+default. `tools/check_format.py` checks the repository against the same
+rules, and `--fix` applies them.
+
+### `ofir fmt`
+
+`ofir fmt` formats the `.of` files of the paths it is given (files, or
+directories read recursively without their hidden entries; by default the
+current directory) in place, in the style of [the style guide](../style-guide.md).
+`--check` writes nothing: it prints the files that would change and exits
+with status 1 if there are any. `--stdout` prints the formatted text instead
+of writing it.
+
+The formatter works on the tokens and comments of a file, not on its syntax
+tree. It keeps the line breaks of the source and every comment, and changes
+only:
+
+- the indentation, computed from the open brackets: 4 spaces per block and
+  4 more for a line that continues a statement, unless the continuation is
+  aligned deeper (with an opening `(`, say), which is kept;
+- the spaces inside a line (none inside brackets or around `.`, one after
+  `,` and `:` and around binary operators);
+- blank lines: at most one in a row, none at the start or end of a block;
+- inline blocks, broken onto their own lines (`inlineBlocks` above);
+- a `,` added at the end of a multi-line list in `( )` or `[ ]`;
+- the order of each run of `import` lines, sorted.
+
+A file that does not lex or parse is reported and left as it is, and before
+a file is written the formatter checks that its tokens are unchanged but
+for the added commas.
 
 ## 3. Build profiles
 

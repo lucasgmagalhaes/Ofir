@@ -28,7 +28,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SUITES = ["lex", "parse", "run", "compile_fail", "panic", "borrow", "codegen"]
+SUITES = ["lex", "parse", "run", "compile_fail", "panic", "borrow", "codegen", "fmt"]
 TIMEOUT_SECONDS = 20
 PANIC_EXIT_STATUS = 101
 
@@ -256,6 +256,26 @@ def check_codegen(cfg: Config, path: Path, source: str) -> Result:
     return Result(path, "pass")
 
 
+def check_fmt(cfg: Config, path: Path) -> Result:
+    """`ofir fmt --stdout` of the file must match its .fmt file, and
+    formatting that output again must not change it."""
+    if cfg.stage == 0:
+        return Result(path, "skip", "`fmt` is a stage 1 command")
+    proc = run_process(compiler_cmd(cfg, "fmt", "--stdout", str(path)))
+    if proc.returncode != 0:
+        return Result(path, "fail", describe(proc))
+    result = compare_output(cfg, path, proc.stdout, ".fmt")
+    if result.status != "pass" or cfg.bless:
+        return result
+    with tempfile.TemporaryDirectory() as tmp:
+        again_path = Path(tmp) / path.name
+        again_path.write_text(proc.stdout)
+        again = run_process(compiler_cmd(cfg, "fmt", "--stdout", str(again_path)))
+    if again.returncode != 0 or again.stdout != proc.stdout:
+        return Result(path, "fail", "formatting the output again changes it\n" + describe(again))
+    return result
+
+
 def run_test(cfg: Config, suite: str, path: Path) -> Result:
     source = path.read_text()
     for requirement in REQUIRES_RE.findall(source):
@@ -273,6 +293,8 @@ def run_test(cfg: Config, suite: str, path: Path) -> Result:
         return check_panic(cfg, path, source)
     if suite == "codegen":
         return check_codegen(cfg, path, source)
+    if suite == "fmt":
+        return check_fmt(cfg, path)
     # compile_fail and borrow
     return check_diagnostics(cfg, path, source)
 

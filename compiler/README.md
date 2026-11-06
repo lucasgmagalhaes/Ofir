@@ -20,5 +20,5 @@ build|run|test <file.of>`, `--emit=tokens|ast|names|types|air|llvm`,
 `--stop-after=lex|parse|check`): `base`, `diag`, the lexer and the parser
 (`syntax/`), module loading (`driver/`), the resolver, the type checker and
 the move analysis (`sema/`), the AIR and the lowering (`air/`) and the LLVM
-codegen (`codegen/`). It finds std through `OFIR_STD` and the runtime
+codegen (`codegen/`). `fmt/` is `ofir fmt`, which only stage 1 has. It finds std through `OFIR_STD` and the runtime
 library through `OFIR_RUNTIME`, or next to its executable, as stage 0.

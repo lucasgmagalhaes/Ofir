@@ -9,6 +9,7 @@
 | `panic/` | `*.of` with a `// panic: message` header |
 | `borrow/` | ownership and borrow checker cases |
 | `codegen/` | `*.of` with `// CHECK:` lines matched against the LLVM IR |
+| `fmt/` | `*.of` + `*.fmt`: `ofir fmt --stdout` output, which must format to itself (stage 1) |
 | `selfhost/` | stage 2 == stage 3 verification |
 
 Run everything with `make test`, or a subset with
