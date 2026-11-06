@@ -293,8 +293,8 @@ std/
 ├── os/                       std.os: args, env, exit, run
 ├── math/                     std.math
 ├── testing/                  std.testing: assertEq, Bencher, test harness
-├── task/                     std.task   [planned]
-└── sync/                     std.sync   [planned]
+├── task/                     std.task: tasks on OS threads
+└── sync/                     std.sync: channels; Mutex, RwLock, atomics, Arc [planned]
 ```
 
 ## `tests/` — test suites

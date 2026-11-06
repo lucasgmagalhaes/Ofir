@@ -122,6 +122,16 @@ int64_t ofir_now_ns(void);       // a monotonic clock, in nanoseconds
 void *ofir_task_spawn(void *job);   // starts a thread that runs the job
 void ofir_task_join(void *thread);  // waits for it and frees the handle
 void ofir_tasks_started(void);      // from now on stdout takes a lock
+
+// Channels (channel.c, spec 14.4): queues of values that std.sync boxed.
+void *ofir_channel_new(void);                   // one sender, one receiver
+bool ofir_channel_send(void *ch, void *value);  // false once the receiver closed
+void *ofir_channel_recv(void *ch);              // waits; NULL when no sender is left
+void *ofir_channel_try_recv(void *ch);          // NULL when the queue is empty
+void ofir_channel_add_sender(void *ch);
+void ofir_channel_drop_sender(void *ch);        // the last one wakes the receiver
+void ofir_channel_close(void *ch);              // later sends fail
+void ofir_channel_drop_receiver(void *ch);      // after close and draining
 void ofir_stdout_publish(void);     // this thread's pending line to the buffer
 int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run);
 char *ofir_c_string(const uint8_t *ptr, int64_t len);   // NULL if it holds a NUL

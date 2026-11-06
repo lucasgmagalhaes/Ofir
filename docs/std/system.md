@@ -1,4 +1,4 @@
-# `std.io`, `std.fs`, `std.os`, `std.task`
+# `std.io`, `std.fs`, `std.os`, `std.task`, `std.sync`
 
 ## Errors (`std.io`)
 
@@ -74,9 +74,23 @@ pub struct Output {
 
 Stage 1 only (spec 14.2).
 
-- `run<T>(f: move fn() T) Task<T>`: starts a task on an OS thread of its
-  own.
+- `run<T: Send>(f: move fn() T + Send) Task<T>`: starts a task on an OS
+  thread of its own.
 - `Task<T>.join(move self) T`: waits for the task and returns its result.
+
+## `std.sync`
+
+Stage 1 only (spec 14.4).
+
+- `channel<T: Send>() (Sender<T>, Receiver<T>)`: an unbounded channel.
+- `Sender<T>.send(self, value: move T)`: never waits; the value is dropped
+  if the receiver is gone.
+- `Sender<T>.clone(self) Sender<T>`: another sender of the same channel.
+- `Receiver<T>.recv(self) Option<T>`: waits for the next value; `None` once
+  the queue is empty and every sender is dropped.
+- `Receiver<T>.tryRecv(self) Option<T>`: the next value if one is waiting.
+
+Dropping the receiver drops the values it never took.
 
 Stage 0: `std.io`, `std.fs` and `std.os` are written in Ofir over the C
 runtime's `os.c` and `fs.c` (docs/design/runtime.md); `std.io.Buffer` is
