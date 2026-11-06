@@ -38,7 +38,7 @@ import syntax.lexer.tokenize
 import syntax.parser.parse
 import syntax.token_print.printTokens
 
-const VERSION: str = "0.2.0"
+const VERSION: str = "0.5.0"
 
 fn printUsage() {
     eprintln("usage: ofir <command> [arguments]\n\ncommands:\n"

@@ -6,11 +6,48 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-06
+
+Milestone M5: every chapter of the specification not marked [planned] is
+implemented and tested (roadmap phase 5 and the M5 check, 5.22a-g). Most of
+the new language is implemented in stage 1 only; stage 0 stays the frozen
+bootstrap subset.
+
 ### Added
 
-- `List.iter()` (roadmap 5.1): a `ref struct ListIter<T>` written in Ofir
-  whose `next` returns `Option<&T>`, so `for x in list.iter()` works for
-  elements that are not Copy. `for` accepts iterators of generic types.
+- Returning borrows and `ref struct` (roadmap 5.1): `List.iter()` is written
+  in Ofir, and `for` accepts iterators of generic types.
+- Generic bounds and `where` clauses (5.2); interfaces with structural
+  satisfaction, assertions, default methods and embedding (5.3); `dyn I`
+  with vtables and fat pointers (5.4); type switches, `Any` and `typeName`
+  (5.4b); interfaces as parameter types (5.4c).
+- Built-in interfaces derived automatically: `Eq`, `Ord`, `Hash`, `Clone`,
+  `Debug` and `{x:?}`; `From` in `?` (5.5).
+- `List`, `Map`, `Option`, `Result` and `Box` as generic Ofir code in `std/`
+  (5.6).
+- Closures with arrow syntax, `fn` and `move fn` types and captures (5.7);
+  the iterator interface and `for` over iterators (5.8); `UnsafeCell` and
+  `Cell` (5.9).
+- Format specifiers `{x:spec}`, raw, multi-line and byte strings (5.10).
+- Attributes checked in both stages (E0807-E0810), `@inline`, `@cold`,
+  `@deprecated` (W0006), `@allow`, `@cfg`, `@repr(C)`, `@packed`,
+  `@align(N)`, `@export` and `@link` (5.11a-e).
+- Default parameter values and named arguments (5.12a);
+  `--message-format=json` (5.12b); notes and help in diagnostics (5.12c);
+  `ofir explain` with an explanation file for every code (5.12d); "did you
+  mean" suggestions (5.12e).
+- Debug info: `-g` emits DWARF functions and line tables (5.13).
+- Optimizations: `noalias`/`readonly` parameters with `--release`, niche
+  layouts for `Option<&T>`, `Option<Box<T>>` and `Option<fn>`, struct field
+  reordering and AIR check elimination (5.14).
+- A generated-code benchmark suite with C, Rust and Go baselines (5.15).
+- Generic type aliases (5.16); key types with `keyof`, key literals and
+  key-bounded parameters (5.17); mapped and conditional types (5.18).
+- Union types with widening, narrowing in `match` and `if let`, and the
+  built-in interfaces (5.20, 5.21, 5.21b).
+- Fixed arrays `[T; N]` (5.22a), `T?` for `Option<T>` (5.22b), mutable
+  slices `&mut [T]` (5.22c), mutable globals (5.22d), `str.toCString()`
+  (5.22e), and `@bench` with `ofir bench` (5.22f).
 
 ## [0.2.0] - 2026-11-03
 
