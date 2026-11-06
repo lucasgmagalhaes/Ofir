@@ -39,7 +39,7 @@ static Expr *block_expr(Parser *p, ExprKind kind, Span start) {
 static Expr *if_expr(Parser *p) {
     Span start = advance(p)->span;
     Expr *e = new_expr(p, EXPR_IF, start);
-    if (accept(p, TOK_KW_LET)) {
+    if (accept(p, TOK_KW_LET) || accept(p, TOK_KW_CONST)) {
         e->as.if_.let_pattern = parse_test_pattern(p);
         expect(p, TOK_EQ, "`=` after the pattern");
     }
