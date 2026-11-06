@@ -12,6 +12,7 @@
 #include <poll.h>
 #include <spawn.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 extern char **environ;
@@ -300,4 +301,18 @@ int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run) 
 // `ofir test` passes the index of the test to run as the only argument.
 int64_t ofir_test_index(void) {
     return arg_count > 1 ? strtoll(arg_values[1], NULL, 10) : -1;
+}
+
+// A monotonic clock in nanoseconds, for `Bencher` (spec 12.3).
+int64_t ofir_now_ns(void) {
+#ifdef _WIN32
+    LARGE_INTEGER count, freq;
+    QueryPerformanceCounter(&count);
+    QueryPerformanceFrequency(&freq);
+    return (int64_t)((double)count.QuadPart * 1e9 / (double)freq.QuadPart);
+#else
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec;
+#endif
 }
