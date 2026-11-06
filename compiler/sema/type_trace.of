@@ -108,7 +108,9 @@ fn constLine(c: Checker, out: mut str, index: int, item: &Item, isConst: bool) {
     if id != 0 && c.info[id].typed {
         out.push(c.typeName(c.info[id].ty))
         if let Option.Some(value) = c.info[id].value {
-            out.push(" = {valueText(c, &value)}")
+            if isConst {   // a mutable global's initial value is not printed
+                out.push(" = {valueText(c, &value)}")
+            }
         }
     }
     out.push("\n")
