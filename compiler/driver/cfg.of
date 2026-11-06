@@ -36,14 +36,14 @@ pub struct CfgTarget {
 // The value of `os == value` or `arch == value`; `None` if `name` is not
 // one of them or `value` is not one of its values.
 fn compare(t: &CfgTarget, names: Interner, name: &Expr, value: &Expr) Option<bool> {
-    let Option.Some(key) = identName(names, name) else {
+    const Option.Some(key) = identName(names, name) else {
         return Option.None
     }
-    let text = match value.kind {
+    const text = match value.kind {
         ExprKind.Str(text) => Option.Some(text.sliceFrom(0))
         _ => Option.None
     }
-    let Option.Some(given) = text else {
+    const Option.Some(given) = text else {
         return Option.None
     }
     if key == "os" {
@@ -72,7 +72,7 @@ fn identName(names: Interner, e: &Expr) Option<str> {
 fn holds(t: &CfgTarget, names: Interner, e: &Expr) Option<bool> {
     return match e.kind {
         ExprKind.Ident(_) => {
-            let name = identName(names, e) ?? ""
+            const name = identName(names, e) ?? ""
             if name == "debug" {
                 Option.Some(t.debug)
             } else if name == "test" {
@@ -101,10 +101,10 @@ fn binary(t: &CfgTarget, names: Interner, op: Op, lhs: &Expr, rhs: &Expr) Option
             Option.None => Option.None
         }
         Op.LogicalAnd | Op.LogicalOr => {
-            let Option.Some(a) = holds(t, names, lhs) else {
+            const Option.Some(a) = holds(t, names, lhs) else {
                 return Option.None
             }
-            let Option.Some(b) = holds(t, names, rhs) else {
+            const Option.Some(b) = holds(t, names, rhs) else {
                 return Option.None
             }
             match op {
@@ -134,9 +134,9 @@ fn hasCfg(names: Interner, attributes: &List<Attribute>) bool {
 fn keeps(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
          attributes: &List<Attribute>) bool {
     for i in 0..attributes.len() {
-        let a = &attributes[i]
+        const a = &attributes[i]
         if isCfg(names, a) {
-            if let Option.Some(value) = holds(t, names, &a.args[0]) {
+            if const Option.Some(value) = holds(t, names, &a.args[0]) {
                 return value
             }
             diags.error("E0809", a.span, "invalid condition for `@cfg`: write `os == \"linux\"`, "
@@ -191,8 +191,8 @@ fn keptMembers(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
                item: &Item) Option<ItemKind> {
     return match item.kind {
         ItemKind.Struct(isCopy, isRef, isTuple, typeParams, fields, methods) => {
-            let newFields = keptFields(t, names, diags, &fields)
-            let newMethods = keptFns(t, names, diags, &methods)
+            const newFields = keptFields(t, names, diags, &fields)
+            const newMethods = keptFns(t, names, diags, &methods)
             if newFields.isNone() && newMethods.isNone() {
                 return Option.None
             }
@@ -200,19 +200,19 @@ fn keptMembers(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
                                         newFields ?? fields.clone(), newMethods ?? methods.clone()))
         }
         ItemKind.Enum(isCopy, typeParams, variants, methods) => {
-            let Option.Some(kept) = keptFns(t, names, diags, &methods) else {
+            const Option.Some(kept) = keptFns(t, names, diags, &methods) else {
                 return Option.None
             }
             Option.Some(ItemKind.Enum(isCopy, typeParams.clone(), variants.clone(), kept))
         }
         ItemKind.Interface(typeParams, embeds, methods) => {
-            let Option.Some(kept) = keptFns(t, names, diags, &methods) else {
+            const Option.Some(kept) = keptFns(t, names, diags, &methods) else {
                 return Option.None
             }
             Option.Some(ItemKind.Interface(typeParams.clone(), embeds.clone(), kept))
         }
         ItemKind.Extern(abi, fns) => {
-            let Option.Some(kept) = keptFns(t, names, diags, &fns) else {
+            const Option.Some(kept) = keptFns(t, names, diags, &fns) else {
                 return Option.None
             }
             Option.Some(ItemKind.Extern(abi.clone(), kept))
@@ -233,17 +233,17 @@ fn keptMembers(t: &CfgTarget, names: Interner, diags: mut Diagnostics,
 pub fn stripCfg(module: mut Module, t: &CfgTarget, names: Interner, diags: mut Diagnostics) {
     var i = 0
     for i < module.items.len() {
-        let stays = !hasCfg(names, &module.items[i].attributes) ||
-                    keeps(t, names, diags, &module.items[i].attributes)
+        const stays = !hasCfg(names, &module.items[i].attributes) ||
+                      keeps(t, names, diags, &module.items[i].attributes)
         if stays {
             i += 1
         } else {
-            let _ = module.items.remove(i)
+            const _ = module.items.remove(i)
         }
     }
     for j in 0..module.items.len() {
-        let kind = keptMembers(t, names, diags, &module.items[j])
-        if let Option.Some(k) = kind {
+        const kind = keptMembers(t, names, diags, &module.items[j])
+        if const Option.Some(k) = kind {
             module.items[j].kind = k
         }
     }

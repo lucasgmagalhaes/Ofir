@@ -3,9 +3,9 @@
 @test
 fn internGivesOneSymbolPerName() {
     var names = Interner.new()
-    let a = names.intern("main")
-    let b = names.intern("helper")
-    let again = names.intern("main")
+    const a = names.intern("main")
+    const b = names.intern("helper")
+    const again = names.intern("main")
     assert(a.0 == 0 && b.0 == 1 && again.0 == a.0)
     assert(names.len() == 2)
     assert(names.name(a) == "main" && names.name(b) == "helper")
@@ -24,7 +24,7 @@ fn findDoesNotAdd() {
 fn manyNamesStayDistinct() {
     var names = Interner.new()
     for i in 0..1000 {
-        let symbol = names.intern("name{i}")
+        const symbol = names.intern("name{i}")
         assert(symbol.0 == i)
     }
     assert(names.name(names.intern("name500")) == "name500")

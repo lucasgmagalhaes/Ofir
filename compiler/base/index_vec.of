@@ -39,7 +39,7 @@ pub fn idAt<T>(index: int) Id<T> {
  * @example
  * ```ofir
  * var names: IndexVec<str> = IndexVec.new()
- * let id = names.push("main".toOwned())
+ * const id = names.push("main".toOwned())
  * assert(names.get(id) == "main")
  * ```
  */
