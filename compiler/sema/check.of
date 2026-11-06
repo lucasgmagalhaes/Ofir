@@ -513,6 +513,15 @@ pub struct Checker {
     /** The type arguments of the interfaces named as bounds, by the bound's file and
      * offset: a tuple type (see `boundArgs`). */
     pub boundArgs: Map<(int, int), int>
+    /** Type names bound while resolving a type: the key parameter of a mapped type. */
+    pub typeVars: List<Symbol>
+    /** Their types. */
+    pub typeVarTypes: List<int>
+    /** The type alias being expanded, or 0. */
+    pub aliasDef: int
+    /** The struct of each instance of a mapped type (spec 16.4), by the mapped type's
+     * file and offset and a tuple of the types in scope. */
+    pub mapped: Map<(int, int, int), int>
 
     /**
      * Reports an error.
@@ -845,7 +854,7 @@ pub fn fnOf(p: Program, def: Loc) &FnDecl {
     }
 }
 
-fn emptyInfo() DefInfo {
+pub fn emptyInfo() DefInfo {
     return DefInfo{ty: ERROR, typed: false, checking: false, fields: Option.None,
                    variants: Option.None,
                    value: Option.None, returnsBorrow: false, borrowSource: -1, sourceByRef: false,
@@ -903,7 +912,8 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
                    shorthandSpan: noSpan(), closures: [], closureMoves: [], capturesMut,
-                   boundArgs: Map.new()}
+                   boundArgs: Map.new(), typeVars: [], typeVarTypes: [], aliasDef: 0,
+                   mapped: Map.new()}
 }
 
 // ---------------------------------------------------------------------------
