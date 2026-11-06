@@ -19,6 +19,7 @@ import sema.check.itemOf
 import sema.check.itemTypeParams
 import sema.check_box.autoDeref
 import sema.check_box.methodReceiver
+import sema.check_keys.keyIndex
 import sema.check_generic.checkGenericArgs
 import sema.check_generic.fnGenerics
 import sema.check_generic.inferExplicit
@@ -39,6 +40,7 @@ import sema.expr_check.checkCallArgs
 import sema.expr_check.checkExpr
 import sema.expr_check.coerce
 import sema.expr_check.nameRes
+import sema.expr_check.requireType
 import sema.interfaces.assertedDefault
 import sema.interfaces.declaringInterface
 import sema.interfaces.dynCallable
@@ -600,6 +602,15 @@ pub fn checkIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, index: &Exp
     }
     let found = checkExpr(c, p, base, ERROR)
     let ty = autoDeref(c, p, base, found)
+    if keyedBase(c, ty) {   // `value[key]` (spec 16.2)
+        let key = checkExpr(c, p, index, ERROR)
+        if let Option.Some(field) = keyIndex(c, p, ty, index, key) {
+            return field
+        }
+        requireType(c, index, key, I64)
+        c.error("E0313", e.span, "type `{c.typeName(ty)}` cannot be indexed")
+        return ERROR
+    }
     coerce(c, p, index, I64)
     if let Option.Some(elem) = sequenceElem(c, ty) {
         return elem
@@ -611,6 +622,20 @@ pub fn checkIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, index: &Exp
         c.error("E0313", e.span, "type `{c.typeName(ty)}` cannot be indexed")
     }
     return ERROR
+}
+
+// Whether `value[key]` can name a field of a value of type `ty`: a type
+// parameter, a tuple or a struct other than a list's.
+fn keyedBase(c: Checker, ty: int) bool {
+    let kind = c.types.kind(ty)
+    if kind == TyKind.Param || kind == TyKind.Tuple {
+        return true
+    }
+    if kind != TyKind.Adt || sequenceElem(c, ty).isSome() {
+        return false
+    }
+    let def = c.def(c.types.get(ty).data)
+    return def.kind == DefKind.Struct && !def.lang
 }
 
 // ---------------------------------------------------------------------------

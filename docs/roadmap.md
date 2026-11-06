@@ -209,7 +209,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.14 | Optimization: `noalias`/`readonly` (stage 1 only), niche layouts, field reordering, AIR check elimination | M | done: stage 1 `--release` emits `noalias`/`readonly` parameters; niche enums (`Option<&T>`, `Option<Box<T>>`, `Option<fn>`) keep no tag, struct fields are ordered by descending alignment, and checks with a condition known while compiling are folded, in both stages; LLVM already drops the bounds checks of index loops, and fib keeps the overflow checks its semantics require (bench/HISTORY.md) |
 | 5.15 | Generated-code benchmark suite with C/Rust/Go baselines (started at M2 with the first programs) | M | **done**: `make bench-programs` checks outputs and measures all four languages in CI; first results in `bench/HISTORY.md`, with new results recorded per release |
 | 5.16 | Generic type aliases (`type Pair<T> = (T, T)`) | S | **done**: both stages expand aliases; scope, arity, cycles, bounds and storage restrictions tested |
-| 5.17 | Key types (spec 16.1-16.3): `keyof`, key literals, `\|` `&` `-` on keys, key-bounded parameters (erased, instantiated per key), `T[K]` and `value[key]` | M | `tests/run/type_operators/keys*` pass; E0340-E0343 tested |
+| 5.17 | Key types (spec 16.1-16.3): `keyof`, key literals, `\|` `&` `-` on keys, key-bounded parameters (erased, instantiated per key), `T[K]` and `value[key]` | M | **done** (stage 1): `tests/run/type_operators/keys*` and `key_params` pass; E0340-E0343 tested; moving `value[key]` out needs an owned `value` |
 | 5.18 | Mapped types (16.4) with `?:` and `if` filters; conditional types with `infer` (16.5) | L | `Partial`, `Pick`, `Omit`, `Record`, `Required` work in tests |
 | 5.19 | `comptime for` over keys (16.6, after chapter 15) and the standard aliases in `std.core` (16.7) | M | `merge(base, patch)` written in Ofir |
 | 5.20 | Union types (spec 17.1-17.3, ADR 0022): normalization, member rules, layout as an enum, widening at the coercion points and in `?` | M | `tests/run/unions/*` pass; E0350-E0353 tested |
@@ -325,7 +325,7 @@ These do not block Phases 0–4 and will be settled with an ADR when needed:
 1. Establish the implementation matrix (OFIR-01) and classify specification,
    safety and compatibility gaps before assigning new release commitments.
 2. Continue the remaining phase 5 language tasks; after completed 5.16,
-   the next sequential item is key types and indexed access (5.17).
+   the next sequential item is mapped and conditional types (5.18).
 3. Advance general-purpose std, tooling, packages and installation alongside
    the API foundation contracts in 6.11 and the JSON codec in 6.13,
    using the dependency and priority order in the

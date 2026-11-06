@@ -59,6 +59,7 @@ import sema.program.Program
 import sema.structs.isCopy
 import sema.types.NEVER
 import sema.types.TyKind
+import sema.types.keyField
 import syntax.ast.Arg
 import syntax.ast.Expr
 import syntax.ast.ExprKind
@@ -112,6 +113,20 @@ fn stepType(c: Checker, e: &Expr, i: int) int {
         Option.Some(steps) => steps[i]
         Option.None => c.typeOf(e.id.0)
     }
+}
+
+/**
+ * The field step of `base[index]` with a key parameter (spec 16.2): it
+ * names `T[K]`, resolved for each instance.
+ *
+ * @param c the checker
+ * @param base the indexed value
+ * @param index the key
+ * @returns the step
+ */
+pub fn keyStep(c: mut Checker, base: &Expr, index: &Expr) int {
+    let ty = viewType(c, base, -1)
+    return keyField(c.types.intern(TyKind.Index, 0, ty, [c.typeOf(index.id.0)]))
 }
 
 /**
@@ -273,6 +288,9 @@ fn placeOf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mu
             return fieldPlace(m, c, p, &*base, index as int, s)
         }
         ExprKind.Index(base, index) => {
+            if c.types.kind(c.typeOf(index.id.0)) == TyKind.Param {   // `value[key]`: a field
+                return fieldPlace(m, c, p, &*base, keyStep(c, &*base, &*index), s)
+            }
             var place = placeOf(m, c, p, &*base, derefCount(c, &*base), s)
             movesNode(m, c, p, &*index, s, Use.Read)
             place.via = Via.Index

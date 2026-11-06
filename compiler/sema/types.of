@@ -51,6 +51,13 @@ pub copy enum TyKind {
      * symbol.
      */
     Key
+    /**
+     * `keyof T` of a type with a parameter, resolved by `subst` (spec 16.2);
+     * `inner` is `T`, `data` the module that wrote it.
+     */
+    KeyOf
+    /** `T[K]` of types with a parameter, resolved by `subst`; `inner` is `T`, `args` `[K]`. */
+    Index
 }
 
 /**
@@ -107,11 +114,29 @@ pub const FN_BORROWED: int = 1
 pub const FN_OWNED: int = 2
 
 /**
+ * The fields of a struct, for `keyof T` and `T[K]` after substitution.
+ */
+pub struct KeyFields {
+    /** The module that declares it. */
+    pub module: int
+    /** A tuple struct: its keys are its indices. */
+    pub isTuple: bool
+    /** The names' symbols. */
+    pub names: List<int>
+    /** The types, with the struct's own type parameters. */
+    pub types: List<int>
+    /** Whether each is `pub`. */
+    pub pubs: List<bool>
+}
+
+/**
  * The table of every type of a program.
  */
 pub struct TypeTable {
     types: List<Ty>
     slots: List<int>   // open addressing: type id + 1, 0 when empty
+    fields: List<Option<KeyFields>>   // by `DefId`
+    indexNames: List<int>   // the symbols of `0`, `1`, ...: tuple keys
 
     /**
      * A table with the built-in types, in the order of their ids.
@@ -119,7 +144,8 @@ pub struct TypeTable {
      * @returns the table
      */
     pub fn new() TypeTable {
-        var table = TypeTable{types: [], slots: List.filled(0, 256)}
+        var table = TypeTable{types: [], slots: List.filled(0, 256), fields: [],
+                              indexNames: []}
         table.intern(TyKind.Error, 0, 0, [])
         table.intern(TyKind.Unit, 0, 0, [])
         table.intern(TyKind.Never, 0, 0, [])
@@ -190,8 +216,8 @@ pub struct TypeTable {
             i = (i + 1) & mask
         }
         let nested = kind == TyKind.Ref || kind == TyKind.Ptr || kind == TyKind.Slice ||
-                     kind == TyKind.Array ||
-                     kind == TyKind.Fn
+                     kind == TyKind.Array || kind == TyKind.Fn || kind == TyKind.KeyOf ||
+                     kind == TyKind.Index
         var hasParam = kind == TyKind.Param || (nested && self.types[inner].hasParam)
         var copied: List<int> = []
         for a in 0..args.len() {
@@ -393,7 +419,177 @@ pub struct TypeTable {
             let arg = self.types[ty].args[i]
             items.push(self.subst(arg, args))
         }
+        if kind == TyKind.KeyOf && !self.types[inner].hasParam {
+            return self.keyofFields(inner, data)
+        }
+        if kind == TyKind.Index && !self.types[inner].hasParam && !self.types[items[0]].hasParam {
+            return self.indexFields(inner, items[0])
+        }
         return self.intern(kind, data, inner, items)
+    }
+
+    /**
+     * Records the fields of a struct, for `keyof T` and `T[K]` after
+     * substitution.
+     *
+     * @param def its `DefId`
+     * @param fields its fields
+     */
+    pub fn setFields(mut self, def: int, fields: move KeyFields) {
+        for self.fields.len() <= def {
+            self.fields.push(Option.None)
+        }
+        self.fields[def] = Option.Some(fields)
+    }
+
+    /**
+     * Records the symbols of the tuple keys `.0`, `.1`, ...
+     *
+     * @param names their symbols, in order
+     */
+    pub fn setIndexNames(mut self, names: move List<int>) {
+        self.indexNames = names
+    }
+
+    /**
+     * Whether `setIndexNames` was called.
+     *
+     * @returns true once the tuple keys are known
+     */
+    pub fn hasIndexNames(self) bool {
+        return self.indexNames.len() > 0
+    }
+
+    // The first `count` tuple keys, or ERROR.
+    fn indexKeys(mut self, count: int) int {
+        if count > self.indexNames.len() {
+            return ERROR
+        }
+        var names: List<int> = []
+        for i in 0..count {
+            names.push(self.indexNames[i])
+        }
+        return self.keys(names)
+    }
+
+    // `keyof ty` written in `module`, or ERROR.
+    fn keyofFields(mut self, ty: int, module: int) int {
+        let kind = self.types[ty].kind
+        if kind == TyKind.Tuple {
+            return self.indexKeys(self.types[ty].args.len())
+        }
+        let def = self.types[ty].data
+        if kind != TyKind.Adt || def >= self.fields.len() {
+            return ERROR
+        }
+        var names: List<int> = []
+        match self.fields[def] {
+            Option.Some(f) => {
+                if f.isTuple {
+                    return self.indexKeys(f.types.len())
+                }
+                for i in 0..f.names.len() {
+                    if f.module == module || f.pubs[i] {
+                        names.push(f.names[i])
+                    }
+                }
+            }
+            Option.None => {
+                return ERROR
+            }
+        }
+        return self.keys(names)
+    }
+
+    /**
+     * The type of the fields `key` of `base`, which must all be the same.
+     *
+     * @param base a struct or tuple type
+     * @param key a key type
+     * @returns the type, or ERROR
+     */
+    pub fn indexFields(mut self, base: int, key: int) int {
+        if self.types[key].kind != TyKind.Key {
+            return ERROR
+        }
+        let names = self.keyNames(key)
+        var result = ERROR
+        for i in 0..names.len() {
+            let field = self.fieldOf(base, names[i])
+            if field == ERROR || (i > 0 && field != result) {
+                return ERROR
+            }
+            result = field
+        }
+        return result
+    }
+
+    // The type of field `name` of `base`, or ERROR.
+    fn fieldOf(mut self, base: int, name: int) int {
+        let kind = self.types[base].kind
+        if kind == TyKind.Tuple {
+            let at = self.indexOf(name)
+            return if at >= 0 && at < self.types[base].args.len() {
+                self.types[base].args[at]
+            } else {
+                ERROR
+            }
+        }
+        let def = self.types[base].data
+        if kind != TyKind.Adt || def >= self.fields.len() {
+            return ERROR
+        }
+        var field = ERROR
+        match self.fields[def] {
+            Option.Some(f) => {
+                for i in 0..f.types.len() {
+                    let named = if f.isTuple { self.indexOf(name) == i } else { f.names[i] == name }
+                    if named {
+                        field = f.types[i]
+                    }
+                }
+            }
+            Option.None => {}
+        }
+        let args = self.types[base].args.clone()
+        return self.subst(field, args)
+    }
+
+    /**
+     * The position of the field of a single key, after substitution.
+     *
+     * @param base a struct or tuple type
+     * @param key a single key
+     * @returns the field's position, or -1
+     */
+    pub fn keyPosition(self, base: int, key: int) int {
+        let name = self.types[key].data
+        let kind = self.types[base].kind
+        if kind == TyKind.Tuple {
+            return self.indexOf(name)
+        }
+        let def = self.types[base].data
+        if kind != TyKind.Adt || def >= self.fields.len() {
+            return -1
+        }
+        return match self.fields[def] {
+            Option.Some(f) => if f.isTuple {
+                self.indexOf(name)
+            } else {
+                position(&f.names, name)
+            }
+            Option.None => -1
+        }
+    }
+
+    // The position of a tuple key, or -1.
+    fn indexOf(self, name: int) int {
+        for i in 0..self.indexNames.len() {
+            if self.indexNames[i] == name {
+                return i
+            }
+        }
+        return -1
     }
 
     /**
@@ -405,8 +601,8 @@ pub struct TypeTable {
     pub fn depth(self, ty: int) int {
         let t = &self.types[ty]
         let nested = t.kind == TyKind.Ref || t.kind == TyKind.Ptr || t.kind == TyKind.Slice ||
-                     t.kind == TyKind.Array ||
-                     t.kind == TyKind.Fn
+                     t.kind == TyKind.Array || t.kind == TyKind.Fn || t.kind == TyKind.KeyOf ||
+                     t.kind == TyKind.Index
         var deepest = if nested { self.depth(t.inner) } else { 0 }
         for i in 0..t.args.len() {
             let d = self.depth(t.args[i])
@@ -439,6 +635,15 @@ pub struct TypeTable {
     }
 }
 
+fn position(names: &List<int>, name: int) int {
+    for i in 0..names.len() {
+        if names[i] == name {
+            return i
+        }
+    }
+    return -1
+}
+
 /**
  * The position of a kind in `TyKind`, for ordered comparisons.
  *
@@ -464,6 +669,8 @@ pub fn kindNumber(kind: TyKind) int {
         TyKind.Param => 14
         TyKind.Dyn => 15
         TyKind.Key => 16
+        TyKind.KeyOf => 17
+        TyKind.Index => 18
     }
 }
 
@@ -490,4 +697,25 @@ fn same(t: &Ty, kind: TyKind, data: int, inner: int, args: [int]) bool {
         }
     }
     return true
+}
+
+/**
+ * The field step of `value[key]` with a key parameter (spec 16.2), chosen
+ * for each instance: a negative number that names the type `T[K]`.
+ *
+ * @param ty the type `T[K]`
+ * @returns the step
+ */
+pub fn keyField(ty: int) int {
+    return -(ty + 2)
+}
+
+/**
+ * The type `T[K]` a field step of `keyField` names, or -1 for other steps.
+ *
+ * @param step a field step
+ * @returns the type, or -1
+ */
+pub fn keyFieldType(step: int) int {
+    return if step < -2 { -step - 2 } else { -1 }
 }

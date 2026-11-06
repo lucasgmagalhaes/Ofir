@@ -1,0 +1,36 @@
+// requires: stage1
+// Key parameters (spec 16.2): E0343, E0332, E0341 and E0600.
+
+struct Point {
+    x: float
+    y: float
+    id: int
+}
+
+fn get<T, K: keyof T>(value: &T, key: K) &T[K] {
+    return &value[key]
+}
+
+fn take<T, J: keyof T, K: keyof T>(value: move T, j: J, k: K) (T[J], T[K]) {
+    return (value[j], value[k])   // error[E0600]: use of moved value `value`
+}
+
+fn coord<K: .x | .y>(p: &Point, key: K) float {
+    return *get(p, key)
+}
+
+fn wide<K: keyof Point>(p: &Point, key: K) float {
+    return coord(p, key)   // error[E0332]: the key `K` is not in the bound `.x | .y` of `K`
+}
+
+fn loose<T, K: .x>(value: &T, key: K) float {
+    return value[key]   // error[E0341]: the keys of `K` may not be keys of `T`: bound it by `keyof T`
+}
+
+fn main() {
+    let p = Point{x: 1.0, y: 2.0, id: 3}
+    let k: .x = .x
+    let _ = get(&p, k)   // error[E0343]: a key must be known at compile time: pass a key literal, as `.x`, or a key parameter
+    let _ = get(&p, .z)   // error[E0332]: the key `.z` is not in the bound `.x | .y | .id` of `K`
+    let _ = coord(&p, .id)   // error[E0332]: the key `.id` is not in the bound `.x | .y` of `K`
+}

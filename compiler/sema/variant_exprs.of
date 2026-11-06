@@ -15,6 +15,7 @@ import sema.check.typeGenericsOf
 import sema.check_generic.checkGenericArgs
 import sema.check_generic.inferFromSelf
 import sema.check_generic.inferNew
+import sema.check_keys.checkKeyLiteral
 import sema.check_types.ownerType
 import sema.enums.enumOf
 import sema.enums.enumVariants
@@ -23,6 +24,7 @@ import sema.enums.variantsOf
 import sema.expr_check.checkArgs
 import sema.program.Program
 import sema.types.ERROR
+import sema.types.TyKind
 import syntax.ast.Arg
 import syntax.ast.Expr
 import syntax.ast.ExprKind
@@ -115,6 +117,9 @@ fn noVariant(c: mut Checker, span: Span, name: Symbol, ty: int) int {
 pub fn checkVariantShorthand(c: mut Checker, p: Program, e: &Expr, expected: int) int {
     match e.kind {
         ExprKind.Variant(name, args, hasArgs) => {
+            if !hasArgs && c.types.kind(expected) == TyKind.Key {
+                return checkKeyLiteral(c, e.span, name, expected)
+            }
             let Option.Some(id) = enumOf(c, p, expected) else {
                 c.error("E0326", e.span, "a variant is named through its enum: write "
                         + "`Enum.{c.text(name)}`")

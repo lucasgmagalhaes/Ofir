@@ -47,6 +47,7 @@ import sema.moves_match.patternInit
 import sema.moves_match.patternLocals
 import sema.program.Program
 import sema.structs.isCopy
+import sema.types.keyFieldType
 import syntax.ast.Block
 import syntax.ast.ExprKind
 import syntax.ast.ForKind
@@ -96,7 +97,9 @@ pub struct Part {
             other.fields.len()
         }
         for i in 0..len {
-            if self.fields[i] != other.fields[i] {
+            // Two `value[key]` steps may name the same field (spec 16.2).
+            let keys = keyFieldType(self.fields[i]) >= 0 && keyFieldType(other.fields[i]) >= 0
+            if self.fields[i] != other.fields[i] && !keys {
                 return false
             }
         }

@@ -17,6 +17,7 @@
 import air.air.AirBody
 import air.air.AirStmt
 import air.air.GLUE_DROP
+import air.air.FieldPath
 import air.air.Operand
 import air.air.OperandKind
 import air.air.PanicKind
@@ -61,6 +62,7 @@ import sema.types.I64
 import air.air.opInt
 import air.air.rvalue
 import sema.types.TyKind
+import sema.types.keyFieldType
 import syntax.ast.FnDecl
 import syntax.ast.ItemKind
 import sema.resolve.findAttribute
@@ -714,11 +716,12 @@ fn setFlag(l: mut Lowerer, local: int, value: bool) {
 }
 
 // Flags for the parts of `local` that the move analysis saw moved out.
-fn flagParts(l: mut Lowerer, local: int) {
+fn flagParts(l: mut Lowerer, c: mut Checker, local: int) {
     for i in 0..l.movedParts.len() {
-        let ast = &l.movedParts[i]
-        if ast.local + 1 == local && partFlag(l, local, &ast.fields) == 0 {
-            let part = Part{local: local, fields: ast.fields.clone()}
+        let ast = l.movedParts[i].clone()
+        let fields = concretePath(l, c, &ast.fields)
+        if ast.local + 1 == local && partFlag(l, local, &fields) == 0 {
+            let part = Part{local: local, fields: fields}
             let flag = newTemp(l, BOOL)
             l.partFlags.push(PartFlag{part: part, flag: flag})
         }
@@ -744,7 +747,7 @@ pub fn ownLocal(l: mut Lowerer, c: mut Checker, p: Program, local: int, initiali
     }
     if l.flags[local] == 0 {
         l.flags[local] = newTemp(l, BOOL)
-        flagParts(l, local)
+        flagParts(l, c, local)
     }
     setFlag(l, local, initialized)
     l.owned.push(local)
@@ -793,11 +796,12 @@ pub fn assignDone(l: mut Lowerer, local: int) {
  * local, is cleared.
  *
  * @param l the lowering
+ * @param c the checker
  * @param local the AIR local
  * @param path the fields
  */
-pub fn noteMoved(l: mut Lowerer, local: int, path: &List<int>) {
-    let flag = if path.len() > 0 { partFlag(l, local, path) } else { 0 }
+pub fn noteMoved(l: mut Lowerer, c: mut Checker, local: int, path: &List<int>) {
+    let flag = if path.len() > 0 { partFlag(l, local, &concretePath(l, c, path)) } else { 0 }
     if flag != 0 {
         setFlagOf(l, flag, false)
     } else {
@@ -823,7 +827,7 @@ pub fn assignPart(l: mut Lowerer, c: mut Checker, p: Program, local: int, path: 
     if path.len() == 0 {
         return false
     }
-    let flag = partFlag(l, local, path)
+    let flag = partFlag(l, local, &concretePath(l, c, path))
     if flag == 0 {
         return false
     }
@@ -1019,6 +1023,33 @@ fn reachGlue(l: mut Lowerer, glue: int, targs: int) {
 
 fn substOperand(c: mut Checker, o: mut Operand, args: &List<int>) {
     o.ty = c.types.subst(o.ty, args.clone())
+    substPath(c, o.path, args)
+}
+
+fn substPath(c: mut Checker, path: mut FieldPath, args: &List<int>) {
+    resolveKeys(c, path.fields, args)
+}
+
+// The fields of `value[key]` chosen for an instance (spec 16.2).
+fn resolveKeys(c: mut Checker, fields: mut List<int>, args: &List<int>) {
+    for i in 0..fields.len() {
+        let index = keyFieldType(fields[i])
+        if index >= 0 {
+            let base = c.types.subst(c.types.get(index).inner, args.clone())
+            let key = c.types.subst(c.types.get(index).args[0], args.clone())
+            fields[i] = c.types.keyPosition(base, key)
+        }
+    }
+}
+
+// A path of this instance, with the fields of its `value[key]` steps.
+fn concretePath(l: Lowerer, c: mut Checker, path: &List<int>) List<int> {
+    var fields = path.clone()
+    if !isGlue(l.body.def) && l.body.targs != UNIT {
+        let args = c.types.get(l.body.targs).args.clone()
+        resolveKeys(c, fields, &args)
+    }
+    return fields
 }
 
 // The body of an instance of a generic function, with its type arguments.
@@ -1030,6 +1061,7 @@ fn substBody(l: mut Lowerer, c: mut Checker) {
     for b in 0..l.body.blocks.len() {
         for i in 0..l.body.blocks[b].stmts.len() {
             let s = &mut l.body.blocks[b].stmts[i]
+            substPath(c, s.destPath, &args)
             if s.kind == StmtKind.Assign {
                 substOperand(c, s.value.a, &args)
                 substOperand(c, s.value.b, &args)

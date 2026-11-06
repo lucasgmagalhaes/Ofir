@@ -93,6 +93,7 @@ import sema.def.DefKind
 import sema.enums.enumVariants
 import sema.enums.variantIndex
 import sema.enums.variantsOf
+import sema.moves_expr.keyStep
 import sema.moves_expr.viewType
 import sema.structs.fieldsOf
 import sema.structs.structFieldType
@@ -272,6 +273,11 @@ fn lowerPlaceAt(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int
             if isList(c, viewType(c, &*base, -1)) {   // `l[i].x`: from the element's address
                 return listIndexPlace(l, c, p, e, &*base, &*index)
             }
+            if isKeyIndex(c, &*index) {
+                var place = lowerPlace(l, c, p, &*base)
+                place.fields.push(keyStep(c, &*base, &*index))
+                return place
+            }
         }
         ExprKind.Ident(_) | ExprKind.SelfValue => {
             if let Res.Local(id) = c.res(e.id.0) {
@@ -283,6 +289,11 @@ fn lowerPlaceAt(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int
     }
     let local = toLocal(l, lowerView(l, c, p, e, 0))   // `e` itself, at this depth
     return Place{local: local, fields: [], deref: false}
+}
+
+// `value[key]` with a key parameter: a field chosen for each instance.
+fn isKeyIndex(c: Checker, index: &Expr) bool {
+    return c.types.kind(c.typeOf(index.id.0)) == TyKind.Param
 }
 
 fn isList(c: Checker, ty: int) bool {
@@ -310,7 +321,7 @@ pub fn lowerPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Place {
 }
 
 // The local and field path of a place expression; -1 if not a local's.
-fn placePath(c: Checker, e: &Expr, path: mut List<int>) int {
+fn placePath(c: mut Checker, e: &Expr, path: mut List<int>) int {
     if derefCount(c, e) > 0 {
         return -1   // a dereference, not a local
     }
@@ -330,6 +341,16 @@ fn placePath(c: Checker, e: &Expr, path: mut List<int>) int {
             let local = placePath(c, &*base, path)
             if path.len() < 7 {
                 path.push(index as int)
+            }
+            return local
+        }
+        ExprKind.Index(base, index) => {
+            if !isKeyIndex(c, &*index) {
+                return -1
+            }
+            let local = placePath(c, &*base, path)
+            if path.len() < 7 {
+                path.push(keyStep(c, &*base, &*index))
             }
             return local
         }
@@ -438,7 +459,7 @@ fn lowerView(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int) O
         var path: List<int> = []
         let local = placePath(c, e, path)
         if local >= 0 {
-            noteMoved(l, local, &path)
+            noteMoved(l, c, local, &path)
         }
     }
     l.forward = forwarded
@@ -493,8 +514,11 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
                 aggregateOf(l, c, p, &elems, ty)
             }
         }
-        ExprKind.Variant(_, args, _) => buildVariant(l, c, p, ty, c.members[c.module()][e.id.0],
-                                                     &args)
+        ExprKind.Variant(_, args, _) => if c.types.kind(ty) == TyKind.Key {
+            opUnit(ty)   // a key has no value (spec 16.2)
+        } else {
+            buildVariant(l, c, p, ty, c.members[c.module()][e.id.0], &args)
+        }
         ExprKind.Array(elems) => listLiteral(l, c, p, &elems, ty)
         ExprKind.Repeat(value, count) => listRepeat(l, c, p, &*value, &*count, ty)
         ExprKind.Try(inner) => lowerTry(l, c, p, &*inner, ty)
@@ -1158,7 +1182,7 @@ fn initValue(l: mut Lowerer, c: mut Checker, p: Program, init: &FieldInit) Opera
     let value = placeOperand(&place, OperandKind.Copy, c.typeOf(init.id.0))
     if (c.moveFlags[c.module()].get(init.id.0).isSome() &&
         (*c.moveFlags[c.module()].get(init.id.0).unwrap() & MOVES) != 0) {
-        noteMoved(l, local, &[])
+        noteMoved(l, c, local, &[])
     }
     return value
 }
@@ -1451,6 +1475,9 @@ fn lowerIndex(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
     if isList(c, viewType(c, base, -1)) {
         let place = listIndexPlace(l, c, p, e, base, index)
         return placeOperand(&place, OperandKind.Copy, c.typeOf(e.id.0))
+    }
+    if isKeyIndex(c, index) {
+        return placeOperand(&lowerPlaceAt(l, c, p, e, 0), OperandKind.Copy, c.typeOf(e.id.0))
     }
     let s = lowerExpr(l, c, p, base)
     let i = opCopy(toLocal(l, lowerExpr(l, c, p, index)), I64)

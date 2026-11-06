@@ -36,12 +36,17 @@ A type parameter bounded by a key type accepts any key type included in
 it:
 
 ```ofir
-fn get<T, K: keyof T>(value: T, key: K) T[K] {
+fn get<T, K: keyof T>(value: &T, key: K) &T[K] {
+    return &value[key]
+}
+
+fn take<T, K: keyof T>(value: move T, key: K) T[K] {
     return value[key]
 }
 
 let p = Point{x: 1.0, y: 2.0}
-let x = get(p, .x)               // K = .x, the result is a float
+let x = *get(&p, .x)             // K = .x, the result is a float
+let y = take(p, .y)
 ```
 
 - A parameter of a key type has no runtime value: it is erased, and each
@@ -49,6 +54,10 @@ let x = get(p, .x)               // K = .x, the result is a float
   be a key literal or a key-typed parameter of the caller (E0343).
 - `value[key]` with a single key is the field: `p[.x]` is `p.x`, a place
   that can be assigned when `p` can.
+- In a generic body `T[K]` is not known to be `Copy`: moving
+  `value[key]` out needs `value` owned (`move T`); through `&T`, borrow it
+  (`&value[key]`). Two key parameters may name the same field, so moving
+  both `value[j]` and `value[k]` out is a use of a moved value (E0600).
 
 ## 16.3 Indexed access types
 

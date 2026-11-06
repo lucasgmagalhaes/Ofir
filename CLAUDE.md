@@ -13,7 +13,8 @@ with clang.
   `docs/bootstrap.md`).
 - `std/`, `runtime/`, `tests/`, `tools/`, `docs/` (spec, ADRs, roadmap).
 - Manifest: `ofir.json` (JSONC, camelCase keys; ADR 0026).
-- Work follows `docs/roadmap.md`; next item (phase 5): 5.17 key types (spec 16.1-16.3).
+- Work follows `docs/roadmap.md`; next item (phase 5): 5.18 mapped and
+  conditional types (spec 16.4-16.5).
 
 ## Working rules
 

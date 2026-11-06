@@ -26,6 +26,7 @@ import syntax.parser.symbolOf
 import syntax.parser.textOf
 import syntax.token.TokenKind
 import syntax.token.TokenValue
+import syntax.token.TokenValue
 
 // ---------------------------------------------------------------------------
 // Literals
@@ -162,9 +163,18 @@ fn name(p: mut Parser) Expr {
     return newExpr(p, ExprKind.Ident(symbol), start)
 }
 
-// `.Name` or `.Name(args)`; the `.` is next.
+// `.Name`, `.Name(args)` or the tuple key `.0`; the `.` is next.
 fn variantShorthand(p: mut Parser) Expr {
     let start = p.advance()
+    if p.at(TokenKind.Int) {
+        let index: u64 = match p.token(0).value {
+            TokenValue.Int(value) => value
+            _ => 0
+        }
+        p.advance()
+        let key = p.names.intern("{index}")
+        return newExpr(p, ExprKind.Variant(key, [], false), start)
+    }
     let variant = p.expectName("a variant name after `.`") ?? Symbol(0)
     var args: List<Arg> = []
     let hasArgs = p.accept(TokenKind.LParen)

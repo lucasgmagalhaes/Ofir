@@ -100,7 +100,7 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
                 items.push(placeOperand(&place, OperandKind.Copy, types[i]))
                 if !isCopy(c, p, types[i]) {   // moved into the closure
                     let path: List<int> = []
-                    noteMoved(l, local, &path)
+                    noteMoved(l, c, local, &path)
                 }
             }
         }
