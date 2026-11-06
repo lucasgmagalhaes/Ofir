@@ -23,7 +23,7 @@ module
               call
                 ident println
                 str "positive"
-      let kind
+      const kind
         if
           binary ==
             binary %
@@ -35,7 +35,7 @@ module
           else
             str "odd"
       if
-        let .Some(value)
+        const .Some(value)
         call
           ident lookup
           ident n
@@ -56,7 +56,7 @@ module
         then
           return
             lit 0
-      let size
+      const size
         match
           ident shape
           arm .Circle(r)
@@ -73,7 +73,7 @@ module
               ident h
           arm .Rect(w, h)
             block
-              let area
+              const area
                 binary *
                   ident w
                   ident h

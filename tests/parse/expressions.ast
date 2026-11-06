@@ -1,7 +1,7 @@
 module
   fn expressions
     body
-      let a
+      const a
         binary -
           binary +
             lit 1
@@ -13,13 +13,13 @@ module
               lit 4
               lit 5
             lit 6
-      let b
+      const b
         binary *
           binary +
             lit 1
             lit 2
           lit 3
-      let c
+      const c
         binary ^
           binary |
             binary <<
@@ -31,7 +31,7 @@ module
                 lit 1
               ident mask
           ident bits
-      let d
+      const d
         binary ||
           binary &&
             binary <
@@ -42,34 +42,34 @@ module
               ident d
           unary !
             ident e
-      let e
+      const e
         cast
           cast
             unary -
               ident x
             to i64
           to f64
-      let f
+      const f
         binary ??
           ident first
           binary ??
             ident second
             lit 0
-      let g
+      const g
         range ..
           lit 0
           lit 10
-      let h
+      const h
         range ..=
           lit 0
           ident n
-      let i
+      const i
         range _..
           ident end
-      let j
+      const j
         range .._
           ident start
-      let k
+      const k
         binary +
           binary +
             unary *
@@ -78,7 +78,7 @@ module
               ident value
           unary &mut
             ident other
-      let l
+      const l
         tuple_field 0
           try
             call
@@ -92,40 +92,40 @@ module
               lit 1
               arg two
                 lit 2
-      let m
+      const m
         tuple_field 1
           tuple_field 0
             ident pair
-      let n
+      const n
         call
           field new
             generic List<int>
-      let o
+      const o
         struct
           generic Map<str, List<int>>
-      let p
+      const p
         array
           lit 1
           lit 2
           lit 3
-      let q
+      const q
         repeat
           lit 0
           lit 16
-      let r
+      const r
         tuple
           lit 1
           str "two"
           lit 3.5
-      let s
+      const s
         tuple
           ident single
-      let t
+      const t
         variant .Circle()
           lit 1.0
-      let u
+      const u
         variant .Empty
-      let v
+      const v
         struct
           ident Point
           field x
@@ -134,7 +134,7 @@ module
             lit 2.0
           base
             ident origin
-      let w
+      const w
         interp
           str "sum = "
           binary +
@@ -142,7 +142,7 @@ module
             ident b
           str ", name = "
           ident name
-      let x
+      const x
         binary +
           binary +
             binary +
@@ -152,37 +152,37 @@ module
               lit 10
             lit 1000000
           lit 1.5e+03
-      let y
+      const y
         binary !=
           lit true
           lit false
-      let z
+      const z
         binary >
           ident a
           ident b
-      let shifted
+      const shifted
         binary >>
           ident value
           lit 3
-      let total
+      const total
         binary +
           binary +
             ident a
             ident b
           ident c
-      let call
+      const call
         call
           ident f
           lit 1
           lit 2
-      let block
+      const block
         block
-          let inner
+          const inner
             lit 1
           binary +
             ident inner
             lit 1
-      let unsafeRead
+      const unsafeRead
         unsafe
           unary *
             ident ptr
