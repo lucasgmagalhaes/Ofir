@@ -68,12 +68,12 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
         Option.Some(list) => list.clone()
         Option.None => []
     }
-    var captures: List<int> = []   // AIR locals
+    let captures: List<int> = []   // AIR locals
     for i in 0..captured.len() {
         captures.push(captured[i] + 1)
     }
     // The environment: the captured values, or raw pointers to them (a `&str` is a view).
-    var types: List<int> = []
+    let types: List<int> = []
     for i in 0..captures.len() {
         const local = captures[i]
         const captureType = l.body.locals[local].ty
@@ -86,10 +86,10 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
     if isMove && envType != 0 {
         lowerEnvDrop(l, c, p, e, envType)
     }
-    var rv = rvalue(RvalueKind.Closure, Op.Add, opUnit(UNIT), opUnit(UNIT))
+    let rv = rvalue(RvalueKind.Closure, Op.Add, opUnit(UNIT), opUnit(UNIT))
     rv.flag = e.id.0
     if envType != 0 {
-        var items: List<Operand> = []
+        let items: List<Operand> = []
         for i in 0..captures.len() {
             const local = captures[i]
             // A local passed by address holds the address of the value.
@@ -117,7 +117,7 @@ pub fn lowerClosure(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params
 fn lowerEnvDrop(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, envType: int) {
     const info = ClosureBody{id: e.id.0, params: [], captures: [], isMove: true, env: envType,
                              drop: true}
-    var drop = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
+    let drop = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
                        isMain: false, paramCount: 0, locals: [], blocks: [],
                        closure: Option.Some(info), span: noSpan(), at: noSpan()}
     drop.newLocal(UNIT, Option.None, e.span)
@@ -142,13 +142,13 @@ fn lowerBody(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, params: &List
         Option.Some(list) => list.len()
         Option.None => 0
     }
-    var paramLocals: List<int> = []
+    let paramLocals: List<int> = []
     for i in 0..params.len() {
         paramLocals.push(c.localAt(params[i].id.0) + 1)
     }
     const info = ClosureBody{id: e.id.0, params: paramLocals, captures: captures.clone(), isMove,
                              env: if isMove { env } else { 0 }, drop: false}
-    var closure = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
+    let closure = AirBody{def: l.body.def, targs: l.body.targs, name: l.body.name,
                           isMain: false, paramCount: 0, locals: [], blocks: [],
                           closure: Option.Some(info), span: e.span, at: e.span}
     closure.newLocal(c.types.get(ty).inner, Option.None, e.span)   // the return value

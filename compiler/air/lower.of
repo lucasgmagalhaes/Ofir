@@ -232,7 +232,7 @@ fn stmt(kind: StmtKind) AirStmt {
  * @param value the value
  */
 pub fn emitAssign(l: mut Lowerer, dest: int, value: move Rvalue) {
-    var s = stmt(StmtKind.Assign)
+    let s = stmt(StmtKind.Assign)
     s.dest = dest
     s.hasDest = true
     s.value = value
@@ -262,7 +262,7 @@ pub fn emitTemp(l: mut Lowerer, ty: int, value: move Rvalue) int {
  * @param dest the local receiving the result, or -1
  */
 pub fn emitRuntime(l: mut Lowerer, f: RuntimeFn, args: move List<Operand>, dest: int) {
-    var s = stmt(StmtKind.Call)
+    let s = stmt(StmtKind.Call)
     s.hasDest = dest >= 0
     s.dest = if dest >= 0 { dest } else { 0 }
     s.runtime = true
@@ -281,7 +281,7 @@ pub fn emitRuntime(l: mut Lowerer, f: RuntimeFn, args: move List<Operand>, dest:
  * @param dest the local receiving the result, or -1
  */
 pub fn emitCall(l: mut Lowerer, callee: int, targs: int, args: move List<Operand>, dest: int) {
-    var s = stmt(StmtKind.Call)
+    let s = stmt(StmtKind.Call)
     s.hasDest = dest >= 0
     s.dest = if dest >= 0 { dest } else { 0 }
     s.callee = callee
@@ -336,7 +336,7 @@ pub fn emitGoto(l: mut Lowerer, target: int) {
  */
 pub fn emitAssert(l: mut Lowerer, fails: move Operand, panic: PanicKind, span: Span) {
     const next = l.body.newBlock()
-    var t = terminator(TermKind.Assert)
+    let t = terminator(TermKind.Assert)
     t.cond = fails
     t.target = next
     t.panic = panic
@@ -369,7 +369,7 @@ pub fn toLocal(l: mut Lowerer, operand: move Operand) int {
  * @returns the operand
  */
 pub fn placeOperand(place: &Place, kind: OperandKind, ty: int) Operand {
-    var o = opCopy(place.local, ty)
+    let o = opCopy(place.local, ty)
     o.kind = kind
     o.path.fields = place.fields.clone()
     o.path.deref = place.deref
@@ -394,7 +394,7 @@ pub fn localPlace(local: int) Place {
  * @param value the value
  */
 pub fn emitStore(l: mut Lowerer, place: &Place, value: move Operand) {
-    var s = stmt(StmtKind.Assign)
+    let s = stmt(StmtKind.Assign)
     s.dest = place.local
     s.destPath.fields = place.fields.clone()
     s.destPath.deref = place.deref
@@ -433,7 +433,7 @@ pub fn concreteType(l: Lowerer, c: mut Checker, ty: int) int {
  */
 pub fn typeMethod(c: Checker, p: Program, ty: int, name: str) int {
     const t = c.types.get(ty)
-    var owner = 0
+    let owner = 0
     if t.kind == TyKind.Adt {
         owner = t.data
     } else if ty < c.r.lang.len() {
@@ -594,7 +594,7 @@ fn partInside(l: Lowerer, local: int, path: &List<int>) bool {
     for i in 0..l.partFlags.len() {
         const part = &l.partFlags[i].part
         if part.local == local && part.fields.len() > path.len() {
-            var prefix = true
+            let prefix = true
             for j in 0..path.len() {
                 if part.fields[j] != path[j] {
                     prefix = false
@@ -623,7 +623,7 @@ fn ifDone(l: mut Lowerer, next: int) {
 }
 
 fn subPlace(place: &Place, field: int) Place {
-    var fields = place.fields.clone()
+    let fields = place.fields.clone()
     fields.push(field)
     return Place{local: place.local, fields: fields, deref: place.deref}
 }
@@ -639,7 +639,7 @@ fn dropRest(l: mut Lowerer, c: mut Checker, p: Program, local: int, path: &List<
         if path.len() >= 7 {
             break
         }
-        var here = path.clone()
+        let here = path.clone()
         here.push(i)
         const field = if isTuple { c.types.get(ty).args[i] } else { structFieldType(c, p, ty, i) }
         const at = subPlace(place, i)
@@ -683,7 +683,7 @@ pub fn dropScopes(l: mut Lowerer, c: mut Checker, p: Program, first: int) {
     if first >= l.scopes.len() {
         return
     }
-    var i = l.owned.len()
+    let i = l.owned.len()
     for i > l.scopes[first] {
         dropIfSet(l, c, p, l.owned[i - 1])
         i -= 1
@@ -863,7 +863,7 @@ pub fn dropTemps(l: mut Lowerer, c: mut Checker, p: Program, first: int) {
     if first >= l.tempScopes.len() {
         return
     }
-    var i = l.temps.len()
+    let i = l.temps.len()
     for i > l.tempScopes[first] {
         const t = l.temps[i - 1]
         emitDrop(l, c, p, &localPlace(t.local), t.ty)
@@ -912,7 +912,7 @@ pub fn byAddress(c: Checker, p: Program, id: int, index: int) bool {
 // mutability hold its address, so that changes through them reach it
 // (spec 5.8); parameters follow `byAddress`.
 fn markCellBindings(l: mut Lowerer, c: mut Checker, p: Program, decl: &FnDecl) {
-    var params: List<bool> = List.filled(false, l.borrowed.len())
+    let params: List<bool> = List.filled(false, l.borrowed.len())
     if decl.hasSelf && params.len() > 0 {
         params[0] = true
     }
@@ -961,7 +961,7 @@ pub fn bindPlace(l: mut Lowerer, c: mut Checker, local: int, place: &Place, ty: 
  * @returns true if it does
  */
 pub fn bindsAddress(l: Lowerer, c: Checker, pattern: &Pattern) bool {
-    var locals: List<int> = []
+    let locals: List<int> = []
     patternLocals(c, pattern, locals)
     for i in 0..locals.len() {
         if locals[i] >= 0 && l.body.locals[locals[i] + 1].byRef {
@@ -1047,7 +1047,7 @@ fn resolveKeys(c: mut Checker, fields: mut List<int>, args: &List<int>) {
 
 // A path of this instance, with the fields of its `value[key]` steps.
 fn concretePath(l: Lowerer, c: mut Checker, path: &List<int>) List<int> {
-    var fields = path.clone()
+    let fields = path.clone()
     if !isGlue(l.body.def) && l.body.targs != UNIT {
         const args = c.types.get(l.body.targs).args.clone()
         resolveKeys(c, fields, &args)
@@ -1209,7 +1209,7 @@ fn lowerFn(l: mut Lowerer, c: mut Checker, p: Program, inst: Instance) {
         checkLate(c, p, id)   // a std body is checked when it is reached
     }
     const sig = c.info[id].ty
-    var body = AirBody{def: id, targs: inst.targs, name: decl.name, isMain: isMainFn(c, p, id),
+    let body = AirBody{def: id, targs: inst.targs, name: decl.name, isMain: isMainFn(c, p, id),
                        paramCount: decl.params.len() + if decl.hasSelf { 1 } else { 0 },
                        locals: [], blocks: [],
                        closure: Option.None, span: decl.span, at: decl.span}
@@ -1284,7 +1284,7 @@ pub fn methodTargs(c: mut Checker, ty: int) int {
 }
 
 pub fn fieldPlace(base: &Place, step: int, field: int) Place {
-    var fields = base.fields.clone()
+    let fields = base.fields.clone()
     if step != 0 {
         fields.push(step)
     }
@@ -1299,7 +1299,7 @@ fn dropVariants(l: mut Lowerer, c: mut Checker, p: Program, value: &Place, ty: i
     const count = variantsOf(c, id).variants.len()
     for v in 0..count {
         const fields = variantsOf(c, id).variants[v].types.len()
-        var any = false
+        let any = false
         for i in 0..fields {
             any = any || needsDrop(l, c, p, variantFieldType(c, p, ty, v, i))
         }
@@ -1376,12 +1376,12 @@ fn cloneFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
     const count = if isTuple { c.types.get(ty).args.len() } else {
         fieldsOf(c, c.types.get(ty).data).types.len()
     }
-    var items: List<Operand> = []
+    let items: List<Operand> = []
     for i in 0..count {
         const field = if isTuple { c.types.get(ty).args[i] } else { structFieldType(c, p, ty, i) }
         items.push(clonePart(l, c, p, &Place{local: 1, fields: [i], deref: false}, field))
     }
-    var rv = rvUse(opUnit(UNIT))
+    let rv = rvUse(opUnit(UNIT))
     rv.kind = RvalueKind.Aggregate
     rv.items = items
     emitAssign(l, 0, rv)
@@ -1400,7 +1400,7 @@ fn cloneVariants(l: mut Lowerer, c: mut Checker, p: Program, ty: int) {
         terminate(l, branch(is, build, next))
         switchTo(l, build)
         const fieldCount = variantsOf(c, id).variants[v].types.len()
-        var fields: List<Operand> = []
+        let fields: List<Operand> = []
         for i in 0..fieldCount {
             const at = fieldPlace(&value, VARIANT_STEP + v, i)
             fields.push(clonePart(l, c, p, &at, variantFieldType(c, p, ty, v, i)))
@@ -1496,11 +1496,11 @@ fn lowerTestMain(l: mut Lowerer, c: mut Checker, p: Program) {
 
 // The root module must declare `fn main()`.
 fn checkMain(c: mut Checker, p: Program) {
-    var id = 0
+    let id = 0
     if const Option.Some(name) = c.r.names.find("main") {
         id = c.r.scope.moduleIn(0, name)
     }
-    var ok = id > 0 && c.def(id).kind == DefKind.Fn && c.def(id).module == 0
+    let ok = id > 0 && c.def(id).kind == DefKind.Fn && c.def(id).module == 0
     if ok {
         ok = fnOf(p, c.loc(id)).body.isSome()
     }
@@ -1543,7 +1543,7 @@ fn findRoots(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
  * @returns the lowering, with the bodies or `unsupported`
  */
 pub fn lowerProgram(c: mut Checker, p: Program) Lowerer {
-    var l = Lowerer{body: emptyBody(), block: 0, loops: [], pending: [], reached: [],
+    let l = Lowerer{body: emptyBody(), block: 0, loops: [], pending: [], reached: [],
                     instances: Map.new(), owned: [], scopes: [], flags: [], borrowed: [],
                     movedParts: [], partFlags: [], dropCache: [], temps: [], tempScopes: [],
                     forward: false, tooDeep: false, fnDef: 0, unsupported: false, missing: "",
@@ -1562,7 +1562,7 @@ pub fn lowerProgram(c: mut Checker, p: Program) Lowerer {
         c.enter(0)
         lowerTestMain(l, c, p)
     }
-    var next = 0
+    let next = 0
     for next < l.pending.len() && !l.unsupported {
         const inst = l.pending[next]
         next += 1

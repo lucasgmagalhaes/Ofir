@@ -231,7 +231,7 @@ fn noPlace() Place {
 // Stage 0 rewrites `b`, a box, into `b.ptr` where it dereferences it: the
 // pointer field of `e` dereferenced `depth` times.
 fn boxPointer(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int) Operand {
-    var place = lowerPlaceAt(l, c, p, e, depth)
+    let place = lowerPlaceAt(l, c, p, e, depth)
     place.fields.push(0)
     const ptr = structFieldType(c, p, viewType(c, e, depth), 0)
     return placeOperand(&place, OperandKind.Copy, ptr)
@@ -262,13 +262,13 @@ fn lowerPlaceAt(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int
         ExprKind.Field(base, _, _) => {
             const field = fieldOf(c, e)
             if field >= 0 {
-                var place = lowerPlace(l, c, p, &*base)
+                let place = lowerPlace(l, c, p, &*base)
                 place.fields.push(field)
                 return place
             }
         }
         ExprKind.TupleField(base, index) => {
-            var place = lowerPlace(l, c, p, &*base)
+            let place = lowerPlace(l, c, p, &*base)
             place.fields.push(index as int)
             return place
         }
@@ -290,7 +290,7 @@ fn lowerPlaceAt(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int
                 return arrayIndexPlace(l, c, p, e, &*base, &*index)
             }
             if isKeyIndex(c, &*index) {
-                var place = lowerPlace(l, c, p, &*base)
+                let place = lowerPlace(l, c, p, &*base)
                 place.fields.push(keyStep(c, &*base, &*index))
                 return place
             }
@@ -476,7 +476,7 @@ fn lowerView(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int) O
     l.forward = false
     const value = lowerKind(l, c, p, e)
     if (flagsOf(c, e) & MOVES) != 0 {   // the local's value is moved out: it is not dropped
-        var path: List<int> = []
+        let path: List<int> = []
         const local = placePath(c, e, path)
         if local >= 0 {
             noteMoved(l, c, local, &path)
@@ -490,7 +490,7 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     const ty = c.typeOf(e.id.0)
     return match e.kind {
         ExprKind.Int(value) => {
-            if c.types.kind(ty) == TyKind.Float {   // `var x: float = 0`
+            if c.types.kind(ty) == TyKind.Float {   // `let x: float = 0`
                 opFloat(value as float, ty)
             } else {
                 opInt(value, ty)
@@ -581,7 +581,7 @@ fn name(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, ty: int) Operand {
         return buildVariant(l, c, p, ty, c.def(id).member, &none)
     }
     if kind == DefKind.Fn {   // a function value with no environment
-        var rv = rvalue(RvalueKind.FnValue, Op.Add, unit(), unit())
+        let rv = rvalue(RvalueKind.FnValue, Op.Add, unit(), unit())
         rv.flag = id
         return tempValue(l, ty, rv)
     }
@@ -594,7 +594,7 @@ fn name(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, ty: int) Operand {
 
 // The mutable global `id`: the place its address points to (spec 11.5).
 fn globalPlace(l: mut Lowerer, c: mut Checker, id: int) Place {
-    var rv = rvalue(RvalueKind.GlobalAddr, Op.Add, unit(), unit())
+    let rv = rvalue(RvalueKind.GlobalAddr, Op.Add, unit(), unit())
     rv.flag = id
     const addr = tempValue(l, c.types.ptr(c.info[id].ty, true), rv)
     return Place{local: toLocal(l, addr), fields: [], deref: true}
@@ -623,7 +623,7 @@ fn nameCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
     }
     const kind = c.def(id).kind
     if kind == DefKind.Struct {
-        var values: List<Expr> = []
+        let values: List<Expr> = []
         for i in 0..args.len() {
             values.push(args[i].value.clone())
         }
@@ -686,7 +686,7 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
     const ty = c.typeOf(e.id.0)
     if name == "sizeOf" || name == "alignOf" {
         const kind = if name == "sizeOf" { RvalueKind.SizeOf } else { RvalueKind.AlignOf }
-        var rv = rvalue(kind, Op.Add, unit(), unit())
+        let rv = rvalue(kind, Op.Add, unit(), unit())
         rv.to = callTypeArg(c, e)
         return tempValue(l, I64, rv)
     }
@@ -724,7 +724,7 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
     }
     const a = lowerExpr(l, c, p, &args[0].value)
     const b = if args.len() > 1 { lowerExpr(l, c, p, &args[1].value) } else { unit() }
-    var rv = rvalue(op.0, op.1, a, b)
+    let rv = rvalue(op.0, op.1, a, b)
     rv.floatFn = op.2
     return tempValue(l, ty, rv)
 }
@@ -745,7 +745,7 @@ fn lowerIntrinsic(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
  */
 pub fn cloneValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand,
                   ty: int) Operand {
-    var v = value
+    let v = value
     v.ty = ty
     if !needsDrop(l, c, p, ty) {
         return v   // nothing owned: the bits are the clone
@@ -812,7 +812,7 @@ fn tupleElement(l: mut Lowerer, c: Checker, value: move Operand, ty: int, i: int
  */
 pub fn hashValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand,
                  ty: int) Operand {
-    var v = value
+    let v = value
     v.ty = ty
     const kind = c.types.kind(ty)
     if kind == TyKind.Adt {
@@ -822,7 +822,7 @@ pub fn hashValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand
         return callHash(l, c, p, "hashStr", [v])
     }
     if kind == TyKind.Tuple {
-        var h = opInt(0, U64)
+        let h = opInt(0, U64)
         const elems = c.types.get(ty).args.clone()
         for i in 0..elems.len() {
             const element = tupleElement(l, c, v.clone(), ty, i)
@@ -831,7 +831,7 @@ pub fn hashValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand
         }
         return h
     }
-    var cast = rvalue(RvalueKind.Cast, Op.Add, v, unit())   // ints and bool: their bits, unchecked
+    let cast = rvalue(RvalueKind.Cast, Op.Add, v, unit())   // ints and bool: their bits, unchecked
     cast.to = U64
     const bits = tempValue(l, U64, cast)
     return callHash(l, c, p, "hashU64", [bits])
@@ -851,8 +851,8 @@ pub fn hashValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operand
  */
 pub fn equalValues(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand,
                    b: move Operand, ty: int) Operand {
-    var x = a
-    var y = b
+    let x = a
+    let y = b
     x.ty = ty
     y.ty = ty
     if c.types.kind(ty) == TyKind.Adt && equalityCalls(c, p, ty) {
@@ -861,7 +861,7 @@ pub fn equalValues(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand,
     if c.types.kind(ty) != TyKind.Tuple {
         return lowerBinaryOp(l, c, Op.Eq, ty, x, y, noSpan())
     }
-    var all = opBool(true, BOOL)
+    let all = opBool(true, BOOL)
     const elems = c.types.get(ty).args.clone()
     for i in 0..elems.len() {
         const ea = tupleElement(l, c, x.clone(), ty, i)
@@ -959,9 +959,9 @@ fn defaultArgument(l: mut Lowerer, c: mut Checker, p: Program, id: int, callee: 
 // defaults of the others, passed in the order of the parameters.
 fn arrangedArguments(l: mut Lowerer, c: mut Checker, p: Program, id: int, callee: int,
                      args: &List<Arg>, slots: &List<int>, operands: mut List<Operand>) {
-    var given: List<Operand> = []
+    let given: List<Operand> = []
     for i in 0..args.len() {
-        var next: Option<&Expr> = Option.None
+        let next: Option<&Expr> = Option.None
         if i + 1 < args.len() {
             next = Option.Some(&args[i + 1].value)
         }
@@ -969,7 +969,7 @@ fn arrangedArguments(l: mut Lowerer, c: mut Checker, p: Program, id: int, callee
     }
     const count = fnOf(p, c.loc(id)).params.len()
     for j in 0..count {
-        var at = -1
+        let at = -1
         for i in 0..slots.len() {
             if slots[i] == j {
                 at = i
@@ -996,14 +996,14 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
     } else {
         0
     }
-    var targs = UNIT
+    let targs = UNIT
     if decl.typeParams.len() + ownerParams > 0 {
         targs = match c.callTypeArgs[c.module()].get(e.id.0) {
             Option.Some(t) => *t
             Option.None => UNIT
         }
     }
-    var callee = id
+    let callee = id
     if isInterfaceMethod(c, p, id) {   // static dispatch on the instance's `Self` (spec 9.6)
         const concrete = concreteType(l, c, targs)
         const selfType = c.types.get(concrete).args[0]
@@ -1016,9 +1016,9 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         }
     }
     const paramCount = decl.params.len()
-    var operands: List<Operand> = []
+    let operands: List<Operand> = []
     if const Option.Some(recv) = receiver {
-        var next: Option<&Expr> = Option.None
+        let next: Option<&Expr> = Option.None
         if args.len() > 0 {
             next = Option.Some(&args[0].value)
         }
@@ -1028,7 +1028,7 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         Option.Some(slots) => arrangedArguments(l, c, p, id, callee, args, slots, operands)
         Option.None => {
             for i in 0..args.len() {
-                var next: Option<&Expr> = Option.None
+                let next: Option<&Expr> = Option.None
                 if i + 1 < args.len() {
                     next = Option.Some(&args[i + 1].value)
                 }
@@ -1038,8 +1038,8 @@ fn emitUserCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, id: int,
         }
     }
     const ty = c.typeOf(e.id.0)
-    var dest = -1
-    var result = unit()
+    let dest = -1
+    let result = unit()
     if typeIsValue(ty) {
         dest = newTemp(l, ty)
         result = opCopy(dest, ty)
@@ -1060,7 +1060,7 @@ fn panicAssert(l: mut Lowerer, c: mut Checker, p: Program, call: &Expr, arg: &Ex
                isPanic: bool) {
     const value = lowerExpr(l, c, p, arg)
     if isPanic {
-        var t = terminator(TermKind.Panic)
+        let t = terminator(TermKind.Panic)
         t.cond = address(l, value)
         t.span = call.span
         terminate(l, t)
@@ -1083,22 +1083,22 @@ fn methodCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Exp
 // A call of a function value (spec 10.4): the value, then the arguments.
 fn valueCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr,
              args: &List<Arg>) Operand {
-    var operands: List<Operand> = []
-    var first: Option<&Expr> = Option.None
+    let operands: List<Operand> = []
+    let first: Option<&Expr> = Option.None
     if args.len() > 0 {
         first = Option.Some(&args[0].value)
     }
     operands.push(argument(l, c, p, callee, false, first))
     for i in 0..args.len() {
-        var next: Option<&Expr> = Option.None
+        let next: Option<&Expr> = Option.None
         if i + 1 < args.len() {
             next = Option.Some(&args[i + 1].value)
         }
         operands.push(argument(l, c, p, &args[i].value, false, next))
     }
     const ty = c.typeOf(e.id.0)
-    var dest = -1
-    var result = unit()
+    let dest = -1
+    let result = unit()
     if typeIsValue(ty) {
         dest = newTemp(l, ty)
         result = opCopy(dest, ty)
@@ -1145,12 +1145,12 @@ fn fieldCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, callee: &Expr
     const value = lowerExpr(l, c, p, base)
     const which = BUILTIN_BASE - member
     if which == 0 {   // `x.wrappingCast<T>()`
-        var rv = rvalue(RvalueKind.Cast, Op.Add, value, unit())
+        let rv = rvalue(RvalueKind.Cast, Op.Add, value, unit())
         rv.to = ty
         return tempValue(l, ty, rv)
     }
     if which == 1 {   // `x.saturatingCast<T>()`
-        var rv = rvalue(RvalueKind.Saturate, Op.Add, value, unit())
+        let rv = rvalue(RvalueKind.Saturate, Op.Add, value, unit())
         rv.to = ty
         return tempValue(l, ty, rv)
     }
@@ -1171,7 +1171,7 @@ fn builtinConst(c: Checker, ty: int, name: Symbol) Operand {
         const signed = t.data <= 3
         const ones: u64 = 18446744073709551615
         const max = if bits == 64 { ones } else { ((1 as u64) << (bits as u64)) - 1 }
-        var value: u64 = 0
+        let value: u64 = 0
         if text == "MAX" {
             value = if signed { max >> 1 } else { max }
         } else if signed {
@@ -1192,16 +1192,16 @@ fn builtinConst(c: Checker, ty: int, name: Symbol) Operand {
 // Structs, tuples, indexing
 
 pub fn aggregate(l: mut Lowerer, ty: int, items: move List<Operand>) Operand {
-    var rv = rvalue(RvalueKind.Aggregate, Op.Add, unit(), unit())
+    let rv = rvalue(RvalueKind.Aggregate, Op.Add, unit(), unit())
     rv.items = items
     return tempValue(l, ty, rv)
 }
 
 // A tuple or a tuple struct: the values in order.
 fn aggregateOf(l: mut Lowerer, c: mut Checker, p: Program, elems: &List<Expr>, ty: int) Operand {
-    var items: List<Operand> = []
+    let items: List<Operand> = []
     for i in 0..elems.len() {
-        var item = lowerExpr(l, c, p, &elems[i])
+        let item = lowerExpr(l, c, p, &elems[i])
         if i + 1 < elems.len() {
             item = settle(l, item, &elems[i + 1])
         }
@@ -1238,19 +1238,19 @@ fn structLiteral(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, fields: &
     structFields(c, p, id)
     const names = fieldsOf(c, id).names.clone()
     const count = names.len()
-    var items: List<Operand> = []
-    var given: List<bool> = List.filled(false, count)
+    let items: List<Operand> = []
+    let given: List<bool> = List.filled(false, count)
     for _ in 0..count {
         items.push(unit())
     }
     for i in 0..fields.len() {
-        var f = 0
+        let f = 0
         for k in 0..count {
             if names[k].0 == fields[i].name.0 {
                 f = k
             }
         }
-        var value = initValue(l, c, p, &fields[i])
+        let value = initValue(l, c, p, &fields[i])
         if i + 1 < fields.len() {
             if const Option.Some(next) = fields[i + 1].value {
                 value = settle(l, value, &next)
@@ -1259,7 +1259,7 @@ fn structLiteral(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, fields: &
         items[f] = value
         given[f] = true
     }
-    var baseLocal = 0
+    let baseLocal = 0
     const hasBase = base.isSome()
     if const Option.Some(b) = base {
         baseLocal = toLocal(l, lowerExpr(l, c, p, &*b))
@@ -1397,7 +1397,7 @@ fn dynCoercion(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
             Option.None => c.types.get(found).inner
         }
     }
-    var rv = rvalue(RvalueKind.Unsize, Op.Add, thin, opUnit(target))
+    let rv = rvalue(RvalueKind.Unsize, Op.Add, thin, opUnit(target))
     rv.to = ty
     return tempValue(l, ty, rv)
 }
@@ -1426,7 +1426,7 @@ fn dynCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr, id
     }
     const iface = c.types.get(adjustedType(c, base)).data
     const slots = dynMethods(c, p, iface)
-    var slot = 0
+    let slot = 0
     for i in 0..slots.len() {
         if slots[i] == id {
             slot = i
@@ -1437,16 +1437,16 @@ fn dynCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr, id
     } else {
         lowerView(l, c, p, base, n - 1)
     }
-    var rv = rvalue(RvalueKind.DynFn, Op.Add, fat, unit())
+    let rv = rvalue(RvalueKind.DynFn, Op.Add, fat, unit())
     rv.flag = slot
     const method = tempValue(l, fnSignature(c, p, id), rv)
-    var operands = [method]
+    let operands = [method]
     const paramCount = fnOf(p, c.loc(id)).params.len()
     match c.argSlots[c.module()].get(e.id.0) {
         Option.Some(given) => arrangedArguments(l, c, p, id, id, args, given, operands)
         Option.None => {
             for i in 0..args.len() {
-                var next: Option<&Expr> = Option.None
+                let next: Option<&Expr> = Option.None
                 if i + 1 < args.len() {
                     next = Option.Some(&args[i + 1].value)
                 }
@@ -1456,8 +1456,8 @@ fn dynCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr, id
         }
     }
     const ty = c.typeOf(e.id.0)
-    var dest = -1
-    var result = unit()
+    let dest = -1
+    let result = unit()
     if typeIsValue(ty) {
         dest = newTemp(l, ty)
         result = opCopy(dest, ty)
@@ -1490,7 +1490,7 @@ fn sliceCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
     } else {
         UNIT
     }
-    var args: List<Operand> = []
+    let args: List<Operand> = []
     if byAddress(c, p, id, -1) {
         args.push(placeOperand(&lowerPlace(l, c, p, base), OperandKind.Addr, recv))
     } else {
@@ -1501,14 +1501,14 @@ fn sliceCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
         Option.None => args.push(opInt(0, I64))
     }
     if const Option.Some(high) = hi {
-        var end = lowerExpr(l, c, p, &*high)
+        let end = lowerExpr(l, c, p, &*high)
         if inclusive {
             end = lowerBinaryOp(l, c, Op.Add, c.typeOf(high.id.0), end, opInt(1, I64), high.span)
         }
         args.push(end)
     }
-    var dest = -1
-    var result = unit()
+    let dest = -1
+    let result = unit()
     if typeIsValue(ty) {
         dest = newTemp(l, ty)
         result = opCopy(dest, ty)
@@ -1520,7 +1520,7 @@ fn sliceCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
 // `&s` of a str: a copy with `cap == 0`, a view that is never freed and
 // that a modification copies first.
 fn strView(l: mut Lowerer, c: mut Checker, p: Program, operand: &Expr) Operand {
-    var value = lowerExpr(l, c, p, operand)
+    let value = lowerExpr(l, c, p, operand)
     value.ty = STR
     const view = emitTemp(l, STR, rvUse(value))
     emitStore(l, &Place{local: view, fields: [2], deref: false}, opInt(0, I64))
@@ -1533,7 +1533,7 @@ fn checkedCast(l: mut Lowerer, c: mut Checker, p: Program, option: int,
     const to = c.types.get(option).args[0]
     const vty = value.ty
     const v = opCopy(toLocal(l, value), vty)
-    var test = rvalue(RvalueKind.CastFails, Op.Add, v.clone(), unit())
+    let test = rvalue(RvalueKind.CastFails, Op.Add, v.clone(), unit())
     test.to = to
     const fails = tempValue(l, BOOL, test)
     const dest = newTemp(l, option)
@@ -1542,7 +1542,7 @@ fn checkedCast(l: mut Lowerer, c: mut Checker, p: Program, option: int,
     const join = l.body.newBlock()
     terminate(l, branch(fails, none, some))
     switchTo(l, some)
-    var cast = rvalue(RvalueKind.Cast, Op.Add, v, unit())
+    let cast = rvalue(RvalueKind.Cast, Op.Add, v, unit())
     cast.to = to
     const converted = tempValue(l, to, cast)
     emitAssign(l, dest, rvUse(variantValue(l, c, p, option, 0, [converted])))   // Some
@@ -1557,15 +1557,15 @@ fn checkedCast(l: mut Lowerer, c: mut Checker, p: Program, option: int,
 // Panics unless 0 <= index < len. The index is compared as unsigned, so a
 // negative one is out of range too (spec 2.1).
 fn boundsCheck(l: mut Lowerer, index: move Operand, len: move Operand, span: Span) {
-    var toIndex = rvalue(RvalueKind.Cast, Op.Add, index.clone(), unit())
+    let toIndex = rvalue(RvalueKind.Cast, Op.Add, index.clone(), unit())
     toIndex.to = U64
     const i = tempValue(l, U64, toIndex)
-    var toLen = rvalue(RvalueKind.Cast, Op.Add, len.clone(), unit())
+    let toLen = rvalue(RvalueKind.Cast, Op.Add, len.clone(), unit())
     toLen.to = U64
     const n = tempValue(l, U64, toLen)
     const outside = tempValue(l, BOOL, rvalue(RvalueKind.Binary, Op.Ge, i, n))
     const next = l.body.newBlock()
-    var t = terminator(TermKind.Assert)
+    let t = terminator(TermKind.Assert)
     t.cond = outside
     t.target = next
     t.panic = PanicKind.Bounds
@@ -1658,7 +1658,7 @@ fn listRepeat(l: mut Lowerer, c: mut Checker, p: Program, value: &Expr, count: &
 }
 
 fn fieldOfPlace(place: &Place, field: int) Place {
-    var fields = place.fields.clone()
+    let fields = place.fields.clone()
     fields.push(field)
     return Place{local: place.local, fields: fields, deref: place.deref}
 }
@@ -1754,8 +1754,8 @@ fn isMap(c: Checker, ty: int) bool {
 // are read at each iteration.
 fn lowerForList(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &Expr,
                 body: &Block) {
-    var list = lowerPlace(l, c, p, expr)
-    var ty = viewType(c, expr, -1)
+    let list = lowerPlace(l, c, p, expr)
+    let ty = viewType(c, expr, -1)
     const array = isArray(c, ty)
     const map = isMap(c, ty)
     const mapType = ty
@@ -1785,7 +1785,7 @@ fn lowerForList(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &
     const at = emitTemp(l, ptr, rvalue(RvalueKind.PtrAdd, Op.Add, base, opCopy(counter, I64)))
     const current = Place{local: at, fields: [], deref: true}
     const first = c.localAt(stmt.id.0) + 1
-    var two = false
+    let two = false
     if const StmtKind.For(_, _, _, second, _, _) = stmt.kind {
         two = second.isSome()
     }
@@ -1830,7 +1830,7 @@ fn variantNamed(c: mut Checker, p: Program, ty: int, name: str) int {
 }
 
 fn payload(place: &Place, variant: int, field: int, ty: int) Operand {
-    var fields = place.fields.clone()
+    let fields = place.fields.clone()
     fields.push(VARIANT_STEP + variant)
     fields.push(field)
     return placeOperand(&Place{local: place.local, fields: fields, deref: place.deref},
@@ -1852,7 +1852,7 @@ fn lowerTry(l: mut Lowerer, c: mut Checker, p: Program, inner: &Expr, ty: int) O
     const ret = l.body.locals[0].ty
     const args = c.types.get(innerType).args.clone()
     const error = if args.len() > 1 { args[1] } else { UNIT }
-    var fields: List<Operand> = []
+    let fields: List<Operand> = []
     if !option {
         const target = c.types.get(ret).args[1]
         const member = if compatible(error, target) { -1 } else { memberIndex(c, target, error) }
@@ -1949,7 +1949,7 @@ fn lowerIf(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
                 Option.Some(pattern) => bindsAddress(l, c, &pattern)
                 Option.None => false
             }
-            var scrutinee = localPlace(0)
+            let scrutinee = localPlace(0)
             const cond = if inPlace {
                 scrutinee = lowerPlace(l, c, p, &*condBox)
                 opUnit(UNIT)
@@ -1961,7 +1961,7 @@ fn lowerIf(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
             const thenBlock = l.body.newBlock()
             const other = l.body.newBlock()
             const join = l.body.newBlock()
-            var place = localPlace(0)
+            let place = localPlace(0)
             const owned = letPattern.isSome() && ownsBox(c, &*condBox)
             const boxType = c.typeOf(condBox.id.0)
             match letPattern {
@@ -2047,8 +2047,8 @@ fn binary(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, op: Op, lhs: &Ex
         return lowerBinaryOp(l, c, op, ty, a, b, e.span)
     }
     if !calls {
-        var x = a
-        var y = b
+        let x = a
+        let y = b
         x.ty = concrete
         y.ty = concrete
         return lowerBinaryOp(l, c, op, concrete, x, y, e.span)
@@ -2082,7 +2082,7 @@ fn compare(l: mut Lowerer, op: Op, a: move Operand, b: move Operand) Operand {
 
 fn checked(l: mut Lowerer, op: Op, ty: int, a: move Operand, b: move Operand, span: Span) Operand {
     const flag = newTemp(l, BOOL)
-    var rv = rvalue(RvalueKind.Checked, op, a, b)
+    let rv = rvalue(RvalueKind.Checked, op, a, b)
     rv.flag = flag
     const result = tempValue(l, ty, rv)
     emitAssert(l, opCopy(flag, BOOL), PanicKind.Overflow, span)
@@ -2110,7 +2110,7 @@ fn divide(l: mut Lowerer, c: Checker, op: Op, ty: int, a: move Operand, b: move 
 // unsigned, is out of range too.
 fn shift(l: mut Lowerer, c: Checker, op: Op, ty: int, a: move Operand, b: move Operand,
          span: Span) Operand {
-    var cast = rvalue(RvalueKind.Cast, Op.Add, b.clone(), unit())
+    let cast = rvalue(RvalueKind.Cast, Op.Add, b.clone(), unit())
     cast.to = U64
     const amount = tempValue(l, U64, cast)
     const bits = opInt(intBits(c.types.get(ty).data) as u64, U64)
@@ -2194,7 +2194,7 @@ fn unary(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, op: Op, operand: 
         }
         return placeOperand(&lowerPlace(l, c, p, operand), OperandKind.Addr, ty)
     }
-    var value = lowerExpr(l, c, p, operand)
+    let value = lowerExpr(l, c, p, operand)
     if op == Op.Neg && c.types.kind(ty) == TyKind.Int {
         if value.kind == OperandKind.Int {   // a negative literal, already range checked
             value.bits = (0 as u64).wrappingSub(value.bits)
@@ -2258,12 +2258,12 @@ pub fn lowerCast(l: mut Lowerer, c: Checker, value: move Operand, to: int, span:
         return value
     }
     if castNeedsCheck(c, value.ty, to) {
-        var fails = rvalue(RvalueKind.CastFails, Op.Add, value.clone(), unit())
+        let fails = rvalue(RvalueKind.CastFails, Op.Add, value.clone(), unit())
         fails.to = to
         const check = tempValue(l, BOOL, fails)
         emitAssert(l, check, PanicKind.Cast, span)
     }
-    var rv = rvalue(RvalueKind.Cast, Op.Add, value, unit())
+    let rv = rvalue(RvalueKind.Cast, Op.Add, value, unit())
     rv.to = to
     return tempValue(l, to, rv)
 }
@@ -2309,7 +2309,7 @@ fn interpolation(l: mut Lowerer, c: mut Checker, p: Program, parts: &List<Expr>,
                  specs: &List<str>) Operand {
     const dest = emitTemp(l, STR, rvUse(opStr("", STR)))
     for i in 0..parts.len() {
-        var part = lowerExpr(l, c, p, &parts[i])
+        let part = lowerExpr(l, c, p, &parts[i])
         if specs[i].len() == 0 && unionMembers(c, part.ty).len() > 0 {
             pushUnion(l, c, p, dest, part, false)
         } else if specs[i].len() == 0 {
@@ -2337,7 +2337,7 @@ fn pushUnion(l: mut Lowerer, c: mut Checker, p: Program, dest: int, value: move 
         terminate(l, branch(is, body, next))
         switchTo(l, body)
         const member = placeChild(&placeChild(&source, VARIANT_STEP + k), 0)
-        var held = placeOperand(&member, OperandKind.Copy, members[k])
+        let held = placeOperand(&member, OperandKind.Copy, members[k])
         const f = partFn(l, c, held, print)
         emitRuntime(l, f, if print { [held] } else { [opAddr(dest, STR), held] }, -1)
         emitGoto(l, done)
@@ -2352,7 +2352,7 @@ fn pushUnion(l: mut Lowerer, c: mut Checker, p: Program, dest: int, value: move 
 fn pushFormatted(l: mut Lowerer, c: mut Checker, p: Program, dest: int, part: move Operand,
                  f: FormatSpec) {
     const target = if f.width > 0 { emitTemp(l, STR, rvUse(opStr("", STR))) } else { dest }
-    var value = part
+    let value = part
     if f.debug {
         const ty = concreteType(l, c, value.ty)
         debugValue(l, c, p, value, ty, &opAddr(target, STR))
@@ -2393,12 +2393,12 @@ pub fn debugValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operan
                   out: &Operand) {
     const kind = c.types.kind(ty)
     if kind == TyKind.Int || kind == TyKind.Float || kind == TyKind.Bool {
-        var part = value
+        let part = value
         part.ty = ty
         const push = partFn(l, c, part, false)
         emitRuntime(l, push, [out.clone(), part], -1)
     } else if kind == TyKind.Str {
-        var text = value
+        let text = value
         text.ty = STR
         const addr = address(l, text)
         emitRuntime(l, RuntimeFn.StrPushDebug, [out.clone(), addr], -1)
@@ -2409,7 +2409,7 @@ pub fn debugValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operan
         const place = Place{local: toLocal(l, value), fields: [], deref: true}
         debugValue(l, c, p, placeOperand(&place, OperandKind.Copy, inner), inner, out)
     } else if kind != TyKind.Never && kind != TyKind.Error {
-        var arg = value
+        let arg = value
         arg.ty = ty
         emitCall(l, GLUE_DEBUG, c.types.tuple([ty]), [arg, out.clone()], -1)
     }
@@ -2451,7 +2451,7 @@ fn lowerPrint(l: mut Lowerer, c: mut Checker, p: Program, arg: &Expr, newline: b
                 return
             }
             for i in 0..parts.len() {
-                var part = lowerExpr(l, c, p, &parts[i])
+                let part = lowerExpr(l, c, p, &parts[i])
                 if unionMembers(c, part.ty).len() > 0 {
                     pushUnion(l, c, p, -1, part, true)
                     continue
@@ -2461,7 +2461,7 @@ fn lowerPrint(l: mut Lowerer, c: mut Checker, p: Program, arg: &Expr, newline: b
             }
         }
         _ => {
-            var part = lowerExpr(l, c, p, arg)
+            let part = lowerExpr(l, c, p, arg)
             const f = partFn(l, c, part, true)
             emitRuntime(l, f, [part], -1)
         }
@@ -2574,7 +2574,7 @@ fn dropOldValue(l: mut Lowerer, c: mut Checker, p: Program, target: &Expr, place
     }
     const vty = value.ty
     const settled = opCopy(toLocal(l, value), vty)
-    var path: List<int> = []
+    let path: List<int> = []
     const local = placePath(c, target, path)
     if local >= 0 && assignPart(l, c, p, local, &path, place, ty) {
         return settled   // a part with its own drop flag
@@ -2593,7 +2593,7 @@ fn dropOldValue(l: mut Lowerer, c: mut Checker, p: Program, target: &Expr, place
 fn lowerAssign(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, op: Op, target: &Expr,
                valueExpr: &Expr) {
     const place = lowerPlace(l, c, p, target)
-    var value = lowerExpr(l, c, p, valueExpr)
+    let value = lowerExpr(l, c, p, valueExpr)
     const ty = c.typeOf(target.id.0)
     if op == Op.Add && ty == STR {   // s += t appends in place
         const vty = value.ty
@@ -2669,8 +2669,8 @@ fn lowerForRange(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, range:
                 l.fail("open ranges")
                 return
             }
-            var counter = 0
-            var end = 0
+            let counter = 0
+            let end = 0
             if const Option.Some(low) = lo {
                 counter = emitTemp(l, ty, rvUse(lowerExpr(l, c, p, &*low)))
             }
@@ -2788,7 +2788,7 @@ fn lowerStmt(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt) {
 pub fn lowerTail(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     tempScopeEnter(l)
     l.forward = true
-    var result = lowerExpr(l, c, p, e)
+    let result = lowerExpr(l, c, p, e)
     if result.kind == OperandKind.Copy {
         const ty = result.ty
         result = opCopy(emitTemp(l, ty, rvUse(result)), ty)
@@ -2810,14 +2810,14 @@ pub fn lowerTail(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
  */
 pub fn lowerBlock(l: mut Lowerer, c: mut Checker, p: Program, block: &Block,
                   asValue: bool) Operand {
-    var result = unit()
+    let result = unit()
     dropScopeEnter(l)
     const count = block.stmts.len()
     const outer = l.body.at
     for i in 0..count {
         const s = &block.stmts[i]
         l.body.at = s.span   // what the statement emits is at its line (debug info)
-        var tail = false
+        let tail = false
         if asValue && i + 1 == count {
             if const StmtKind.ExprStmt(e) = s.kind {
                 result = lowerTail(l, c, p, &e)

@@ -83,7 +83,7 @@ import syntax.ast.PatternKind
  * @returns the new place
  */
 pub fn placeChild(place: &Place, step: int) Place {
-    var fields = place.fields.clone()
+    let fields = place.fields.clone()
     fields.push(step)
     return Place{local: place.local, fields: fields, deref: place.deref}
 }
@@ -174,11 +174,11 @@ pub fn buildVariant(l: mut Lowerer, c: mut Checker, p: Program, ty: int, index: 
                     args: &List<Arg>) Operand {
     const id = c.types.get(ty).data
     enumVariants(c, p, id)
-    var count = variantsOf(c, id).variants[index].types.len()
+    let count = variantsOf(c, id).variants[index].types.len()
     if args.len() < count {
         count = args.len()
     }
-    var fields: List<Operand> = []
+    let fields: List<Operand> = []
     for i in 0..count {
         fields.push(lowerExpr(l, c, p, &args[i].value))
     }
@@ -287,7 +287,7 @@ pub fn lowerPattern(l: mut Lowerer, c: mut Checker, p: Program, pattern: &Patter
             structFields(c, p, id)
             const names = fieldsOf(c, id).names.clone()
             for i in 0..fields.len() {
-                var index = 0
+                let index = 0
                 for index + 1 < names.len() && names[index].0 != fields[i].name.0 {
                     index += 1
                 }
@@ -317,7 +317,7 @@ fn fatPointer(c: mut Checker, p: Program, place: &Place, ty: int) Operand {
 // The data pointer of the `dyn I` value at `place`, as a `*T`.
 fn dataPointer(l: mut Lowerer, c: mut Checker, p: Program, place: &Place, ty: int,
                target: int) int {
-    var cast = rvalue(RvalueKind.Cast, Op.Add, fatPointer(c, p, place, ty), opUnit(UNIT))
+    let cast = rvalue(RvalueKind.Cast, Op.Add, fatPointer(c, p, place, ty), opUnit(UNIT))
     const thin = c.types.ptr(target, true)
     cast.to = thin
     return emitTemp(l, thin, cast)
@@ -425,7 +425,7 @@ pub fn boxRest(l: mut Lowerer, c: mut Checker, p: Program, pattern: Option<&Patt
             emitRuntime(l, RuntimeFn.Free, [opCopy(data, c.types.ptr(U8, true))], -1)
             return
         }
-        var locals: List<int> = []
+        let locals: List<int> = []
         patternLocals(c, pat, locals)
         if locals.len() > 0 {
             return   // the binding owns the box

@@ -176,8 +176,8 @@ pub fn adtHash(l: mut Lowerer, c: mut Checker, value: move Operand, ty: int) Ope
  */
 pub fn orderOf(l: mut Lowerer, c: mut Checker, p: Program, a: move Operand, b: move Operand,
                ty: int) Operand {
-    var x = a
-    var y = b
+    let x = a
+    let y = b
     x.ty = ty
     y.ty = ty
     if orderCalls(c, ty) {
@@ -283,7 +283,7 @@ fn equalFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int
     const count = if variant < 0 { partCount(c, ty) } else {
         variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
     }
-    var all = opBool(true, BOOL)
+    let all = opBool(true, BOOL)
     for i in 0..count {
         const step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
         const field = if variant < 0 { partType(c, p, ty, i) } else {
@@ -349,7 +349,7 @@ fn hashFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int,
     const count = if variant < 0 { partCount(c, ty) } else {
         variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
     }
-    var h = start
+    let h = start
     for i in 0..count {
         const step = if variant < 0 { 0 } else { VARIANT_STEP + variant }
         const field = if variant < 0 { partType(c, p, ty, i) } else {
@@ -484,8 +484,8 @@ fn debugFields(l: mut Lowerer, c: mut Checker, p: Program, ty: int, variant: int
                out: &Operand) {
     const value = localPlace(1)
     const isTuple = c.types.kind(ty) == TyKind.Tuple
-    var names: List<str> = []
-    var count = 0
+    let names: List<str> = []
+    let count = 0
     if variant >= 0 {
         count = variantsOf(c, c.types.get(ty).data).variants[variant].types.len()
     } else if isTuple {

@@ -95,7 +95,7 @@ fn operand(kind: OperandKind, ty: int) Operand {
  * @returns the operand
  */
 pub fn opCopy(local: int, ty: int) Operand {
-    var o = operand(OperandKind.Copy, ty)
+    let o = operand(OperandKind.Copy, ty)
     o.local = local
     return o
 }
@@ -108,7 +108,7 @@ pub fn opCopy(local: int, ty: int) Operand {
  * @returns the operand
  */
 pub fn opAddr(local: int, ty: int) Operand {
-    var o = operand(OperandKind.Addr, ty)
+    let o = operand(OperandKind.Addr, ty)
     o.local = local
     return o
 }
@@ -121,7 +121,7 @@ pub fn opAddr(local: int, ty: int) Operand {
  * @returns the operand
  */
 pub fn opInt(bits: u64, ty: int) Operand {
-    var o = operand(OperandKind.Int, ty)
+    let o = operand(OperandKind.Int, ty)
     o.bits = bits
     return o
 }
@@ -134,7 +134,7 @@ pub fn opInt(bits: u64, ty: int) Operand {
  * @returns the operand
  */
 pub fn opFloat(value: float, ty: int) Operand {
-    var o = operand(OperandKind.Float, ty)
+    let o = operand(OperandKind.Float, ty)
     o.float = value
     return o
 }
@@ -147,7 +147,7 @@ pub fn opFloat(value: float, ty: int) Operand {
  * @returns the operand
  */
 pub fn opBool(value: bool, ty: int) Operand {
-    var o = operand(OperandKind.Bool, ty)
+    let o = operand(OperandKind.Bool, ty)
     o.truth = value
     return o
 }
@@ -160,7 +160,7 @@ pub fn opBool(value: bool, ty: int) Operand {
  * @returns the operand
  */
 pub fn opStr(text: str, ty: int) Operand {
-    var o = operand(OperandKind.Str, ty)
+    let o = operand(OperandKind.Str, ty)
     o.text = text.toOwned()
     return o
 }
@@ -490,7 +490,7 @@ pub fn terminator(kind: TermKind) Terminator {
  * @returns the terminator
  */
 pub fn jump(target: int) Terminator {
-    var t = terminator(TermKind.Goto)
+    let t = terminator(TermKind.Goto)
     t.target = target
     return t
 }
@@ -504,7 +504,7 @@ pub fn jump(target: int) Terminator {
  * @returns the terminator
  */
 pub fn branch(cond: move Operand, then: int, other: int) Terminator {
-    var t = terminator(TermKind.Branch)
+    let t = terminator(TermKind.Branch)
     t.cond = cond
     t.target = then
     t.other = other
@@ -609,7 +609,7 @@ pub struct AirBody {
      * @param s the statement
      */
     pub fn push(mut self, block: int, s: move AirStmt) {
-        var stmt = s
+        let stmt = s
         stmt.span = self.at
         self.blocks[block].stmts.push(stmt)
     }
