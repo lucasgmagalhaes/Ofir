@@ -1,0 +1,152 @@
+/**
+ * @module
+ * The layout rule `"fmt": {"inlineBlocks": false}` (docs/style-guide.md):
+ * the body of a function and the block of a statement (`if`, `else`, `for`,
+ * `unsafe`, a `match` arm, the `else` of `let ... else`) never share a line
+ * with their braces. A block used as a value stays on its line when it holds
+ * a single expression: `let n = if a < b { a } else { b }`.
+ *
+ * The same rule as `tools/check_format.py`, on the units of a file.
+ */
+
+import fmt.units.Unit
+import fmt.units.UnitKind
+import syntax.token.TokenKind
+
+/**
+ * The units that must start a line because they open or close the body of
+ * a block written on one line.
+ *
+ * @param src the text of the file
+ * @param units its units
+ * @returns one flag per unit
+ */
+pub fn brokenBlocks(src: str, units: List<Unit>) List<bool> {
+    var forced: List<bool> = []
+    for _ in 0..units.len() {
+        forced.push(false)
+    }
+    var lo = 0
+    for lo < units.len() {
+        var hi = lo + 1
+        for hi < units.len() && units[hi].breaks == 0 {
+            hi += 1
+        }
+        splitLine(src, units, lo, hi, forced)
+        lo = hi
+    }
+    return forced
+}
+
+// Breaks the first offending block of the line `lo..hi`, then the lines
+// made of its body and of what follows it.
+fn splitLine(src: str, units: List<Unit>, lo: int, hi: int, forced: mut List<bool>) {
+    let open = offending(src, units, lo, hi)
+    if open < 0 {
+        return
+    }
+    let close = closing(units, open, hi)
+    forced[open + 1] = true
+    forced[close] = true
+    splitLine(src, units, open + 1, close, forced)
+    splitLine(src, units, close, hi, forced)
+}
+
+// The `{` of the first block of the line that must be broken, or -1.
+fn offending(src: str, units: List<Unit>, lo: int, hi: int) int {
+    let statement = isStatement(units, lo, hi)
+    for o in lo..hi {
+        if code(units, o) == TokenKind.LBrace && (units[o].space > 0 || o == lo) {
+            let c = closing(units, o, hi)
+            if c >= 0 && breaks(src, units, statement, lo, o, c, hi) {
+                return o
+            }
+        }
+    }
+    return -1
+}
+
+// Whether the block `o..c` of a line must be broken.
+fn breaks(src: str, units: List<Unit>, statement: bool, lo: int, o: int, c: int,
+          hi: int) bool {
+    if c == o + 1 || src.slice(units[o + 1].start, units[c - 1].end).trim() == "..." {
+        return false   // `{}`, or `{ ... }`: a body left out of an example
+    }
+    // In a statement, the body is the block that ends the line or comes
+    // before `else`; others are values: `if unsafe { p as u64 } == 0 {`.
+    let after = c + 1 == hi || code(units, c + 1) == TokenKind.Else
+    if statement && after {
+        return true
+    }
+    if o > lo && code(units, o - 1) == TokenKind.FatArrow {
+        return true
+    }
+    for i in o + 1..c {
+        if isStatementWord(code(units, i)) || isAssignment(units, i) {
+            return true
+        }
+    }
+    return false
+}
+
+// The `}` that closes the `{` at `open` on the line, or -1.
+fn closing(units: List<Unit>, open: int, hi: int) int {
+    var depth = 0
+    for i in open..hi {
+        let kind = code(units, i)
+        if kind == TokenKind.LBrace {
+            depth += 1
+        } else if kind == TokenKind.RBrace {
+            depth -= 1
+            if depth == 0 {
+                return i
+            }
+        }
+    }
+    return -1
+}
+
+// Whether a line starts a function or a statement with a block: `fn`,
+// `pub fn`, `unsafe`, `if`, `for`, `match`, `else` or `} else`.
+fn isStatement(units: List<Unit>, lo: int, hi: int) bool {
+    let first = code(units, lo)
+    let second = if lo + 1 < hi { code(units, lo + 1) } else { TokenKind.Invalid }
+    if first == TokenKind.Pub {
+        let third = if lo + 2 < hi { code(units, lo + 2) } else { TokenKind.Invalid }
+        return second == TokenKind.Fn || (second == TokenKind.Unsafe && third == TokenKind.Fn)
+    }
+    if first == TokenKind.RBrace {
+        return second == TokenKind.Else
+    }
+    return first == TokenKind.Fn || first == TokenKind.Unsafe || first == TokenKind.If ||
+        first == TokenKind.For || first == TokenKind.Match || first == TokenKind.Else
+}
+
+fn isStatementWord(kind: TokenKind) bool {
+    return kind == TokenKind.Return || kind == TokenKind.Break || kind == TokenKind.Continue ||
+        kind == TokenKind.Let || kind == TokenKind.Var
+}
+
+// Whether the unit at `i` is an assignment operator; `>=` is `>` and `=`.
+fn isAssignment(units: List<Unit>, i: int) bool {
+    let kind = code(units, i)
+    if kind == TokenKind.Eq {
+        let joined = units[i].space == 0 && units[i].breaks == 0
+        if joined && code(units, i - 1) == TokenKind.Gt {
+            let shift = units[i - 1].space == 0 && code(units, i - 2) == TokenKind.Gt
+            return shift   // `>>=` assigns, `>=` compares
+        }
+        return true
+    }
+    return kind == TokenKind.PlusEq || kind == TokenKind.MinusEq || kind == TokenKind.StarEq ||
+        kind == TokenKind.SlashEq || kind == TokenKind.PercentEq || kind == TokenKind.AmpEq ||
+        kind == TokenKind.PipeEq || kind == TokenKind.CaretEq || kind == TokenKind.ShlEq
+}
+
+// The token kind of a unit, `Invalid` for a comment or outside the list.
+fn code(units: List<Unit>, i: int) TokenKind {
+    if i < 0 || i >= units.len() || units[i].kind != UnitKind.Code {
+        return TokenKind.Invalid
+    }
+    return units[i].tok
+}
