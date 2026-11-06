@@ -66,6 +66,8 @@ a type:
   a type built on raw pointers, such as `List<T>`, `Box<T>` or `str`,
   states that it owns what they reach. The compiler cannot check it, so it
   belongs to code that is correct under `unsafe` rules (chapter 11).
+- `UnsafeCell<T>` (chapter 13), and so `Cell<T>`, is never `Sync`: its
+  value changes through shared references. It is `Send` when `T` is.
 - A type parameter is `Send` (`Sync`) when it has that bound:
   `fn spawn<T: Send>(x: move T)`.
 
@@ -117,6 +119,38 @@ sender of the same channel. `recv` waits for the next value and returns
 returns `None` instead of waiting. The values of one sender arrive in the
 order it sent them. Dropping the receiver drops the values it never took.
 
-**[planned]** Synchronization primitives in `std.sync`: `Mutex<T>` (the data lives inside
-the mutex and is reachable only while the lock is held), `RwLock<T>`,
-`Atomic*` types, `Arc<T>` (atomically reference counted) and `WaitGroup`.
+The synchronization primitives of `std.sync` are `Sync`, so an `Arc`
+shares them between tasks:
+
+```ofir
+import std.sync.Arc
+import std.sync.Mutex
+import std.task
+
+fn main() {
+    let total = Arc.new(Mutex.new(0))
+    let mine = total.clone()
+    let t = task.run(move () => {
+        var guard = mine.get().lock()
+        *guard.getMut() += 1
+    })
+    t.join()
+    println("{*total.get().lock().get()}")
+}
+```
+
+- `Arc<T: Send + Sync>` owns a value shared between tasks. `clone` adds an
+  owner, with an atomic count; the last owner to be dropped drops the
+  value. `get` borrows it; `owners` returns the count.
+- `Mutex<T>` holds its value: `lock` waits for the lock and returns a
+  `MutexGuard<T>`, a `ref struct` whose `get` and `getMut` reach the value
+  and whose drop unlocks. A task that locks a mutex it already holds waits
+  forever.
+- `RwLock<T>`: `read` returns a `ReadGuard<T>` (`get`), which other
+  readers may hold at the same time; `write` returns a `WriteGuard<T>`
+  (`get`, `getMut`), held alone.
+- `AtomicInt` (`load`, `store`, `fetchAdd`, `swap`, `compareExchange`) and
+  `AtomicBool` (`load`, `store`, `swap`) change their value through shared
+  references; every operation is sequentially consistent.
+- `WaitGroup` counts work in progress: `add(n)`, `done()` (`add(-1)`) and
+  `wait()`, which waits until the count is 0. A count below 0 panics.
