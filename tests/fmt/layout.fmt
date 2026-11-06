@@ -1,0 +1,55 @@
+/**
+ * A point.
+ */
+struct Point {
+    x: int
+    y: int
+
+    fn sum(self) int {
+        return self.x +
+            self.y
+    }
+}
+
+enum Shape {
+    Dot
+    Line(int)
+}
+
+fn area(s: Shape) int {
+    return match s {
+        Shape.Dot |
+        Shape.Line(0) => 0
+        Shape.Line(n) => {
+            return n
+        }
+    }
+}
+
+fn make(a: int,
+        b: int) Point {
+    let p = Point{x: a,
+                  y: b}
+    let all = call(
+        a,
+        b,
+    )
+    return p
+}
+
+fn call(a: int, b: int) int {
+    return a +   // the first
+          b      // and the second
+}
+
+fn top<T>(xs: List<T>) T
+where
+    T: Clone,
+{
+    for i in 0..xs.len() {
+        if i > 0 {
+            break
+        }
+    }
+    return xs[0].clone()
+}
