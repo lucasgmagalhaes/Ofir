@@ -1,0 +1,31 @@
+// requires: stage1
+// Narrowing a union (spec 17.4): E0352 and exhaustiveness.
+
+struct A {
+    n: int
+}
+
+struct B {
+    n: int
+}
+
+struct C {
+    n: int
+}
+
+fn foreign(value: A | B) int {
+    return match value {
+        a: A => a.n
+        b: B => b.n
+        c: C => c.n   // error[E0352]: `C` is not a member of the union `A | B`
+    }
+}
+
+fn partial(value: A | B) int {
+    return match value {   // error[E0500]: non-exhaustive `match`: `_: B` is not covered
+        a: A => a.n
+    }
+}
+
+fn main() {
+}
