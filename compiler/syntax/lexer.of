@@ -375,6 +375,5 @@ fn keywordTable() Map<str, TokenKind> {
     k.insert("struct", TokenKind.Struct)
     k.insert("true", TokenKind.True)
     k.insert("unsafe", TokenKind.Unsafe)
-    k.insert("var", TokenKind.Var)
     return k
 }

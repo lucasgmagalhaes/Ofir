@@ -189,7 +189,6 @@ pub fn kindText(kind: TokenKind) str {
         TokenKind.Struct => "struct"
         TokenKind.True => "true"
         TokenKind.Unsafe => "unsafe"
-        TokenKind.Var => "var"
         TokenKind.LParen => "("
         TokenKind.RParen => ")"
         TokenKind.LBrace => "\{"
