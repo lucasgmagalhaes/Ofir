@@ -11,7 +11,7 @@ BASE=${1:-origin/main}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK="$ROOT/build/bench-base"
 
-rm -rf "$WORK"
+rm -rf "$WORK" "$ROOT/build/bench/base"   # base inputs come from that base
 git -C "$ROOT" worktree add --detach --force "$WORK/src" "$BASE" >/dev/null
 trap 'git -C "$ROOT" worktree remove --force "$WORK/src"' EXIT
 
@@ -23,5 +23,8 @@ BASE_COMPILER="$WORK/src/build/release/ofir"
 if [ ! -x "$BASE_COMPILER" ]; then   # a base from before the rename to Ofir
     BASE_COMPILER="$WORK/src/build/release/astra"
 fi
+# The base compiler reads inputs from its own generator, so that a change of
+# syntax can be measured.
 python3 "$ROOT/bench/run_bench.py" --compiler "$ROOT/build/release/ofir" \
-    --compare "$BASE_COMPILER" --json "$ROOT/build/bench-results.json"
+    --compare "$BASE_COMPILER" --compare-generator "$WORK/src/bench/gen_source.py" \
+    --json "$ROOT/build/bench-results.json"

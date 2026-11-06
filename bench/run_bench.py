@@ -9,7 +9,9 @@ Measures each benchmark with a release build of the compiler:
 
 With --compare, runs the same benchmarks with a second compiler (usually a
 build of the base branch) and fails if the instruction count regresses by
-more than --max-regression percent. See docs/design/performance.md.
+more than --max-regression percent. --compare-generator gives the second
+compiler inputs from its own tree's generator, for a change of syntax.
+See docs/design/performance.md.
 """
 
 import argparse
@@ -41,11 +43,15 @@ BENCHMARKS = {
 }
 
 
-def input_file(lines: int, profile: str) -> Path:
-    path = INPUTS / f"input-{profile}-{lines}.of"
+GENERATOR = ROOT / "bench" / "gen_source.py"
+
+
+def input_file(lines: int, profile: str, generator: Path = GENERATOR) -> Path:
+    inputs = INPUTS if generator == GENERATOR else INPUTS / "base"
+    path = inputs / f"input-{profile}-{lines}.of"
     if not path.exists():
-        INPUTS.mkdir(parents=True, exist_ok=True)
-        source = subprocess.run([sys.executable, str(ROOT / "bench" / "gen_source.py"),
+        inputs.mkdir(parents=True, exist_ok=True)
+        source = subprocess.run([sys.executable, str(generator),
                                  "--lines", str(lines), "--profile", profile],
                                 capture_output=True, text=True, check=True)
         path.write_text(source.stdout)
@@ -78,10 +84,11 @@ def instructions(cmd: list[str]) -> int | None:
     return int(m.group(1).replace(",", "")) if m else None
 
 
-def measure(compiler: str, runs: int, count_instructions: bool) -> dict:
+def measure(compiler: str, runs: int, count_instructions: bool,
+            generator: Path = GENERATOR) -> dict:
     results = {}
     for name, (lines, profile, args) in BENCHMARKS.items():
-        cmd = [compiler, "build", str(input_file(lines, profile)), *args]
+        cmd = [compiler, "build", str(input_file(lines, profile, generator)), *args]
         samples = [run_once(cmd) for _ in range(runs)]
         wall = statistics.median(s[0] for s in samples)
         results[name] = {
@@ -125,6 +132,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--compiler", default=str(ROOT / "build" / "release" / "ofir"))
     parser.add_argument("--compare", help="a second compiler to compare against (the base)")
+    parser.add_argument("--compare-generator", type=Path, default=GENERATOR,
+                        help="the input generator for the --compare compiler")
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--no-instructions", action="store_true", help="skip valgrind")
     parser.add_argument("--max-regression", type=float, default=3.0,
@@ -134,7 +143,9 @@ def main() -> int:
 
     count = not args.no_instructions
     results = measure(args.compiler, args.runs, count)
-    base = measure(args.compare, args.runs, count) if args.compare else None
+    base = None
+    if args.compare:
+        base = measure(args.compare, args.runs, count, args.compare_generator.resolve())
     print_table(results, base)
     if args.json:
         args.json.write_text(json.dumps({"results": results, "base": base}, indent=2) + "\n")
