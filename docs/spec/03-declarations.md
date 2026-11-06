@@ -3,17 +3,19 @@
 ## 3.1 Variables
 
 ```ofir
-let name = "Ofir"        // immutable binding
-var count = 0             // mutable binding
-var total: float = 0      // explicit type
-var buffer: List<u8>      // must be assigned before its first use
+const name = "Ofir"       // immutable binding
+let count = 0             // mutable binding
+let total: float = 0      // explicit type
+let buffer: List<u8>      // must be assigned before its first use
 ```
 
-- `let` bindings cannot be reassigned, and the value they own cannot be
+- `const` bindings cannot be reassigned, and the value they own cannot be
   mutated through them.
-- `var` bindings can be reassigned and mutated.
+- `let` bindings can be reassigned and mutated.
+- In a function, `const` takes any value and may bind a pattern
+  (chapter 4); `let` binds a name only (ADR 0031).
 - A variable must be definitely initialized before it is read. A declaration
-  without a value (`var x: int`) is allowed only if every path assigns it
+  without a value (`let x: int`) is allowed only if every path assigns it
   before its first use. There are no implicit zero values.
 - A name may shadow a name from an enclosing scope, but not one declared in
   the same scope.
@@ -27,6 +29,9 @@ const GREETING: str = "hello"
 
 Constants are evaluated at compile time. Their initializer may only use
 literals, other constants and arithmetic operators.
+
+At module level, `const` declares a constant and `let` a mutable global,
+whose use requires `unsafe` (chapter 11).
 
 ## 3.3 Functions
 
@@ -109,8 +114,8 @@ struct User {
     age: int
 }
 
-let u = User{name: "Ana", email: "ana@example.com", age: 30}
-let v = User{age: 31, ..u}     // copy/move the remaining fields from u
+const u = User{name: "Ana", email: "ana@example.com", age: 30}
+const v = User{age: 31, ..u}     // copy/move the remaining fields from u
 ```
 
 - Every field without a default value must be initialized in a struct
@@ -132,8 +137,8 @@ struct Config {
     verbose: bool = false
 }
 
-let a = Config{}                       // all defaults
-let b = Config{port: 80, verbose: true}
+const a = Config{}                       // all defaults
+const b = Config{port: 80, verbose: true}
 ```
 
 The same rules as default parameter values apply: a constant expression, an
@@ -150,15 +155,15 @@ distinct type at zero cost (a "newtype"):
 copy struct UserId(int)
 copy struct Rgb(u8, u8, u8)
 
-let id = UserId(42)
-let red = Rgb(255, 0, 0)
+const id = UserId(42)
+const red = Rgb(255, 0, 0)
 println("{id.0} {red.1}")
-let n: int = id            // error: mismatched types: expected int, found UserId
+const n: int = id            // error: mismatched types: expected int, found UserId
 ```
 
 Tuple structs are constructed by calling the type name, their fields are
 accessed with `.0`, `.1`, ..., and they can be destructured in patterns:
-`let UserId(raw) = id`. They may declare methods in a body after the fields:
+`const UserId(raw) = id`. They may declare methods in a body after the fields:
 `struct Meters(float) { fn km(self) float { return self.0 / 1000.0 } }`.
 
 ## 3.5 Enums
@@ -171,8 +176,8 @@ enum Token {
     Minus
 }
 
-let t = Token.Number(42)
-let p = Token.Plus
+const t = Token.Number(42)
+const p = Token.Plus
 ```
 
 A variant is always named through its enum, in expressions and in
@@ -209,9 +214,9 @@ pub struct Point {
 ```
 
 ```ofir
-var p = Point.origin()
+let p = Point.origin()
 p.scale(2.0)
-let l = p.length()
+const l = p.length()
 ```
 
 - Inside a method, fields and other methods are always reached through
