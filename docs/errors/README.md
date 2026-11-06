@@ -121,7 +121,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0345 | `infer` is only allowed in the pattern of a conditional type (spec 16) | stage 1 |
 | E0350 | the members `A` and `B` of a union can be the same type (spec 17) | stage 1 |
 | E0351 | type `T` cannot be a member of a union (spec 17) | stage 1 |
-| E0352 | `T` is not a member of the union `U` (spec 17) | planned |
+| E0352 | `T` is not a member of the union `U` (spec 17) | stage 1 |
 | E0353 | the branches have different types: write the union type expected (spec 17) | stage 0 |
 | E0354 | a type test names a type that does not satisfy the interface of the `dyn` value (spec 9.8) | stage 1 |
 | E0355 | `dyn I` has no size known at compile time: store a `Box<dyn I>` (spec 9.7) | stage 1 |

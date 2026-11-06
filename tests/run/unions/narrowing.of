@@ -1,0 +1,68 @@
+// requires: stage1
+// Narrowing a union with type test patterns (spec 17.4).
+
+struct IoError {
+    path: str
+}
+
+struct ParseError {
+    line: int
+}
+
+struct NetError {
+    code: int
+}
+
+type LoadError = IoError | ParseError | NetError
+
+fn describe(err: LoadError) str {
+    return match err {
+        e: IoError => "cannot read {e.path}"
+        e: ParseError => "line {e.line}"
+        _: NetError => "network"
+    }
+}
+
+fn kind(value: int | bool | str) str {
+    return match value {
+        n: int => "int {n}"
+        b: bool => "bool {b}"
+        _ => "other"
+    }
+}
+
+fn local(err: LoadError) bool {
+    return match err {
+        _: (IoError | ParseError) => true
+        _: NetError => false
+    }
+}
+
+fn narrow(err: LoadError) {
+    match err {
+        e: (IoError | NetError) => {
+            match e {
+                io: IoError => println("io {io.path}")
+                net: NetError => println("net {net.code}")
+            }
+        }
+        _: ParseError => println("parse")
+    }
+}
+
+fn main() {
+    println(describe(IoError{path: "a.txt"}))
+    println(describe(ParseError{line: 3}))
+    println(describe(NetError{code: 7}))
+    println(kind(4))
+    println(kind(true))
+    println(kind("x"))
+    println("{local(ParseError{line: 1})} {local(NetError{code: 1})}")
+    narrow(IoError{path: "b"})
+    narrow(NetError{code: 2})
+    narrow(ParseError{line: 2})
+    let err: LoadError = ParseError{line: 9}
+    if let e: ParseError = err {
+        println("if let {e.line}")
+    }
+}

@@ -14,6 +14,8 @@
  */
 
 import sema.check.Checker
+import sema.check_union.memberIndex
+import sema.check_union.unionMembers
 import sema.def.DefKind
 import sema.def.Res
 import sema.enums.variantsOf
@@ -102,9 +104,37 @@ fn toPat(c: mut Checker, p: Program, pattern: &Pattern) Pat {
             _ => Pat.Opaque
         }
         PatternKind.Range(_, _, _) => Pat.Opaque
-        PatternKind.TypeTest(_, _) => Pat.Opaque   // the types behind a `dyn` are open
+        PatternKind.TypeTest(_, _) => typeTestPat(c, pattern)
         PatternKind.Or(alternatives) => Pat.Or(toPats(c, p, &alternatives))
     }
+}
+
+// A type test on a union covers the variants of its members; one on a `dyn`
+// covers nothing, since the types behind it are open.
+fn typeTestPat(c: Checker, pattern: &Pattern) Pat {
+    let union = c.typeOf(pattern.id.0)
+    if unionMembers(c, union).len() == 0 {
+        return Pat.Opaque
+    }
+    let tested = c.members[c.module()][pattern.id.0]
+    var members = unionMembers(c, tested)
+    if members.len() == 0 {
+        members.push(tested)
+    }
+    var out: List<Pat> = []
+    for i in 0..members.len() {
+        let at = memberIndex(c, union, members[i])
+        if at >= 0 {   // else E0352
+            out.push(Pat.Ctor(at, [Pat.Wild]))
+        }
+    }
+    if out.len() == 0 {
+        return Pat.Opaque
+    }
+    if out.len() == 1 {
+        return out.remove(0)
+    }
+    return Pat.Or(out)
 }
 
 // A variant index recorded by the pattern checker; 0 after an error.
@@ -255,6 +285,11 @@ fn ctorText(c: Checker, ty: int, ctor: int, fields: &List<str>, count: int) str 
         text.push(if ctor != 0 { "true" } else { "false" })
     } else if t.kind == TyKind.Adt {
         let isEnum = c.def(t.data).kind == DefKind.Enum
+        if c.isUnion(t.data) {   // `_: IoError` (spec 17.4)
+            text.push("_: ")
+            text.push(c.typeName(variantsOf(c, t.data).variants[ctor].types[0]))
+            return text
+        }
         if isEnum {   // `Shape.Empty` (ADR 0028)
             text.push(c.text(c.def(t.data).name))
             text.push(".")

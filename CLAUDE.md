@@ -13,8 +13,8 @@ with clang.
   `docs/bootstrap.md`).
 - `std/`, `runtime/`, `tests/`, `tools/`, `docs/` (spec, ADRs, roadmap).
 - Manifest: `ofir.json` (JSONC, camelCase keys; ADR 0026).
-- Work follows `docs/roadmap.md`; next item (phase 5): 5.21 narrowing
-  of union types (spec 17.4-17.5).
+- Work follows `docs/roadmap.md`; next item (phase 5): 5.21b built-in
+  interfaces on union types (spec 17.5).
 
 ## Working rules
 

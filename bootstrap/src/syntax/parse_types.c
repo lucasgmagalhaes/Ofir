@@ -141,17 +141,25 @@ static TypeExpr *bracket_type(Parser *p, Span start) {
     return t;
 }
 
-// `()`, `(T,)`, `(A, B)`; the `(` is next.
+// `()`, `(T,)`, `(A, B)`, or `(T)`, which is `T` (`(A | B)` in a type
+// test, spec 17.4); the `(` is next.
 static TypeExpr *tuple_type(Parser *p, Span start) {
     advance(p);
     Vec(TypeExpr *) elems = {0};
+    bool comma = false;
     while (!at(p, TOK_RPAREN) && !at(p, TOK_EOF)) {
         VEC_PUSH(elems, parse_type(p));
-        if (!accept(p, TOK_COMMA)) {
+        comma = accept(p, TOK_COMMA);
+        if (!comma) {
             break;
         }
     }
     expect(p, TOK_RPAREN, "`)` to close the tuple type");
+    if (elems.len == 1 && !comma) {
+        TypeExpr *inner = elems.data[0];
+        VEC_FREE(elems);
+        return inner;
+    }
     TypeExpr *t = new_type(p, TYPE_TUPLE, start);
     TO_LIST(p, elems, t->as.tuple);
     return t;

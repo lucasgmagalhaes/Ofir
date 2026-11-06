@@ -181,8 +181,8 @@ fn unionOf(c: mut Checker, members: &List<int>, span: Span) int {
 }
 
 /**
- * Widens `e`, of type `found`, to `expected` when `expected` is a union
- * that has `found` as a member (spec 17.3).
+ * Widens `e`, of type `found`, to `expected` when `found` widens to it
+ * (spec 17.3).
  *
  * @param c the checker
  * @param e the value
@@ -191,11 +191,37 @@ fn unionOf(c: mut Checker, members: &List<int>, span: Span) int {
  * @returns whether it was widened
  */
 pub fn coerceToUnion(c: mut Checker, e: &Expr, found: int, expected: int) bool {
-    if memberIndex(c, expected, found) < 0 {
+    if !widens(c, found, expected) {
         return false
     }
     c.unionCoercions[c.module()].insert(e.id.0, found)
     c.setType(e.id.0, expected)
+    return true
+}
+
+/**
+ * Whether a value of type `found` widens to `expected` (spec 17.3):
+ * `expected` is a union with `found` as a member, or with all the members
+ * of the union `found`.
+ *
+ * @param c the checker
+ * @param found the value's type
+ * @param expected the type expected
+ * @returns true if it does
+ */
+pub fn widens(c: Checker, found: int, expected: int) bool {
+    if found == expected {
+        return false
+    }
+    let members = unionMembers(c, found)
+    if members.len() == 0 {
+        return memberIndex(c, expected, found) >= 0
+    }
+    for i in 0..members.len() {
+        if memberIndex(c, expected, members[i]) < 0 {
+            return false
+        }
+    }
     return true
 }
 
