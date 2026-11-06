@@ -60,7 +60,16 @@ pub fn structDef(c: Checker, ty: int) int {
     return if c.def(id).kind == DefKind.Struct { id } else { 0 }
 }
 
-fn fieldIsPub(c: Checker, p: Program, id: int, index: int) bool {
+/**
+ * Whether field `index` of struct `id` is `pub`.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the struct
+ * @param index the field
+ * @returns true when it is public
+ */
+pub fn fieldIsPub(c: Checker, p: Program, id: int, index: int) bool {
     return match itemOf(p, c.loc(id)).kind {
         ItemKind.Struct(_, _, _, _, fields, _) => fields[index].isPub
         _ => true
