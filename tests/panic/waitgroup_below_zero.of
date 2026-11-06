@@ -1,0 +1,8 @@
+// requires: stage1
+// panic: WaitGroup count below zero
+import std.sync.WaitGroup
+
+fn main() {
+    let group = WaitGroup.new()
+    group.done()
+}
