@@ -89,6 +89,9 @@ pub fn ownerTypeOf(c: mut Checker, p: Program, m: int, index: int) int {
  * @returns the type
  */
 pub fn ownerType(c: mut Checker, p: Program, id: int) int {
+    if c.def(id).item < 0 {   // a type the checker made: a union
+        return c.types.adt(id, [])
+    }
     return ownerTypeOf(c, p, c.def(id).module, c.def(id).item)
 }
 
