@@ -19,6 +19,8 @@ import sema.check_generic.checkBounds
 import sema.check_keys.indexType
 import sema.check_keys.keyOpType
 import sema.check_keys.keyofType
+import sema.check_mapped.checkAliasBounds
+import sema.check_mapped.mappedType
 import sema.check_ref.checkInstanceStorable
 import sema.def.DefKind
 import sema.interfaces.dynIncompatible
@@ -130,10 +132,16 @@ fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
     let saved = c.enter(c.def(id).module)
     let outer = c.enterGenerics(generics)
     let savedSelf = c.selfType
+    let savedAlias = c.aliasDef
     c.selfType = ERROR
+    c.aliasDef = id
     c.info[id].checking = true
-    let ty = resolveType(c, p, aliased)
+    var ty = ERROR
+    if checkAliasBounds(c, p, id, span) {
+        ty = resolveType(c, p, aliased)
+    }
     c.info[id].checking = false
+    c.aliasDef = savedAlias
     c.selfType = savedSelf
     c.enterGenerics(outer)
     c.enter(saved)
@@ -394,7 +402,11 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
         TypeKind.Key(name) => c.types.keys([name.0])
         TypeKind.KeyOp(op, left, right) => keyOpType(c, p, op, &*left, &*right, t.span)
         TypeKind.Index(base, key) => indexType(c, p, &*base, &*key, t.span)
-        TypeKind.Mapped(_, _, _, _, _) => c.unsupported(t.span, "mapped types are")
+        TypeKind.Mapped(param, keys, filter, optional, field) => if filter.isSome() {
+            c.unsupported(t.span, "filters of mapped types are")
+        } else {
+            mappedType(c, p, t, param, &*keys, optional, &*field)
+        }
         TypeKind.Is(_, _) |
         TypeKind.Cond(_, _, _) |
         TypeKind.Infer(_) |

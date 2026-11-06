@@ -1,0 +1,170 @@
+/**
+ * @module
+ * Mapped types (spec 16.4): each instance is a struct of its own, with one
+ * field per key (stage 1 only).
+ */
+
+import base.intern.Symbol
+import base.span.Span
+import sema.check.Checker
+import sema.check.boundedParam
+import sema.check.emptyInfo
+import sema.check.itemOf
+import sema.check_keys.included
+import sema.check_ref.checkStorable
+import sema.check_types.resolveType
+import sema.def.Def
+import sema.def.DefKind
+import sema.program.Program
+import sema.structs.StructInfo
+import sema.types.ERROR
+import sema.types.KeyFields
+import sema.types.TyKind
+import syntax.ast.ItemKind
+import syntax.ast.TypeExpr
+
+/**
+ * `{ [K in Keys]: F }`: the struct of this instance, made once.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param t the mapped type
+ * @param param `K`
+ * @param keys `Keys`
+ * @param optional `?:`: each field is an `Option` that defaults to `None`
+ * @param field `F`
+ * @returns the struct type
+ */
+pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys: &TypeExpr,
+                  optional: bool, field: &TypeExpr) int {
+    if c.aliasDef == 0 {
+        return c.unsupported(t.span, "mapped types outside a type alias are")
+    }
+    let keyType = resolveType(c, p, keys)
+    if keyType == ERROR {
+        return ERROR
+    }
+    if c.types.get(keyType).hasParam {
+        return c.unsupported(t.span, "mapped types over type parameters are")
+    }
+    if c.types.kind(keyType) != TyKind.Key {
+        c.error("E0340", keys.span, "a mapped type needs a key type, found "
+                + "`{c.typeName(keyType)}`")
+        return ERROR
+    }
+    var scope = c.generics.aliasArgs.clone()
+    for i in 0..c.typeVarTypes.len() {
+        scope.push(c.typeVarTypes[i])
+    }
+    let cacheKey = (t.span.file.0, t.span.start, c.types.tuple(scope))
+    if let Option.Some(known) = c.mapped.get(cacheKey) {
+        return c.types.adt(*known, [])
+    }
+    var info = StructInfo{names: [], types: [], defaults: [], isTuple: false, isCopy: false}
+    let names = c.types.keyNames(keyType)
+    for i in 0..names.len() {
+        c.typeVars.push(param)
+        c.typeVarTypes.push(c.types.keys([names[i]]))
+        var ty = resolveType(c, p, field)
+        c.typeVars.pop()
+        c.typeVarTypes.pop()
+        if ty != ERROR && c.types.get(ty).hasParam {
+            return c.unsupported(t.span, "mapped types over type parameters are")
+        }
+        if optional && ty != ERROR {
+            ty = c.types.adt(c.r.langItems[2], [ty])
+        }
+        checkStorable(c, p, ty, field.span, "a struct field")
+        info.names.push(Symbol(names[i]))
+        info.types.push(ty)
+        info.defaults.push(optional)
+    }
+    let id = mappedStruct(c, t, &scope)
+    var pubs: List<bool> = []
+    for _ in 0..names.len() {
+        pubs.push(true)
+    }
+    c.types.setFields(id, KeyFields{module: c.module(), isTuple: false, names: names.clone(), pubs,
+                                    types: info.types.clone()})
+    c.info[id].fields = Option.Some(Box.new(info))
+    c.mapped.insert(cacheKey, id)
+    return c.types.adt(id, [])
+}
+
+// A new struct declaration for an instance, named by its alias and the types
+// in scope: `Partial<Point>`.
+fn mappedStruct(c: mut Checker, t: &TypeExpr, scope: &List<int>) int {
+    let alias = c.aliasDef
+    var name = c.text(c.def(alias).name).toOwned()
+    if scope.len() > 0 {
+        name.push("<")
+        for i in 0..scope.len() {
+            if i > 0 {
+                name.push(", ")
+            }
+            name.push(c.typeName(scope[i]))
+        }
+        name.push(">")
+    }
+    let symbol = c.r.names.intern(name)
+    let module = c.def(alias).module
+    let item = c.def(alias).item
+    let isPub = c.def(alias).isPub
+    c.r.defs.push(Def{kind: DefKind.Struct, name: symbol, span: t.span, isPub, inPrelude: false,
+                      lang: false, module, item, member: -1, target: 0, primitive: 0})
+    c.info.push(emptyInfo())
+    return c.r.defs.len() - 1
+}
+
+/**
+ * Whether a struct is the instance of a mapped type: it has no declaration
+ * of its own.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param id the struct's `DefId`
+ * @returns true for a mapped type's struct
+ */
+pub fn isMappedStruct(c: Checker, p: Program, id: int) bool {
+    if c.def(id).kind != DefKind.Struct {
+        return false
+    }
+    return match itemOf(p, c.loc(id)).kind {
+        ItemKind.TypeAlias(_, _) => true
+        _ => false
+    }
+}
+
+/**
+ * Reports E0332 for an argument of a type alias outside its key bound:
+ * `Pick<Point, .z>` for `type Pick<T, K: keyof T>`.
+ *
+ * @param c the checker, in the alias with its arguments
+ * @param p the program
+ * @param id the alias
+ * @param span where it is used
+ * @returns whether every key argument is in its bound
+ */
+pub fn checkAliasBounds(c: mut Checker, p: Program, id: int, span: Span) bool {
+    var ok = true
+    let preds = itemOf(p, c.loc(id)).bounds.clone()
+    for i in 0..preds.len() {
+        let index = boundedParam(&preds[i].ty, &c.generics.owner, &[])
+        if index < 0 || index >= c.generics.aliasArgs.len() {
+            continue
+        }
+        let arg = c.generics.aliasArgs[index]
+        if arg == ERROR || c.types.get(arg).hasParam {
+            continue
+        }
+        for j in 0..preds[i].bounds.len() {
+            let bound = resolveType(c, p, &preds[i].bounds[j])
+            if bound != ERROR && !c.types.get(bound).hasParam && !included(c, arg, bound) {
+                c.error("E0332", span, "the key `{c.typeName(arg)}` is not in the bound "
+                        + "`{c.typeName(bound)}` of `{c.text(c.generics.owner[index])}`")
+                ok = false
+            }
+        }
+    }
+    return ok
+}
