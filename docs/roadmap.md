@@ -243,7 +243,7 @@ These gaps remain:
 | 6.1a | Tasks: `task.run` and `join` on OS threads, standard output a line at a time; **done** (stage 1) | M |
 | 6.1b | `Send` and `Sync` marker interfaces, required by `task.run` (14.3); **done** (stage 1): `+ Send` function types, `@threadsafe`, E0360 (ADR 0030) | M |
 | 6.1c | Channels: `channel<T>()`, `send`, `recv` (14.4); **done** (stage 1): `std.sync`, `tests/run/sync/channel` | M |
-| 6.1d | `std.sync`: `Mutex`, `RwLock`, atomics, `Arc`, `WaitGroup` (14.4) | M |
+| 6.1d | `std.sync`: `Mutex`, `RwLock`, atomics, `Arc`, `WaitGroup` (14.4); **done** (stage 1): `runtime/src/sync.c`, `tests/run/sync` | M |
 | 6.2 | `ofir fmt` implementing the [style guide](style-guide.md) | M |
 | 6.3 | Language server (diagnostics, go to definition, completion) | L |
 | 6.4 | `ofir doc` and doc tests | M |
