@@ -45,7 +45,7 @@ pub fn cSymbol(r: Resolver, decl: &FnDecl) str {
  * @param p the program
  */
 pub fn checkCSymbols(c: mut Checker, p: Program) {
-    var seen: Map<str, bool> = Map.new()
+    let seen: Map<str, bool> = Map.new()
     for m in 0..p.modules.len() {
         const items = &p.modules[m].module.items
         for i in 0..items.len() {
@@ -75,7 +75,7 @@ pub fn checkCSymbols(c: mut Checker, p: Program) {
  * @returns their names
  */
 pub fn linkLibraries(r: Resolver, p: Program) List<str> {
-    var names: List<str> = []
+    let names: List<str> = []
     for m in 0..p.modules.len() {
         const items = &p.modules[m].module.items
         for i in 0..items.len() {
@@ -87,7 +87,7 @@ pub fn linkLibraries(r: Resolver, p: Program) List<str> {
                 continue
             }
             if const Option.Some(name) = stringArg(r, &items[i].attributes, "link") {
-                var twice = false
+                let twice = false
                 for k in 0..names.len() {
                     twice = twice || names[k] == name
                 }

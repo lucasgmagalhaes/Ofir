@@ -75,7 +75,7 @@ pub fn ownerTypeOf(c: mut Checker, p: Program, m: int, index: int) int {
     if isInterface {   // in an interface, `Self` is its type parameter 0
         return c.types.param(0, params[0].0)
     }
-    var args: List<int> = []
+    let args: List<int> = []
     for i in 0..params.len() {
         args.push(c.types.param(i, params[i].0))
     }
@@ -125,7 +125,7 @@ fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
         return ERROR
     }
     // Arguments belong to the caller; nested uses are not recursive bodies.
-    var generics = noGenerics()
+    let generics = noGenerics()
     generics.owner = typeParams.clone()
     generics.bounds = c.generics.bounds.clone()
     for i in 0..args.len() {
@@ -145,7 +145,7 @@ fn aliasType(c: mut Checker, p: Program, id: int, typeParams: &List<Symbol>,
     c.selfType = ERROR
     c.aliasDef = id
     c.info[id].checking = true
-    var ty = ERROR
+    let ty = ERROR
     if checkAliasBounds(c, p, id, span) {
         ty = resolveType(c, p, aliased)
     }
@@ -180,7 +180,7 @@ pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span)
     }
     const ty = c.types.adt(id, args)
     const generics = typeGenericsOf(c, p, id)
-    var list: List<int> = []
+    let list: List<int> = []
     for i in 0..args.len() {
         list.push(args[i])
     }
@@ -191,7 +191,7 @@ pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span)
 
 // The type parameter named `name`, if it is in scope.
 fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
-    var bound = c.typeVars.len()
+    let bound = c.typeVars.len()
     for bound > 0 {   // the innermost first
         bound -= 1
         if c.typeVars[bound].0 == name.0 {
@@ -227,7 +227,7 @@ fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: S
             if c.def(id).lang {
                 return c.def(id).primitive   // a `@lang` body names its primitive
             }
-            var types: List<int> = []
+            let types: List<int> = []
             for i in 0..args.len() {
                 types.push(resolveType(c, p, &args[i]))
             }
@@ -391,14 +391,14 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
             }
         }
         TypeKind.Tuple(items) => {
-            var types: List<int> = []
+            let types: List<int> = []
             for i in 0..items.len() {
                 types.push(resolveType(c, p, &items[i]))
             }
             c.types.tuple(types)
         }
         TypeKind.Fn(params, _, ret, owned, send) => {
-            var types: List<int> = []
+            let types: List<int> = []
             for i in 0..params.len() {
                 types.push(resolveType(c, p, &params[i]))
             }
@@ -462,9 +462,9 @@ pub fn fnSignature(c: mut Checker, p: Program, id: int) int {
     if isMethod {
         c.selfType = ownerTypeOf(c, p, module, c.def(id).item)
     }
-    var params: List<int> = []
+    let params: List<int> = []
     for i in 0..decl.params.len() {
-        var ty = resolveType(c, p, &decl.params[i].ty)
+        let ty = resolveType(c, p, &decl.params[i].ty)
         if decl.params[i].mode == Mode.Move {   // `f: move fn(A) R` takes an owned function
             ty = ownedFn(c, ty)
         }

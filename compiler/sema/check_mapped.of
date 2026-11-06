@@ -54,7 +54,7 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
                 + "`{c.typeName(keyType)}`")
         return ERROR
     }
-    var scope = c.generics.aliasArgs.clone()
+    let scope = c.generics.aliasArgs.clone()
     for i in 0..c.typeVarTypes.len() {
         scope.push(c.typeVarTypes[i])
     }
@@ -62,9 +62,9 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
     if const Option.Some(known) = c.mapped.get(cacheKey) {
         return c.types.adt(*known, [])
     }
-    var info = StructInfo{names: [], types: [], defaults: [], isTuple: false, isCopy: false}
+    let info = StructInfo{names: [], types: [], defaults: [], isTuple: false, isCopy: false}
     const names = c.types.keyNames(keyType)
-    var fieldNames: List<int> = []
+    let fieldNames: List<int> = []
     for i in 0..names.len() {
         c.typeVars.push(param)
         c.typeVarTypes.push(c.types.keys([names[i]]))
@@ -77,7 +77,7 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
             }
             continue
         }
-        var ty = resolveType(c, p, field)
+        let ty = resolveType(c, p, field)
         c.typeVars.pop()
         c.typeVarTypes.pop()
         if ty != ERROR && c.types.get(ty).hasParam {
@@ -93,7 +93,7 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
         info.defaults.push(optional)
     }
     const id = mappedStruct(c, t, &scope)
-    var pubs: List<bool> = []
+    let pubs: List<bool> = []
     for _ in 0..fieldNames.len() {
         pubs.push(true)
     }
@@ -108,8 +108,8 @@ pub fn mappedType(c: mut Checker, p: Program, t: &TypeExpr, param: Symbol, keys:
 fn keep(c: mut Checker, p: Program, filter: &Option<Box<TypeExpr>>) int {
     return match *filter {
         Option.Some(test) => {
-            var names: List<Symbol> = []
-            var binds: List<int> = []
+            let names: List<Symbol> = []
+            let binds: List<int> = []
             decide(c, p, &*test, names, binds)
         }
         Option.None => 1
@@ -120,7 +120,7 @@ fn keep(c: mut Checker, p: Program, filter: &Option<Box<TypeExpr>>) int {
 // in scope: `Partial<Point>`.
 fn mappedStruct(c: mut Checker, t: &TypeExpr, scope: &List<int>) int {
     const alias = c.aliasDef
-    var name = c.text(c.def(alias).name).toOwned()
+    let name = c.text(c.def(alias).name).toOwned()
     if scope.len() > 0 {
         name.push("<")
         for i in 0..scope.len() {
@@ -171,7 +171,7 @@ pub fn isMappedStruct(c: Checker, p: Program, id: int) bool {
  * @returns whether every key argument is in its bound
  */
 pub fn checkAliasBounds(c: mut Checker, p: Program, id: int, span: Span) bool {
-    var ok = true
+    let ok = true
     const preds = itemOf(p, c.loc(id)).bounds.clone()
     for i in 0..preds.len() {
         const index = boundedParam(&preds[i].ty, &c.generics.owner, &[])

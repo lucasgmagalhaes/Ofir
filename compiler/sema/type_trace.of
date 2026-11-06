@@ -23,7 +23,7 @@ fn valueText(c: Checker, v: &ConstValue) str {
             if kind <= 3 {
                 const widths = [8, 16, 32, 64]
                 const width = widths[kind]
-                var bits = v.bits
+                let bits = v.bits
                 if width < 64 && (bits >> (width - 1) as u64) & 1 == 1 {
                     bits = bits | (18446744073709551615 ^ ((1 as u64 << width as u64) - 1))
                 }
@@ -125,7 +125,7 @@ fn constLine(c: Checker, out: mut str, index: int, item: &Item, isConst: bool) {
  */
 pub fn traceTypes(c: mut Checker, p: Program) str {
     c.enter(0)
-    var out = ""
+    let out = ""
     const items = &p.modules[0].module.items
     for i in 0..items.len() {
         const item = &items[i]

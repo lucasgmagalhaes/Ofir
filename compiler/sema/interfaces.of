@@ -30,8 +30,8 @@ import syntax.ast.Mode
  * @returns their `DefId`s, `iface` first
  */
 pub fn interfaceClosure(c: mut Checker, p: Program, iface: int) List<int> {
-    var out = [iface]
-    var i = 0
+    let out = [iface]
+    let i = 0
     for i < out.len() {
         const id = out[i]
         match itemOf(p, c.loc(id)).kind {
@@ -112,7 +112,7 @@ pub fn declaringInterface(c: mut Checker, p: Program, iface: int, name: Symbol) 
  * @returns their `DefId`s
  */
 pub fn dynMethods(c: mut Checker, p: Program, iface: int) List<int> {
-    var out: List<int> = []
+    let out: List<int> = []
     const all = interfaceClosure(c, p, iface)
     for i in 0..all.len() {
         const module = c.def(all[i]).module
@@ -241,7 +241,7 @@ pub fn interfaceArity(c: Checker, p: Program, iface: int) int {
  * @returns the text
  */
 pub fn interfaceText(c: Checker, iface: int, args: int) str {
-    var out = c.text(c.def(iface).name).toOwned()
+    let out = c.text(c.def(iface).name).toOwned()
     const list = &c.types.get(args).args
     for i in 0..list.len() {
         out += if i == 0 { "<" } else { ", " }
@@ -311,15 +311,15 @@ pub fn unsatisfied(c: mut Checker, p: Program, ty: int, iface: int, args: int) s
         }
         return "it is not bounded by it"
     }
-    var owner = 0
-    var ownerArgs: List<int> = []
+    let owner = 0
+    let ownerArgs: List<int> = []
     if kind == TyKind.Adt {
         owner = c.types.get(ty).data
         ownerArgs = c.types.get(ty).args.clone()
     } else if ty < c.r.lang.len() {
         owner = c.r.lang[ty]
     }
-    var selfArgs = [ty]   // `Self`, then the interface's own parameters
+    let selfArgs = [ty]   // `Self`, then the interface's own parameters
     const given = c.types.get(args).args.clone()
     for i in 0..given.len() {
         selfArgs.push(given[i])
@@ -377,9 +377,9 @@ fn unsatisfiedBy(c: mut Checker, p: Program, owner: int, args: &List<int>, iface
  * @returns the pairs
  */
 pub fn implementedSigs(c: mut Checker, p: Program, ty: int, iface: int) List<(int, int)> {
-    var out: List<(int, int)> = []
-    var owner = 0
-    var args: List<int> = []
+    let out: List<(int, int)> = []
+    let owner = 0
+    let args: List<int> = []
     if c.types.kind(ty) == TyKind.Adt {
         owner = c.types.get(ty).data
         args = c.types.get(ty).args.clone()
@@ -438,7 +438,7 @@ pub fn assertedDefault(c: mut Checker, p: Program, owner: int, name: Symbol) int
         return 0
     }
     const asserts = itemOf(p, c.loc(owner)).asserts.clone()
-    var ifaces: List<int> = []
+    let ifaces: List<int> = []
     const saved = c.enter(c.def(owner).module)
     for i in 0..asserts.len() {
         ifaces.push(interfaceOf(c, &asserts[i]))

@@ -36,7 +36,7 @@ pub struct Scope {
      * @returns the scope, in module 0
      */
     pub fn new(symbolCount: int, moduleCount: int) Scope {
-        var tables: List<List<int>> = []
+        let tables: List<List<int>> = []
         for _ in 0..moduleCount {
             tables.push(List.filled(0, symbolCount))
         }

@@ -45,14 +45,14 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
                     ret: &Option<TypeExpr>, body: &Expr, isMove: bool, expected: int) int {
     const hinted = c.types.kind(expected) == TyKind.Fn && c.types.get(expected).data != 0 &&
                    c.types.get(expected).args.len() == params.len()
-    var types: List<int> = []
+    let types: List<int> = []
     for i in 0..params.len() {
         const param = &params[i]
         if param.mode != Mode.Borrow {
             c.unsupported(param.ty.span, "`mut` and `move` closure parameters are")
         }
         const hint = if hinted { c.types.get(expected).args[i] } else { ERROR }
-        var ty = ERROR
+        let ty = ERROR
         if written(&param.ty) {
             ty = resolveType(c, p, &param.ty)
             if hint != ERROR {
@@ -70,7 +70,7 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
         }
         types.push(ty)
     }
-    var result = ERROR
+    let result = ERROR
     if const Option.Some(t) = *ret {
         result = resolveType(c, p, &t)
     } else if hinted {
@@ -105,7 +105,7 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
     const fnExpected = c.types.kind(expected) == TyKind.Fn
     const owned = isMove || (captureCount(c, e.id.0) == 0 && fnExpected &&
                              c.types.get(expected).data & FN_OWNED != 0)
-    var data = if owned { FN_OWNED } else { FN_BORROWED }
+    let data = if owned { FN_OWNED } else { FN_BORROWED }
     if fnExpected && c.types.get(expected).data & FN_SEND != 0 {
         capturesSend(c, p, e, isMove)   // after E0360 it is still `+ Send`, so no E0300 follows
         data = data | FN_SEND
@@ -173,7 +173,7 @@ fn contains(list: &List<int>, value: int) bool {
  * @param local the local
  */
 pub fn noteWrite(c: mut Checker, span: Span, local: int) {
-    var k = c.closures.len()
+    let k = c.closures.len()
     for k > 0 {
         k -= 1
         const closure = c.closures[k]
@@ -186,7 +186,7 @@ pub fn noteWrite(c: mut Checker, span: Span, local: int) {
             return
         }
         const m = c.module()
-        var written: List<int> = match c.capturesMut[m].get(closure) {
+        let written: List<int> = match c.capturesMut[m].get(closure) {
             Option.Some(list) => list.clone()
             Option.None => []
         }

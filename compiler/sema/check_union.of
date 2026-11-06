@@ -38,7 +38,7 @@ pub fn unionType(c: mut Checker, a: int, spanA: Span, b: int, spanB: Span, span:
     if !memberAllowed(c, a, spanA) || !memberAllowed(c, b, spanB) {
         return ERROR
     }
-    var members: List<int> = []
+    let members: List<int> = []
     addMembers(c, members, a)
     addMembers(c, members, b)
     if members.len() == 1 {
@@ -107,7 +107,7 @@ fn addMembers(c: mut Checker, members: mut List<int>, ty: int) {
 
 fn insertMember(c: mut Checker, members: mut List<int>, ty: int) {
     const name = c.typeName(ty)
-    var at = members.len()
+    let at = members.len()
     for i in 0..members.len() {
         if members[i] == ty {
             return
@@ -156,8 +156,8 @@ fn unionOf(c: mut Checker, members: &List<int>, span: Span) int {
     if const Option.Some(known) = c.unions.get(key) {
         return c.types.adt(*known, [])
     }
-    var name = ""
-    var info = EnumInfo{variants: [], hasPayload: true}
+    let name = ""
+    let info = EnumInfo{variants: [], hasPayload: true}
     for i in 0..members.len() {
         if i > 0 {
             name.push(" | ")

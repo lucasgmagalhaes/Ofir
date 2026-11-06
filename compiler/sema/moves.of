@@ -247,7 +247,7 @@ pub struct State {
             self.moved[part.local] = false
             self.uninit[part.local] = false
         }
-        var kept: List<Part> = []
+        let kept: List<Part> = []
         for i in 0..self.parts.len() {
             if !self.parts[i].inside(part) {
                 kept.push(self.parts[i].clone())
@@ -447,7 +447,7 @@ pub fn movesBlock(m: mut Moves, c: mut Checker, p: Program, block: &Block, s: mu
     m.depth += 1
     for i in 0..count {
         const stmt = &block.stmts[i]
-        var done = false
+        let done = false
         if i + 1 == count {
             if const StmtKind.ExprStmt(e) = stmt.kind {
                 movesNode(m, c, p, &e, s, tail)
@@ -497,7 +497,7 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
             movesNode(m, c, p, &value, s, if keeps { Use.Move } else { Use.Read })
             const loans = carriedSince(m, mark)
             if const Option.Some(block) = otherwise {
-                var other = s.dup()
+                let other = s.dup()
                 movesBlock(m, c, p, &block, other, Use.Read)   // never falls through
             }
             m.binding = loans
@@ -592,8 +592,8 @@ fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &Stat
     m.loops[last].continues = deadState()
     const base = m.scope.len()
     m.loops[last].scope = base
-    var st = entry.dup()
-    var exit = deadState()
+    let st = entry.dup()
+    let exit = deadState()
     match stmt.kind {
         StmtKind.For(kind, _, _, second, expr, body) => {
             if kind == ForKind.Cond {
@@ -603,7 +603,7 @@ fn iteration(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, entry: &Stat
                 exit = st.dup()   // the condition was false
             } else if kind == ForKind.In {
                 const first = c.localAt(stmt.id.0)
-                var owns = isRange(stmt)
+                let owns = isRange(stmt)
                 if !owns {
                     if const Option.Some(e) = expr {
                         owns = iteratorItem(c, p, viewType(c, &e, -1)).isSome()
@@ -664,7 +664,7 @@ fn loopLoans(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut Stat
             const mark = m.carry.len()
             m.lastLocal = false
             movesNode(m, c, p, &e, st, Use.Read)   // evaluated once, borrowed
-            var loans = carriedSince(m, mark)
+            let loans = carriedSince(m, mark)
             dropCarry(m, mark)
             const owns = isRange(stmt) || iteratorItem(c, p, viewType(c, &e, -1)).isSome()
             if !owns && m.lastLocal && isPlaceView(c, &e) {
@@ -687,14 +687,14 @@ fn loopBody(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut State
     loopLoans(m, c, p, stmt, st)
     m.loops.push(LoopFrame{breaks: deadState(), continues: deadState(), scope: m.scope.len()})
     const last = m.loops.len() - 1
-    var entry = st.dup()
-    var exit = iteration(m, c, p, stmt, &entry)
-    var next = entry.dup()
+    let entry = st.dup()
+    let exit = iteration(m, c, p, stmt, &entry)
+    let next = entry.dup()
     next.join(&m.loops[last].continues)
     if !next.equals(&entry) {
         const report = m.report
         m.report = false
-        var round = 0
+        let round = 0
         for round < 16 && !next.equals(&entry) {
             entry = mem.replace(next, deadState())
             iteration(m, c, p, stmt, &entry)
@@ -724,8 +724,8 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
         return
     }
     const count = c.locals.len()
-    var refLocal = List.filled(false, count)
-    var copyLocal = List.filled(false, count)
+    let refLocal = List.filled(false, count)
+    let copyLocal = List.filled(false, count)
     for i in 0..count {
         if i < c.localTypes.len() {
             const ty = c.localTypes[i]
@@ -733,7 +733,7 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
             copyLocal[i] = isCopy(c, p, ty)
         }
     }
-    var m = Moves{fnDef: id, report: true, borrowed: List.filled(false, count), loops: [],
+    let m = Moves{fnDef: id, report: true, borrowed: List.filled(false, count), loops: [],
                   allParts: [], refLocal, copyLocal, holderBase: count, carry: [],
                   binding: [], lastPlace: Part{local: 0, fields: []}, lastLocal: false,
                   scope: [], depth: 0}
@@ -746,7 +746,7 @@ pub fn checkMoves(c: mut Checker, p: Program, id: int) {
             m.borrowed[local] = true
         }
     }
-    var s = newState(count)
+    let s = newState(count)
     match decl.body {
         Option.Some(body) => movesBlock(m, c, p, &body, s, Use.Read)
         Option.None => {}

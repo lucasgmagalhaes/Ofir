@@ -232,7 +232,7 @@ pub fn interfaceOf(c: Checker, t: &TypeExpr) int {
 }
 
 fn interfaceAt(c: Checker, segments: &List<Symbol>) int {
-    var id = c.r.scope.module(segments[0])
+    let id = c.r.scope.module(segments[0])
     if segments.len() == 2 && id != 0 && c.def(id).kind == DefKind.Module {
         const target = c.def(id).target
         id = c.r.scope.moduleIn(target, segments[1])
@@ -247,7 +247,7 @@ fn interfaceAt(c: Checker, segments: &List<Symbol>) int {
 
 // Empty interface lists, one per type parameter.
 fn noIfaces(n: int) List<List<int>> {
-    var ifaces: List<List<int>> = []
+    let ifaces: List<List<int>> = []
     for _ in 0..n {
         ifaces.push([])
     }
@@ -338,7 +338,7 @@ pub fn boundArgs(c: mut Checker, p: Program, t: &TypeExpr, g: &Generics) int {
     const inner = Generics{owner: g.owner.clone(), fnParams: g.fnParams.clone(), bounds: [],
                            ifaces: [], ifaceArgs: [], aliasArgs: [], keys: []}
     const saved = c.enterGenerics(inner)
-    var types: List<int> = []
+    let types: List<int> = []
     for i in 0..list.len() {
         const ty = resolveType(c, p, &list[i])
         types.push(ty)
@@ -377,7 +377,7 @@ pub fn interfaceDef(c: Checker, item: &Item) int {
  */
 pub fn typeGenerics(c: mut Checker, p: Program, item: &Item) Generics {
     const owner = itemTypeParams(item)
-    var g = Generics{owner: owner.clone(), fnParams: [], bounds: List.filled(0, owner.len()),
+    let g = Generics{owner: owner.clone(), fnParams: [], bounds: List.filled(0, owner.len()),
                      ifaces: noIfaces(owner.len()), ifaceArgs: noIfaces(owner.len()),
                      aliasArgs: [], keys: List.filled(0, owner.len())}
     addBounds(c, p, &item.bounds, g)
@@ -411,7 +411,7 @@ pub fn typeGenericsOf(c: mut Checker, p: Program, id: int) Generics {
 // The arguments an interface's own parameters stand for inside it: the
 // parameters themselves, after `Self`.
 fn ownArgs(c: mut Checker, owner: &List<Symbol>) int {
-    var params: List<int> = []
+    let params: List<int> = []
     for i in 1..owner.len() {
         params.push(c.types.param(i, owner[i].0))
     }
@@ -430,7 +430,7 @@ fn ownArgs(c: mut Checker, owner: &List<Symbol>) int {
  */
 pub fn fnGenericsIn(c: mut Checker, p: Program, outer: &Generics, decl: &FnDecl) Generics {
     const n = outer.owner.len() + decl.typeParams.len()
-    var g = Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(),
+    let g = Generics{owner: outer.owner.clone(), fnParams: decl.typeParams.clone(),
                      bounds: List.filled(0, n), ifaces: noIfaces(n), ifaceArgs: noIfaces(n),
                      aliasArgs: [], keys: List.filled(0, n)}
     for i in 0..outer.owner.len() {
@@ -717,7 +717,7 @@ pub struct Checker {
      * @returns its text
      */
     pub fn typeName(self, ty: int) str {
-        var out = ""
+        let out = ""
         self.appendType(out, ty, false)
         return out
     }
@@ -731,7 +731,7 @@ pub struct Checker {
      * @returns its text
      */
     pub fn qualifiedTypeName(self, ty: int) str {
-        var out = ""
+        let out = ""
         self.appendType(out, ty, true)
         return out
     }
@@ -911,21 +911,21 @@ pub fn emptyInfo() DefInfo {
  * @returns the checker
  */
 pub fn newChecker(p: Program, r: move Resolver) Checker {
-    var info: List<DefInfo> = []
-    var itemDefs: List<List<int>> = []
-    var nodeTypes: List<List<int>> = []
-    var localTypesOf: List<Map<int, List<int>>> = []
-    var derefs: List<Map<int, List<int>>> = []
-    var adjusted: List<Map<int, int>> = []
-    var members: List<List<int>> = []
-    var callTypeArgs: List<Map<int, int>> = []
-    var argSlots: List<Map<int, List<int>>> = []
-    var sliceCoercions: List<Map<int, int>> = []
-    var arrayCoercions: List<Map<int, int>> = []
-    var dynCoercions: List<Map<int, int>> = []
-    var unionCoercions: List<Map<int, int>> = []
-    var moveFlags: List<Map<int, int>> = []
-    var capturesMut: List<Map<int, List<int>>> = []
+    let info: List<DefInfo> = []
+    let itemDefs: List<List<int>> = []
+    let nodeTypes: List<List<int>> = []
+    let localTypesOf: List<Map<int, List<int>>> = []
+    let derefs: List<Map<int, List<int>>> = []
+    let adjusted: List<Map<int, int>> = []
+    let members: List<List<int>> = []
+    let callTypeArgs: List<Map<int, int>> = []
+    let argSlots: List<Map<int, List<int>>> = []
+    let sliceCoercions: List<Map<int, int>> = []
+    let arrayCoercions: List<Map<int, int>> = []
+    let dynCoercions: List<Map<int, int>> = []
+    let unionCoercions: List<Map<int, int>> = []
+    let moveFlags: List<Map<int, int>> = []
+    let capturesMut: List<Map<int, List<int>>> = []
     for m in 0..p.modules.len() {
         itemDefs.push(List.filled(0, p.modules[m].module.items.len()))
         nodeTypes.push(List.filled(ERROR, p.modules[m].module.nodeCount))
@@ -994,7 +994,7 @@ pub fn checkFn(c: mut Checker, p: Program, id: int, selfType: int) {
 // The `cellParams` of a function: its borrowed parameters whose types have
 // interior mutability.
 fn cellParams(c: mut Checker, p: Program, decl: &FnDecl, sig: int, selfType: int) int {
-    var bits = 0
+    let bits = 0
     if decl.hasSelf && decl.selfMode == Mode.Borrow && hasInteriorMutability(c, p, selfType) {
         bits = 1
     }
@@ -1111,7 +1111,7 @@ fn checkBody(c: mut Checker, p: Program, id: int, selfType: int, late: bool) {
     }
     c.unsafeDepth = if decl.isUnsafe { 1 } else { 0 }
     const errors = c.r.diags.errorCount()
-    var found = UNIT
+    let found = UNIT
     if const Option.Some(body) = decl.body {
         found = checkBlock(c, p, &body, ERROR, false)
     }
@@ -1356,7 +1356,7 @@ pub fn skippedTest(c: Checker, p: Program, item: &Item) bool {
  * @returns the checker, with its results
  */
 pub fn checkProgram(p: Program, r: move Resolver) Checker {
-    var c = newChecker(p, r)
+    let c = newChecker(p, r)
     for m in 0..p.modules.len() {
         c.enter(m)
         for i in 0..p.modules[m].module.items.len() {

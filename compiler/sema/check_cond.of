@@ -63,8 +63,8 @@ pub fn inferType(c: mut Checker, name: Symbol, span: Span) int {
  */
 pub fn condType(c: mut Checker, p: Program, test: &TypeExpr, then: &TypeExpr,
                 otherwise: &TypeExpr) int {
-    var names: List<Symbol> = []
-    var binds: List<int> = []
+    let names: List<Symbol> = []
+    let binds: List<int> = []
     const decided = decide(c, p, test, names, binds)
     if decided < 0 {
         return ERROR
@@ -93,8 +93,8 @@ pub fn condType(c: mut Checker, p: Program, test: &TypeExpr, then: &TypeExpr,
  * @returns its type
  */
 pub fn isType(c: mut Checker, p: Program, test: &TypeExpr) int {
-    var names: List<Symbol> = []
-    var binds: List<int> = []
+    let names: List<Symbol> = []
+    let binds: List<int> = []
     const decided = decide(c, p, test, names, binds)
     if decided < 0 {
         return ERROR
@@ -157,7 +157,7 @@ fn decideIs(c: mut Checker, p: Program, left: &TypeExpr, pattern: &TypeExpr,
     if c.types.get(ty).hasParam {
         return notDecided(c, left.span, ty)
     }
-    var found: List<int> = []
+    let found: List<int> = []
     for _ in 0..inferred.len() {
         found.push(-1)
     }

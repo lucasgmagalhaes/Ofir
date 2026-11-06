@@ -302,7 +302,7 @@ fn unary(c: mut Checker, p: Program, e: &Expr, op: Op, operand: &Expr, expected:
     if op == Op.Ref || op == Op.RefMut {
         return checkRef(c, p, e, operand, op == Op.RefMut, expected)
     }
-    var ty = ERROR
+    let ty = ERROR
     if const ExprKind.Int(value) = operand.kind {
         if op == Op.Neg {
             ty = intLiteral(c, operand, value, expected, true)
@@ -467,14 +467,14 @@ fn checkFnCall(c: mut Checker, p: Program, e: &Expr, callee: &Expr, args: &List<
     }
     const sig = fnSignature(c, p, id)
     const generics = fnGenerics(c, p, id)
-    var ret = ERROR
+    let ret = ERROR
     if generics.owner.len() + generics.fnParams.len() == 0 {
         if explicit.len() > 0 {
             c.error("E0302", callee.span, "`{c.text(c.def(id).name)}` takes no type arguments")
         }
         ret = checkCallArgs(c, p, e, args, id)
     } else {
-        var inf = inferNew(generics)
+        let inf = inferNew(generics)
         if explicit.len() > 0 {
             inferExplicit(c, p, inf, false, explicit, callee.span)
         }
@@ -550,7 +550,7 @@ fn tuple(c: mut Checker, p: Program, elems: &List<Expr>, expected: int) int {
     const hint = c.types.get(expected)
     const hinted = hint.kind == TyKind.Tuple && hint.args.len() == elems.len()
     const hints = hint.args.clone()
-    var types: List<int> = []
+    let types: List<int> = []
     for i in 0..elems.len() {
         types.push(checkExpr(c, p, &elems[i], if hinted { hints[i] } else { ERROR }))
     }
@@ -735,7 +735,7 @@ pub fn checkConst(c: mut Checker, p: Program, id: int) int {
     const isConst = c.def(id).kind == DefKind.Const
     match item.kind {
         ItemKind.Const(annotation, value) | ItemKind.Global(annotation, value) => {
-            var ty = ERROR
+            let ty = ERROR
             if const Option.Some(t) = annotation {
                 ty = resolveType(c, p, &t)
                 coerce(c, p, &value, ty)

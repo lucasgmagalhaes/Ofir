@@ -118,7 +118,7 @@ fn suggestMethod(c: mut Checker, p: Program, owner: int, name: Symbol) {
     if owner == 0 || c.def(owner).item < 0 {
         return
     }
-    var s = Suggestion.new(c.text(name))
+    let s = Suggestion.new(c.text(name))
     for i in 0..methodCount(p, c.loc(owner)) {
         const method = methodAt(p, c.loc(owner), i).name
         s.offer(method, c.text(method))
@@ -208,7 +208,7 @@ fn namedInstance(c: mut Checker, p: Program, id: int, list: &List<TypeExpr>, spa
     if list.len() == 0 && itemTypeParams(itemOf(p, c.loc(id))).len() > 0 {
         return ERROR
     }
-    var args: List<int> = []
+    let args: List<int> = []
     for i in 0..list.len() {
         args.push(resolveType(c, p, &list[i]))
     }
@@ -254,7 +254,7 @@ fn methodArgs(c: mut Checker, p: Program, call: &Expr, field: &Expr, explicit: &
         return checkCallArgs(c, p, call, args, id)
     }
     const ownerCount = generics.owner.len()
-    var inf = inferNew(generics)
+    let inf = inferNew(generics)
     if isInterfaceMethod(c, p, id) {   // `Self` is the receiver's type
         inf.args[0] = selfType
         inf.known[0] = true
@@ -401,7 +401,7 @@ fn callBuiltin(c: mut Checker, p: Program, call: &Expr, field: &Expr, explicit: 
     if which == 3 {
         return checkArgs(c, p, call.span, args, &[I64], selfType)
     }
-    var ret = target
+    let ret = target
     if which == 2 {
         const option = c.r.langItems[2]
         ret = if option == 0 || target == ERROR { ERROR } else { c.types.adt(option, [target]) }
@@ -670,7 +670,7 @@ fn cloneableFields(c: mut Checker, p: Program, ty: int, id: int, visiting: mut L
         }
         return true
     }
-    var shape: List<int> = []
+    let shape: List<int> = []
     if const Option.Some(info) = c.info[id].variants {
         for v in 0..info.variants.len() {
             shape.push(info.variants[v].types.len())
@@ -742,7 +742,7 @@ fn cloneableIn(c: mut Checker, p: Program, ty: int, visiting: mut List<int>) boo
  * @returns true if it can
  */
 pub fn isCloneable(c: mut Checker, p: Program, ty: int) bool {
-    var visiting: List<int> = []
+    let visiting: List<int> = []
     return cloneableIn(c, p, ty, visiting)
 }
 

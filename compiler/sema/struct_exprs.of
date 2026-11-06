@@ -167,7 +167,7 @@ pub fn checkConstructor(c: mut Checker, p: Program, call: &Expr, id: int,
     if owner.len() == 0 && explicit.len() == 0 {
         return checkArgs(c, p, call.span, args, &params, ty)
     }
-    var inf = inferNew(typeGenericsOf(c, p, id))
+    let inf = inferNew(typeGenericsOf(c, p, id))
     if explicit.len() > 0 {
         const callee = match call.kind {
             ExprKind.Call(callee, _) => callee.span
@@ -244,7 +244,7 @@ fn aliasStruct(c: mut Checker, p: Program, name: &Expr, id: int) int {
     if c.def(id).kind != DefKind.TypeAlias {
         return id
     }
-    var args: List<TypeExpr> = []
+    let args: List<TypeExpr> = []
     if const ExprKind.Generic(_, written) = name.kind {
         args = written.clone()
     }
@@ -279,24 +279,24 @@ pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) i
             }
             c.shorthandSpan = e.span
             const count = fieldsOf(c, id).types.len()
-            var given = List.filled(false, count)
+            let given = List.filled(false, count)
             const owner = itemTypeParams(itemOf(p, c.loc(id)))
-            var explicit: Option<List<TypeExpr>> = Option.None
+            let explicit: Option<List<TypeExpr>> = Option.None
             if const ExprKind.Generic(_, args) = name.kind {
                 if id == named {   // a mapped type's arguments are its alias's
                     explicit = Option.Some(args.clone())
                 }
             }
-            var ty = ERROR
+            let ty = ERROR
             if owner.len() > 0 || explicit.isSome() {
-                var inf = inferNew(typeGenericsOf(c, p, id))
+                let inf = inferNew(typeGenericsOf(c, p, id))
                 if const Option.Some(args) = explicit {
                     inferExplicit(c, p, inf, true, &args, name.span)
                 }
                 const selfType = ownerType(c, p, id)
                 inferFrom(c, inf, selfType, expected)
                 checkLiteralFields(c, p, id, &fields, given, inf, true)
-                var finished = inf
+                let finished = inf
                 inferFinish(c, finished, name.span)
                 checkBoundArgs(c, p, &finished, name.span)
                 const types = fieldsOf(c, id).types.clone()
@@ -316,7 +316,7 @@ pub fn checkStructLiteral(c: mut Checker, p: Program, e: &Expr, expected: int) i
                 ty = inferApply(c, &finished, selfType)
             } else {
                 ty = c.types.adt(id, [])
-                var none = inferNew(noGenerics())
+                let none = inferNew(noGenerics())
                 checkLiteralFields(c, p, id, &fields, given, none, false)
             }
             c.setType(name.id.0, ty)

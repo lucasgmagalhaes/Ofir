@@ -108,7 +108,7 @@ pub fn checkTry(c: mut Checker, p: Program, e: &Expr, inner: &Expr) int {
  * @returns the type of the expression
  */
 pub fn checkCoalesce(c: mut Checker, p: Program, lhs: &Expr, rhs: &Expr, expected: int) int {
-    var hint = ERROR
+    let hint = ERROR
     if expected != ERROR && c.r.langItems[2] != 0 {
         hint = c.types.adt(c.r.langItems[2], [expected])
     }

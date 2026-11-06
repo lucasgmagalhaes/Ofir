@@ -286,7 +286,7 @@ fn cast(c: mut Checker, p: Program, ev: mut Eval, e: &Expr, value: &Expr) Option
     const to = c.typeOf(e.id.0)
     const target = c.types.get(to)
     if target.kind == TyKind.Float {
-        var f = a.f
+        let f = a.f
         if a.kind != ConstKind.Float {
             const from = c.types.get(a.ty).data
             f = if from <= 3 { asSigned(a.bits, widthOf(from)) as float } else { a.bits as float }
@@ -306,7 +306,7 @@ fn cast(c: mut Checker, p: Program, ev: mut Eval, e: &Expr, value: &Expr) Option
     const negative = fromSigned && signed < 0
     const magnitude = if fromSigned { signed.wrappingCast<u64>() } else { a.bits }
     const width = widthOf(target.data)
-    var ok = false
+    let ok = false
     if target.data <= 3 {
         const half = if width == 64 { 9223372036854775807 } else { (1 << (width - 1)) - 1 }
         ok = if negative { width == 64 || signed >= -half - 1 } else {
@@ -347,7 +347,7 @@ fn primitiveConst(c: Checker, e: &Expr, name: Symbol) ConstValue {
         const width = widthOf(t.data)
         const isSigned = t.data <= 3
         const max = mask(width)
-        var v: u64 = 0
+        let v: u64 = 0
         if text == "MAX" {
             v = if isSigned { max >> 1 } else { max }
         } else if isSigned {
@@ -356,7 +356,7 @@ fn primitiveConst(c: Checker, e: &Expr, name: Symbol) ConstValue {
         return intValue(ty, v, width)
     }
     const zero = 0.0
-    var f = if t.data == 32 { 1.1920928955078125e-07 } else { 2.220446049250313e-16 }
+    let f = if t.data == 32 { 1.1920928955078125e-07 } else { 2.220446049250313e-16 }
     if text == "NAN" {
         f = zero / zero
     } else if text == "INFINITY" {
@@ -392,14 +392,14 @@ fn constant(c: mut Checker, ev: mut Eval, e: &Expr) Option<ConstValue> {
         Res.Def(id) => id
         _ => 0
     }
-    var found: Option<ConstValue> = Option.None
+    let found: Option<ConstValue> = Option.None
     if id != 0 && c.def(id).kind == DefKind.Const {
         found = c.info[id].value.clone()
     }
     const Option.Some(value) = found else {
         return fail(c, ev, "E0801", e.span, "only constants can be used in a constant")
     }
-    var out = value
+    let out = value
     out.ty = c.typeOf(e.id.0)
     return Option.Some(out)
 }
@@ -413,6 +413,6 @@ fn constant(c: mut Checker, ev: mut Eval, e: &Expr) Option<ConstValue> {
  * @returns its value, or `None` after an error
  */
 pub fn constEval(c: mut Checker, p: Program, e: &Expr) Option<ConstValue> {
-    var ev = Eval{failed: false}
+    let ev = Eval{failed: false}
     return eval(c, p, ev, e)
 }

@@ -81,7 +81,7 @@ fn sameAdt(c: Checker, ty: int, id: int) bool {
 }
 
 fn fieldTypes(c: mut Checker, p: Program, ty: int, v: int, count: int) List<int> {
-    var out: List<int> = []
+    let out: List<int> = []
     for i in 0..count {
         out.push(if v < 0 { structFieldType(c, p, ty, i) } else {
             variantFieldType(c, p, ty, v, i)
@@ -133,9 +133,9 @@ fn structPattern(c: mut Checker, p: Program, pat: &Pattern, path: &List<Symbol>,
     match pat.kind {
         PatternKind.Struct(_, fields, rest) => {
             const names = fieldsOf(c, id).names.clone()
-            var listed = 0
+            let listed = 0
             for i in 0..fields.len() {
-                var index = 0
+                let index = 0
                 for index < names.len() && names[index].0 != fields[i].name.0 {
                     index += 1
                 }

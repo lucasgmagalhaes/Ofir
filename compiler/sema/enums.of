@@ -69,7 +69,7 @@ fn variantDeclAt(p: Program, at: Loc, i: int) &Variant {
 
 fn fillVariant(c: mut Checker, p: Program, decl: &Variant, next: int,
                isCopyEnum: bool) VariantInfo {
-    var v = VariantInfo{name: decl.name, fieldNames: [], types: [], discriminant: next}
+    let v = VariantInfo{name: decl.name, fieldNames: [], types: [], discriminant: next}
     for f in 0..decl.fields.len() {
         const ty = resolveType(c, p, &decl.fields[f].ty)
         v.fieldNames.push(decl.fields[f].name)
@@ -132,8 +132,8 @@ pub fn enumVariants(c: mut Checker, p: Program, id: int) bool {
     const outer = c.enterGenerics(typeGenericsOf(c, p, id))
     c.selfType = ownerType(c, p, id)
     c.info[id].checking = true
-    var info = EnumInfo{variants: [], hasPayload: false}
-    var next = 0
+    let info = EnumInfo{variants: [], hasPayload: false}
+    let next = 0
     for i in 0..declared.1 {
         const v = fillVariant(c, p, variantDeclAt(p, c.loc(id), i), next, declared.0)
         next = v.discriminant + 1

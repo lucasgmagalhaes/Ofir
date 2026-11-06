@@ -59,7 +59,7 @@ pub fn keyofType(c: mut Checker, p: Program, inner: &TypeExpr, span: Span) int {
         return indexKeys(c, fieldsOf(c, id).types.len())
     }
     const inside = c.def(id).module == c.module()
-    var names: List<int> = []
+    let names: List<int> = []
     for i in 0..fieldsOf(c, id).names.len() {
         if inside || fieldIsPub(c, p, id, i) {
             names.push(fieldsOf(c, id).names[i].0)
@@ -78,7 +78,7 @@ pub fn useIndexNames(c: mut Checker) {
     if c.types.hasIndexNames() {
         return
     }
-    var names: List<int> = []
+    let names: List<int> = []
     for i in 0..INDEX_KEYS {
         names.push(c.r.names.intern("{i}").0)
     }
@@ -106,7 +106,7 @@ pub fn paramKey(c: Checker, ty: int) int {
 
 // The keys `.0` to `.(count - 1)`.
 fn indexKeys(c: mut Checker, count: int) int {
-    var names: List<int> = []
+    let names: List<int> = []
     for i in 0..count {
         names.push(c.r.names.intern("{i}").0)
     }
@@ -144,7 +144,7 @@ pub fn keyOpType(c: mut Checker, p: Program, op: Op, left: &TypeExpr, right: &Ty
     }
     const namesA = c.types.keyNames(a)
     const namesB = c.types.keyNames(b)
-    var names: List<int> = []
+    let names: List<int> = []
     if op == Op.Or {
         names = namesA.clone()
         for i in 0..namesB.len() {
@@ -209,7 +209,7 @@ fn keysType(c: mut Checker, p: Program, base: int, key: int, keySpan: Span, span
                 + "type `keyof ()`")
         return ERROR
     }
-    var result = ERROR
+    let result = ERROR
     for i in 0..names.len() {
         const field = fieldType(c, p, base, names[i], keySpan)
         if field == ERROR {
@@ -419,7 +419,7 @@ fn ensureFields(c: mut Checker, p: Program, ty: int) {
 
 // Whether the keys of `key` are keys of `bound`.
 pub fn included(c: Checker, key: int, bound: int) bool {
-    var keys = key
+    let keys = key
     if c.types.kind(key) == TyKind.Param {
         keys = paramKey(c, key)
         if keys == bound {
@@ -479,7 +479,7 @@ pub fn resolveKeyed(c: mut Checker, ty: int) int {
         }
         return ty
     }
-    var args: List<int> = []
+    let args: List<int> = []
     for i in 0..t.args.len() {
         args.push(resolveKeyed(c, t.args[i]))
     }

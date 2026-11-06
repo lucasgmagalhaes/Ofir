@@ -204,8 +204,8 @@ pub fn checkBorrowSource(c: mut Checker, p: Program, id: int, sig: int, selfType
         return
     }
     const params = c.types.get(sig).args.clone()
-    var source = -1
-    var count = 0
+    let source = -1
+    let count = 0
     for i in 0..decl.params.len() {
         if i < params.len() && lends(c, p, decl.params[i].mode, params[i]) {
             source = i
@@ -239,7 +239,7 @@ pub fn checkReturnedRef(c: mut Checker, p: Program, fnDef: int, value: &Expr) {
     if returnedBranches(c, p, fnDef, value) {
         return
     }
-    var target = value
+    let target = value
     if const ExprKind.Call(_, args) = value.kind {
         if args.len() == 1 {
             target = &args[0].value   // `Some(&x)`, `Ok(&x)`

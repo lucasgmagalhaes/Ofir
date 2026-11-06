@@ -43,7 +43,7 @@ pub struct Resolutions {
      * members `m.x`, the shorthand fields `P{x}`, and the patterns that name
      * a prelude variant (`None`, `Some(x)`). */
     pub res: List<Res>
-    /** The local that a binding, a parameter, a `var` or a `for` declares
+    /** The local that a binding, a parameter, a `let` or a `for` declares
      * there, or -1; the second variable of `for i, x` is the next local. */
     pub locals: List<int>
     /** The `DefId` of each function and method, by the `NodeId` of its `FnDecl`. */
@@ -134,7 +134,7 @@ pub struct Resolver {
                 return
             }
         }
-        var i = self.imports.len()
+        let i = self.imports.len()
         for i > 0 {
             i -= 1
             if self.imports[i].module < self.current {
@@ -256,7 +256,7 @@ const PRIMITIVE_TYPES: int = 15
 pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagnostics,
                       map: move SourceMap, trace: bool, testing: bool,
                       benching: bool) Resolver {
-    var r = newResolver(program, names, diags, map, trace)
+    let r = newResolver(program, names, diags, map, trace)
     r.testing = testing
     r.benching = benching
     for m in 0..program.modules.len() {
@@ -281,16 +281,16 @@ pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagno
 
 fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
                map: move SourceMap, trace: bool) Resolver {
-    var names = given
+    let names = given
     const prelude = preludeNames()
-    var symbols: List<Symbol> = []
+    let symbols: List<Symbol> = []
     for i in 0..prelude.len() {
         symbols.push(names.intern(prelude[i].0))
     }
     const selfName = names.intern("self")   // before the scope tables are sized
     names.intern("_")
-    var scope = Scope.new(names.len(), program.modules.len())
-    var defs: List<Def> = [noDef()]
+    let scope = Scope.new(names.len(), program.modules.len())
+    let defs: List<Def> = [noDef()]
     for i in 0..prelude.len() {
         defs.push(Def{kind: prelude[i].1, name: symbols[i], span: noSpan(), isPub: true,
                       inPrelude: true, lang: false, module: 0, item: -1, member: -1,
@@ -299,8 +299,8 @@ fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
             scope.setIn(m, symbols[i], defs.len() - 1)
         }
     }
-    var moduleNames: List<str> = []
-    var tables: List<Resolutions> = []
+    let moduleNames: List<str> = []
+    let tables: List<Resolutions> = []
     for m in 0..program.modules.len() {
         moduleNames.push(program.modules[m].name.clone())
         const count = program.modules[m].module.nodeCount
@@ -476,7 +476,7 @@ fn collectLang(r: mut Resolver, item: &Item, index: int, methods: List<FnDecl>) 
         return false
     }
     const stdModule = inStd(r)
-    var primitive = 0
+    let primitive = 0
     if const Option.Some(name) = langArgument(attr) {
         if const Option.Some(symbol) = r.names.find(name) {
             primitive = r.scope.module(symbol)
@@ -493,7 +493,7 @@ fn collectLang(r: mut Resolver, item: &Item, index: int, methods: List<FnDecl>) 
         r.error("E0805", attr.span, message.toOwned())
         return true
     }
-    var def = newDef(r, DefKind.Struct, item.name, item.span, true, index, -1)
+    let def = newDef(r, DefKind.Struct, item.name, item.span, true, index, -1)
     def.lang = true
     def.primitive = r.def(primitive).primitive
     const type = def.primitive
@@ -507,7 +507,7 @@ fn declareVariants(r: mut Resolver, item: &Item, index: int, owner: int) {
     match item.kind {
         ItemKind.Enum(_, _, variants, _) => {
             for i in 0..variants.len() {
-                var def = newDef(r, DefKind.Variant, variants[i].name, variants[i].span, true,
+                let def = newDef(r, DefKind.Variant, variants[i].name, variants[i].span, true,
                                  index, i)
                 def.target = owner
                 declareItem(r, def)
@@ -566,7 +566,7 @@ fn collectItem(r: mut Resolver, item: &Item, index: int) {
 // A `@lang("list")` struct or enum fills its slot; an enum's variants become
 // names (`Some`, `Ok`).
 fn namedSlot(r: mut Resolver, item: &Item, index: int) {
-    var attr: Option<&Attribute> = Option.None
+    let attr: Option<&Attribute> = Option.None
     if const Option.Some(at) = findAttribute(r, item.attributes, "lang") {
         attr = Option.Some(&item.attributes[at])
     }
@@ -635,7 +635,7 @@ fn checkBenchSignature(r: mut Resolver, item: &Item) {
     }
     match item.kind {
         ItemKind.Fn(decl) => {
-            var ok = decl.params.len() == 1 && decl.ret.isNone() && decl.typeParams.len() == 0
+            let ok = decl.params.len() == 1 && decl.ret.isNone() && decl.typeParams.len() == 0
             if ok {
                 ok = decl.params[0].mode == Mode.Mut && isBencher(r, &decl.params[0].ty)
             }

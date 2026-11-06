@@ -26,7 +26,7 @@ pub copy enum SuggestScope {
 
 // The bytes of a name.
 fn bytesOf(text: str) List<u8> {
-    var out: List<u8> = []
+    let out: List<u8> = []
     for b in text.bytes() {
         out.push(b)
     }
@@ -37,7 +37,7 @@ fn bytesOf(text: str) List<u8> {
 // that turn `a` into `b` (optimal string alignment).
 fn editDistance(a: &List<u8>, b: &List<u8>) int {
     const width = b.len() + 1
-    var d: List<int> = []
+    let d: List<int> = []
     for i in 0..a.len() + 1 {
         for j in 0..width {
             d.push(if i == 0 { j } else if j == 0 { i } else { 0 })
@@ -45,7 +45,7 @@ fn editDistance(a: &List<u8>, b: &List<u8>) int {
     }
     for i in 1..a.len() + 1 {
         for j in 1..width {
-            var best = d[(i - 1) * width + j - 1] + (if a[i - 1] == b[j - 1] { 0 } else { 1 })
+            let best = d[(i - 1) * width + j - 1] + (if a[i - 1] == b[j - 1] { 0 } else { 1 })
             if d[(i - 1) * width + j] + 1 < best {
                 best = d[(i - 1) * width + j] + 1
             }
@@ -89,7 +89,7 @@ pub struct Suggestion {
         if limit == 0 || self.name.len() > MAX_NAME || text.len() > MAX_NAME {
             return
         }
-        var gap = self.name.len() - text.len()
+        let gap = self.name.len() - text.len()
         if gap < 0 {
             gap = -gap
         }
@@ -135,10 +135,10 @@ fn isType(kind: DefKind) bool {
  * @param scope where the candidates are
  */
 pub fn suggestName(r: mut Resolver, name: Symbol, scope: SuggestScope) {
-    var s = Suggestion.new(r.text(name))
+    let s = Suggestion.new(r.text(name))
     for i in 0..r.scope.symbols() {
         const def = r.scope.module(Symbol(i))
-        var visible = scope == SuggestScope.Value && r.scope.localOf(Symbol(i)).isSome()
+        let visible = scope == SuggestScope.Value && r.scope.localOf(Symbol(i)).isSome()
         if !visible && def != 0 {
             visible = scope != SuggestScope.Type || isType(r.def(def).kind)
         }
@@ -158,7 +158,7 @@ pub fn suggestName(r: mut Resolver, name: Symbol, scope: SuggestScope) {
  * @param name the unknown name
  */
 pub fn suggestMember(r: mut Resolver, index: int, name: Symbol) {
-    var s = Suggestion.new(r.text(name))
+    let s = Suggestion.new(r.text(name))
     for i in 0..r.scope.symbols() {
         const id = r.scope.moduleIn(index, Symbol(i))
         if id == 0 {
@@ -180,7 +180,7 @@ pub fn suggestMember(r: mut Resolver, index: int, name: Symbol) {
  * @param name the unknown name
  */
 pub fn suggestField(r: mut Resolver, names: &List<Symbol>, name: Symbol) {
-    var s = Suggestion.new(r.text(name))
+    let s = Suggestion.new(r.text(name))
     for i in 0..names.len() {
         s.offer(names[i], r.text(names[i]))
     }

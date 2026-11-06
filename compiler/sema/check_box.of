@@ -82,8 +82,8 @@ fn record(c: mut Checker, e: &Expr, steps: move List<int>, result: int) {
  * @returns the type of the dereferenced value
  */
 pub fn autoDeref(c: mut Checker, p: Program, e: &Expr, ty: int) int {
-    var steps: List<int> = []
-    var current = ty
+    let steps: List<int> = []
+    let current = ty
     for {
         const next = derefStep(c, p, current)
         if next == current {
@@ -108,8 +108,8 @@ pub fn autoDeref(c: mut Checker, p: Program, e: &Expr, ty: int) int {
  * @returns the type of the receiver
  */
 pub fn methodReceiver(c: mut Checker, p: Program, e: &Expr, ty: int, name: Symbol) int {
-    var steps: List<int> = []
-    var current = ty
+    let steps: List<int> = []
+    let current = ty
     for {
         const viaBox = boxInner(c, current).isSome() && !hasMethod(c, p, c.r.langItems[0], name)
         const through = c.types.kind(current) == TyKind.Ref || viaBox

@@ -207,7 +207,7 @@ fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
         m.movePart(s, &place.part)
         markFlag(c, e.id.0, MOVES)
     }
-    var loans = carriedSince(m, mark)
+    let loans = carriedSince(m, mark)
     dropCarry(m, mark)
     const borrows = !owned && place.via != Via.Raw
     if borrows && place.local {
@@ -231,14 +231,14 @@ fn scrutinee(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
 pub fn movesIf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
     match e.kind {
         ExprKind.If(letPattern, cond, then, otherwise) => {
-            var borrowed = false
+            let borrowed = false
             match letPattern {
                 Option.Some(pattern) => {
                     borrowed = scrutinee(m, c, p, &*cond, s, bindsByMove(c, p, &pattern))
                 }
                 Option.None => movesNode(m, c, p, &*cond, s, Use.Read)
             }
-            var other = s.dup()
+            let other = s.dup()
             if const Option.Some(pattern) = letPattern {
                 patternInit(m, c, &pattern, s, borrowed)
             }
@@ -266,15 +266,15 @@ pub fn movesIf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State,
 pub fn movesMatch(m: mut Moves, c: mut Checker, p: Program, e: &Expr, s: mut State, use: Use) {
     match e.kind {
         ExprKind.Match(value, arms) => {
-            var byMove = false
+            let byMove = false
             for i in 0..arms.len() {
                 byMove = byMove || bindsByMove(c, p, &arms[i].pattern)
             }
             const borrowed = scrutinee(m, c, p, &*value, s, byMove)
             const loans = mem.replace(m.binding, [])
-            var result = deadState()
+            let result = deadState()
             for i in 0..arms.len() {
-                var a = s.dup()
+                let a = s.dup()
                 m.binding = loans.clone()
                 patternInit(m, c, &arms[i].pattern, a, borrowed)
                 m.binding = []

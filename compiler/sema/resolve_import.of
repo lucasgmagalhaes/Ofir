@@ -22,7 +22,7 @@ import syntax.ast.ExprKind
 
 // The dotted name of the first `count` segments of `path`.
 fn dotted(r: Resolver, path: &List<Symbol>, count: int) str {
-    var out = ""
+    let out = ""
     for i in 0..count {
         if i > 0 {
             out.push(".")
@@ -110,7 +110,7 @@ pub fn resolveImport(r: mut Resolver, program: Program, path: &List<Symbol>,
 fn bindImport(r: mut Resolver, path: &List<Symbol>, name: Symbol, span: Span) {
     const module = findModule(r, path, path.len())
     if module >= 0 {   // a module
-        var def = Def{kind: DefKind.Module, name, span, isPub: false, inPrelude: false, lang: false,
+        let def = Def{kind: DefKind.Module, name, span, isPub: false, inPrelude: false, lang: false,
                       module: r.current, item: -1, member: -1, target: module, primitive: -1}
         const id = r.addDef(def)
         bind(r, name, id, span)

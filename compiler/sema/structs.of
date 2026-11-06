@@ -320,7 +320,7 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     const outer = c.enterGenerics(typeGenericsOf(c, p, id))
     c.selfType = if c.def(id).lang { c.def(id).primitive } else { ownerType(c, p, id) }
     c.info[id].checking = true
-    var info = StructInfo{names: [], types: [], defaults: [], isTuple: declared.2,
+    let info = StructInfo{names: [], types: [], defaults: [], isTuple: declared.2,
                           isCopy: declared.0}
     for i in 0..declared.3 {
         const field = fieldDeclAt(p, c.loc(id), i)
@@ -345,8 +345,8 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     c.selfType = savedSelf
     c.enter(saved)
     if !c.def(id).lang {
-        var names: List<int> = []
-        var pubs: List<bool> = []
+        let names: List<int> = []
+        let pubs: List<bool> = []
         for i in 0..info.names.len() {
             names.push(info.names[i].0)
             pubs.push(fieldDeclAt(p, c.loc(id), i).isPub)

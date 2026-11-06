@@ -218,7 +218,7 @@ pub fn fromMethod(c: mut Checker, p: Program, target: int, source: int) int {
         return 0
     }
     const loc = c.loc(owner)
-    var id = 0
+    let id = 0
     for i in 0..methodCount(p, loc) {
         const decl = methodAt(p, loc, i)
         if !decl.hasSelf && c.text(decl.name) == "from" {
@@ -275,7 +275,7 @@ pub fn debugMethod(c: mut Checker, p: Program, ty: int) int {
  * @returns true if it does
  */
 pub fn debuggable(c: mut Checker, p: Program, ty: int) bool {
-    var seen: List<int> = []
+    let seen: List<int> = []
     return debuggableIn(c, p, ty, &mut seen)
 }
 

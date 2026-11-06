@@ -47,10 +47,10 @@ fn build(c: mut Checker, p: Program, at: &Expr, args: Option<&List<Arg>>, id: in
     const given = args ?? &none
     const owner = itemTypeParams(itemOf(p, c.loc(id)))
     if owner.len() > 0 {   // the arguments come from `self`, the expected type or the payload
-        var inf = inferNew(typeGenericsOf(c, p, id))
+        let inf = inferNew(typeGenericsOf(c, p, id))
         inferFromSelf(c, inf, selfType, owner.len())
         const selfType = ownerType(c, p, id)
-        var params: List<int> = []
+        let params: List<int> = []
         if args.isSome() && count > 0 {
             params = types
         }
@@ -131,7 +131,7 @@ pub fn checkVariantShorthand(c: mut Checker, p: Program, e: &Expr, expected: int
                 return noVariant(c, e.span, name, expected)
             }
             c.setMember(e.id.0, index)
-            var given: Option<&List<Arg>> = Option.None
+            let given: Option<&List<Arg>> = Option.None
             if hasArgs {
                 given = Option.Some(&args)
             }

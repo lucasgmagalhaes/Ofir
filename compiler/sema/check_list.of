@@ -114,8 +114,8 @@ pub fn checkListLiteral(c: mut Checker, p: Program, e: &Expr, items: &List<Expr>
     if c.r.langItems[1] == 0 {
         return c.unsupported(e.span, "list literals without the standard library are")
     }
-    var elem = ERROR
-    var known = false
+    let elem = ERROR
+    let known = false
     if const Option.Some(t) = sequenceElem(c, expected) {   // a List or a `[T]` parameter
         elem = t
         known = true
@@ -281,7 +281,7 @@ fn boundIteratorItem(c: mut Checker, p: Program, ty: int) Option<int> {
     for i in 0..bounds.len() {
         const next = nextMethod(c, p, bounds[i])
         if next != 0 {
-            var args = [ty]   // `Self`, then the interface's own parameters
+            let args = [ty]   // `Self`, then the interface's own parameters
             const given = c.types.get(c.generics.ifaceArgs[param][i]).args.clone()
             for j in 0..given.len() {
                 args.push(given[j])
@@ -324,8 +324,8 @@ fn nextItem(c: mut Checker, p: Program, next: int, args: List<int>) Option<int> 
 pub fn checkForCollection(c: mut Checker, p: Program, s: &Stmt, expr: &Expr, two: bool) {
     const found = checkExpr(c, p, expr, ERROR)
     const ty = autoDeref(c, p, expr, found)
-    var first = ERROR
-    var second = ERROR
+    let first = ERROR
+    let second = ERROR
     if const Option.Some(elem) = sequenceElem(c, ty) {
         first = if two { I64 } else { elem }
         second = elem
@@ -377,7 +377,7 @@ pub fn checkRangeIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, range:
             const name = c.r.names.intern(text)
             const found = checkExpr(c, p, base, ERROR)
             const recvType = methodReceiver(c, p, base, found, name)
-            var owner = 0
+            let owner = 0
             if c.types.kind(recvType) == TyKind.Adt {
                 owner = c.types.get(recvType).data
             } else if recvType < c.r.lang.len() {
@@ -395,7 +395,7 @@ pub fn checkRangeIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, range:
                 }
                 return ERROR
             }
-            var id = 0
+            let id = 0
             for i in 0..methodCount(p, c.loc(owner)) {
                 const m = methodAt(p, c.loc(owner), i)
                 if m.name.0 == name.0 {
@@ -403,7 +403,7 @@ pub fn checkRangeIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, range:
                 }
             }
             const sig = fnSignature(c, p, id)
-            var selfArgs: List<int> = []
+            let selfArgs: List<int> = []
             if c.types.kind(recvType) == TyKind.Adt {
                 selfArgs = c.types.get(recvType).args.clone()
             }

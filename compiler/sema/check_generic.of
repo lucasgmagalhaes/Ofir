@@ -78,7 +78,7 @@ pub struct Infer {
  */
 pub fn fnGenerics(c: mut Checker, p: Program, id: int) Generics {
     const module = c.def(id).module
-    var owner = noGenerics()
+    let owner = noGenerics()
     if c.def(id).item >= 0 {
         owner = typeGenericsOf(c, p, id)
     }
@@ -128,7 +128,7 @@ pub fn inferExplicit(c: mut Checker, p: Program, inf: mut Infer, ofOwner: bool,
 // The function's own parameters that are written: the anonymous ones
 // (ADR 0029) come after them and are always inferred.
 fn namedCount(c: Checker, params: &Generics) int {
-    var n = 0
+    let n = 0
     for i in 0..params.fnParams.len() {
         if c.text(params.fnParams[i]).find(" ").isNone() {
             n += 1
@@ -289,14 +289,14 @@ fn impliedArgs(c: mut Checker, p: Program, ty: int, iface: int) int {
     if c.types.kind(ty) == TyKind.Param {
         return paramBoundArgs(c, c.types.get(ty).data, iface)
     }
-    var own = inferNew(typeGenericsOf(c, p, iface))
+    let own = inferNew(typeGenericsOf(c, p, iface))
     own.args[0] = ty
     own.known[0] = true
     const pairs = implementedSigs(c, p, ty, iface)
     for j in 0..pairs.len() {
         inferFrom(c, own, pairs[j].0, pairs[j].1)
     }
-    var out: List<int> = []
+    let out: List<int> = []
     for j in 1..own.args.len() {
         out.push(own.args[j])
     }
@@ -334,7 +334,7 @@ fn genericSlots(c: mut Checker, p: Program, callId: int, span: Span, args: &List
     if args.len() != count {
         c.error("E0302", span, "wrong number of arguments: expected {count}, found {args.len()}")
     }
-    var slots: List<int> = []
+    let slots: List<int> = []
     for i in 0..args.len() {
         if args[i].name.isSome() {
             c.error("E0306", args[i].value.span, "this callee has no named parameters: pass "
@@ -371,7 +371,7 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
         const arg = &args[i].value
         const param = if slots[i] >= 0 { params[slots[i]] } else { ERROR }
         const keyParam = isKeyParam(c, &inf.params, param)
-        var hint = if slots[i] >= 0 { inferHint(c, &inf, param) } else { ERROR }
+        let hint = if slots[i] >= 0 { inferHint(c, &inf, param) } else { ERROR }
         if keyParam && hint == ERROR && isKeyLiteral(arg) {
             hint = keyLiteralType(c, arg)   // `.x` for `K: keyof T`
         }

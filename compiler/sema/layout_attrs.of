@@ -149,7 +149,7 @@ pub fn checkPackedBorrow(c: mut Checker, p: Program, e: &Expr) {
     if base < 0 {
         return
     }
-    var ty = c.typeOf(base)
+    let ty = c.typeOf(base)
     if c.types.kind(ty) == TyKind.Ref {
         ty = c.types.get(ty).inner
     }

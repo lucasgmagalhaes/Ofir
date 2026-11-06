@@ -241,7 +241,7 @@ fn checkList(r: mut Resolver, attributes: &List<Attribute>, target: int, span: S
     for i in 0..attributes.len() {
         const a = &attributes[i]
         const name = r.text(a.name)
-        var twice = false
+        let twice = false
         for j in 0..i {
             twice = twice || r.text(attributes[j].name) == name
         }

@@ -46,9 +46,9 @@ fn declareLocal(r: mut Resolver, name: Symbol, span: Span, mutable: bool) int {
 // A use of `local`: each closure being resolved that starts after it
 // captures it (spec 10.3).
 fn capture(r: mut Resolver, local: int) {
-    var k = r.closureBases.len() - 1
+    let k = r.closureBases.len() - 1
     for k >= 0 && local < r.closureBases[k] {
-        var known = false
+        let known = false
         for c in 0..r.closureCaptures[k].len() {
             known = known || r.closureCaptures[k][c] == local
         }

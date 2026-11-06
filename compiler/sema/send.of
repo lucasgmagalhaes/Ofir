@@ -35,7 +35,7 @@ import sema.types.TyKind
  * @returns true if they may
  */
 pub fn isSend(c: mut Checker, p: Program, ty: int) bool {
-    var seen: List<int> = []
+    let seen: List<int> = []
     return markedIn(c, p, ty, false, &mut seen)
 }
 
@@ -49,7 +49,7 @@ pub fn isSend(c: mut Checker, p: Program, ty: int) bool {
  * @returns true if they may
  */
 pub fn isSync(c: mut Checker, p: Program, ty: int) bool {
-    var seen: List<int> = []
+    let seen: List<int> = []
     return markedIn(c, p, ty, true, &mut seen)
 }
 
