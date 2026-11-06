@@ -144,3 +144,57 @@ pub fn checkRange(lo: int, hi: int, len: int) {
         panic("range {lo}..{hi} is out of bounds for a length of {len}")
     }
 }
+
+/**
+ * A mutable view of consecutive elements of type `T`, written `&mut [T]`:
+ * a pointer and a length. `&mut list` and `&mut array` convert to it, and
+ * `s[i] = v` writes through it.
+ *
+ * Like `&mut T`, it borrows the sequence exclusively while it is used.
+ *
+ * @typeParam T the type of the elements
+ * @example
+ * ```ofir
+ * fn fill(xs: &mut [int], v: int) {
+ *     for i in 0..xs.len() {
+ *         xs[i] = v
+ *     }
+ * }
+ * ```
+ */
+@lang("slice_mut")
+pub ref struct SliceMut<T> {
+    ptr: *mut T
+    len: int
+
+    /**
+     * A mutable slice of `len` elements starting at `ptr`.
+     *
+     * @param ptr the first element
+     * @param len the number of elements
+     * @returns the view
+     * @safety `ptr` must point to `len` initialized elements that nothing
+     * else reads or writes while the slice is used
+     */
+    pub unsafe fn fromRaw(ptr: *mut T, len: int) SliceMut<T> {
+        return SliceMut{ptr, len}
+    }
+
+    /**
+     * The number of elements.
+     *
+     * @returns the length
+     */
+    pub fn len(self) int {
+        return self.len
+    }
+
+    /**
+     * Whether the slice has no elements.
+     *
+     * @returns true when the length is 0
+     */
+    pub fn isEmpty(self) bool {
+        return self.len == 0
+    }
+}

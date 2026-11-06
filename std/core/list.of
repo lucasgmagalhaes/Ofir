@@ -253,6 +253,16 @@ pub struct List<T> {
     }
 
     /**
+     * A mutable view of all the elements. `&mut list` is converted to a
+     * `&mut [T]` where one is expected, so this is rarely written.
+     *
+     * @returns a mutable slice of the whole list
+     */
+    pub fn asMutSlice(mut self) SliceMut<T> {
+        return unsafe { SliceMut.fromRaw(self.ptr, self.len) }
+    }
+
+    /**
      * An iterator over borrows of the elements, in order. Unlike
      * `for x in l`, it works for elements that are not Copy.
      *

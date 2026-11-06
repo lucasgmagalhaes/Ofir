@@ -251,8 +251,11 @@ let hello: &str = s[0..5]
 - Slices are references, so they follow the rules of chapter 5.
 - `&[T]` is the std type `Slice<T>` (`std/core/slice.of`); `xs[a..b]` is
   `xs.slice(a, b)` and `xs[a..]` is `xs.sliceFrom(a)`. Stage 0 treats
-  `&str` as a `str` whose capacity is 0, like a literal, and has no
-  `&mut [T]` yet.
+  `&str` as a `str` whose capacity is 0, like a literal.
+- `&mut [T]` is the std type `SliceMut<T>`. `&mut list` (`list.asMutSlice()`)
+  and `&mut array` convert to it; `view[i] = v` writes the element, and the
+  slice borrows its source exclusively while it is used. Stage 1 implements
+  it; stage 0 does not.
 - As **parameter types**, `[T]` and `str` accept lists, arrays, slices and
   strings without writing `&`: `fn sum(xs: [int])` can be called as
   `sum(list)` or `sum(list[2..5])` (chapter 5.3).

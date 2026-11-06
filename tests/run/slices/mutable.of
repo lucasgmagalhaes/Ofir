@@ -1,0 +1,37 @@
+// requires: stage1
+// `&mut [T]` (spec 2.12): writing through a mutable slice of a list and of
+// an array.
+
+fn fill(xs: &mut [int], v: int) {
+    for i in 0..xs.len() {
+        xs[i] = v
+    }
+}
+
+fn double(xs: &mut [int]) {
+    for i in 0..xs.len() {
+        xs[i] *= 2
+    }
+}
+
+fn sum(xs: [int]) int {
+    var total = 0
+    for x in xs {
+        total += x
+    }
+    return total
+}
+
+fn main() {
+    var list = [1, 2, 3]
+    double(&mut list)
+    println("{list[0]} {list[1]} {list[2]}")
+    var grid: [int; 4] = [1, 2, 3, 4]
+    double(&mut grid)
+    println("{sum(&grid)}")
+    fill(&mut grid, 7)
+    println("{grid[0]} {grid[3]}")
+    let view: &mut [int] = &mut list
+    view[1] = 10
+    println("{view.len()} {view.isEmpty()} {list[1]}")
+}

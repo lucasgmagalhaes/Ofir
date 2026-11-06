@@ -1,0 +1,13 @@
+// requires: stage1
+// A `&mut [T]` (spec 2.12) is lent only by `&mut` of a mutable place.
+
+fn fill(xs: &mut [int]) {
+    xs[0] = 1
+}
+
+fn main() {
+    var list = [1, 2, 3]
+    fill(&list)   // error[E0300]: mismatched types: expected SliceMut<int>, found &List<int>
+    let fixed = [1, 2, 3]
+    fill(&mut fixed)   // error[E0315]: this value cannot be modified: declare it with `var`
+}
