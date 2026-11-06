@@ -40,8 +40,8 @@ pub struct ItemHeader {
 }
 
 fn attribute(p: mut Parser) Attribute {
-    let start = p.advance()   // @
-    let name = p.expectName("an attribute name after `@`") ?? Symbol(0)
+    const start = p.advance()   // @
+    const name = p.expectName("an attribute name after `@`") ?? Symbol(0)
     var args: List<Expr> = []
     if p.accept(TokenKind.LParen) {
         for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
@@ -52,7 +52,7 @@ fn attribute(p: mut Parser) Attribute {
         }
         p.expect(TokenKind.RParen, "`)` to close the attribute arguments")
     }
-    let span = p.spanSince(start)
+    const span = p.spanSince(start)
     p.skipNewlines()
     return Attribute{name, args, span}
 }
@@ -64,7 +64,7 @@ fn attribute(p: mut Parser) Attribute {
  * @returns them
  */
 pub fn parseItemHeader(p: mut Parser) ItemHeader {
-    let span = p.here()
+    const span = p.here()
     var attributes: List<Attribute> = []
     for p.at(TokenKind.At) {
         attributes.push(attribute(p))
@@ -75,7 +75,7 @@ pub fn parseItemHeader(p: mut Parser) ItemHeader {
 fn importItem(p: mut Parser) ItemKind {
     var path: List<Symbol> = []
     for {
-        let Option.Some(name) = p.expectName("a module name") else {
+        const Option.Some(name) = p.expectName("a module name") else {
             break
         }
         path.push(name)
@@ -92,7 +92,7 @@ fn importItem(p: mut Parser) ItemKind {
 
 // `const NAME: T = value` and the global `var NAME: T = value`.
 fn valueItem(p: mut Parser, isConst: bool) (Symbol, ItemKind) {
-    let name = p.expectName("a name") ?? Symbol(0)
+    const name = p.expectName("a name") ?? Symbol(0)
     var ty: Option<TypeExpr> = Option.None
     if p.accept(TokenKind.Colon) {
         ty = Option.Some(parseType(p))
@@ -101,7 +101,7 @@ fn valueItem(p: mut Parser, isConst: bool) (Symbol, ItemKind) {
     if p.expect(TokenKind.Eq, "`=` and a value") {
         value = parseExpr(p)
     }
-    let kind: ItemKind = if isConst {
+    const kind: ItemKind = if isConst {
         ItemKind.Const(ty, value)
     } else {
         ItemKind.Global(ty, value)
@@ -110,9 +110,9 @@ fn valueItem(p: mut Parser, isConst: bool) (Symbol, ItemKind) {
 }
 
 fn typeAlias(p: mut Parser) (Symbol, ItemKind) {
-    let name = p.expectName("a type name") ?? Symbol(0)
+    const name = p.expectName("a type name") ?? Symbol(0)
     var bounds: List<WherePred> = []
-    let params = parseTypeParams(p, bounds)
+    const params = parseTypeParams(p, bounds)
     for i in 0..bounds.len() {
         if !keyBounds(&bounds[i].bounds) {
             p.syntaxError(bounds[i].span, "a type alias cannot bound its type parameters".toOwned())
@@ -127,7 +127,7 @@ fn typeAlias(p: mut Parser) (Symbol, ItemKind) {
 // Whether each bound is a key type: `keyof T`, `.x` or `A | B`.
 fn keyBounds(bounds: &List<TypeExpr>) bool {
     for i in 0..bounds.len() {
-        let isKey = match bounds[i].kind {
+        const isKey = match bounds[i].kind {
             TypeKind.KeyOf(_) |
             TypeKind.Key(_) |
             TypeKind.KeyOp(_, _, _) => true
@@ -156,7 +156,7 @@ fn externItem(p: mut Parser, header: move ItemHeader) (Symbol, ItemKind) {
     p.expect(TokenKind.LBrace, "`\{` and the declarations")
     p.skipNewlines()
     for !p.at(TokenKind.RBrace) && !p.at(TokenKind.Eof) && !p.recovering {
-        let fnHeader = parseItemHeader(p)
+        const fnHeader = parseItemHeader(p)
         p.expect(TokenKind.Fn, "`fn`")
         fns.push(parseFn(p, fnHeader, false))
         p.expectTerminator()
@@ -168,13 +168,13 @@ fn externItem(p: mut Parser, header: move ItemHeader) (Symbol, ItemKind) {
 // The declaration after its header: its name and what it is, or `None`
 // after an error.
 fn itemBody(p: mut Parser, header: move ItemHeader) Option<(Symbol, ItemKind)> {
-    let isCopy = p.accept(TokenKind.Copy)
-    let isRef = !isCopy && p.atWord(p.words.ref) && p.peekAt(1) == TokenKind.Struct
+    const isCopy = p.accept(TokenKind.Copy)
+    const isRef = !isCopy && p.atWord(p.words.ref) && p.peekAt(1) == TokenKind.Struct
     if isRef {
         p.advance()
     }
-    let isUnsafe = p.accept(TokenKind.Unsafe)
-    let kind = p.peek()
+    const isUnsafe = p.accept(TokenKind.Unsafe)
+    const kind = p.peek()
     if kind == TokenKind.Struct {
         p.advance()
         return Option.Some(parseStruct(p, isCopy, isRef))
@@ -191,7 +191,7 @@ fn itemBody(p: mut Parser, header: move ItemHeader) Option<(Symbol, ItemKind)> {
     }
     if kind == TokenKind.Import {
         p.advance()
-        let imported = importItem(p)
+        const imported = importItem(p)
         return Option.Some((Symbol(0), imported))
     }
     if kind == TokenKind.Const || kind == TokenKind.Var {
@@ -215,14 +215,14 @@ fn itemBody(p: mut Parser, header: move ItemHeader) Option<(Symbol, ItemKind)> {
 }
 
 fn item(p: mut Parser) Option<Item> {
-    let header = parseItemHeader(p)
-    let start = header.span
-    let isPub = header.isPub
-    let attributes = header.attributes.clone()
-    let found = itemBody(p, header)
-    let bounds = mem.replace(p.typeBounds, [])
-    let asserts = mem.replace(p.typeAsserts, [])
-    let Option.Some(body) = found else {
+    const header = parseItemHeader(p)
+    const start = header.span
+    const isPub = header.isPub
+    const attributes = header.attributes.clone()
+    const found = itemBody(p, header)
+    const bounds = mem.replace(p.typeBounds, [])
+    const asserts = mem.replace(p.typeAsserts, [])
+    const Option.Some(body) = found else {
         return Option.None
     }
     if p.recovering {
@@ -242,7 +242,7 @@ pub fn moduleItems(p: mut Parser) List<Item> {
     var items: List<Item> = []
     p.skipNewlines()
     for !p.at(TokenKind.Eof) {
-        if let Option.Some(it) = item(p) {
+        if const Option.Some(it) = item(p) {
             items.push(it)
             p.expectTerminator()
         }

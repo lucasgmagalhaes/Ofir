@@ -97,7 +97,7 @@ pub fn typeText(t: &TypeExpr, names: Interner) str {
         TypeKind.KeyOf(inner) => "keyof {typeText(&*inner, names)}"
         TypeKind.Key(name) => ".{names.name(name)}"
         TypeKind.KeyOp(op, left, right) => {
-            let symbol = if op == Op.Or {
+            const symbol = if op == Op.Or {
                 "|"
             } else if op == Op.And {
                 "&"
@@ -108,17 +108,17 @@ pub fn typeText(t: &TypeExpr, names: Interner) str {
         }
         TypeKind.Index(base, key) => "{typeText(&*base, names)}[{typeText(&*key, names)}]"
         TypeKind.Mapped(param, keys, filter, optional, field) => {
-            let cond = match filter {
+            const cond = match filter {
                 Option.Some(f) => " if {typeText(&*f, names)}"
                 Option.None => "".toOwned()
             }
-            let mark = if optional { "?" } else { "" }
-            let head = "[{names.name(param)} in {typeText(&*keys, names)}{cond}]{mark}"
+            const mark = if optional { "?" } else { "" }
+            const head = "[{names.name(param)} in {typeText(&*keys, names)}{cond}]{mark}"
             "\{ {head}: {typeText(&*field, names)} \}"
         }
         TypeKind.Is(left, pattern) => "{typeText(&*left, names)} is {typeText(&*pattern, names)}"
         TypeKind.Cond(test, then, otherwise) => {
-            let body = "\{ {typeText(&*then, names)} \}"
+            const body = "\{ {typeText(&*then, names)} \}"
             "if {typeText(&*test, names)} {body} else \{ {typeText(&*otherwise, names)} \}"
         }
         TypeKind.Infer(name) => "infer {names.name(name)}"
@@ -137,7 +137,7 @@ fn fnTypeText(params: List<TypeExpr>, modes: List<Mode>, ret: Option<Box<TypeExp
         out.push(typeText(&params[i], names))
     }
     out.push(")")
-    if let Option.Some(r) = ret {
+    if const Option.Some(r) = ret {
         out.push(" ")
         out.push(typeText(&*r, names))
     }
@@ -155,8 +155,8 @@ pub fn escapedText(s: str) str {
     var out = "\""
     var run = 0
     for i in 0..s.len() {
-        let c = s[i]
-        let escape = if c == b'\n' {
+        const c = s[i]
+        const escape = if c == b'\n' {
             "\\n".toOwned()
         } else if c == b'"' || c == b'\\' || c == b'{' || c == b'}' {
             "\\" + s.slice(i, i + 1)
@@ -186,7 +186,7 @@ fn floatText(value: float) str {
     var text = formatG(value)
     var plain = true
     for i in 0..text.len() {
-        let c = text[i]
+        const c = text[i]
         if c == b'.' || c == b'e' || c == b'E' || c == b'n' || c == b'i' {
             plain = false
         }
@@ -248,7 +248,7 @@ pub fn patternText(p: &Pattern, names: Interner) str {
                             mutable) => "{if mutable { "mut " } else { "" }}{names.name(name)}"
         PatternKind.Literal(value) => literalText(&*value, names)
         PatternKind.Range(lo, hi, inclusive) => {
-            let dots = if inclusive { "..=" } else { ".." }
+            const dots = if inclusive { "..=" } else { ".." }
             literalText(&*lo, names) + dots + literalText(&*hi, names)
         }
         PatternKind.Variant(path, name, args,
@@ -261,7 +261,7 @@ pub fn patternText(p: &Pattern, names: Interner) str {
         }
         PatternKind.Or(alternatives) => orText(alternatives, names)
         PatternKind.TypeTest(name, ty) => {
-            let bound = match name {
+            const bound = match name {
                 Option.Some(n) => names.name(n).toOwned()
                 Option.None => "_".toOwned()
             }
@@ -290,7 +290,7 @@ fn structPatternText(path: List<Symbol>, fields: List<FieldPattern>, rest: bool,
             out.push(", ")
         }
         out.push(names.name(fields[i].name))
-        if let Option.Some(pattern) = fields[i].pattern {
+        if const Option.Some(pattern) = fields[i].pattern {
             out.push(": ")
             out.push(patternText(&pattern, names))
         }

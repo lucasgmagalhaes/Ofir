@@ -73,13 +73,13 @@ struct Printer {
     }
 
     fn optionalChild(mut self, label: str, e: &Option<Box<Expr>>, names: Interner) {
-        if let Option.Some(inner) = *e {
+        if const Option.Some(inner) = *e {
             self.child(label, &*inner, names)
         }
     }
 
     fn typeLine(mut self, label: str, t: &Option<TypeExpr>, names: Interner) {
-        if let Option.Some(ty) = *t {
+        if const Option.Some(ty) = *t {
             self.line("{label} {typeText(&ty, names)}")
         }
     }
@@ -88,7 +88,7 @@ struct Printer {
         self.line(label)
         self.depth += 1
         self.expr(a, names)
-        if let Option.Some(second) = b {
+        if const Option.Some(second) = b {
             self.expr(second, names)
         }
         self.depth -= 1
@@ -96,7 +96,7 @@ struct Printer {
 
     fn args(mut self, items: List<Arg>, names: Interner) {
         for i in 0..items.len() {
-            if let Option.Some(name) = items[i].name {
+            if const Option.Some(name) = items[i].name {
                 self.line("arg {names.name(name)}")
                 self.depth += 1
                 self.expr(&items[i].value, names)
@@ -206,14 +206,14 @@ struct Printer {
     fn range(mut self, lo: &Option<Box<Expr>>, hi: &Option<Box<Expr>>, inclusive: bool,
              names: Interner) {
         // `_` marks a missing bound: `range _..` is `..hi`, `range .._` is `lo..`.
-        let left = if lo.isSome() { "" } else { "_" }
-        let right = if hi.isSome() { "" } else { "_" }
+        const left = if lo.isSome() { "" } else { "_" }
+        const right = if hi.isSome() { "" } else { "_" }
         self.line("range {left}{if inclusive { "..=" } else { ".." }}{right}")
         self.depth += 1
-        if let Option.Some(e) = *lo {
+        if const Option.Some(e) = *lo {
             self.expr(&*e, names)
         }
-        if let Option.Some(e) = *hi {
+        if const Option.Some(e) = *hi {
             self.expr(&*e, names)
         }
         self.depth -= 1
@@ -227,7 +227,7 @@ struct Printer {
         for i in 0..fields.len() {
             self.line("field {names.name(fields[i].name)}")
             self.depth += 1
-            if let Option.Some(value) = fields[i].value {
+            if const Option.Some(value) = fields[i].value {
                 self.expr(&value, names)
             }
             self.depth -= 1
@@ -240,12 +240,12 @@ struct Printer {
               otherwise: &Option<Box<Expr>>, names: Interner) {
         self.line("if")
         self.depth += 1
-        if let Option.Some(pattern) = *letPattern {
+        if const Option.Some(pattern) = *letPattern {
             self.line("let {patternText(&pattern, names)}")
         }
         self.expr(cond, names)
         self.block("then", then, names)
-        if let Option.Some(e) = *otherwise {
+        if const Option.Some(e) = *otherwise {
             match e.kind {
                 ExprKind.Block(block) => self.block("else", &block, names)
                 _ => self.child("else", &*e, names)   // `else if`
@@ -261,7 +261,7 @@ struct Printer {
         for i in 0..arms.len() {
             self.line("arm {patternText(&arms[i].pattern, names)}")
             self.depth += 1
-            if let Option.Some(guard) = arms[i].guard {
+            if const Option.Some(guard) = arms[i].guard {
                 self.child("guard", &guard, names)
             }
             self.expr(&arms[i].body, names)
@@ -289,7 +289,7 @@ struct Printer {
                 self.depth += 1
                 self.typeLine("type", &ty, names)
                 self.expr(&value, names)
-                if let Option.Some(block) = otherwise {
+                if const Option.Some(block) = otherwise {
                     self.block("else", &block, names)
                 }
                 self.depth -= 1
@@ -298,20 +298,20 @@ struct Printer {
                 self.line("var {names.name(name)}")
                 self.depth += 1
                 self.typeLine("type", &ty, names)
-                if let Option.Some(e) = value {
+                if const Option.Some(e) = value {
                     self.expr(&e, names)
                 }
                 self.depth -= 1
             }
             StmtKind.Assign(op, target, value) => {
-                let text = if op == Op.Assign { "" } else { opText(op) }
+                const text = if op == Op.Assign { "" } else { opText(op) }
                 self.withChildren("assign {text}=", &target, Option.Some(&value), names)
             }
             StmtKind.For(kind, mutable, first, second, expr, body) =>
                 self.forStmt(kind, mutable, first, second, &expr, &body, names)
             StmtKind.Return(value) => {
                 self.line("return")
-                if let Option.Some(e) = value {
+                if const Option.Some(e) = value {
                     self.depth += 1
                     self.expr(&e, names)
                     self.depth -= 1
@@ -331,14 +331,14 @@ struct Printer {
             self.line("for cond")
         } else {
             var text = "for {if mutable { "mut " } else { "" }}{nameOf(first, names)}"
-            if let Option.Some(s) = second {
+            if const Option.Some(s) = second {
                 text.push(", {names.name(s)}")
             }
             text.push(" in")
             self.line(text)
         }
         self.depth += 1
-        if let Option.Some(e) = *expr {
+        if const Option.Some(e) = *expr {
             self.expr(&e, names)
         }
         self.block("body", body, names)
@@ -394,13 +394,13 @@ struct Printer {
     }
 
     fn param(mut self, param: &Param, names: Interner) {
-        let ty = typeText(&param.ty, names)
+        const ty = typeText(&param.ty, names)
         if ty.len() == 0 {   // a closure parameter without a written type
             self.line("param {names.name(param.name)}")
         } else {
             self.line("param {names.name(param.name)}: {modeText(param.mode)}{ty}")
         }
-        if let Option.Some(value) = param.defaultValue {
+        if const Option.Some(value) = param.defaultValue {
             self.depth += 1
             self.line("default")
             self.depth += 1
@@ -425,7 +425,7 @@ struct Printer {
             self.param(&f.params[i], names)
         }
         self.typeLine("returns", &f.ret, names)
-        if let Option.Some(body) = f.body {
+        if const Option.Some(body) = f.body {
             self.block("body", &body, names)
         }
         self.depth -= 1
@@ -433,14 +433,14 @@ struct Printer {
 
     fn fields(mut self, fields: List<FieldDecl>, names: Interner) {
         for i in 0..fields.len() {
-            let f = &fields[i]
-            let prefix = match f.name {
+            const f = &fields[i]
+            const prefix = match f.name {
                 Option.Some(name) => "{names.name(name)}: "
                 Option.None => "".toOwned()
             }
-            let label = if f.isPub { "field pub" } else { "field" }
+            const label = if f.isPub { "field pub" } else { "field" }
             self.line("{label} {prefix}{typeText(&f.ty, names)}")
-            if let Option.Some(value) = f.defaultValue {
+            if const Option.Some(value) = f.defaultValue {
                 self.depth += 1
                 self.expr(&value, names)
                 self.depth -= 1
@@ -450,11 +450,11 @@ struct Printer {
 
     fn variants(mut self, variants: List<Variant>, names: Interner) {
         for i in 0..variants.len() {
-            let v = &variants[i]
+            const v = &variants[i]
             var text = names.name(v.name).toOwned()
             for j in 0..v.fields.len() {
                 text.push(if j == 0 { "(" } else { ", " })
-                if let Option.Some(name) = v.fields[j].name {
+                if const Option.Some(name) = v.fields[j].name {
                     text.push("{names.name(name)}: ")
                 }
                 text.push(typeText(&v.fields[j].ty, names))
@@ -463,7 +463,7 @@ struct Printer {
                 text.push(if v.fields.len() > 0 { ")" } else { "()" })
             }
             self.line("variant {text}")
-            if let Option.Some(value) = v.discriminant {
+            if const Option.Some(value) = v.discriminant {
                 self.depth += 1
                 self.expr(&value, names)
                 self.depth -= 1
@@ -478,13 +478,14 @@ struct Printer {
     }
 
     fn item(mut self, it: &Item, names: Interner) {
-        let name = names.name(it.name)
-        let isPub = if it.isPub { " pub" } else { "" }
+        const name = names.name(it.name)
+        const isPub = if it.isPub { " pub" } else { "" }
         match it.kind {
             ItemKind.Fn(decl) => self.fnDecl(&*decl, names)
             ItemKind.Struct(isCopy, isRef, isTuple, typeParams, fields, methods) => {
-                let keyword = if isTuple { "tuple_struct" } else { "struct" }
-                let flags = (if isCopy { " copy" } else { "" }) + (if isRef { " ref" } else { "" })
+                const keyword = if isTuple { "tuple_struct" } else { "struct" }
+                const copyFlag = if isCopy { " copy" } else { "" }
+                const flags = copyFlag + (if isRef { " ref" } else { "" })
                 self.line("{keyword} {name}{isPub}{flags}")
                 self.depth += 1
                 self.attributes(it.attributes, names)
@@ -517,7 +518,7 @@ struct Printer {
             }
             ItemKind.Import(path, alias) => {
                 self.symbols("import", path, ".", names)
-                if let Option.Some(a) = alias {
+                if const Option.Some(a) = alias {
                     self.depth += 1
                     self.line("as {names.name(a)}")
                     self.depth -= 1

@@ -26,7 +26,7 @@ pub struct Cursor {
 
     // The byte `offset` positions ahead, or 0 past the end.
     pub fn peek(self, src: str, offset: int) u8 {
-        let i = self.pos + offset
+        const i = self.pos + offset
         if i < src.len() {
             return src[i]
         }

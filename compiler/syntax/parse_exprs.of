@@ -28,7 +28,7 @@ pub fn newExpr(p: mut Parser, kind: move ExprKind, start: Span) Expr {
 }
 
 fn binary(p: mut Parser, op: Op, lhs: move Expr, rhs: move Expr) Expr {
-    let start = lhs.span
+    const start = lhs.span
     return newExpr(p, ExprKind.Binary(op, Box.new(lhs), Box.new(rhs)), start)
 }
 
@@ -41,11 +41,11 @@ fn adjacent(p: Parser, ahead: int) bool {
 // here. The operator and how many tokens it spans (0: none).
 fn gtOperator(p: Parser) (Op, int) {
     if p.peekAt(1) == TokenKind.Gt && adjacent(p, 0) {
-        let assign = p.peekAt(2) == TokenKind.Eq && adjacent(p, 1)
+        const assign = p.peekAt(2) == TokenKind.Eq && adjacent(p, 1)
         return (Op.Shr, if assign { 0 } else { 2 })   // `>>=` is an assignment
     }
     if p.peekAt(1) == TokenKind.Eq && adjacent(p, 0) {
-        let equality = p.peekAt(2) == TokenKind.Eq && adjacent(p, 1)
+        const equality = p.peekAt(2) == TokenKind.Eq && adjacent(p, 1)
         return (Op.Ge, if equality { 0 } else { 2 })   // `>==` is not an operator
     }
     return (Op.Gt, 1)
@@ -76,7 +76,7 @@ fn operatorAt(p: Parser) (int, Op, int) {
 }
 
 fn gtLevel(p: Parser) (int, Op, int) {
-    let gt = gtOperator(p)
+    const gt = gtOperator(p)
     if gt.1 == 0 {
         return (0, gt.0, 0)
     }
@@ -86,8 +86,8 @@ fn gtLevel(p: Parser) (int, Op, int) {
 fn castExpr(p: mut Parser) Expr {
     var e = unary(p)
     for p.accept(TokenKind.As) {
-        let start = e.span
-        let to = parseSimpleType(p)
+        const start = e.span
+        const to = parseSimpleType(p)
         e = newExpr(p, ExprKind.Cast(Box.new(e), to), start)
     }
     return e
@@ -97,13 +97,13 @@ fn castExpr(p: mut Parser) Expr {
 fn binaryExpr(p: mut Parser, min: int) Expr {
     var lhs = castExpr(p)
     for {
-        let found = operatorAt(p)
+        const found = operatorAt(p)
         if found.0 == 0 || found.0 < min {
             return lhs
         }
         p.pos += found.2
         p.skipNewlines()   // an operator at the end of a line continues it
-        let rhs = binaryExpr(p, found.0 + 1)
+        const rhs = binaryExpr(p, found.0 + 1)
         lhs = binary(p, found.1, lhs, rhs)
         if found.0 == 4 && operatorAt(p).0 == 4 {
             p.syntaxError(p.here(), "comparison operators cannot be chained; use `&&`".toOwned())
@@ -112,12 +112,12 @@ fn binaryExpr(p: mut Parser, min: int) Expr {
 }
 
 fn coalesce(p: mut Parser) Expr {
-    let lhs = binaryExpr(p, 2)
+    const lhs = binaryExpr(p, 2)
     if !p.accept(TokenKind.QuestionQuestion) {
         return lhs
     }
     p.skipNewlines()
-    let rhs = coalesce(p)   // right-associative
+    const rhs = coalesce(p)   // right-associative
     return binary(p, Op.Coalesce, lhs, rhs)
 }
 
@@ -136,17 +136,17 @@ fn canEndRange(p: Parser) bool {
  * @returns the expression
  */
 pub fn parseExpr(p: mut Parser) Expr {
-    let start = p.here()
-    let atRange = p.at(TokenKind.DotDot) || p.at(TokenKind.DotDotEq)
+    const start = p.here()
+    const atRange = p.at(TokenKind.DotDot) || p.at(TokenKind.DotDotEq)
     var lo: Option<Box<Expr>> = Option.None
     if !atRange {
-        let first = coalesce(p)
+        const first = coalesce(p)
         if !p.at(TokenKind.DotDot) && !p.at(TokenKind.DotDotEq) {
             return first
         }
         lo = Option.Some(Box.new(first))
     }
-    let inclusive = p.peek() == TokenKind.DotDotEq
+    const inclusive = p.peek() == TokenKind.DotDotEq
     p.advance()
     var hi: Option<Box<Expr>> = Option.None
     if !canEndRange(p) {
@@ -163,16 +163,16 @@ pub fn parseExpr(p: mut Parser) Expr {
  * @returns the expression
  */
 pub fn parseExprNoStruct(p: mut Parser) Expr {
-    let saved = p.noStructLiteral
+    const saved = p.noStructLiteral
     p.noStructLiteral = true
-    let e = parseExpr(p)
+    const e = parseExpr(p)
     p.noStructLiteral = saved
     return e
 }
 
 fn unary(p: mut Parser) Expr {
-    let start = p.here()
-    let op: Op = match p.peek() {
+    const start = p.here()
+    const op: Op = match p.peek() {
         TokenKind.Minus => Op.Neg
         TokenKind.Bang => Op.Not
         TokenKind.Star => Op.Deref
@@ -180,13 +180,13 @@ fn unary(p: mut Parser) Expr {
         _ => Op.Assign   // no unary operator
     }
     if op == Op.Assign {
-        let base = parsePrimary(p)
+        const base = parsePrimary(p)
         return parsePostfix(p, base)
     }
     p.advance()
     if op == Op.RefMut {
         p.advance()   // mut
     }
-    let operand = unary(p)
+    const operand = unary(p)
     return newExpr(p, ExprKind.Unary(op, Box.new(operand)), start)
 }

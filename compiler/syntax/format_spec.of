@@ -38,7 +38,7 @@ pub fn parseFormatSpec(text: str) FormatSpec {
         return f
     }
     var i = 0
-    let n = text.len()
+    const n = text.len()
     if i < n && text[i] == b'<' {
         f.left = true
         i += 1
@@ -47,7 +47,7 @@ pub fn parseFormatSpec(text: str) FormatSpec {
         f.zero = true
         i += 1
     }
-    let widthStart = i
+    const widthStart = i
     for i < n && text[i] >= b'0' && text[i] <= b'9' && f.width <= MAX_FORMAT_WIDTH {
         f.width = f.width * 10 + (text[i] - b'0') as int
         i += 1
@@ -57,7 +57,7 @@ pub fn parseFormatSpec(text: str) FormatSpec {
     }
     if i < n && text[i] == b'.' {
         i += 1
-        let start = i
+        const start = i
         f.precision = 0
         for i < n && text[i] >= b'0' && text[i] <= b'9' && f.precision <= MAX_FORMAT_WIDTH {
             f.precision = f.precision * 10 + (text[i] - b'0') as int

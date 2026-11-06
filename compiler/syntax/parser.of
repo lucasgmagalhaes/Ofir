@@ -44,7 +44,7 @@ pub struct Parser {
     pub src: str
     /** In `if`, `match` and `for` headers (spec A.6). */
     pub noStructLiteral: bool
-    /** In the pattern of a `match` arm or an `if let`: `name: T` is a type test. */
+    /** In the pattern of a `match` arm or an `if const`: `name: T` is a type test. */
     pub typeTests: bool
     /** An error was reported: silent until resynchronized. */
     pub recovering: bool
@@ -90,7 +90,7 @@ pub struct Parser {
      * @returns the token
      */
     pub fn token(self, ahead: int) &Token {
-        let i = self.pos + ahead
+        const i = self.pos + ahead
         return &self.tokens[if i < self.tokens.len() { i } else { self.tokens.len() - 1 }]
     }
 
@@ -128,7 +128,7 @@ pub struct Parser {
      * @returns the span of the token passed
      */
     pub fn advance(mut self) Span {
-        let span = self.here()
+        const span = self.here()
         if self.pos < self.tokens.len() - 1 {
             self.pos += 1
         }
@@ -156,7 +156,7 @@ pub struct Parser {
      * @returns true if it is
      */
     pub fn atWord(self, word: Option<Symbol>) bool {
-        let t = self.token(0)
+        const t = self.token(0)
         return t.kind == TokenKind.Ident && word.isSome() &&
                symbolOf(t).0 == word.unwrapOr(Symbol(0)).0
     }
@@ -177,8 +177,8 @@ pub struct Parser {
      * @returns the span
      */
     pub fn spanSince(self, start: Span) Span {
-        let previous = self.tokens[if self.pos > 0 { self.pos - 1 } else { 0 }].span
-        let end = if previous.end > start.start { previous.end } else { start.end }
+        const previous = self.tokens[if self.pos > 0 { self.pos - 1 } else { 0 }].span
+        const end = if previous.end > start.start { previous.end } else { start.end }
         return Span{file: start.file, start: start.start, end}
     }
 
@@ -203,9 +203,9 @@ pub struct Parser {
      * @param what what the grammar needs here
      */
     pub fn unexpected(mut self, what: str) {
-        let t = self.token(0)
-        let found = describe(t.kind)
-        let span = self.errorSpan()
+        const t = self.token(0)
+        const found = describe(t.kind)
+        const span = self.errorSpan()
         if found.len() > 0 {
             self.syntaxError(span, "expected {what}, found {found}")
         } else {
@@ -216,11 +216,11 @@ pub struct Parser {
     // Where to report a missing token: at the token found, or, for the end
     // of a line, just after the previous token (not after a comment).
     fn errorSpan(self) Span {
-        let t = self.token(0)
+        const t = self.token(0)
         if t.kind != TokenKind.Newline || self.pos == 0 {
             return t.span
         }
-        let after = self.tokens[self.pos - 1].span
+        const after = self.tokens[self.pos - 1].span
         return Span{file: after.file, start: after.end, end: after.end}
     }
 
@@ -248,7 +248,7 @@ pub struct Parser {
      */
     pub fn expectName(mut self, what: str) Option<Symbol> {
         if self.at(TokenKind.Ident) {
-            let name = symbolOf(self.token(0))
+            const name = symbolOf(self.token(0))
             self.advance()
             return Option.Some(name)
         }
@@ -262,7 +262,7 @@ pub struct Parser {
      * @returns its name
      */
     pub fn takeName(mut self) Symbol {
-        let name = symbolOf(self.token(0))
+        const name = symbolOf(self.token(0))
         self.advance()
         return name
     }
@@ -273,8 +273,8 @@ pub struct Parser {
      * @returns false if there was neither
      */
     pub fn acceptSeparator(mut self) bool {
-        let comma = self.accept(TokenKind.Comma)
-        let newline = self.accept(TokenKind.Newline)
+        const comma = self.accept(TokenKind.Comma)
+        const newline = self.accept(TokenKind.Newline)
         return comma || newline
     }
 
@@ -297,7 +297,7 @@ pub struct Parser {
     pub fn synchronize(mut self) {
         var depth = 0
         for !self.at(TokenKind.Eof) {
-            let k = self.peek()
+            const k = self.peek()
             if depth == 0 && (k == TokenKind.Newline || k == TokenKind.RBrace) {
                 break
             }
@@ -408,27 +408,27 @@ pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move I
     var docs: List<str> = []
     var kept: List<Token> = []
     for i in 0..tokens.len() {
-        let kind = tokens[i].kind
+        const kind = tokens[i].kind
         if kind == TokenKind.ModuleDoc {
             docs.push(textOf(&tokens[i]).toOwned())
         } else if kind != TokenKind.DocComment {
             kept.push(copyToken(&tokens[i]))
         }
     }
-    let words = Words{move: names.find("move"), type: names.find("type"), ref: names.find("ref"),
-                      where: names.find("where"), wildcard: names.find("_"),
-                      keyof: names.find("keyof"), is: names.find("is"),
-                      infer: names.find("infer"), send: names.find("Send")}
+    const words = Words{move: names.find("move"), type: names.find("type"), ref: names.find("ref"),
+                        where: names.find("where"), wildcard: names.find("_"),
+                        keyof: names.find("keyof"), is: names.find("is"),
+                        infer: names.find("infer"), send: names.find("Send")}
     var p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
                    typeTests: false, recovering: false, names, diags, words, nextId: firstId,
                    typeBounds: [], typeAsserts: []}
-    let items = moduleItems(p)
-    let module = Module{file, nodeCount: p.nextId, docs, items}
+    const items = moduleItems(p)
+    const module = Module{file, nodeCount: p.nextId, docs, items}
     return ParseResult{module, names: p.names, diags: p.diags}
 }
 
 fn copyToken(t: &Token) Token {
-    let value: TokenValue = match t.value {
+    const value: TokenValue = match t.value {
         TokenValue.None => TokenValue.None
         TokenValue.Int(v) => TokenValue.Int(v)
         TokenValue.Float(v) => TokenValue.Float(v)

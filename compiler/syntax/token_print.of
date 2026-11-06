@@ -22,8 +22,8 @@ import syntax.token.TokenValue
 pub fn printTokens(tokens: List<Token>, file: SourceFile, names: Interner) str {
     var out = ""
     for i in 0..tokens.len() {
-        let t = &tokens[i]
-        let at = file.lineCol(t.span.start)
+        const t = &tokens[i]
+        const at = file.lineCol(t.span.start)
         out.push("{at.line}:{at.column} {kindText(t.kind)}")
         out.push(valueText(t, names))
         out.push("\n")
@@ -46,7 +46,7 @@ fn escaped(text: str) str {
     var out = "\""
     var run = 0   // the start of the ordinary bytes not copied yet
     for i in 0..text.len() {
-        let escape = escapeOf(text[i])
+        const escape = escapeOf(text[i])
         if escape.len() > 0 {
             out.push(text.slice(run, i))   // special bytes are ASCII: `i` is a boundary
             out.push(escape)
@@ -84,7 +84,7 @@ fn hexDigit(d: u8) str {
  * @returns the text, such as `1.5`, `2e+10` or `1e-07`
  */
 pub fn formatG(value: float) str {
-    let shortest = "{value}"   // the shortest round-trip digits, in fixed or exponent form
+    const shortest = "{value}"   // the shortest round-trip digits, in fixed or exponent form
     var sign = ""
     var text = shortest.sliceFrom(0)
     if text.startsWith("-") {
@@ -93,11 +93,11 @@ pub fn formatG(value: float) str {
     }
     var exponent = 0
     var mantissa = text.sliceFrom(0)
-    if let Option.Some(e) = text.find("e") {
+    if const Option.Some(e) = text.find("e") {
         exponent = int.parse(text.sliceFrom(e + 1)).unwrapOr(0)
         mantissa = text.slice(0, e)
     }
-    let point = mantissa.find(".") ?? mantissa.len()
+    const point = mantissa.find(".") ?? mantissa.len()
     var digits = ""
     for i in 0..mantissa.len() {
         if i != point {
@@ -112,21 +112,21 @@ pub fn formatG(value: float) str {
     for last > first + 1 && digits[last - 1] == b'0' {
         last -= 1
     }
-    let significant = digits.slice(first, last)
-    let power = if significant == "0" { 0 } else { exponent + point - 1 - first }
+    const significant = digits.slice(first, last)
+    const power = if significant == "0" { 0 } else { exponent + point - 1 - first }
     return sign + gNotation(significant, power)
 }
 
 // `%.Ng` of the digits `d.ddd * 10^power`, where N is the number of digits.
 fn gNotation(digits: str, power: int) str {
-    let precision = digits.len()
+    const precision = digits.len()
     if power < -4 || power >= precision {
         var out = digits.slice(0, 1)
         if precision > 1 {
             out.push(".")
             out.push(digits.sliceFrom(1))
         }
-        let magnitude = if power < 0 { -power } else { power }
+        const magnitude = if power < 0 { -power } else { power }
         out.push(if power < 0 { "e-" } else { "e+" })
         out.push(if magnitude < 10 { "0{magnitude}" } else { "{magnitude}" })
         return out

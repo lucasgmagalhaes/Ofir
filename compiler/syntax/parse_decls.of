@@ -33,11 +33,11 @@ import syntax.token.TokenKind
 // Functions
 
 fn param(p: mut Parser) Param {
-    let start = p.here()
-    let name = p.expectName("a parameter name") ?? Symbol(0)
+    const start = p.here()
+    const name = p.expectName("a parameter name") ?? Symbol(0)
     p.expect(TokenKind.Colon, "`:` and the parameter type")
-    let mode = parseMode(p)
-    let ty = parseType(p)
+    const mode = parseMode(p)
+    const ty = parseType(p)
     var defaultValue: Option<Expr> = Option.None
     if p.accept(TokenKind.Eq) {
         defaultValue = Option.Some(parseExpr(p))
@@ -47,11 +47,11 @@ fn param(p: mut Parser) Param {
 
 // `[mut | move] self` as the first parameter of a method: its mode.
 fn selfParam(p: mut Parser) Option<Mode> {
-    let i = if p.at(TokenKind.Mut) || p.atWord(p.words.move) { 1 } else { 0 }
+    const i = if p.at(TokenKind.Mut) || p.atWord(p.words.move) { 1 } else { 0 }
     if p.peekAt(i) != TokenKind.SelfValue {
         return Option.None
     }
-    let mode = parseMode(p)
+    const mode = parseMode(p)
     p.advance()   // self
     return Option.Some(mode)
 }
@@ -65,12 +65,12 @@ fn selfParam(p: mut Parser) Option<Mode> {
  * @returns the function
  */
 pub fn parseFn(p: mut Parser, header: move ItemHeader, withBody: bool) FnDecl {
-    let name = p.expectName("a function name") ?? Symbol(0)
+    const name = p.expectName("a function name") ?? Symbol(0)
     var bounds: List<WherePred> = []
-    let typeParams = parseTypeParams(p, bounds)
+    const typeParams = parseTypeParams(p, bounds)
     p.expect(TokenKind.LParen, "`(` and the parameters")
     var params: List<Param> = []
-    let selfMode = selfParam(p)
+    const selfMode = selfParam(p)
     if selfMode.isNone() || p.accept(TokenKind.Comma) {
         for p.at(TokenKind.Ident) {
             params.push(param(p))
@@ -97,8 +97,8 @@ pub fn parseFn(p: mut Parser, header: move ItemHeader, withBody: bool) FnDecl {
 
 // Whether token `ahead` is the word `where`.
 fn atWhere(p: Parser, ahead: int) bool {
-    let t = p.token(ahead)
-    let word = p.words.where
+    const t = p.token(ahead)
+    const word = p.words.where
     return t.kind == TokenKind.Ident && word.isSome() && symbolOf(t).0 == word.unwrapOr(Symbol(0)).0
 }
 
@@ -116,10 +116,10 @@ fn whereClause(p: mut Parser, preds: mut List<WherePred>) {
     p.advance()   // where
     p.skipNewlines()
     for canStartType(p) {
-        let start = p.here()
-        let ty = parseType(p)
+        const start = p.here()
+        const ty = parseType(p)
         p.expect(TokenKind.Colon, "`:` and the bounds")
-        let bounds = parseBounds(p)
+        const bounds = parseBounds(p)
         preds.push(WherePred{ty, bounds, span: p.spanSince(start)})
         if !p.accept(TokenKind.Comma) {
             break
@@ -140,7 +140,7 @@ fn skipAttributes(p: Parser, start: int) int {
         if p.peekAt(i) == TokenKind.LParen {
             var depth = 0
             for {
-                let k = p.peekAt(i)
+                const k = p.peekAt(i)
                 i += 1
                 if k == TokenKind.Eof {
                     return i - 1
@@ -171,8 +171,8 @@ fn atMethod(p: Parser) bool {
 }
 
 fn method(p: mut Parser) FnDecl {
-    let header = parseItemHeader(p)
-    let isUnsafe = p.accept(TokenKind.Unsafe)
+    const header = parseItemHeader(p)
+    const isUnsafe = p.accept(TokenKind.Unsafe)
     p.expect(TokenKind.Fn, "`fn`")
     var decl = parseFn(p, header, true)
     decl.isUnsafe = isUnsafe
@@ -180,7 +180,7 @@ fn method(p: mut Parser) FnDecl {
 }
 
 fn memberEnd(p: mut Parser) {
-    let separated = p.acceptSeparator()
+    const separated = p.acceptSeparator()
     p.skipNewlines()
     if !separated && !p.at(TokenKind.RBrace) {
         p.unexpected("a new line between members")
@@ -191,10 +191,10 @@ fn memberEnd(p: mut Parser) {
 }
 
 fn field(p: mut Parser) FieldDecl {
-    let header = parseItemHeader(p)
-    let name = p.expectName("a field name")
+    const header = parseItemHeader(p)
+    const name = p.expectName("a field name")
     p.expect(TokenKind.Colon, "`:` and the field type")
-    let ty = parseType(p)
+    const ty = parseType(p)
     var defaultValue: Option<Expr> = Option.None
     if p.accept(TokenKind.Eq) {
         defaultValue = Option.Some(parseExpr(p))
@@ -212,14 +212,14 @@ fn field(p: mut Parser) FieldDecl {
  * @returns its name and the item
  */
 pub fn parseStruct(p: mut Parser, isCopy: bool, isRef: bool) (Symbol, ItemKind) {
-    let name = p.expectName("a struct name") ?? Symbol(0)
+    const name = p.expectName("a struct name") ?? Symbol(0)
     var bounds: List<WherePred> = []
-    let typeParams = parseTypeParams(p, bounds)
+    const typeParams = parseTypeParams(p, bounds)
     p.typeBounds = bounds
     var fields: List<FieldDecl> = []
     var methods: List<FnDecl> = []
     assertions(p)
-    let tuple = p.at(TokenKind.LParen)
+    const tuple = p.at(TokenKind.LParen)
     if tuple {
         tupleStructBody(p, fields, methods)
     } else {
@@ -242,8 +242,8 @@ pub fn parseStruct(p: mut Parser, isCopy: bool, isRef: bool) (Symbol, ItemKind) 
 fn tupleStructBody(p: mut Parser, fields: mut List<FieldDecl>, methods: mut List<FnDecl>) {
     p.advance()   // (
     for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
-        let header = parseItemHeader(p)
-        let ty = parseType(p)
+        const header = parseItemHeader(p)
+        const ty = parseType(p)
         fields.push(FieldDecl{name: Option.None, attributes: header.attributes.clone(),
                               isPub: header.isPub, ty,
                               defaultValue: Option.None, span: header.span})
@@ -263,10 +263,10 @@ fn tupleStructBody(p: mut Parser, fields: mut List<FieldDecl>, methods: mut List
 }
 
 fn variant(p: mut Parser) Variant {
-    let start = p.here()
-    let name = p.expectName("a variant name") ?? Symbol(0)
+    const start = p.here()
+    const name = p.expectName("a variant name") ?? Symbol(0)
     var fields: List<VariantField> = []
-    let hasFields = p.accept(TokenKind.LParen)
+    const hasFields = p.accept(TokenKind.LParen)
     if hasFields {
         for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
             var fieldName: Option<Symbol> = Option.None
@@ -303,9 +303,9 @@ fn assertions(p: mut Parser) {
  * @returns its name and the item
  */
 pub fn parseInterface(p: mut Parser) (Symbol, ItemKind) {
-    let name = p.expectName("an interface name") ?? Symbol(0)
+    const name = p.expectName("an interface name") ?? Symbol(0)
     var bounds: List<WherePred> = []
-    let declared = parseTypeParams(p, bounds)
+    const declared = parseTypeParams(p, bounds)
     p.typeBounds = bounds
     var typeParams = [p.names.intern("Self")]   // `Self` is the first parameter
     for i in 0..declared.len() {
@@ -329,8 +329,8 @@ pub fn parseInterface(p: mut Parser) (Symbol, ItemKind) {
 
 // A method of an interface: with a body, it is a default method (spec 9.3).
 fn interfaceMethod(p: mut Parser) FnDecl {
-    let header = parseItemHeader(p)
-    let start = header.span
+    const header = parseItemHeader(p)
+    const start = header.span
     p.expect(TokenKind.Fn, "`fn`")
     var decl = parseFn(p, header, false)
     if p.at(TokenKind.LBrace) {
@@ -348,9 +348,9 @@ fn interfaceMethod(p: mut Parser) FnDecl {
  * @returns its name and the item
  */
 pub fn parseEnum(p: mut Parser, isCopy: bool) (Symbol, ItemKind) {
-    let name = p.expectName("an enum name") ?? Symbol(0)
+    const name = p.expectName("an enum name") ?? Symbol(0)
     var bounds: List<WherePred> = []
-    let typeParams = parseTypeParams(p, bounds)
+    const typeParams = parseTypeParams(p, bounds)
     p.typeBounds = bounds
     assertions(p)
     var variants: List<Variant> = []

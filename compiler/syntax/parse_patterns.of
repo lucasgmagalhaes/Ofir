@@ -33,25 +33,25 @@ fn patternList(p: mut Parser) List<Pattern> {
 
 // A literal, optionally followed by `..` or `..=` and a second literal.
 fn literalOrRange(p: mut Parser, start: Span) Pattern {
-    let lo = Box.new(parseLiteral(p))
+    const lo = Box.new(parseLiteral(p))
     if !p.at(TokenKind.DotDot) && !p.at(TokenKind.DotDotEq) {
         return newPattern(p, PatternKind.Literal(lo), start)
     }
-    let inclusive = p.peek() == TokenKind.DotDotEq
+    const inclusive = p.peek() == TokenKind.DotDotEq
     p.advance()
     if !atLiteral(p) {
         p.unexpected("a literal to end the range")
     }
-    let hi = Box.new(parseLiteral(p))
+    const hi = Box.new(parseLiteral(p))
     return newPattern(p, PatternKind.Range(lo, hi, inclusive), start)
 }
 
 // `.Name` or `.Name(p, q)`; the `.` is next.
 fn variantShorthand(p: mut Parser, start: Span) Pattern {
     p.advance()
-    let name = p.expectName("a variant name after `.`") ?? Symbol(0)
+    const name = p.expectName("a variant name after `.`") ?? Symbol(0)
     var args: List<Pattern> = []
-    let hasArgs = p.accept(TokenKind.LParen)
+    const hasArgs = p.accept(TokenKind.LParen)
     if hasArgs {
         args = patternList(p)
     }
@@ -63,7 +63,7 @@ fn structPattern(p: mut Parser, path: move List<Symbol>, start: Span) Pattern {
     var fields: List<FieldPattern> = []
     p.skipNewlines()
     for p.at(TokenKind.Ident) {
-        let name = p.takeName()
+        const name = p.takeName()
         var pattern: Option<Pattern> = Option.None
         if p.accept(TokenKind.Colon) {
             pattern = Option.Some(parsePattern(p))
@@ -75,7 +75,7 @@ fn structPattern(p: mut Parser, path: move List<Symbol>, start: Span) Pattern {
         }
         p.skipNewlines()
     }
-    let rest = p.accept(TokenKind.DotDot)
+    const rest = p.accept(TokenKind.DotDot)
     p.skipNewlines()
     p.expect(TokenKind.RBrace, "`\}` to close the struct pattern")
     return newPattern(p, PatternKind.Struct(path, fields, rest), start)
@@ -93,26 +93,26 @@ fn named(p: mut Parser, start: Span) Pattern {
         return structPattern(p, path, start)
     }
     if path.len() == 1 && p.accept(TokenKind.LParen) {
-        let args = patternList(p)
+        const args = patternList(p)
         return newPattern(p, PatternKind.TupleStruct(path, args), start)
     }
     if path.len() > 1 {
-        let name = path.pop() ?? Symbol(0)
-        let hasArgs = p.accept(TokenKind.LParen)
+        const name = path.pop() ?? Symbol(0)
+        const hasArgs = p.accept(TokenKind.LParen)
         var args: List<Pattern> = []
         if hasArgs {
             args = patternList(p)
         }
         return newPattern(p, PatternKind.Variant(path, name, args, hasArgs), start)
     }
-    let name = path[0]
-    let wildcard = p.words.wildcard.isSome() && (p.words.wildcard ?? Symbol(0)).0 == name.0
+    const name = path[0]
+    const wildcard = p.words.wildcard.isSome() && (p.words.wildcard ?? Symbol(0)).0 == name.0
     if p.typeTests && p.accept(TokenKind.Colon) {
         var bound: Option<Symbol> = Option.None
         if !wildcard {
             bound = Option.Some(name)
         }
-        let ty = parseSimpleType(p)
+        const ty = parseSimpleType(p)
         return newPattern(p, PatternKind.TypeTest(bound, ty), start)
     }
     if wildcard {
@@ -122,18 +122,18 @@ fn named(p: mut Parser, start: Span) Pattern {
 }
 
 fn atom(p: mut Parser) Pattern {
-    let start = p.here()
+    const start = p.here()
     return match p.peek() {
         TokenKind.Ident => named(p, start)
         TokenKind.Dot => variantShorthand(p, start)
         TokenKind.Mut => {
             p.advance()
-            let name = p.expectName("a name after `mut`") ?? Symbol(0)
+            const name = p.expectName("a name after `mut`") ?? Symbol(0)
             newPattern(p, PatternKind.Binding(name, true), start)
         }
         TokenKind.LParen => {
             p.advance()
-            let items = patternList(p)
+            const items = patternList(p)
             newPattern(p, PatternKind.Tuple(items), start)
         }
         _ => if atLiteral(p) {
@@ -146,16 +146,16 @@ fn atom(p: mut Parser) Pattern {
 }
 
 /**
- * The pattern of a `match` arm or an `if let`, where `name: T` is a type
+ * The pattern of a `match` arm or an `if const`, where `name: T` is a type
  * test (spec 9.8).
  *
  * @param p the parser
  * @returns the pattern
  */
 pub fn parseTestPattern(p: mut Parser) Pattern {
-    let saved = p.typeTests
+    const saved = p.typeTests
     p.typeTests = true
-    let pattern = parsePattern(p)
+    const pattern = parsePattern(p)
     p.typeTests = saved
     return pattern
 }
@@ -167,8 +167,8 @@ pub fn parseTestPattern(p: mut Parser) Pattern {
  * @returns the pattern
  */
 pub fn parsePattern(p: mut Parser) Pattern {
-    let start = p.here()
-    let first = atom(p)
+    const start = p.here()
+    const first = atom(p)
     if !p.at(TokenKind.Pipe) {
         return first
     }

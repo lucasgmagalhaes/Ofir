@@ -48,8 +48,8 @@ pub fn atLiteral(p: Parser) bool {
 }
 
 fn literalToken(p: mut Parser) Expr {
-    let t = p.token(0)
-    let kind: ExprKind = match t.value {
+    const t = p.token(0)
+    const kind: ExprKind = match t.value {
         TokenValue.Int(v) => ExprKind.Int(v)
         TokenValue.Float(v) => ExprKind.Float(v)
         TokenValue.Byte(v) => ExprKind.Byte(v)
@@ -60,7 +60,7 @@ fn literalToken(p: mut Parser) Expr {
         }
         _ => ExprKind.Bool(t.kind == TokenKind.True)
     }
-    let start = p.advance()
+    const start = p.advance()
     return newExpr(p, kind, start)
 }
 
@@ -76,8 +76,8 @@ pub fn parseLiteral(p: mut Parser) Expr {
         return newExpr(p, ExprKind.Tuple([]), p.here())
     }
     if p.at(TokenKind.Minus) {
-        let start = p.advance()
-        let operand = literalToken(p)
+        const start = p.advance()
+        const operand = literalToken(p)
         return newExpr(p, ExprKind.Unary(Op.Neg, Box.new(operand)), start)
     }
     return literalToken(p)
@@ -85,13 +85,13 @@ pub fn parseLiteral(p: mut Parser) Expr {
 
 // "a {x} b": StrStart, the tokens of x, StrMid or StrEnd, ...
 fn interpolation(p: mut Parser) Expr {
-    let start = p.here()
+    const start = p.here()
     var parts: List<Expr> = []
     var specs: List<str> = []
     for {
-        let kind = p.peek()
-        let text = textOf(p.token(0)).toOwned()
-        let span = p.advance()
+        const kind = p.peek()
+        const text = textOf(p.token(0)).toOwned()
+        const span = p.advance()
         if text.len() > 0 {   // "{x}" has empty text around `x`
             parts.push(Expr{id: p.newId(), kind: ExprKind.Str(text), span})
             specs.push("")
@@ -99,13 +99,13 @@ fn interpolation(p: mut Parser) Expr {
         if kind == TokenKind.StrEnd || kind == TokenKind.Eof {
             break
         }
-        let saved = p.noStructLiteral
+        const saved = p.noStructLiteral
         p.noStructLiteral = false
         parts.push(parseExpr(p))
         p.noStructLiteral = saved
         if p.at(TokenKind.FormatSpec) {
             specs.push(textOf(p.token(0)).toOwned())
-            let _ = p.advance()
+            const _ = p.advance()
         } else {
             specs.push("")
         }
@@ -126,13 +126,13 @@ fn interpolation(p: mut Parser) Expr {
 fn looksLikeTypeArgs(p: Parser, ahead: int) bool {
     var depth = 0
     for i in ahead..ahead + 64 {
-        let kind = p.peekAt(i)
+        const kind = p.peekAt(i)
         if kind == TokenKind.Lt {
             depth += 1
         } else if kind == TokenKind.Gt {
             depth -= 1
             if depth == 0 {
-                let next = p.peekAt(i + 1)
+                const next = p.peekAt(i + 1)
                 return next == TokenKind.LParen || next == TokenKind.Dot || next == TokenKind.LBrace
             }
         } else if !inTypeArgs(kind) {
@@ -153,11 +153,11 @@ fn inTypeArgs(kind: TokenKind) bool {
 }
 
 fn name(p: mut Parser) Expr {
-    let start = p.here()
-    let symbol = p.takeName()
+    const start = p.here()
+    const symbol = p.takeName()
     if p.at(TokenKind.Lt) && looksLikeTypeArgs(p, 0) {
         p.advance()
-        let args = parseTypeArgs(p)
+        const args = parseTypeArgs(p)
         return newExpr(p, ExprKind.Generic(symbol, args), start)
     }
     return newExpr(p, ExprKind.Ident(symbol), start)
@@ -165,19 +165,19 @@ fn name(p: mut Parser) Expr {
 
 // `.Name`, `.Name(args)` or the tuple key `.0`; the `.` is next.
 fn variantShorthand(p: mut Parser) Expr {
-    let start = p.advance()
+    const start = p.advance()
     if p.at(TokenKind.Int) {
-        let index: u64 = match p.token(0).value {
+        const index: u64 = match p.token(0).value {
             TokenValue.Int(value) => value
             _ => 0
         }
         p.advance()
-        let key = p.names.intern("{index}")
+        const key = p.names.intern("{index}")
         return newExpr(p, ExprKind.Variant(key, [], false), start)
     }
-    let variant = p.expectName("a variant name after `.`") ?? Symbol(0)
+    const variant = p.expectName("a variant name after `.`") ?? Symbol(0)
     var args: List<Arg> = []
-    let hasArgs = p.accept(TokenKind.LParen)
+    const hasArgs = p.accept(TokenKind.LParen)
     if hasArgs {
         args = parseCallArgs(p)
     }
@@ -189,8 +189,8 @@ fn variantShorthand(p: mut Parser) Expr {
 
 // `()`, `(e)`, `(e,)` and `(a, b)`; the `(` is next.
 fn parenthesized(p: mut Parser) Expr {
-    let start = p.advance()
-    let saved = p.noStructLiteral
+    const start = p.advance()
+    const saved = p.noStructLiteral
     p.noStructLiteral = false
     var elems: List<Expr> = []
     var tuple = p.at(TokenKind.RParen)
@@ -211,15 +211,15 @@ fn parenthesized(p: mut Parser) Expr {
 
 // `[a, b]` and `[value; count]`; the `[` is next.
 fn array(p: mut Parser) Expr {
-    let start = p.advance()
-    let saved = p.noStructLiteral
+    const start = p.advance()
+    const saved = p.noStructLiteral
     p.noStructLiteral = false
     var elems: List<Expr> = []
     var repeat: Option<(Expr, Expr)> = Option.None
     for !p.at(TokenKind.RBracket) && !p.at(TokenKind.Eof) {
         elems.push(parseExpr(p))
         if elems.len() == 1 && p.accept(TokenKind.Semicolon) {
-            let value = elems.pop() ?? newExpr(p, ExprKind.Tuple([]), start)
+            const value = elems.pop() ?? newExpr(p, ExprKind.Tuple([]), start)
             repeat = Option.Some((value, parseExpr(p)))
             break
         }
@@ -253,20 +253,20 @@ fn startsUpper(p: Parser, symbol: Symbol) bool {
 
 fn structLiteral(p: mut Parser, typeName: move Expr) Expr {
     p.advance()   // {
-    let saved = p.noStructLiteral
+    const saved = p.noStructLiteral
     p.noStructLiteral = false
-    let start = typeName.span
+    const start = typeName.span
     var fields: List<FieldInit> = []
     p.skipNewlines()
     for p.at(TokenKind.Ident) {
-        let field = p.takeName()
+        const field = p.takeName()
         var value: Option<Expr> = Option.None
         if p.accept(TokenKind.Colon) {
             p.skipNewlines()
             value = Option.Some(parseExpr(p))
         }
         fields.push(FieldInit{id: p.newId(), name: field, value})
-        let separated = p.acceptSeparator()
+        const separated = p.acceptSeparator()
         p.skipNewlines()
         if !separated {
             break
@@ -294,7 +294,7 @@ fn structLiteral(p: mut Parser, typeName: move Expr) Expr {
  * @returns the expression
  */
 pub fn parsePrimary(p: mut Parser) Expr {
-    let start = p.here()
+    const start = p.here()
     return match p.peek() {
         TokenKind.Int | TokenKind.Float | TokenKind.Byte | TokenKind.Str | TokenKind.ByteStr |
         TokenKind.True | TokenKind.False => literalToken(p)
@@ -326,7 +326,7 @@ pub fn parsePrimary(p: mut Parser) Expr {
  * @returns the arguments
  */
 pub fn parseCallArgs(p: mut Parser) List<Arg> {
-    let saved = p.noStructLiteral
+    const saved = p.noStructLiteral
     p.noStructLiteral = false
     var items: List<Arg> = []
     for !p.at(TokenKind.RParen) && !p.at(TokenKind.Eof) {
@@ -346,31 +346,32 @@ pub fn parseCallArgs(p: mut Parser) List<Arg> {
 }
 
 fn tupleField(p: mut Parser, base: move Expr, index: u64) Expr {
-    let start = base.span
+    const start = base.span
     return newExpr(p, ExprKind.TupleField(Box.new(base), index), start)
 }
 
 // After `.`: a field name, a tuple index `0`, or a float token `0.1` that
 // the lexer produced for `pair.0.1` (spec 1.7): two tuple indexes.
 fn member(p: mut Parser, base: move Expr) Expr {
-    let t = p.token(0)
-    let kind = t.kind
-    let span = t.span
-    let index = match t.value {
+    const t = p.token(0)
+    const kind = t.kind
+    const span = t.span
+    const index = match t.value {
         TokenValue.Int(v) => v
         _ => 0
     }
-    let before = p.pos
+    const before = p.pos
     p.advance()
     if kind == TokenKind.Int {
         return tupleField(p, base, index)
     }
     if kind == TokenKind.Float {
-        let digits = p.src.slice(span.start, span.end)
-        let dot = digits.find(".") ?? digits.len()
-        let first = leadingNumber(digits.slice(0, dot))
-        let second = leadingNumber(digits.sliceFrom(if dot < digits.len() { dot + 1 } else { dot }))
-        let inner = tupleField(p, base, first)
+        const digits = p.src.slice(span.start, span.end)
+        const dot = digits.find(".") ?? digits.len()
+        const first = leadingNumber(digits.slice(0, dot))
+        const from = if dot < digits.len() { dot + 1 } else { dot }
+        const second = leadingNumber(digits.sliceFrom(from))
+        const inner = tupleField(p, base, first)
         return tupleField(p, inner, second)
     }
     if kind != TokenKind.Ident {
@@ -379,13 +380,13 @@ fn member(p: mut Parser, base: move Expr) Expr {
         p.pos = before   // at the end of the file, `advance` stays there: no step back
         return base
     }
-    let field = symbolOf(p.token(-1))
+    const field = symbolOf(p.token(-1))
     var typeArgs: List<TypeExpr> = []
     if p.at(TokenKind.Lt) && looksLikeTypeArgs(p, 0) {   // x.wrappingCast<u8>()
         p.advance()
         typeArgs = parseTypeArgs(p)
     }
-    let start = base.span
+    const start = base.span
     return newExpr(p, ExprKind.Field(Box.new(base), field, typeArgs), start)
 }
 
@@ -393,7 +394,7 @@ fn member(p: mut Parser, base: move Expr) Expr {
 fn leadingNumber(text: str) u64 {
     var value: u64 = 0
     for i in 0..text.len() {
-        let c = text[i]
+        const c = text[i]
         if c < b'0' || c > b'9' {
             break
         }
@@ -404,7 +405,7 @@ fn leadingNumber(text: str) u64 {
 
 // `[.name]` or `[.0]`: a single key literal as the index (spec 16.2).
 fn atKeyIndex(p: Parser) bool {
-    let key = p.peekAt(2)
+    const key = p.peekAt(2)
     return p.peekAt(1) == TokenKind.Dot && (key == TokenKind.Ident || key == TokenKind.Int) &&
            p.peekAt(3) == TokenKind.RBracket
 }
@@ -413,17 +414,17 @@ fn atKeyIndex(p: Parser) bool {
 fn keyIndex(p: mut Parser, base: move Expr) Expr {
     p.advance()
     p.advance()
-    let e = member(p, base)
+    const e = member(p, base)
     p.advance()
     return e
 }
 
 fn postfixOnce(p: mut Parser, base: move Expr) (Expr, bool) {
-    let start = base.span
+    const start = base.span
     return match p.peek() {
         TokenKind.LParen => {
             p.advance()
-            let args = parseCallArgs(p)
+            const args = parseCallArgs(p)
             (newExpr(p, ExprKind.Call(Box.new(base), args), start), true)
         }
         TokenKind.LBracket => {
@@ -431,15 +432,15 @@ fn postfixOnce(p: mut Parser, base: move Expr) (Expr, bool) {
                 return (keyIndex(p, base), true)
             }
             p.advance()
-            let index = parseExpr(p)
+            const index = parseExpr(p)
             p.expect(TokenKind.RBracket, "`]` after the index")
             (newExpr(p, ExprKind.Index(Box.new(base), Box.new(index)), start), true)
         }
         TokenKind.Dot => {
             p.advance()
             p.skipNewlines()
-            let before = p.pos
-            let e = member(p, base)
+            const before = p.pos
+            const e = member(p, base)
             (e, p.pos != before)
         }
         TokenKind.Question => {
@@ -465,8 +466,8 @@ pub fn parsePostfix(p: mut Parser, base: move Expr) Expr {
             e = structLiteral(p, e)
             continue
         }
-        let step = postfixOnce(p, e)
-        let more = step.1
+        const step = postfixOnce(p, e)
+        const more = step.1
         e = step.0
         if !more {
             return e
@@ -484,7 +485,7 @@ fn closureAt(p: Parser) bool {
     if p.noStructLiteral {
         return false
     }
-    let start = if p.atWord(p.words.move) && p.peekAt(1) != TokenKind.FatArrow { 1 } else { 0 }
+    const start = if p.atWord(p.words.move) && p.peekAt(1) != TokenKind.FatArrow { 1 } else { 0 }
     if p.peekAt(start) == TokenKind.Ident {
         return p.peekAt(start + 1) == TokenKind.FatArrow
     }
@@ -494,7 +495,7 @@ fn closureAt(p: Parser) bool {
     var i = start + 1
     var depth = 1
     for depth > 0 {
-        let kind = p.peekAt(i)
+        const kind = p.peekAt(i)
         if kind == TokenKind.Eof || kind == TokenKind.LBrace || kind == TokenKind.RBrace {
             return false
         }
@@ -505,11 +506,11 @@ fn closureAt(p: Parser) bool {
         }
         i += 1
     }
-    let next = p.peekAt(i)
+    const next = p.peekAt(i)
     if next == TokenKind.FatArrow {
         return true
     }
-    let typeStart = match next {
+    const typeStart = match next {
         TokenKind.Ident | TokenKind.SelfType | TokenKind.Amp | TokenKind.Star | TokenKind.LBracket |
         TokenKind.LParen | TokenKind.Fn | TokenKind.Bang | TokenKind.Dyn => true
         _ => false
@@ -518,7 +519,7 @@ fn closureAt(p: Parser) bool {
         return false
     }
     for {
-        let kind = p.peekAt(i)
+        const kind = p.peekAt(i)
         if kind == TokenKind.FatArrow {
             return true
         }
@@ -532,8 +533,8 @@ fn closureAt(p: Parser) bool {
 
 // A closure; `closureAt` holds.
 fn closure(p: mut Parser) Expr {
-    let start = p.here()
-    let isMove = p.atWord(p.words.move) && p.peekAt(1) != TokenKind.FatArrow
+    const start = p.here()
+    const isMove = p.atWord(p.words.move) && p.peekAt(1) != TokenKind.FatArrow
     if isMove {
         p.advance()
     }
@@ -556,14 +557,14 @@ fn closure(p: mut Parser) Expr {
     }
     p.expect(TokenKind.FatArrow, "`=>`")
     p.skipNewlines()
-    let body = parseExpr(p)
+    const body = parseExpr(p)
     return newExpr(p, ExprKind.Closure(params, ret, Box.new(body), isMove), start)
 }
 
 // `name` or `name: [mode] Type`; without a type, the type is an empty path.
 fn closureParam(p: mut Parser) Param {
-    let start = p.here()
-    let name = p.expectName("a parameter name") ?? Symbol(0)
+    const start = p.here()
+    const name = p.expectName("a parameter name") ?? Symbol(0)
     var mode = Mode.Borrow
     var ty = TypeExpr{kind: TypeKind.Path([], []), span: p.here()}
     if p.accept(TokenKind.Colon) {
