@@ -46,9 +46,9 @@ def expression(rng: random.Random, depth: int = 0) -> str:
 def statement(rng: random.Random) -> str:
     choice = rng.randrange(6)
     if choice == 0:
-        return f"let {name(rng)} = {expression(rng)}"
+        return f"const {name(rng)} = {expression(rng)}"
     if choice == 1:
-        return f"var {name(rng)}: {rng.choice(TYPES)} = {expression(rng)}"
+        return f"let {name(rng)}: {rng.choice(TYPES)} = {expression(rng)}"
     if choice == 2:
         return f"{name(rng)} += {expression(rng)}"
     if choice == 3:
@@ -90,7 +90,7 @@ def typed_statement(rng: random.Random, ints: list[str], var: str) -> str:
     if choice == 0:
         # `_` keeps the input free of unused-variable warnings (W0001).
         name = f"_{rng.choice(NAMES)}{len(ints)}"
-        line = f"let {name} = {int_expr(rng, ints)}"
+        line = f"const {name} = {int_expr(rng, ints)}"
         ints.append(name)
         return line
     if choice == 1:
@@ -108,7 +108,7 @@ def typed_function(rng: random.Random, index: int, previous: int) -> list[str]:
     ints = ["a", "b"]
     lines = [f"/// Step {index} of the generated pipeline.",
              f"fn step{index}(a: int, b: int, flag: bool) int {{",
-             f"    var acc = {int_expr(rng, ints)}"]
+             f"    let acc = {int_expr(rng, ints)}"]
     ints.append("acc")
     lines += ["    " + typed_statement(rng, ints, "acc") for _ in range(rng.randrange(3, 15))]
     call = f" + step{previous}(acc, {int_expr(rng, ints)}, !flag)" if previous >= 0 else ""
