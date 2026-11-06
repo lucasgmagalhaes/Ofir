@@ -16,6 +16,7 @@ LLVM IR. Its interface is `runtime/include/ofir_rt.h`.
 | Process | `ofir_exit(code)`, `ofir_arg_count()`, `ofir_arg(i, &len)`, `ofir_env` |
 | Files | thin wrappers over `open`, `read`, `write`, `stat`, `mkdir`, `unlink`, `opendir`, `getline` |
 | Processes | `ofir_run`: `posix_spawnp` with both output streams captured (needed for the compiler to invoke clang) |
+| Tasks | `ofir_task_spawn`, `ofir_task_join`: one POSIX thread per task (`std.task`, spec 14.2) |
 
 Stage 0 implements the entry point, the panic functions, the allocator,
 the standard output buffer and the string functions used by
@@ -63,6 +64,23 @@ into Ofir code. It is line buffered when standard output is a terminal and
 block buffered (64 KiB) otherwise. Writing to standard error first flushes
 standard output, so messages keep their order.
 
+A program with no tasks writes to the buffer without a lock. The first
+`ofir_task_spawn` switches every later write to the threaded path: a lock
+guards the buffer, and each thread gathers its writes into a line of its
+own (1 KiB, thread-local) that reaches the buffer whole at a newline, when
+it fills, at a flush, and when the task ends. So the pieces of one
+`println` never interleave with another task's output.
+
+### Tasks
+
+`task.c` is linked only into programs that use `std.task`, because only
+`std.task` references `ofir_task_spawn`. `std.task` hands the thread a job
+on the heap, and the thread calls back into Ofir through
+`ofir_task_entry`, which `std.task` exports. A task that panics ends the
+whole process, as a panic on the main thread does, and a stack overflow in
+a task is not yet reported as one: the guard handler of section 3 covers
+the main thread only.
+
 ## 3. Stack overflow
 
 Deep recursion must not end in an anonymous segmentation fault. At startup
@@ -85,8 +103,10 @@ It handles `SIGBUS` too, which macOS raises for some overflows.
 
 ## 4. Rules
 
-- The runtime has no global constructors and no threads.
-- It never calls back into Ofir code, except `ofir_main`.
+- The runtime has no global constructors and starts no thread of its own:
+  threads exist only for the tasks a program starts.
+- It never calls back into Ofir code, except `ofir_main` and
+  `ofir_task_entry`.
 - Every function is prefixed `ofir_` to avoid clashes with user code.
 - It must compile without warnings with `-std=c11 -Wall -Wextra -Werror`.
 

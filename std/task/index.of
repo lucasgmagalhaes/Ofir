@@ -1,0 +1,92 @@
+/**
+ * @module
+ * `std.task`: tasks, each on an OS thread of its own (spec 14.2).
+ *
+ * Only stage 1 compiles this module: it needs `move fn` closures.
+ */
+// requires: stage1 (closures, roadmap 5.7)
+
+@link("pthread")
+extern "C" {
+    fn ofir_alloc(size: int) *mut u8
+    fn ofir_alloc_aligned(size: int, align: int) *mut u8
+    fn ofir_free(p: *mut u8)
+    fn ofir_task_spawn(job: *mut u8) *mut u8
+    fn ofir_task_join(thread: *mut u8)
+}
+
+// What a new thread runs: the task's closure, with its result already
+// bound to the task's slot.
+struct Job {
+    run: move fn()
+}
+
+// The runtime calls this on the new thread with the job `run` handed it.
+@export("ofir_task_entry")
+extern "C" fn taskEntry(job: *mut u8) {
+    let j = unsafe { *(job as *mut Job) }
+    unsafe {
+        ofir_free(job)
+    }
+    let body = j.run
+    body()
+}
+
+/**
+ * A running task: `join` waits for it and returns its result.
+ *
+ * @typeParam T the type of the task's result
+ */
+pub struct Task<T> {
+    thread: *mut u8
+    slot: *mut T
+
+    /**
+     * Waits for the task to finish.
+     *
+     * @returns the value the task's closure returned
+     */
+    pub fn join(move self) T {
+        unsafe {
+            ofir_task_join(self.thread)
+            let value = *self.slot
+            ofir_free(self.slot as *mut u8)
+            return value
+        }
+    }
+}
+
+/**
+ * Starts a task that runs `f` on an OS thread of its own.
+ *
+ * @typeParam T the type of the task's result
+ * @param f the task's body; it owns everything it captures
+ * @returns the task's handle
+ * @example
+ * ```ofir
+ * import std.task
+ *
+ * let handle = task.run(move () int => 40 + 2)
+ * println("{handle.join()}")
+ * ```
+ */
+pub fn run<T>(f: move fn() T) Task<T> {
+    let slot = unsafe {
+        if alignOf<T>() > 16 {
+            ofir_alloc_aligned(sizeOf<T>(), alignOf<T>()) as *mut T
+        } else {
+            ofir_alloc(sizeOf<T>()) as *mut T
+        }
+    }
+    let job = Job{run: move () => {
+        unsafe {
+            *slot = f()
+        }
+    }}
+    let thread = unsafe {
+        let p = ofir_alloc(sizeOf<Job>()) as *mut Job
+        *p = job
+        ofir_task_spawn(p as *mut u8)
+    }
+    return Task{thread: thread, slot: slot}
+}

@@ -1,4 +1,4 @@
-# `std.io`, `std.fs`, `std.os`
+# `std.io`, `std.fs`, `std.os`, `std.task`
 
 ## Errors (`std.io`)
 
@@ -69,6 +69,14 @@ pub struct Output {
     pub stderr: str
 }
 ```
+
+## `std.task`
+
+Stage 1 only (spec 14.2).
+
+- `run<T>(f: move fn() T) Task<T>`: starts a task on an OS thread of its
+  own.
+- `Task<T>.join(move self) T`: waits for the task and returns its result.
 
 Stage 0: `std.io`, `std.fs` and `std.os` are written in Ofir over the C
 runtime's `os.c` and `fs.c` (docs/design/runtime.md); `std.io.Buffer` is

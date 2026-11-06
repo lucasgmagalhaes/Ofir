@@ -21,7 +21,7 @@ This specification describes the Ofir language. Sections marked
 11. [Unsafe code and FFI](11-unsafe-ffi.md)
 12. [Attributes, testing and documentation](12-attributes-testing.md)
 13. [Memory layout and ABI](13-memory-layout.md)
-14. [Concurrency](14-concurrency.md) **[planned]**
+14. [Concurrency](14-concurrency.md): tasks; `Send`/`Sync`, channels and `std.sync` are **[planned]**
 15. [Compile-time code](15-compile-time.md) **[planned]**
 16. [Type operators](16-type-operators.md) **[planned]**: `keyof`, `T[K]`, mapped and conditional types
 17. [Union types](17-union-types.md) **[planned]**: `A | B` as anonymous tagged enums
