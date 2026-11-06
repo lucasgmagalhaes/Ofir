@@ -5,7 +5,7 @@ fn first() {
 }
 
 fn second() {
-    var        // error[E0100]: expected a variable name after `var`
+    let        // error[E0100]: expected a variable name after `let`
 }
 
 struct Point {
