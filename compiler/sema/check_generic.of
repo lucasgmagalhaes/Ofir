@@ -32,6 +32,7 @@ import sema.check_list.coerceToSlice
 import sema.check_list.hashable
 import sema.check_methods.isCloneable
 import sema.check_types.resolveType
+import sema.check_union.coerceToUnion
 import sema.derive.adtSatisfies
 import sema.derive.debuggable
 import sema.expr_check.checkExpr
@@ -375,7 +376,9 @@ pub fn checkGenericArgs(c: mut Checker, p: Program, callId: int, span: Span, arg
         if slots[i] >= 0 {
             let wanted = inferApply(c, &inf, params[slots[i]])
             let found = c.typeOf(args[i].value.id.0)
-            if !coerceToSlice(c, p, &args[i].value, found, wanted) {
+            let widened = coerceToSlice(c, p, &args[i].value, found, wanted) ||
+                          coerceToUnion(c, &args[i].value, found, wanted)
+            if !widened {
                 requireType(c, &args[i].value, found, wanted)
             }
         }

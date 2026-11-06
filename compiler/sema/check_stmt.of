@@ -15,6 +15,7 @@ import sema.check_place.placeRoot
 import sema.check_place.requireMutable
 import sema.check_ref.checkReturnedRef
 import sema.check_types.compatible
+import sema.check_union.coerceToUnion
 import sema.check_types.resolveType
 import sema.def.DefKind
 import sema.def.Res
@@ -306,7 +307,10 @@ pub fn checkBlock(c: mut Checker, p: Program, block: &Block, expected: int, asVa
         }
         if asValue && i + 1 == stmts.len() {
             if let StmtKind.ExprStmt(tail) = s.kind {
-                let ty = checkExpr(c, p, &tail, expected)
+                var ty = checkExpr(c, p, &tail, expected)
+                if coerceToUnion(c, &tail, ty, expected) {
+                    ty = expected   // a branch widens to the union expected (spec 17.3)
+                }
                 return if diverges { NEVER } else { ty }
             }
         }
@@ -316,15 +320,26 @@ pub fn checkBlock(c: mut Checker, p: Program, block: &Block, expected: int, asVa
     return if diverges { NEVER } else { UNIT }
 }
 
-fn join(c: mut Checker, span: Span, then: int, other: int) int {
+fn join(c: mut Checker, span: Span, expected: int, then: int, other: int) int {
     if then == NEVER {
         return other
     }
     if other != NEVER && !compatible(other, then) {
-        c.error("E0300", span, "mismatched types: expected {c.typeName(then)}, "
-                + "found {c.typeName(other)}")
+        mismatchedBranches(c, span, expected, then, other)
     }
     return then
+}
+
+// Branches of different types: E0353 when no type is expected (a union is
+// never inferred, spec 17.3), else E0300.
+fn mismatchedBranches(c: mut Checker, span: Span, expected: int, first: int, other: int) {
+    if expected == ERROR {
+        c.error("E0353", span, "the branches have different types, `{c.typeName(first)}` and "
+                + "`{c.typeName(other)}`: write the union type expected")
+        return
+    }
+    c.error("E0300", span, "mismatched types: expected {c.typeName(first)}, "
+            + "found {c.typeName(other)}")
 }
 
 /**
@@ -363,7 +378,7 @@ pub fn checkIf(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: boo
             if !asValue {
                 return if thenType == NEVER && otherType == NEVER { NEVER } else { UNIT }
             }
-            return join(c, other.span, thenType, otherType)
+            return join(c, other.span, expected, thenType, otherType)
         }
         _ => {
             return ERROR
@@ -392,7 +407,10 @@ fn armBody(c: mut Checker, p: Program, body: &Expr, expected: int, asValue: bool
             _ => {}
         }
     }
-    let ty = checkExpr(c, p, body, expected)
+    var ty = checkExpr(c, p, body, expected)
+    if asValue && coerceToUnion(c, body, ty, expected) {
+        ty = expected
+    }
     return if asValue || ty == NEVER { ty } else { UNIT }
 }
 
@@ -423,9 +441,7 @@ pub fn checkMatch(c: mut Checker, p: Program, e: &Expr, expected: int, asValue: 
                 if result == NEVER {
                     result = found
                 } else if found != NEVER && !compatible(found, result) {
-                    c.error("E0300", arm.body.span, "mismatched types: expected "
-                            + "{c.typeName(result)}, "
-                            + "found {c.typeName(found)}")
+                    mismatchedBranches(c, arm.body.span, expected, result, found)
                 }
             }
             checkExhaustive(c, p, e, &arms, ty)
