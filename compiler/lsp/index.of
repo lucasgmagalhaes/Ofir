@@ -8,9 +8,13 @@
  * changed, as `ofir build --stop-after=check` would with the open
  * documents read in place of their files. The diagnostics are published
  * for that document; those located in another file are shown at its first
- * line, with the place they point to.
+ * line, with the place they point to. Go to definition checks the
+ * document again and looks up the name at the position among the uses the
+ * resolver and the type checker recorded.
  */
 
+import base.span.FileId
+import base.span.SourceFile
 import base.span.SourceMap
 import diag.Diagnostic
 import diag.NoteKind
@@ -21,6 +25,7 @@ import lsp.json.JsonDoc
 import lsp.json.parseJson
 import std.io
 import std.io.Stdin
+import std.os
 import std.strings
 
 /**
@@ -78,6 +83,10 @@ struct Server {
             const _ = self.docs.remove(path)
             const _ = self.uris.remove(path)
             send(publish(uri, ""))
+        } else if method == "textDocument/definition" {
+            const line = doc.int(doc.at(["params", "position", "line"]))
+            const character = doc.int(doc.at(["params", "position", "character"]))
+            send(response(id, self.definition(uri, line, character)))
         } else if idNode >= 0 && doc.field(0, "method") >= 0 {
             send(errorResponse(id, -32601, "`{method}` is not supported"))
         }
@@ -98,13 +107,52 @@ struct Server {
         }
         send(publish(uri, items))
     }
+
+    // The location of the declaration of the name at a position, or `null`.
+    fn definition(self, uri: str, line: int, character: int) str {
+        const path = uriToPath(uri)
+        const checked = checkFile(path, &self.docs)
+        let root = -1
+        for f in 0..checked.map.len() {
+            if root < 0 && checked.map.file(FileId(f)).path == path {
+                root = f
+            }
+        }
+        if root < 0 {
+            return "null"
+        }
+        const offset = offsetOf(checked.map.file(FileId(root)), line, character)
+        let best = -1
+        for i in 0..checked.links.len() {
+            const name = checked.links[i].name
+            const inside = name.file.0 == root && name.start <= offset && offset <= name.end
+            if inside && (best < 0 || name.len() < checked.links[best].name.len()) {
+                best = i
+            }
+        }
+        if best < 0 {
+            return "null"
+        }
+        const decl = checked.links[best].decl
+        const file = checked.map.file(decl.file)
+        const start = position(file, decl.start)
+        const end = position(file, decl.end)
+        const target = match self.uris.get(file.path) {
+            Option.Some(known) => known.clone()
+            Option.None => pathToUri(file.path)
+        }
+        const range = "\{\"start\":{start},\"end\":{end}\}"
+        return "\{\"uri\":{jsonString(target)},\"range\":{range}\}"
+    }
 }
 
-// The capabilities of `initialize`: full document synchronization.
+// The capabilities of `initialize`: full document synchronization and go to
+// definition.
 fn capabilities() str {
     const sync = "\"textDocumentSync\":\{\"openClose\":true,\"change\":1\}"
+    const definition = "\"definitionProvider\":true"
     const info = "\"serverInfo\":\{\"name\":\"ofir\"\}"
-    return "\{\"capabilities\":\{{sync}\},{info}\}"
+    return "\{\"capabilities\":\{{sync},{definition}\},{info}\}"
 }
 
 fn response(id: str, result: str) str {
@@ -130,8 +178,8 @@ fn lspDiagnostic(d: &Diagnostic, map: SourceMap, path: str) str {
     if d.span.file.0 >= 0 && d.span.file.0 < map.len() {
         const file = map.file(d.span.file)
         if file.path == path {
-            const start = position(map, d, d.span.start)
-            const end = position(map, d, d.span.end)
+            const start = position(file, d.span.start)
+            const end = position(file, d.span.end)
             range = "\{\"start\":{start},\"end\":{end}\}"
         } else {
             const at = file.lineCol(d.span.start)
@@ -147,10 +195,9 @@ fn lspDiagnostic(d: &Diagnostic, map: SourceMap, path: str) str {
     return "\{\"range\":{range},{fields},\"message\":{jsonString(message)}\}"
 }
 
-// An offset of the diagnostic's file as an LSP position: a line from 0 and
-// a column in UTF-16 code units.
-fn position(map: SourceMap, d: &Diagnostic, offset: int) str {
-    const file = map.file(d.span.file)
+// An offset of a file as an LSP position: a line from 0 and a column in
+// UTF-16 code units.
+fn position(file: &SourceFile, offset: int) str {
     const at = file.lineCol(offset)
     const lineStart = offset - (at.column - 1)
     let units = 0
@@ -161,6 +208,56 @@ fn position(map: SourceMap, d: &Diagnostic, offset: int) str {
         }
     }
     return "\{\"line\":{at.line - 1},\"character\":{units}\}"
+}
+
+// The offset of an LSP position in a file: the end of the line when the
+// column is past it, the end of the file when the line is.
+fn offsetOf(file: &SourceFile, line: int, character: int) int {
+    const text = file.text.slice(0, file.text.len())
+    let i = 0
+    let l = 0
+    for l < line && i < text.len() {
+        if text[i] == b'\n' {
+            l += 1
+        }
+        i += 1
+    }
+    let units = 0
+    for i < text.len() && text[i] != b'\n' && units < character {
+        units += if text[i] >= 0xF0 { 2 } else { 1 }
+        i += 1
+        for i < text.len() && text[i] & 0xC0 == 0x80 {
+            i += 1
+        }
+    }
+    return i
+}
+
+// The `file:` URI of a path, made absolute and percent-encoded.
+fn pathToUri(path: str) str {
+    let full = path.toOwned()
+    if !path.startsWith("/") {
+        if const Result.Ok(dir) = os.currentDir() {
+            full = "{dir}/{path}"
+        }
+    }
+    const hex = "0123456789ABCDEF"
+    let out = "file://"
+    for i in 0..full.len() {
+        const b = full[i]
+        const letter = (b >= b'a' && b <= b'z') || (b >= b'A' && b <= b'Z')
+        const plain = (letter || (b >= b'0' && b <= b'9') || b == b'/' || b == b'-' ||
+                       b == b'.' || b == b'_' || b == b'~')
+        if plain {
+            out.pushChar(b as u32)
+        } else {
+            const v = b as int
+            out.push("%")
+            out.push(hex.slice(v / 16, v / 16 + 1))
+            out.push(hex.slice(v % 16, v % 16 + 1))
+        }
+    }
+    return out
 }
 
 // The path of a `file:` URI, percent-decoded.
