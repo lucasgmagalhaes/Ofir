@@ -126,7 +126,7 @@ static void item_body(Parser *p, Item *item, ItemHeader header) {
         advance(p);
         item->kind = ITEM_IMPORT;
         import(p, item);
-    } else if (t->kind == TOK_KW_CONST || t->kind == TOK_KW_VAR) {
+    } else if (t->kind == TOK_KW_CONST || t->kind == TOK_KW_LET || t->kind == TOK_KW_VAR) {
         advance(p);
         item->kind = t->kind == TOK_KW_CONST ? ITEM_CONST : ITEM_GLOBAL;
         value_item(p, item);
