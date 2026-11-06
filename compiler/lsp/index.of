@@ -10,7 +10,10 @@
  * for that document; those located in another file are shown at its first
  * line, with the place they point to. Go to definition checks the
  * document again and looks up the name at the position among the uses the
- * resolver and the type checker recorded.
+ * resolver and the type checker recorded. Completion checks the document
+ * with a probe, a name no program declares, inserted at the position, and
+ * offers the names visible where the probe is reported unknown, with the
+ * keywords outside a member access (sema/complete.of).
  */
 
 import base.span.FileId
@@ -23,6 +26,7 @@ import diag.jsonString
 import lsp.check.checkFile
 import lsp.json.JsonDoc
 import lsp.json.parseJson
+import sema.trace.CompletionKind
 import std.io
 import std.io.Stdin
 import std.os
@@ -87,6 +91,10 @@ struct Server {
             const line = doc.int(doc.at(["params", "position", "line"]))
             const character = doc.int(doc.at(["params", "position", "character"]))
             send(response(id, self.definition(uri, line, character)))
+        } else if method == "textDocument/completion" {
+            const line = doc.int(doc.at(["params", "position", "line"]))
+            const character = doc.int(doc.at(["params", "position", "character"]))
+            send(response(id, self.completion(uri, line, character)))
         } else if idNode >= 0 && doc.field(0, "method") >= 0 {
             send(errorResponse(id, -32601, "`{method}` is not supported"))
         }
@@ -97,7 +105,7 @@ struct Server {
         const path = uriToPath(uri)
         self.docs.insert(path.clone(), text)
         self.uris.insert(path.clone(), uri.toOwned())
-        const checked = checkFile(path, &self.docs)
+        const checked = checkFile(path, &self.docs, "")
         let items = ""
         for i in 0..checked.diags.len() {
             if i > 0 {
@@ -111,7 +119,7 @@ struct Server {
     // The location of the declaration of the name at a position, or `null`.
     fn definition(self, uri: str, line: int, character: int) str {
         const path = uriToPath(uri)
-        const checked = checkFile(path, &self.docs)
+        const checked = checkFile(path, &self.docs, "")
         let root = -1
         for f in 0..checked.map.len() {
             if root < 0 && checked.map.file(FileId(f)).path == path {
@@ -121,7 +129,7 @@ struct Server {
         if root < 0 {
             return "null"
         }
-        const offset = offsetOf(checked.map.file(FileId(root)), line, character)
+        const offset = offsetOf(checked.map.file(FileId(root)).text, line, character)
         let best = -1
         for i in 0..checked.links.len() {
             const name = checked.links[i].name
@@ -144,15 +152,102 @@ struct Server {
         const range = "\{\"start\":{start},\"end\":{end}\}"
         return "\{\"uri\":{jsonString(target)},\"range\":{range}\}"
     }
+
+    // The completions at a position of an open document: a CompletionList.
+    fn completion(self, uri: str, line: int, character: int) str {
+        const path = uriToPath(uri)
+        const text = match self.docs.get(path) {
+            Option.Some(open) => open.clone()
+            Option.None => {
+                return "[]"
+            }
+        }
+        const offset = offsetOf(text, line, character)
+        let start = offset
+        for start > 0 && isNameByte(text[start - 1]) {
+            start -= 1
+        }
+        const prefix = text.slice(start, offset)
+        const member = start > 0 && text[start - 1] == b'.'
+        let probed = text.slice(0, offset).toOwned()
+        probed.push(PROBE)
+        probed.push(text.slice(offset, text.len()))
+        let overlays = self.docs.clone()
+        overlays.insert(path.clone(), probed)
+        const checked = checkFile(path, &overlays, PROBE)
+        let found: List<str> = []
+        for i in 0..checked.completions.len() {
+            const c = &checked.completions[i]
+            if c.label.startsWith(prefix) {
+                found.push("{c.label} {itemKind(c.kind)}")
+            }
+        }
+        if !member {
+            const words = keywords()
+            for i in 0..words.len() {
+                if words[i].startsWith(prefix) {
+                    found.push("{words[i]} 14")
+                }
+            }
+        }
+        found.sort()
+        let items = ""
+        let last = ""
+        for i in 0..found.len() {
+            const space = found[i].find(" ") ?? 0
+            const label = found[i].slice(0, space)
+            if label != last {
+                if items.len() > 0 {
+                    items.push(",")
+                }
+                const kind = found[i].slice(space + 1, found[i].len())
+                items.push("\{\"label\":{jsonString(label)},\"kind\":{kind}\}")
+                last = label.toOwned()
+            }
+        }
+        return "\{\"isIncomplete\":false,\"items\":[{items}]\}"
+    }
 }
 
-// The capabilities of `initialize`: full document synchronization and go to
-// definition.
+// The name inserted where a completion is asked for: no program declares it.
+const PROBE: str = "ofirCompletionProbe__"
+
+// The keywords offered outside a member access.
+fn keywords() List<str> {
+    return ["as", "break", "const", "continue", "copy", "dyn", "else", "enum", "extern", "false",
+            "fn", "for", "if", "import", "in", "interface", "let", "match", "mut", "pub", "return",
+            "self", "Self", "struct", "true", "unsafe"]
+}
+
+// Whether a byte can be part of a name.
+fn isNameByte(b: u8) bool {
+    return (b >= b'a' && b <= b'z') || (b >= b'A' && b <= b'Z') || (b >= b'0' && b <= b'9') ||
+        b == b'_'
+}
+
+// The LSP CompletionItemKind of a completion.
+fn itemKind(kind: CompletionKind) int {
+    return match kind {
+        CompletionKind.Variable => 6
+        CompletionKind.Function => 3
+        CompletionKind.Type => 22
+        CompletionKind.Interface => 8
+        CompletionKind.Constant => 21
+        CompletionKind.Module => 9
+        CompletionKind.Variant => 20
+        CompletionKind.Field => 5
+        CompletionKind.Method => 2
+    }
+}
+
+// The capabilities of `initialize`: full document synchronization, go to
+// definition and completion, asked for again after `.`.
 fn capabilities() str {
     const sync = "\"textDocumentSync\":\{\"openClose\":true,\"change\":1\}"
     const definition = "\"definitionProvider\":true"
+    const completion = "\"completionProvider\":\{\"triggerCharacters\":[\".\"]\}"
     const info = "\"serverInfo\":\{\"name\":\"ofir\"\}"
-    return "\{\"capabilities\":\{{sync},{definition}\},{info}\}"
+    return "\{\"capabilities\":\{{sync},{definition},{completion}\},{info}\}"
 }
 
 fn response(id: str, result: str) str {
@@ -210,10 +305,9 @@ fn position(file: &SourceFile, offset: int) str {
     return "\{\"line\":{at.line - 1},\"character\":{units}\}"
 }
 
-// The offset of an LSP position in a file: the end of the line when the
-// column is past it, the end of the file when the line is.
-fn offsetOf(file: &SourceFile, line: int, character: int) int {
-    const text = file.text.slice(0, file.text.len())
+// The offset of an LSP position in a text: the end of the line when the
+// column is past it, the end of the text when the line is.
+fn offsetOf(text: str, line: int, character: int) int {
     let i = 0
     let l = 0
     for l < line && i < text.len() {

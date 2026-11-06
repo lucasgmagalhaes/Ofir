@@ -23,7 +23,10 @@ import sema.check_generic.inferHint
 import sema.check_generic.inferNew
 import sema.check_mapped.isMappedStruct
 import sema.check_methods.checkVisible
+import sema.check_methods.completeMethods
 import sema.check_types.ownerType
+import sema.complete.offer
+import sema.complete.probing
 import sema.check_types.resolveAlias
 import sema.def.DefKind
 import sema.def.Res
@@ -38,6 +41,7 @@ import sema.structs.fieldsOf
 import sema.structs.structFieldType
 import sema.structs.structFields
 import sema.suggest.suggestField
+import sema.trace.CompletionKind
 import sema.types.ERROR
 import sema.types.TyKind
 import syntax.ast.Arg
@@ -87,6 +91,20 @@ fn suggestFields(c: mut Checker, id: int, known: bool, name: Symbol) {
     }
 }
 
+// Keeps the fields and the methods of a value of type `base`, whose struct
+// declaration is `id`, for a completion after `value.`.
+fn completeValue(c: mut Checker, p: Program, base: int, id: int, known: bool) {
+    if known && !fieldsOf(c, id).isTuple {
+        const names = fieldsOf(c, id).names.clone()
+        for i in 0..names.len() {
+            offer(c.r, c.text(names[i]), CompletionKind.Field)
+        }
+    }
+    const kind = c.types.kind(base)
+    const owner = if kind == TyKind.Adt { c.types.get(base).data } else { id }
+    completeMethods(c, p, owner)
+}
+
 /**
  * `a.f` on a struct value of type `base`.
  *
@@ -105,6 +123,9 @@ pub fn checkStructField(c: mut Checker, p: Program, e: &Expr, name: Symbol, base
         if base != ERROR && (id == 0 || known) {
             c.error("E0316", e.span, "no field `{c.text(name)}` on type `{c.typeName(base)}`")
             suggestFields(c, id, known, name)
+            if probing(c.r, name) {
+                completeValue(c, p, base, id, known)
+            }
         }
         return ERROR
     }

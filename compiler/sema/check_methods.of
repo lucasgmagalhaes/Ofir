@@ -33,6 +33,8 @@ import sema.check_types.adtInstance
 import sema.check_types.fnSignature
 import sema.check_types.resolveType
 import sema.check_unsafe.requireUnsafe
+import sema.complete.offer
+import sema.complete.probing
 import sema.def.DefKind
 import sema.def.Res
 import sema.expr_check.checkArgs
@@ -56,6 +58,7 @@ import sema.structs.isCopy
 import sema.structs.structFieldType
 import sema.structs.variantFieldType
 import sema.suggest.Suggestion
+import sema.trace.CompletionKind
 import sema.types.ERROR
 import sema.types.I64
 import sema.types.STR
@@ -124,6 +127,29 @@ fn suggestMethod(c: mut Checker, p: Program, owner: int, name: Symbol) {
         s.offer(method, c.text(method))
     }
     s.report(c.r)
+    if probing(c.r, name) {
+        completeMethods(c, p, owner)
+    }
+}
+
+/**
+ * Keeps the methods of `owner` that take `self`, for a completion after
+ * `value.` (sema/complete.of).
+ *
+ * @param c the checker
+ * @param p the program
+ * @param owner the declaration of the value's type, or 0
+ */
+pub fn completeMethods(c: mut Checker, p: Program, owner: int) {
+    if owner == 0 || c.def(owner).item < 0 {
+        return
+    }
+    for i in 0..methodCount(p, c.loc(owner)) {
+        const method = methodAt(p, c.loc(owner), i)
+        if method.hasSelf {
+            offer(c.r, c.text(method.name), CompletionKind.Method)
+        }
+    }
 }
 
 // The position of method `name` of `owner`, or -1.

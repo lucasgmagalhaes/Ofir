@@ -17,6 +17,8 @@ import sema.resolve_attributes.warnDeprecated
 import sema.resolve_import.resolveQualified
 import sema.trace.traceAt
 import sema.trace.traceUse
+import sema.complete.completeScope
+import sema.complete.probing
 import sema.suggest.SuggestScope
 import sema.suggest.suggestName
 import syntax.ast.Arg
@@ -102,6 +104,9 @@ fn find(r: mut Resolver, name: Symbol, span: Span) Res {
     }
     r.error("E0200", span, "cannot find `{r.text(name)}` in this scope")
     suggestName(r, name, SuggestScope.Value)
+    if probing(r, name) {
+        completeScope(r, false)
+    }
     return Res.Error
 }
 

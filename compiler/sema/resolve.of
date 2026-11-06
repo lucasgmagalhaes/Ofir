@@ -252,15 +252,17 @@ const PRIMITIVE_TYPES: int = 15
  *   functions are checked and compiled
  * @param benching `ofir bench`
  * @param links record name uses and their declarations (`ofir lsp`)
+ * @param probe the name `ofir lsp` inserted to complete, or `""`
  * @returns the resolver, with the results and the tables it took over
  */
 pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagnostics,
                       map: move SourceMap, trace: bool, testing: bool,
-                      benching: bool, links: bool) Resolver {
+                      benching: bool, links: bool, probe: str) Resolver {
     let r = newResolver(program, names, diags, map, trace)
     r.testing = testing
     r.benching = benching
     r.trace.linking = links
+    r.trace.probe = probe.toOwned()
     if links {
         for m in 0..program.modules.len() {
             r.trace.moduleFiles.push(program.modules[m].module.file)

@@ -1,0 +1,25 @@
+import std.strings
+
+struct Point {
+    x: int
+    y: int
+
+    fn norm(self) int {
+        return self.x + self.y
+    }
+
+    fn origin() Point {
+        return Point{x: 0, y: 0}
+    }
+}
+
+fn twice(p: Point) int {
+    return p.x * 2
+}
+
+fn main() {
+    const count = twice(Point.origin())
+    const q: Point = Point{x: count, y: 1}
+    const _ = strings.fromUtf8([])
+    print("{q.norm()}")
+}
