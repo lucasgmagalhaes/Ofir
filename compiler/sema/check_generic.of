@@ -186,6 +186,12 @@ pub fn inferFrom(c: Checker, inf: mut Infer, pattern: int, actual: int) {
         inferFrom(c, inf, pt.args[0], at.args[0])   // a list given for `[T]` is its slice
         return
     }
+    let array = if at.kind == TyKind.Ref { at.inner } else { actual }
+    if pt.kind == TyKind.Adt && slice != 0 && pt.data == slice &&
+       c.types.kind(array) == TyKind.Array {
+        inferFrom(c, inf, pt.args[0], c.types.get(array).inner)   // an array, or `&[T; N]`
+        return
+    }
     if at.kind != pt.kind || at.args.len() != pt.args.len() ||
        (pt.kind == TyKind.Adt && at.data != pt.data) {
         return   // a mismatch, reported when the argument is checked

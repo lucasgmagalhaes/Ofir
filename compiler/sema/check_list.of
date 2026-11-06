@@ -60,6 +60,9 @@ pub fn listElem(c: Checker, ty: int) Option<int> {
  */
 pub fn sequenceElem(c: Checker, ty: int) Option<int> {
     let t = c.types.get(ty)
+    if t.kind == TyKind.Array {
+        return Option.Some(t.inner)
+    }
     let slice = c.r.langItems[4]
     if slice != 0 && t.kind == TyKind.Adt && t.data == slice {
         return Option.Some(t.args[0])
@@ -99,6 +102,14 @@ pub fn requireCopy(c: mut Checker, p: Program, span: Span, ty: int, what: str) {
  */
 pub fn checkListLiteral(c: mut Checker, p: Program, e: &Expr, items: &List<Expr>,
                         expected: int) int {
+    if c.types.kind(expected) == TyKind.Array {   // `[a, b]` as a `[T; N]` (spec 2.7)
+        let elem = c.types.get(expected).inner
+        for i in 0..items.len() {
+            coerce(c, p, &items[i], elem)
+        }
+        arrayElements(c, p, e.span, expected, items.len())
+        return expected
+    }
     if c.r.langItems[1] == 0 {
         return c.unsupported(e.span, "list literals without the standard library are")
     }
@@ -126,6 +137,19 @@ pub fn checkListLiteral(c: mut Checker, p: Program, e: &Expr, items: &List<Expr>
     return ty
 }
 
+// An array literal of `count` elements for the array type `ty`: the count
+// must be its length, and its elements Copy.
+fn arrayElements(c: mut Checker, p: Program, span: Span, ty: int, count: int) {
+    let t = c.types.get(ty).clone()
+    if count != t.data {
+        c.error("E0300", span, "mismatched types: expected `{c.typeName(ty)}`, found an array "
+                + "of {count} elements")
+    }
+    if !isCopy(c, p, t.inner) && t.inner != ERROR {
+        c.unsupported(span, "arrays of a type that is not Copy are")
+    }
+}
+
 /**
  * `[value; count]`: `count` copies of a Copy value.
  *
@@ -141,6 +165,17 @@ pub fn checkListRepeat(c: mut Checker, p: Program, e: &Expr, value: &Expr, count
                        expected: int) int {
     if c.r.langItems[1] == 0 {
         return c.unsupported(e.span, "list literals without the standard library are")
+    }
+    if c.types.kind(expected) == TyKind.Array {   // `[v; N]` as a `[T; N]`
+        let elem = c.types.get(expected).inner
+        coerce(c, p, value, elem)
+        coerce(c, p, count, I64)
+        match count.kind {
+            ExprKind.Int(n) => arrayElements(c, p, e.span, expected, n as int)
+            _ => c.error("E0300", count.span, "the count of `[value; count]` as an array must "
+                         + "be an integer literal")
+        }
+        return expected
     }
     let hint = listElem(c, expected) ?? ERROR
     let elem = checkExpr(c, p, value, hint)
@@ -388,9 +423,22 @@ pub fn checkRangeIndex(c: mut Checker, p: Program, e: &Expr, base: &Expr, range:
     }
 }
 
+// `[T; N]`, for an array or a reference to one, or -1.
+fn arrayBehind(c: Checker, ty: int) int {
+    let t = c.types.get(ty)
+    if t.kind == TyKind.Array {
+        return ty
+    }
+    if t.kind == TyKind.Ref && c.types.kind(t.inner) == TyKind.Array {
+        return t.inner
+    }
+    return -1
+}
+
 /**
  * A `List<T>` where a `&[T]` is expected (spec 2.12) becomes
- * `list.asSlice()`.
+ * `list.asSlice()`; an array `[T; N]`, or a reference to one, becomes a
+ * slice of its N elements.
  *
  * @param c the checker
  * @param p the program
@@ -404,6 +452,12 @@ pub fn coerceToSlice(c: mut Checker, p: Program, e: &Expr, found: int, expected:
     let t = c.types.get(expected)
     if t.kind != TyKind.Adt || slice == 0 || t.data != slice {
         return false
+    }
+    let array = arrayBehind(c, found)
+    if array >= 0 && c.types.get(array).inner == t.args[0] {   // `&[T; N]` or `[T; N]`
+        c.arrayCoercions[c.module()].insert(e.id.0, found)
+        c.setType(e.id.0, expected)
+        return true
     }
     let Option.Some(elem) = listElem(c, found) else {
         return false

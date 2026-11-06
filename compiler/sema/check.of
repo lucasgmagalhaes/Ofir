@@ -472,6 +472,9 @@ pub struct Checker {
     /** The values converted from `List<T>` to `&[T]` (`list.asSlice()`), by module:
      * `NodeId` to the element type. */
     pub sliceCoercions: List<Map<int, int>>
+    /** The arrays converted to `&[T]` (spec 2.12), by module: `NodeId` to the type before
+     * the conversion, `[T; N]` or a reference to it. */
+    pub arrayCoercions: List<Map<int, int>>
     /** The values converted to `&dyn I`, `*dyn I` or `Box<dyn I>`, by module: `NodeId` to
      * the type before the conversion. */
     pub dynCoercions: List<Map<int, int>>
@@ -904,6 +907,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     var callTypeArgs: List<Map<int, int>> = []
     var argSlots: List<Map<int, List<int>>> = []
     var sliceCoercions: List<Map<int, int>> = []
+    var arrayCoercions: List<Map<int, int>> = []
     var dynCoercions: List<Map<int, int>> = []
     var unionCoercions: List<Map<int, int>> = []
     var moveFlags: List<Map<int, int>> = []
@@ -918,6 +922,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         callTypeArgs.push(Map.new())
         argSlots.push(Map.new())
         sliceCoercions.push(Map.new())
+        arrayCoercions.push(Map.new())
         dynCoercions.push(Map.new())
         unionCoercions.push(Map.new())
         moveFlags.push(Map.new())
@@ -934,7 +939,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
                    adjusted,
                    members, callTypeArgs, argSlots, defaultsChecked: Map.new(), sliceCoercions,
-                   dynCoercions, unionCoercions, moveFlags, fnMoves: Map.new(),
+                   arrayCoercions, dynCoercions, unionCoercions, moveFlags, fnMoves: Map.new(),
                    bodyChecked: Map.new(), movesPending: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,

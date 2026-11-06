@@ -159,7 +159,18 @@ A seeded, DoS-resistant hasher for maps filled from untrusted input is
 
 ```ofir
 let grid: [u8; 4] = [0, 0, 0, 0]
+let zeros: [int; 8] = [0; 8]
 ```
+
+- A list literal or `[value; N]` is an array where an array type is
+  expected; its length must be `N`, and the count of `[value; N]` is an
+  integer literal.
+- `a[i]` reads and writes an element, bounds checked; `for x in a` and
+  `for i, x in a` read the elements.
+- `&[T; N]` converts to `&[T]`, and a `[T]` parameter accepts an array
+  (chapter 2.12).
+- Stage 1 implements arrays whose element type is Copy; arrays of other
+  types are E0901. Stage 0 has the type but no array values.
 
 ## 2.8 References
 

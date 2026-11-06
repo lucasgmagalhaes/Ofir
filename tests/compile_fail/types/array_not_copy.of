@@ -1,0 +1,6 @@
+// requires: stage1
+// Stage 1 has arrays of Copy elements only (spec 2.7).
+
+fn main() {
+    let _names: [str; 2] = ["a", "b"]   // error[E0901]: arrays of a type that is not Copy are not supported yet
+}

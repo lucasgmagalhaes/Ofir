@@ -220,7 +220,8 @@ fn stepType(c: Checker, e: &Expr, i: int) int {
 }
 
 fn coerced(c: Checker, e: &Expr) bool {
-    return c.sliceCoercions[c.module()].get(e.id.0).isSome()
+    return c.sliceCoercions[c.module()].get(e.id.0).isSome() ||
+           c.arrayCoercions[c.module()].get(e.id.0).isSome()
 }
 
 fn noPlace() Place {
@@ -279,6 +280,9 @@ fn lowerPlaceAt(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int
         ExprKind.Index(base, index) => {
             if isList(c, viewType(c, &*base, -1)) {   // `l[i].x`: from the element's address
                 return listIndexPlace(l, c, p, e, &*base, &*index)
+            }
+            if isArray(c, viewType(c, &*base, -1)) {
+                return arrayIndexPlace(l, c, p, e, &*base, &*index)
             }
             if isKeyIndex(c, &*index) {
                 var place = lowerPlace(l, c, p, &*base)
@@ -529,8 +533,14 @@ fn lowerKind(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
         } else {
             buildVariant(l, c, p, ty, c.members[c.module()][e.id.0], &args)
         }
-        ExprKind.Array(elems) => listLiteral(l, c, p, &elems, ty)
-        ExprKind.Repeat(value, count) => listRepeat(l, c, p, &*value, &*count, ty)
+        ExprKind.Array(elems) => if isArray(c, ty) { arrayLiteral(l, c, p, &elems, ty) } else {
+            listLiteral(l, c, p, &elems, ty)
+        }
+        ExprKind.Repeat(value, count) => if isArray(c, ty) {
+            arrayRepeat(l, c, p, &*value, ty)
+        } else {
+            listRepeat(l, c, p, &*value, &*count, ty)
+        }
         ExprKind.Try(inner) => lowerTry(l, c, p, &*inner, ty)
         ExprKind.Match(_, _) => lowerMatch(l, c, p, e)
         ExprKind.Index(base, index) => lowerIndex(l, c, p, e, &*base, &*index)
@@ -1263,9 +1273,38 @@ fn fieldDefault(l: mut Lowerer, c: mut Checker, p: Program, id: int, f: int) Ope
     return result
 }
 
+// An array, or a reference to one, where a `&[T]` is expected:
+// `Slice.fromRaw(&a[0], N)`.
+fn arrayCoercion(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    let m = c.module()
+    let found = c.arrayCoercions[m].remove(e.id.0).unwrap()
+    let ty = c.typeOf(e.id.0)
+    let isRef = c.types.kind(found) == TyKind.Ref
+    let array = if isRef { c.types.get(found).inner } else { found }
+    let elem = c.types.get(array).inner
+    let count = c.types.get(array).data
+    c.setType(e.id.0, found)
+    let place = if isRef {
+        Place{local: toLocal(l, lowerExpr(l, c, p, e)), fields: [], deref: true}
+    } else {
+        lowerPlace(l, c, p, e)
+    }
+    c.setType(e.id.0, ty)
+    c.arrayCoercions[m].insert(e.id.0, found)
+    let ptr = c.types.ptr(elem, false)
+    let id = langMethod(c, p, c.r.langItems[4], "fromRaw")
+    let dest = newTemp(l, ty)
+    let args = [placeOperand(&place, OperandKind.Addr, ptr), opInt(count as u64, I64)]
+    emitCall(l, id, c.types.tuple([elem]), args, dest)
+    return opCopy(dest, ty)
+}
+
 // A `List<T>` where a `&[T]` is expected: `list.asSlice()` (stage 0
 // rewrites the expression into that call).
 fn coercion(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    if c.arrayCoercions[c.module()].get(e.id.0).isSome() {
+        return arrayCoercion(l, c, p, e)
+    }
     let elem = *c.sliceCoercions[c.module()].get(e.id.0).unwrap()
     let id = langMethod(c, p, c.r.langItems[1], "asSlice")
     let forwarded = l.forward
@@ -1504,6 +1543,10 @@ fn lowerIndex(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
         let place = listIndexPlace(l, c, p, e, base, index)
         return placeOperand(&place, OperandKind.Copy, c.typeOf(e.id.0))
     }
+    if isArray(c, viewType(c, base, -1)) {
+        let place = arrayIndexPlace(l, c, p, e, base, index)
+        return placeOperand(&place, OperandKind.Copy, c.typeOf(e.id.0))
+    }
     if isKeyIndex(c, index) {
         return placeOperand(&lowerPlaceAt(l, c, p, e, 0), OperandKind.Copy, c.typeOf(e.id.0))
     }
@@ -1592,6 +1635,68 @@ fn listIndexPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &E
     return Place{local: at, fields: [], deref: true}
 }
 
+// ---------------------------------------------------------------------------
+// Fixed arrays (spec 2.7): `[N x T]` values; an element is reached from the
+// array's address, as a list's from its buffer.
+
+fn isArray(c: Checker, ty: int) bool {
+    return c.types.kind(ty) == TyKind.Array
+}
+
+// The address of element `index` of the array at `place`, bounds checked.
+fn arrayElement(l: mut Lowerer, c: mut Checker, place: &Place, ty: int, index: move Operand,
+                span: Span) int {
+    let t = c.types.get(ty).clone()
+    boundsCheck(l, index.clone(), opInt(t.data as u64, I64), span)
+    let ptr = c.types.ptr(t.inner, true)
+    let base = placeOperand(place, OperandKind.Addr, ptr)
+    return emitTemp(l, ptr, rvalue(RvalueKind.PtrAdd, Op.Add, base, index))
+}
+
+// The place of `a[i]` for an array `a`.
+fn arrayIndexPlace(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr,
+                   index: &Expr) Place {
+    let array = lowerPlace(l, c, p, base)
+    let i = opCopy(toLocal(l, lowerExpr(l, c, p, index)), I64)
+    let at = arrayElement(l, c, &array, viewType(c, base, -1), i, e.span)
+    return Place{local: at, fields: [], deref: true}
+}
+
+// `[a, b, c]` as an array: each element stored at its position.
+fn arrayLiteral(l: mut Lowerer, c: mut Checker, p: Program, items: &List<Expr>,
+                ty: int) Operand {
+    let array = newTemp(l, ty)
+    for i in 0..items.len() {
+        let value = lowerExpr(l, c, p, &items[i])
+        emitStore(l, &fieldOfPlace(&localPlace(array), i), value)
+    }
+    return opCopy(array, ty)
+}
+
+// `[value; N]` as an array: a loop that stores the value N times.
+fn arrayRepeat(l: mut Lowerer, c: mut Checker, p: Program, value: &Expr, ty: int) Operand {
+    let array = newTemp(l, ty)
+    let t = c.types.get(ty).clone()
+    let item = opCopy(toLocal(l, lowerExpr(l, c, p, value)), t.inner)
+    let counter = emitTemp(l, I64, rvUse(opInt(0, I64)))
+    let header = l.body.newBlock()
+    let bodyBlock = l.body.newBlock()
+    let exit = l.body.newBlock()
+    emitGoto(l, header)
+    switchTo(l, header)
+    let go = compare(l, Op.Lt, opCopy(counter, I64), opInt(t.data as u64, I64))
+    terminate(l, branch(go, bodyBlock, exit))
+    switchTo(l, bodyBlock)
+    let ptr = c.types.ptr(t.inner, true)
+    let base = placeOperand(&localPlace(array), OperandKind.Addr, ptr)
+    let at = emitTemp(l, ptr, rvalue(RvalueKind.PtrAdd, Op.Add, base, opCopy(counter, I64)))
+    emitStore(l, &Place{local: at, fields: [], deref: true}, item)
+    emitAssign(l, counter, rvalue(RvalueKind.Binary, Op.Add, opCopy(counter, I64), opInt(1, I64)))
+    emitGoto(l, header)
+    switchTo(l, exit)
+    return opCopy(array, ty)
+}
+
 fn isMap(c: Checker, ty: int) bool {
     let t = c.types.get(ty)
     return t.kind == TyKind.Adt && t.data != 0 && t.data == c.r.langItems[5]
@@ -1604,6 +1709,7 @@ fn lowerForList(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &
                 body: &Block) {
     var list = lowerPlace(l, c, p, expr)
     var ty = viewType(c, expr, -1)
+    let array = isArray(c, ty)
     let map = isMap(c, ty)
     let mapType = ty
     if map {   // field 0 of a Map is its list of entries
@@ -1617,12 +1723,18 @@ fn lowerForList(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &
     let exit = l.body.newBlock()
     emitGoto(l, header)
     switchTo(l, header)
-    let len = placeOperand(&fieldOfPlace(&list, LIST_LEN), OperandKind.Copy, I64)
+    let len = if array { opInt(c.types.get(ty).data as u64, I64) } else {
+        placeOperand(&fieldOfPlace(&list, LIST_LEN), OperandKind.Copy, I64)
+    }
     let go = compare(l, Op.Lt, opCopy(counter, I64), len)
     terminate(l, branch(go, bodyBlock, exit))
     switchTo(l, bodyBlock)
-    let ptr = structFieldType(c, p, ty, LIST_PTR)
-    let base = placeOperand(&fieldOfPlace(&list, LIST_PTR), OperandKind.Copy, ptr)
+    let ptr = if array { c.types.ptr(c.types.get(ty).inner, true) } else {
+        structFieldType(c, p, ty, LIST_PTR)
+    }
+    let base = if array { placeOperand(&list, OperandKind.Addr, ptr) } else {
+        placeOperand(&fieldOfPlace(&list, LIST_PTR), OperandKind.Copy, ptr)
+    }
     let at = emitTemp(l, ptr, rvalue(RvalueKind.PtrAdd, Op.Add, base, opCopy(counter, I64)))
     let current = Place{local: at, fields: [], deref: true}
     let first = c.localAt(stmt.id.0) + 1
@@ -1637,7 +1749,7 @@ fn lowerForList(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &
         emitAssign(l, first, rvUse(key))
         emitAssign(l, first + 1, rvUse(value))
     } else {
-        let elem = c.types.get(ty).args[0]
+        let elem = if array { c.types.get(ty).inner } else { c.types.get(ty).args[0] }
         let target = if two { first + 1 } else { first }
         if l.body.locals[target].byRef {   // a value with interior mutability
             bindPlace(l, c, target, &current, elem)
