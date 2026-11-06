@@ -6,7 +6,7 @@ copy struct Node {
 
 @test
 fn pushReturnsConsecutiveIds() {
-    var nodes: IndexVec<Node> = IndexVec.new()
+    let nodes: IndexVec<Node> = IndexVec.new()
     const first = nodes.nextId()
     const a = nodes.push(Node{depth: 0})
     const b = nodes.push(Node{depth: 1})
@@ -16,7 +16,7 @@ fn pushReturnsConsecutiveIds() {
 
 @test
 fn getMutChangesTheElement() {
-    var names: IndexVec<str> = IndexVec.new()
+    let names: IndexVec<str> = IndexVec.new()
     const id = names.push("ma".toOwned())
     names.getMut(id).push("in")
     assert(names.get(id) == "main")

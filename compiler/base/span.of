@@ -76,7 +76,7 @@ pub struct SourceFile {
      * @returns the file
      */
     pub fn new(path: move str, text: move str) SourceFile {
-        var starts = [0]
+        let starts = [0]
         for i in 0..text.len() {
             if text[i] == b'\n' {
                 starts.push(i + 1)
@@ -102,8 +102,8 @@ pub struct SourceFile {
      * @returns its position
      */
     pub fn lineCol(self, offset: int) LineCol {
-        var lo = 0
-        var hi = self.lineStarts.len()
+        let lo = 0
+        let hi = self.lineStarts.len()
         for hi - lo > 1 {   // lineStarts[lo] <= offset < lineStarts[hi]
             const mid = (lo + hi) / 2
             if self.lineStarts[mid] <= offset {
@@ -124,7 +124,7 @@ pub struct SourceFile {
      */
     pub fn lineText(self, line: int) str {
         const start = self.lineStarts[line - 1]
-        var end = if line < self.lineStarts.len() { self.lineStarts[line] } else { self.text.len() }
+        let end = if line < self.lineStarts.len() { self.lineStarts[line] } else { self.text.len() }
         for end > start && (self.text[end - 1] == b'\n' || self.text[end - 1] == b'\r') {
             end -= 1
         }

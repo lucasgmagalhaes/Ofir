@@ -24,7 +24,7 @@ fn lineColFindsTheLine() {
 
 @test
 fn sourceMapNumbersFiles() {
-    var map = SourceMap.new()
+    let map = SourceMap.new()
     const a = map.add("a.of".toOwned(), "x".toOwned())
     const b = map.add("b.of".toOwned(), "yy\n".toOwned())
     assert(a.0 == 0 && b.0 == 1 && map.len() == 2)
