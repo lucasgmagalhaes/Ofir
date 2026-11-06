@@ -153,6 +153,20 @@ def check_tags(problems, path, doc: Doc, want: Expected):
             report(doc.line, f"{tag} does not apply here")
 
 
+def split_signature(code: str, start: int):
+    """The parameters and the result type of a signature whose `(` is at
+    `start`: the parentheses balance, so a tuple result is not a parameter."""
+    depth = 0
+    for j in range(start, len(code)):
+        if code[j] == "(":
+            depth += 1
+        elif code[j] == ")":
+            depth -= 1
+            if depth == 0:
+                return code[start + 1:j], code[j + 1:].split("{")[0]
+    return code[start + 1:], ""
+
+
 def check_fn(problems, path, lines, i, m):
     doc = doc_before(lines, i)
     public = bool(m.group(1))
@@ -161,9 +175,10 @@ def check_fn(problems, path, lines, i, m):
             problems.append(f"{path}:{i + 1}: public function `{m.group(3)}` has no /** */ "
                             "documentation")
         return
-    ret = re.split(r"\bwhere\b", m.group(7))[0].strip()
+    params, ret = split_signature(m.string, m.start(6) - 1)
+    ret = re.split(r"\bwhere\b", ret)[0].strip()
     returns = bool(ret) and ret != "()"
-    check_tags(problems, path, doc, Expected(split_params(m.group(6)), type_params(m.group(5)),
+    check_tags(problems, path, doc, Expected(split_params(params), type_params(m.group(5)),
                                              returns, bool(m.group(2)), body_panics(lines, i)))
 
 
