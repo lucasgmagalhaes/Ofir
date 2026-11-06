@@ -31,6 +31,7 @@ import air.air.branch
 import air.air.isGlue
 import air.air.jump
 import air.air.noPath
+import air.air.opAddr
 import air.air.opBool
 import air.air.opCopy
 import air.air.opUnit
@@ -48,6 +49,7 @@ import air.lower_derive.lowerHashGlue
 import air.lower_expr.cloneValue
 import air.lower_expr.closingBrace
 import air.lower_expr.lowerBlock
+import air.lower_expr.stdFn
 import air.lower_pattern.variantValue
 import air.lower_pattern.isVariant
 import air.air.VARIANT_STEP
@@ -57,6 +59,7 @@ import diag.noSpan
 import sema.check.Checker
 import sema.check.checkLate
 import sema.check.fnOf
+import sema.check_types.fnSignature
 import sema.def.DefKind
 import sema.types.I64
 import air.air.opInt
@@ -1443,7 +1446,8 @@ fn findTests(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
     let items = &p.modules[m].module.items
     for i in 0..items.len() {
         if let ItemKind.Fn(decl) = items[i].kind {
-            let test = findAttribute(c.r, items[i].attributes, "test").isSome()
+            let attribute = if c.r.benching { "bench" } else { "test" }
+            let test = findAttribute(c.r, items[i].attributes, attribute).isSome()
             if decl.body.isSome() && test && !skippedTest(c, p, &items[i]) {
                 l.tests.push(c.r.tables[m].fnDefs[decl.id.0])
             }
@@ -1451,8 +1455,8 @@ fn findTests(l: mut Lowerer, c: mut Checker, p: Program, m: int) {
     }
 }
 
-// The entry point of `ofir test`: it calls the test the runtime was asked
-// for (`ofir_test_index`).
+// The entry point of `ofir test` and `ofir bench`: it calls the test (or
+// benchmark) the runtime was asked for (`ofir_test_index`).
 fn lowerTestMain(l: mut Lowerer, c: mut Checker, p: Program) {
     l.body = AirBody{def: GLUE_DROP, targs: UNIT, name: Symbol(0), isMain: true, paramCount: 0,
                      locals: [], blocks: [],
@@ -1471,7 +1475,15 @@ fn lowerTestMain(l: mut Lowerer, c: mut Checker, p: Program) {
         let next = l.body.newBlock()
         terminate(l, branch(opCopy(chosen, BOOL), run, next))
         switchTo(l, run)
-        emitCall(l, l.tests[k], UNIT, [], -1)
+        if c.r.benching {   // `bench(&mut startBench())`
+            let start = stdFn(c, p, "std.core.bench", "startBench")
+            let ty = c.types.get(fnSignature(c, p, start)).inner
+            let bencher = newTemp(l, ty)
+            emitCall(l, start, UNIT, [], bencher)
+            emitCall(l, l.tests[k], UNIT, [opAddr(bencher, ty)], -1)
+        } else {
+            emitCall(l, l.tests[k], UNIT, [], -1)
+        }
         emitGoto(l, done)
         switchTo(l, next)
     }

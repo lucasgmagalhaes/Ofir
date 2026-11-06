@@ -758,7 +758,16 @@ pub fn cloneValue(l: mut Lowerer, c: mut Checker, p: Program, value: move Operan
     return opCopy(dest, ty)
 }
 
-fn stdFn(c: mut Checker, p: Program, module: str, name: str) int {
+/**
+ * A function of a std module, found by name.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param module the module's name, as `std.core.hash`
+ * @param name the function's name
+ * @returns its `DefId`; panics if the module or the function is missing
+ */
+pub fn stdFn(c: mut Checker, p: Program, module: str, name: str) int {
     for m in 0..p.modules.len() {
         if p.modules[m].name == module {
             let symbol = c.r.names.intern(name)
