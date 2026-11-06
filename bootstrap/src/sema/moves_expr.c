@@ -1,7 +1,7 @@
 // Move analysis of expressions and places (spec 5.1). Each expression is
 // walked as a *read*, which only uses its value (an argument of a borrowed
 // parameter, an operand, a condition), or as a *move*, which consumes it
-// (a `let`, a `move` parameter, a field of a literal, a return value).
+// (a `const`, a `move` parameter, a field of a literal, a return value).
 // Moving a place of a non-Copy type marks it moved; any later use of it,
 // or of a part of it, is E0600 until it is assigned again.
 

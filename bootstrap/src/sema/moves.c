@@ -188,7 +188,7 @@ static void moves_assign(Moves *m, Stmt *s, State *st) {
 }
 
 static void moves_let(Moves *m, Stmt *s, State *st) {
-    // `let _ = value` keeps nothing: the value is a temporary, dropped at once.
+    // `const _ = value` keeps nothing: the value is a temporary, dropped at once.
     bool keeps = s->as.let.pattern->kind != PAT_WILDCARD;
     moves_expr(m, s->as.let.value, st, keeps ? USE_MOVE : USE_READ);
     if (s->as.let.else_) {
