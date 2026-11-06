@@ -64,7 +64,8 @@ pub fn sequenceElem(c: Checker, ty: int) Option<int> {
         return Option.Some(t.inner)
     }
     let slice = c.r.langItems[4]
-    if slice != 0 && t.kind == TyKind.Adt && t.data == slice {
+    let sliceMut = c.r.langItems[7]
+    if t.kind == TyKind.Adt && t.data != 0 && (t.data == slice || t.data == sliceMut) {
         return Option.Some(t.args[0])
     }
     return listElem(c, ty)
@@ -450,6 +451,9 @@ fn arrayBehind(c: Checker, ty: int) int {
 pub fn coerceToSlice(c: mut Checker, p: Program, e: &Expr, found: int, expected: int) bool {
     let slice = c.r.langItems[4]
     let t = c.types.get(expected)
+    if t.kind == TyKind.Adt && t.data != 0 && t.data == c.r.langItems[7] {
+        return coerceToMutSlice(c, p, e, found, expected)
+    }
     if t.kind != TyKind.Adt || slice == 0 || t.data != slice {
         return false
     }
@@ -470,6 +474,46 @@ pub fn coerceToSlice(c: mut Checker, p: Program, e: &Expr, found: int, expected:
     }
     let list = c.r.langItems[1]
     if !hasMethod(c, p, list, asSlice) {
+        return false
+    }
+    c.sliceCoercions[c.module()].insert(e.id.0, elem)
+    c.setType(e.id.0, expected)
+    return true
+}
+
+/**
+ * `&mut list` or `&mut array` where a `&mut [T]` is expected (spec 2.12):
+ * `list.asMutSlice()`, or a mutable slice of the N elements.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param e the value
+ * @param found its type
+ * @param expected the `SliceMut<T>` expected
+ * @returns whether it was converted
+ */
+fn coerceToMutSlice(c: mut Checker, p: Program, e: &Expr, found: int, expected: int) bool {
+    let t = c.types.get(found)
+    if t.kind != TyKind.Ref || t.data == 0 {   // only a `&mut` converts
+        return false
+    }
+    let elem = c.types.get(expected).args[0]
+    let target = c.types.get(t.inner)
+    if target.kind == TyKind.Array {
+        if target.inner != elem {
+            return false
+        }
+        c.arrayCoercions[c.module()].insert(e.id.0, found)
+        c.setType(e.id.0, expected)
+        return true
+    }
+    let Option.Some(inner) = listElem(c, t.inner) else {
+        return false
+    }
+    let Option.Some(asMutSlice) = c.r.names.find("asMutSlice") else {
+        return false
+    }
+    if inner != elem || !hasMethod(c, p, c.r.langItems[1], asMutSlice) {
         return false
     }
     c.sliceCoercions[c.module()].insert(e.id.0, elem)
