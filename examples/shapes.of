@@ -19,7 +19,7 @@ fn main() {
         Shape.Empty,
     ]
 
-    var total = 0.0
+    let total = 0.0
     for shape in shapes {
         total += shape.area()
     }

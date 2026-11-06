@@ -2,7 +2,7 @@ import std.fs
 import std.os
 
 fn countWords(text: str) Map<str, int> {
-    var counts = Map<str, int>.new()
+    let counts = Map<str, int>.new()
     for word in text.splitWhitespace() {
         const key = word.toLower()
         const current = match counts.get(key) {

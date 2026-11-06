@@ -25,10 +25,10 @@ fn main() {
     // The stretch tree is a temporary: freed at the end of the statement.
     println("stretch tree of depth {maxDepth + 1}\t check: {check(make(maxDepth + 1))}")
     const longLived = make(maxDepth)
-    var depth = 4
+    let depth = 4
     for depth <= maxDepth {
         const iterations = 1 << (maxDepth - depth + 4)
-        var sum = 0
+        let sum = 0
         for _ in 0..iterations {
             const t = make(depth)
             sum += check(t)
