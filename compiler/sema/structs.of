@@ -88,6 +88,9 @@ pub fn isCopy(c: Checker, p: Program, ty: int) bool {
             if t.data == c.r.langItems[2] || t.data == c.r.langItems[3] {
                 return argsAreCopy(c, p, &t.args)
             }
+            if let Option.Some(members) = c.unionDefs.get(t.data) {
+                return isCopy(c, p, *members)   // a tuple of the members
+            }
             match itemOf(p, c.loc(t.data)).kind {
                 ItemKind.Struct(isCopyType, _, _, _, _, _) => isCopyType
                 ItemKind.Enum(isCopyType, _, _, _) => isCopyType

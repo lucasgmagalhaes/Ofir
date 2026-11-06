@@ -1,0 +1,45 @@
+// requires: stage1
+// `?` widens the error into the union the function returns (spec 17.3).
+
+struct IoError {
+    message: str
+}
+
+struct ParseError {
+    line: int
+}
+
+type LoadError = IoError | ParseError
+
+fn read(ok: bool) Result<int, IoError> {
+    if ok {
+        return Result.Ok(1)
+    }
+    return Result.Err(IoError{message: "missing".toOwned()})
+}
+
+fn parse(n: int) Result<int, ParseError> {
+    if n > 1 {
+        return Result.Err(ParseError{line: n})
+    }
+    return Result.Ok(n + 10)
+}
+
+fn load(ok: bool, extra: int) Result<int, LoadError> {
+    let n = read(ok)?
+    let m = parse(n + extra)?
+    return Result.Ok(m)
+}
+
+fn show(r: Result<int, LoadError>) {
+    match r {
+        Result.Ok(v) => println("ok {v}")
+        Result.Err(_) => println("error")
+    }
+}
+
+fn main() {
+    show(load(true, 0))
+    show(load(false, 0))
+    show(load(true, 5))
+}

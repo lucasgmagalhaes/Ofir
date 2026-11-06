@@ -38,6 +38,7 @@ import sema.check_types.compatible
 import sema.check_types.fnSignature
 import sema.check_types.resolveType
 import sema.check_types.sliceOf
+import sema.check_union.coerceToUnion
 import sema.check_unsafe.checkDeref
 import sema.check_unsafe.isUnsafeFn
 import sema.check_unsafe.pointerCast
@@ -670,7 +671,8 @@ pub fn coerce(c: mut Checker, p: Program, e: &Expr, expected: int) int {
     let hint = if boxesDyn(c, expected) { ERROR } else { expected }
     let found = checkExpr(c, p, e, hint)
     if !compatible(found, expected) {
-        if coerceToSlice(c, p, e, found, expected) || coerceToDyn(c, p, e, found, expected) {
+        if coerceToSlice(c, p, e, found, expected) || coerceToDyn(c, p, e, found, expected) ||
+           coerceToUnion(c, e, found, expected) {
             return expected
         }
         requireType(c, e, found, expected)
