@@ -1,0 +1,30 @@
+// requires: stage1
+// A union drops the member it holds (spec 17.3, 17.6).
+
+struct Noisy {
+    name: str
+
+    fn drop(mut self) {
+        println("drop {self.name}")
+    }
+}
+
+fn give(v: move Noisy | int) {
+    println("given")
+}
+
+fn keep() Noisy | int {
+    return Noisy{name: "kept"}
+}
+
+fn main() {
+    give(Noisy{name: "arg"})
+    give(3)
+    let k = keep()
+    var list: List<Noisy | int> = []
+    list.push(Noisy{name: "in list"})
+    list.push(1)
+    println("len {list.len()}")
+    let _moved = k
+    println("end")
+}
