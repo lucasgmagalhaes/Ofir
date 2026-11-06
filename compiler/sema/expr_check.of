@@ -57,6 +57,7 @@ import sema.types.ERROR
 import sema.types.F64
 import sema.types.FN_BORROWED
 import sema.types.FN_OWNED
+import sema.types.FN_SEND
 import sema.types.I64
 import sema.types.NEVER
 import sema.types.STR
@@ -222,8 +223,11 @@ fn fnValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
         return c.unsupported(span, "functions returning a borrow as values are")
     }
     let value = c.types.fnValueType(params.clone(), ret, false)
-    let owned = c.types.fnValueType(params, ret, true)
-    return if expected == owned { owned } else { value }
+    let owned = c.types.fnValueType(params.clone(), ret, true)
+    let send = c.types.fnValueTypeWith(params.clone(), ret, FN_OWNED | FN_SEND)
+    let lent = c.types.fnValueTypeWith(params, ret, FN_BORROWED | FN_SEND)
+    let fits = expected == owned || expected == send || expected == lent   // it captures nothing
+    return if fits { expected } else { value }
 }
 
 fn defValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
@@ -635,8 +639,9 @@ fn weakensPointer(c: Checker, found: int, expected: int) bool {
     let f = c.types.get(found)
     let x = c.types.get(expected)
     if f.kind == TyKind.Fn && x.kind == TyKind.Fn {   // `move fn(A) R` lends itself as `fn(A) R`
-        return f.data == FN_OWNED && x.data == FN_BORROWED && sameTypes(&f.args, &x.args) &&
-               f.inner == x.inner
+        let lends = f.data & FN_OWNED != 0 && x.data == FN_BORROWED   // or forgets `+ Send`
+        let forgets = f.data & FN_SEND != 0 && x.data == f.data - FN_SEND
+        return (lends || forgets) && sameTypes(&f.args, &x.args) && f.inner == x.inner
     }
     return f.kind == TyKind.Ptr && x.kind == TyKind.Ptr && f.data != 0 && x.data == 0 &&
            f.inner == x.inner
