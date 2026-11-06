@@ -1,0 +1,28 @@
+// requires: stage1
+// Key types (spec 16.1-16.3): E0340, E0341, E0342.
+
+struct Point {
+    x: float
+    y: float
+    id: int
+}
+
+type A = keyof int   // error[E0340]: `keyof` needs a struct or tuple type, found `int`
+type B = .x & int   // error[E0340]: `&` needs key types, found `int`
+type C = Point[int]   // error[E0340]: an indexed access type needs a key type, found `int`
+type D = int[.x]   // error[E0340]: an indexed access type needs a struct or tuple type, found `int`
+type E = Point[.z]   // error[E0341]: `Point` has no field `.z`
+type F = (int, str)[.2]   // error[E0341]: `(int, str)` has no field `.2`
+type G = Point[keyof Point - keyof Point]   // error[E0341]: `Point` has no field for the empty key type `keyof ()`
+type H = Point[keyof Point]   // error[E0342]: the fields of these keys have different types: `float` and `int`
+type I = int | str   // error[E0901]: union types are not supported yet
+
+fn use(a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H, i: I) {
+}
+
+fn main() {
+    let p = Point{x: 1.0, y: 2.0, id: 3}
+    let _: keyof Point - .id = 1   // error[E0300]: mismatched types: expected .x | .y, found int
+    let z = p[.z]   // error[E0316]: no field `z` on type `Point`
+    let _ = z
+}
