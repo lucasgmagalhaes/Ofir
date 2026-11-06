@@ -6,6 +6,12 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `let` declares a mutable binding and `const` an immutable one, in
+  functions and at module level; `if let` and `let ... else` are now
+  `if const` and `const ... else`. `var` is no longer a keyword (ADR 0031).
+
 ## [0.5.0] - 2026-11-06
 
 Milestone M5: every chapter of the specification not marked [planned] is
