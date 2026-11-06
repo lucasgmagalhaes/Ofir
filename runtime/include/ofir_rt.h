@@ -132,6 +132,27 @@ void ofir_channel_add_sender(void *ch);
 void ofir_channel_drop_sender(void *ch);        // the last one wakes the receiver
 void ofir_channel_close(void *ch);              // later sends fail
 void ofir_channel_drop_receiver(void *ch);      // after close and draining
+
+// Atomics, locks and wait groups (sync.c, spec 14.4). The atomics are
+// sequentially consistent.
+int64_t ofir_atomic_load(int64_t *p);
+void ofir_atomic_store(int64_t *p, int64_t value);
+int64_t ofir_atomic_fetch_add(int64_t *p, int64_t delta);   // the old value
+int64_t ofir_atomic_swap(int64_t *p, int64_t value);        // the old value
+bool ofir_atomic_compare_exchange(int64_t *p, int64_t expected, int64_t desired);
+void *ofir_mutex_new(void);
+void ofir_mutex_lock(void *m);
+void ofir_mutex_unlock(void *m);
+void ofir_mutex_free(void *m);
+void *ofir_rwlock_new(void);
+void ofir_rwlock_read(void *l);
+void ofir_rwlock_write(void *l);
+void ofir_rwlock_unlock(void *l);
+void ofir_rwlock_free(void *l);
+void *ofir_waitgroup_new(void);
+bool ofir_waitgroup_add(void *wg, int64_t delta);   // false if the count would go below 0
+void ofir_waitgroup_wait(void *wg);                 // until the count is 0
+void ofir_waitgroup_free(void *wg);
 void ofir_stdout_publish(void);     // this thread's pending line to the buffer
 int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run);
 char *ofir_c_string(const uint8_t *ptr, int64_t len);   // NULL if it holds a NUL
