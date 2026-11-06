@@ -218,6 +218,22 @@ release (bootstrap chain, `docs/bootstrap.md`).
 **M5** is reached when every chapter of the specification not marked
 **[planned]** is implemented and tested → release 0.5.
 
+### M5 check
+
+Every `ofir` example of chapters 1-13 was type-checked with stage 1 and
+every E0901 the compiler reports was compared with the specification.
+These gaps remain:
+
+| # | Gap | Spec | Done when |
+|---|-----|:----:|-----------|
+| 5.22a | An array literal whose elements need a coercion (`let grid: [u8; 4] = [0, 0, 0, 0]`) is typed `List<int>` | 2.7 | the example compiles; a run test covers it |
+| 5.22b | `T?` as shorthand for `Option<T>` | 2.6 | `tests/run` covers `T?` in parameters, results, fields and generics |
+| 5.22c | `&mut [T]`: mutable slices | 2.12 | writing through a mutable slice of a list and an array is tested |
+| 5.22d | Mutable globals (`var` at module level, accessed in `unsafe`) | 11.5 | reads and writes are tested; access outside `unsafe` is an error |
+| 5.22e | `str.toCString()` | 11.3 | the chapter's `strlen` example runs |
+| 5.22f | `@bench` and `ofir bench` with a `Bencher` | 12.3 | the chapter's example runs under `ofir bench` |
+| 5.22g | Chapter 12.1 still says the layout and linking attributes report E0901 | 12.1 | the note matches 5.11c-5.11e |
+
 ## Phase 6 — Towards 1.0
 
 | # | Task | Size |
