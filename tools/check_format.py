@@ -22,6 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ["std", "tests", "examples", "bench", "compiler"]
+FMT_TESTS = ROOT / "tests" / "fmt"
 DOCS = ["docs", "README.md", "bench/README.md", "std/README.md"]
 
 STATEMENT_START = re.compile(
@@ -229,6 +230,8 @@ def main() -> int:
     fix = "--fix" in sys.argv[1:]
     problems = []
     files = sorted(p for d in SOURCES if (ROOT / d).exists() for p in (ROOT / d).rglob("*.of"))
+    # The inputs of the `fmt` tests are badly formatted on purpose.
+    files = [p for p in files if FMT_TESTS not in p.parents]
     for path in files:
         if fix:
             fix_file(path)
