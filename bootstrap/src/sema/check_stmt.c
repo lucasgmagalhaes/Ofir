@@ -62,7 +62,7 @@ static void check_place(Checker *c, Expr *target) {
         StrView local = local_name(c, (LocalId){res.index});
         check_error(c, "E0304", target->span,
                     "cannot assign twice to immutable variable `" SV_FMT "`", SV_ARG(local));
-        diag_help(&c->sema->session->diags, "declare it with `var " SV_FMT "` to assign to it "
+        diag_help(&c->sema->session->diags, "declare it with `let " SV_FMT "` to assign to it "
                   "again", SV_ARG(local));
     } else if (res.kind == RES_DEF && sema_def(c->sema, (DefId){res.index})->kind != DEF_GLOBAL) {
         check_error(c, "E0304", target->span, "cannot assign to `" SV_FMT "`",
