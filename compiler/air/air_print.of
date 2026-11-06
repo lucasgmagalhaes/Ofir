@@ -287,6 +287,7 @@ pub struct AirPrinter {
                                                Option.Some(&rv.b))
             RvalueKind.DynFn => self.operands(c, "dyn_fn {rv.flag}", &rv.a, Option.None)
             RvalueKind.TypeId => self.operands(c, "type_id", &rv.a, Option.None)
+            RvalueKind.GlobalAddr => self.out.push("global_addr {c.text(c.def(rv.flag).name)}")
             RvalueKind.Aggregate => {
                 self.out.push("\{")
                 for i in 0..rv.items.len() {
