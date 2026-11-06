@@ -1,0 +1,17 @@
+import std.io
+import std.fmt
+
+fn add( a:int,b : int ) int {
+  return a+b*2
+}
+
+fn main() {
+    let xs = [1,2 , 3]
+    let n = -xs[0] + xs . len()
+    var total=0
+    total+=add(n , 1)
+    if total>=2&&n<=3 { println("{total}") }
+    let p = &xs
+    let v = if n > 0 { n } else { -n }
+    println("{v} {p.len()}")
+}
