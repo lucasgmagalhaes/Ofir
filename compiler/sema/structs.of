@@ -22,6 +22,7 @@ import sema.program.Program
 import sema.types.ERROR
 import sema.types.FN_OWNED
 import sema.types.I64
+import sema.types.KeyFields
 import sema.types.STR
 import sema.types.TyKind
 import sema.types.U8
@@ -97,6 +98,7 @@ pub fn isCopy(c: Checker, p: Program, ty: int) bool {
         TyKind.Array => isCopy(c, p, t.inner)
         TyKind.Param => paramBounds(c, ty) & BOUND_COPY != 0
         TyKind.Str | TyKind.Slice => false
+        TyKind.Index => false   // `T[K]`: not known before the instance
         TyKind.Fn => t.data != FN_OWNED   // a `move fn` owns its captured values
         _ => true
     }
@@ -339,6 +341,17 @@ pub fn structFields(c: mut Checker, p: Program, id: int) bool {
     c.enterGenerics(outer)
     c.selfType = savedSelf
     c.enter(saved)
+    if !c.def(id).lang {
+        var names: List<int> = []
+        var pubs: List<bool> = []
+        for i in 0..info.names.len() {
+            names.push(info.names[i].0)
+            pubs.push(fieldDeclAt(p, c.loc(id), i).isPub)
+        }
+        let module = c.def(id).module
+        c.types.setFields(id, KeyFields{module, isTuple: info.isTuple, names, pubs,
+                                        types: info.types.clone()})
+    }
     c.info[id].fields = Option.Some(Box.new(info))
     return true
 }
