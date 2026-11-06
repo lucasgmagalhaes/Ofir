@@ -150,3 +150,4 @@ fn merge<T>(base: T, patch: Partial<T>) T {
 | E0342 | the fields of these keys have different types |
 | E0343 | a key must be known at compile time |
 | E0344 | the condition of a conditional type is not decided for this instantiation |
+| E0345 | `infer` is only allowed in the pattern of a conditional type |
