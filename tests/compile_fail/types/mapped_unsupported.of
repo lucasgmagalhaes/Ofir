@@ -1,10 +1,8 @@
 // requires: stage1
-// Mapped types that later steps of roadmap 5.18 support: E0901.
+// Mapped types that later roadmap steps support: E0901.
 struct Point {
     x: float
 }
 type Partial<T> = { [K in keyof T]?: T[K] }   // error[E0901]: mapped types over type parameters are not supported yet
-type Only<T> = { [K in keyof T if T[K] is float]: T[K] }   // error[E0901]: filters of mapped types are not supported yet
 fn generic<T>(p: Partial<T>) {}
 fn inline(p: { [K in .a]: int }) {}   // error[E0901]: mapped types outside a type alias are not supported yet
-fn filtered(p: Only<Point>) {}
