@@ -12,8 +12,8 @@ fn holder(c: boxes.Cell<int>) int {
 }
 
 fn main() {
-    let a = boxes.wrapped(Point{y: "local"}).get()
-    let b = boxes.wrapped(boxes.Point{x: 7}).get()
+    const a = boxes.wrapped(Point{y: "local"}).get()
+    const b = boxes.wrapped(boxes.Point{x: 7}).get()
     println("{a.y} {b.x}")
     println("{holder(boxes.Cell.new(3))} {holder(boxes.Cell<int>{value: 4})}")
 }

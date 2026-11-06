@@ -10,8 +10,8 @@ struct Pair {
 }
 
 fn main() {
-    let data = [1, 2, 3]
-    let handle = task.run(move () int => {
+    const data = [1, 2, 3]
+    const handle = task.run(move () int => {
         var sum = 0
         for x in data {
             sum += x
@@ -28,11 +28,11 @@ fn main() {
         total += handles.pop().unwrap().join()
     }
     println("{total}")
-    let name = "ofir".toOwned()
-    let p = task.run(move () Pair => Pair{a: name.len(), b: "{name}!"})
-    let r = p.join()
+    const name = "ofir".toOwned()
+    const p = task.run(move () Pair => Pair{a: name.len(), b: "{name}!"})
+    const r = p.join()
     println("{r.a} {r.b}")
-    let done = task.run(move () => println("in a task"))
+    const done = task.run(move () => println("in a task"))
     done.join()
     println("end")
 }

@@ -34,11 +34,11 @@ fn main() {
     second.count += 5
     second.name += " (copy)"
     println("{first.name}: {first.count}, {second.name}: {second.count}")
-    let red = Rgb(255, 0, 0)
-    let pink = brighter(red)
+    const red = Rgb(255, 0, 0)
+    const pink = brighter(red)
     println("{red.0} {red.1} {pink.1}")
-    let p = Pixel{at: Position{x: 1, y: 2}, color: red}
-    let q = moved(moved(p, 10), 5)
+    const p = Pixel{at: Position{x: 1, y: 2}, color: red}
+    const q = moved(moved(p, 10), 5)
     println("{p.at.x} {q.at.x} {q.at.y} {q.color.0}")
     println("{make("x").count} {Position{x: 3, y: 4}.y}")
     var grid = Pixel{at: Position{x: 0, y: 0}, color: Rgb(0, 0, 0)}

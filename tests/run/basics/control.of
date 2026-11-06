@@ -14,10 +14,10 @@ fn trace(name: str, value: bool) bool {
 
 fn main() {
     println("{sign(5)} {sign(-3)} {sign(0)}")
-    let parity = if 7 % 2 == 0 { "even" } else { "odd" }
+    const parity = if 7 % 2 == 0 { "even" } else { "odd" }
     println(parity)
-    let block = {
-        let inner = 20
+    const block = {
+        const inner = 20
         inner + 1
     }
     println("{block}")

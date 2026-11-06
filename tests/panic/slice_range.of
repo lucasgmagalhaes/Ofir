@@ -1,6 +1,6 @@
 // panic: range 2..5 is out of bounds for a length of 3
 fn main() {
-    let xs = [1, 2, 3]
-    let hi = 5
-    let s = xs[2..hi]
+    const xs = [1, 2, 3]
+    const hi = 5
+    const s = xs[2..hi]
 }

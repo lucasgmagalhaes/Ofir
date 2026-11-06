@@ -26,11 +26,11 @@ fn twice(f: fn() int + Send) int {
 }
 
 fn main() {
-    let job = Job{name: "job".toOwned(), sizes: [1, 2, 3], shape: Box.new(Shape.Rect(2, 5))}
-    let t = task.run(move () int => {
+    const job = Job{name: "job".toOwned(), sizes: [1, 2, 3], shape: Box.new(Shape.Rect(2, 5))}
+    const t = task.run(move () int => {
         var sum = 0
         for x in job.sizes {
-            sum += x
+              sum += x
         }
         println("{job.name}: {job.shape:?}")
         return sum
@@ -38,13 +38,13 @@ fn main() {
     println("{t.join()}")
     var counts: Map<str, int> = Map.new()
     counts.insert("a", 1)
-    let m = task.run(move () int => counts.len())
+    const m = task.run(move () int => counts.len())
     println("{m.join()}")
-    let back = later([4, 5])
+    const back = later([4, 5])
     println("{back.join()}")
-    let n = 21
+    const n = 21
     println("{twice(() int => n)}")
-    let f: move fn() int + Send = move () int => n + 1
-    let g: move fn() int = f
+    const f: move fn() int + Send = move () int => n + 1
+    const g: move fn() int = f
     println("{g()}")
 }

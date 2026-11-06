@@ -5,9 +5,9 @@ fn returnsInt() int {
 }
 
 fn annotations() {
-    let a: int = "x"      // error[E0300]: mismatched types: expected int, found str
+    const a: int = "x"      // error[E0300]: mismatched types: expected int, found str
     var b: bool = 1       // error[E0300]: mismatched types: expected bool, found int
-    let c: str = true     // error[E0300]: mismatched types: expected str, found bool
+    const c: str = true     // error[E0300]: mismatched types: expected str, found bool
 }
 
 fn arguments() {
@@ -16,8 +16,8 @@ fn arguments() {
 }
 
 fn operands(n: int, small: u8) {
-    let a = n + small     // error[E0300]: mismatched types: expected int, found u8
-    let b = n + "1"       // error[E0300]: mismatched types: expected int, found str
+    const a = n + small     // error[E0300]: mismatched types: expected int, found u8
+    const b = n + "1"       // error[E0300]: mismatched types: expected int, found str
 }
 
 fn conditions(n: int) {
@@ -28,9 +28,9 @@ fn conditions(n: int) {
 }
 
 fn branches(flag: bool) {
-    let value = if flag { 1 } else { "one" }   // error[E0353]: the branches have different types, `int` and `str`: write the union type expected
-    let typed: int = if flag { 1 } else { "one" }   // error[E0300]: mismatched types: expected int, found str
-    let arm = match flag {
+    const value = if flag { 1 } else { "one" }   // error[E0353]: the branches have different types, `int` and `str`: write the union type expected
+    const typed: int = if flag { 1 } else { "one" }   // error[E0300]: mismatched types: expected int, found str
+    const arm = match flag {
         true => 1
         false => true   // error[E0353]: the branches have different types, `int` and `bool`: write the union type expected
     }

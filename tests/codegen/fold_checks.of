@@ -6,9 +6,9 @@
 // CHECK-NOT: call void @ofir_panic_shift(
 // CHECK: call void @ofir_panic_cast(
 fn f(a: int) int {
-    let b = a / 4
-    let c = a << 3
-    let _e = 300 as u8
+    const b = a / 4
+    const c = a << 3
+    const _e = 300 as u8
     return b + c
 }
 

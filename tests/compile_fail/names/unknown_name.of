@@ -3,5 +3,5 @@ fn main() {
 }
 
 fn other() {
-    let total = count + 1   // error[E0200]: cannot find `count` in this scope
+    const total = count + 1   // error[E0200]: cannot find `count` in this scope
 }

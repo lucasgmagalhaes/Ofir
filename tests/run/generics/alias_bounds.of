@@ -11,7 +11,7 @@ fn wrap<A, B: Clone>(unused: A, value: move B) Value<B> {
 }
 
 fn main() {
-    let a: Value<int> = Boxed{value: 3}
-    let b = wrap(0, "bounds")
+    const a: Value<int> = Boxed{value: 3}
+    const b = wrap(0, "bounds")
     println("{a.value} {b.value}")
 }

@@ -23,8 +23,8 @@ fn produce(tx: move Sender<int>, from: int) task.Task<()> {
 }
 
 fn one() {
-    let (tx, rx) = channel<int>()
-    let t = task.run(move () => tx.send(42))
+    const (tx, rx) = channel<int>()
+    const t = task.run(move () => tx.send(42))
     println("{rx.recv().unwrap()}")
     t.join()
     println("{rx.recv().isNone()}")
@@ -32,9 +32,9 @@ fn one() {
 
 // Two senders; the values of each arrive in order.
 fn many() {
-    let (tx, rx) = channel<int>()
-    let a = produce(tx.clone(), 0)
-    let b = produce(tx, 10)
+    const (tx, rx) = channel<int>()
+    const a = produce(tx.clone(), 0)
+    const b = produce(tx, 10)
     var sum = 0
     var count = 0
     for _ in 0..6 {
@@ -47,17 +47,17 @@ fn many() {
 }
 
 fn owned() {
-    let (tx, rx) = channel<str>()
+    const (tx, rx) = channel<str>()
     tx.send("one".toOwned())
     tx.send("two".toOwned())
     println("{rx.tryRecv().unwrap()}")
-    let rest = rx.recv().unwrap()
+    const rest = rx.recv().unwrap()
     println(rest)
 }
 
 // Dropping the receiver drops what it never took; later sends drop theirs.
 fn dropped() {
-    let (tx, rx) = channel<Noisy>()
+    const (tx, rx) = channel<Noisy>()
     tx.send(Noisy{n: 1})
     tx.send(Noisy{n: 2})
     discard(rx)

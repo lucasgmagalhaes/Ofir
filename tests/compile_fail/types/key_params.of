@@ -28,9 +28,9 @@ fn loose<T, K: .x>(value: &T, key: K) float {
 }
 
 fn main() {
-    let p = Point{x: 1.0, y: 2.0, id: 3}
-    let k: .x = .x
-    let _ = get(&p, k)   // error[E0343]: a key must be known at compile time: pass a key literal, as `.x`, or a key parameter
-    let _ = get(&p, .z)   // error[E0332]: the key `.z` is not in the bound `.x | .y | .id` of `K`
-    let _ = coord(&p, .id)   // error[E0332]: the key `.id` is not in the bound `.x | .y` of `K`
+    const p = Point{x: 1.0, y: 2.0, id: 3}
+    const k: .x = .x
+    const _ = get(&p, k)   // error[E0343]: a key must be known at compile time: pass a key literal, as `.x`, or a key parameter
+    const _ = get(&p, .z)   // error[E0332]: the key `.z` is not in the bound `.x | .y | .id` of `K`
+    const _ = coord(&p, .id)   // error[E0332]: the key `.id` is not in the bound `.x | .y` of `K`
 }

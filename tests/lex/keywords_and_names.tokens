@@ -5,11 +5,11 @@
 1:13 )
 1:15 {
 1:16 newline
-2:5 let
-2:9 ident type
-2:14 =
-2:16 ident move
-2:20 newline
+2:5 const
+2:11 ident type
+2:16 =
+2:18 ident move
+2:22 newline
 3:5 var
 3:9 ident x
 3:10 :

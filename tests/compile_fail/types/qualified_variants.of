@@ -40,7 +40,7 @@ fn barePattern(o: Option<int>) int {
 }
 
 fn bareLet(r: Result<int, str>) int {
-    if let Ok(n) = r {            // error[E0326]: a variant is named through its enum: write `Result.Ok`
+    if const Ok(n) = r {            // error[E0326]: a variant is named through its enum: write `Result.Ok`
         return n
     }
     return 0

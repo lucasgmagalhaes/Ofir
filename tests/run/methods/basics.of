@@ -63,7 +63,7 @@ fn main() {
     println("{c.label()} {c.value()}")
     c.reset()
     println(c.label())
-    let v = Vec2{x: 3.0, y: 4.0}
+    const v = Vec2{x: 3.0, y: 4.0}
     println("{v.length()} {v.add(v).scaled(0.5).x} {v.scaled(2.0).length()}")
     println("{Meters(1500.0).km()}")
     var n = 1
@@ -93,6 +93,6 @@ struct Size {
 }
 
 fn sizes() {
-    let s = Size.square(3).doubled()
+    const s = Size.square(3).doubled()
     println("{s.w}x{s.h}")
 }

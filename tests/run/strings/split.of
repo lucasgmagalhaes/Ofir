@@ -20,12 +20,12 @@ fn main() {
     }
     println("{sum} [{"  hi \n".trim()}] {"a-b-c".replace("-", ", ")} {"key=value".find("=") ?? -1}")
     var parts = "x=1=2".split("=")
-    let key = parts.next() ?? ""
+    const key = parts.next() ?? ""
     for rest in parts {
         print("{key}:{rest} ")
     }
     println("")
-    let text = "hello world".toOwned()
+    const text = "hello world".toOwned()
     var count = 0
     for w in text.splitWhitespace() {
         if w.len() > 0 {

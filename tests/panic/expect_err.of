@@ -4,5 +4,5 @@ fn load() Result<str, int> {
 }
 
 fn main() {
-    let text = load().expect("no config file")
+    const text = load().expect("no config file")
 }

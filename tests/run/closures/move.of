@@ -40,41 +40,41 @@ fn run(f: move fn() int) int {
 }
 
 fn main() {
-    let greet = makeGreeter("ofir".toOwned())
+    const greet = makeGreeter("ofir".toOwned())
     println(greet())
-    let add = makeAdder(5)
+    const add = makeAdder(5)
     println("{add(2)}")
-    let e = noisy("e")
-    let size = move () int => e.name.len()
+    const e = noisy("e")
+    const size = move () int => e.name.len()
     println("{run(size)}")
-    let none: move fn() int = () => 3
+    const none: move fn() int = () => 3
     println("{none()}")
-    let a = noisy("a")
-    let b = Button{label: "ok".toOwned(), handler: move () int => a.name.len() + 40}
+    const a = noisy("a")
+    const b = Button{label: "ok".toOwned(), handler: move () int => a.name.len() + 40}
     println(b.label)
     var list: List<move fn() int> = []
     for i in 0..3 {
-        let n = noisy("n{i}")
+        const n = noisy("n{i}")
         list.push(move () int => n.name.len() * 10 + i)
     }
     for i in 0..list.len() {
         println("{(list[i])()}")
     }
-    let c = noisy("c")
-    let f = move () int => c.name.len()
+    const c = noisy("c")
+    const f = move () int => c.name.len()
     if list.len() > 5 {
         consume(f)
     }
     println("after if")
-    let h = compose(move (x: int) int => x + 1, move (x: int) int => x * 3)
+    const h = compose(move (x: int) int => x + 1, move (x: int) int => x * 3)
     println("{h(4)}")
-    let d = noisy("d")
-    let outer = move () int => {
-        let inner = () int => d.name.len() + 100
+    const d = noisy("d")
+    const outer = move () int => {
+        const inner = () int => d.name.len() + 100
         inner()
     }
     println("{outer()}")
-    let g2 = outer
+    const g2 = outer
     println("{g2()}")
     println("end")
 }

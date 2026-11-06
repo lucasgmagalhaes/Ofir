@@ -1,5 +1,5 @@
 // panic: integer overflow
 fn main() {
-    let x: i8 = -128
+    const x: i8 = -128
     println("{x.abs()}")
 }

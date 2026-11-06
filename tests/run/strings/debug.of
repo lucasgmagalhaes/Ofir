@@ -27,25 +27,25 @@ fn show<T: Debug>(value: T) {
 }
 
 fn main() {
-    let n = 42
-    let s = "a\"b\n\tc"
+    const n = 42
+    const s = "a\"b\n\tc"
     println("{n:?} {s:?} {true:?} {1.5:?}")
-    let p = Point{x: 1, y: 2}
+    const p = Point{x: 1, y: 2}
     println("{p:?}")
-    let m = Meters(5)
+    const m = Meters(5)
     println("{m:?}")
-    let e = Empty{}
+    const e = Empty{}
     println("{e:?}")
-    let t = (1, "x")
-    let one = (7,)
+    const t = (1, "x")
+    const one = (7,)
     println("{t:?} {one:?}")
-    let a = Shape.Circle(2.5)
-    let b = Shape.Rect(3, 4)
-    let c = Shape.Dot
+    const a = Shape.Circle(2.5)
+    const b = Shape.Rect(3, 4)
+    const c = Shape.Dot
     println("{a:?} {b:?} {c:?}")
-    let o: Option<int> = Option.Some(3)
+    const o: Option<int> = Option.Some(3)
     println("{o:?}")
-    let k = Secret{code: 7}
+    const k = Secret{code: 7}
     println("{k:?}")
     show(p)
     show("hi")
@@ -53,24 +53,24 @@ fn main() {
 }
 
 fn more() {
-    let xs = [1, 2, 3]
-    let names = ["a", "b"]
-    let nested = [[1], [], [2, 3]]
-    let bx = Box.new(Point{x: 5, y: 6})
-    let ops: List<Option<int>> = [Option.Some(1), Option.None]
-    let r = &xs
+    const xs = [1, 2, 3]
+    const names = ["a", "b"]
+    const nested = [[1], [], [2, 3]]
+    const bx = Box.new(Point{x: 5, y: 6})
+    const ops: List<Option<int>> = [Option.Some(1), Option.None]
+    const r = &xs
     println("{xs:?} {names:?} {nested:?} {bx:?} {ops:?} {r:?}")
-    let empty: List<int> = []
+    const empty: List<int> = []
     println("{empty:?} {():?}")
-    let s = "{xs:?}!"
+    const s = "{xs:?}!"
     println(s)
     var m: Map<str, List<int>> = Map.new()
     m.insert("a", [1])
     m.insert("b", [])
     println("{m:?}")
-    let leaf = Box.new(Tree.Leaf)
-    let right = Tree.Node(Box.new(Tree.Leaf), 2, Box.new(Tree.Leaf))
-    let tree = Tree.Node(leaf, 1, Box.new(right))
+    const leaf = Box.new(Tree.Leaf)
+    const right = Tree.Node(Box.new(Tree.Leaf), 2, Box.new(Tree.Leaf))
+    const tree = Tree.Node(leaf, 1, Box.new(right))
     println("{tree:?} {"\x01\x7f\r\0\\":?}")
 }
 

@@ -92,7 +92,7 @@ fn main() {
     println("{total(c)}")
     var w = Words{items: ["a", "b", "c"], at: 0}
     println("{count(w)}")
-    let m = Meters.make(3)
+    const m = Meters.make(3)
     println("{m.value}")
     var u = Up{n: 0, max: 4}
     println("{total(u)}")

@@ -3,6 +3,6 @@ fn main() {
     var s = "a"
     s.pushChar(0)
     s.push("b")
-    let c = s.toCString()
+    const c = s.toCString()
     println("{c.len()}")
 }

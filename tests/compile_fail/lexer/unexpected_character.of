@@ -1,4 +1,4 @@
 fn main() {
-    let x = 1 $ 2   // error[E0001]: unexpected character
-    let é = 3       // error[E0001]: unexpected character
+    const x = 1 $ 2   // error[E0001]: unexpected character
+    const é = 3       // error[E0001]: unexpected character
 }

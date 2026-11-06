@@ -21,7 +21,7 @@ fn main() {
     println("{ages.remove("ana") ?? -1} {ages.remove("zed") ?? -1} {ages.contains("ana")}")
     ages.insert("ana", 32)
     println(show(ages))
-    if let Option.Some(age) = ages.getMut("cy") {
+    if const Option.Some(age) = ages.getMut("cy") {
         *age += 1
     }
     println("{*ages.get("cy").unwrap()}")
@@ -37,7 +37,7 @@ fn main() {
         squares.insert(i, i * i)
     }
     for i in 0..500 {
-        let _ = squares.remove(i * 2)
+        const _ = squares.remove(i * 2)
     }
     var sum = 0
     for k, v in squares {

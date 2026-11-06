@@ -61,8 +61,8 @@ fn main() {
     narrow(IoError{path: "b"})
     narrow(NetError{code: 2})
     narrow(ParseError{line: 2})
-    let err: LoadError = ParseError{line: 9}
-    if let e: ParseError = err {
+    const err: LoadError = ParseError{line: 9}
+    if const e: ParseError = err {
         println("if let {e.line}")
     }
 }

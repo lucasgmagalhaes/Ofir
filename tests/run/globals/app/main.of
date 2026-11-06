@@ -29,7 +29,7 @@ fn main() {
         RATE = RATE * 2.0
         ON = !ON
         BIG -= 1
-        let p = &mut HITS
+        const p = &mut HITS
         *p += 1
         println("{HITS} {RATE} {ON} {BIG}")
         reset()

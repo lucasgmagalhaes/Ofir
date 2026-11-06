@@ -9,8 +9,8 @@ fn main() {
     }
     var it = xs.iter()
     xs.push(3)                  // error[E0701]: cannot borrow `xs` as mutable because it is also borrowed as shared by `it`
-    let _y = it.next()
+    const _y = it.next()
     var later = xs.iter()
-    let _z = later.next()
+    const _z = later.next()
     xs.push(4)
 }

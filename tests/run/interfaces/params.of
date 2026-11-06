@@ -92,10 +92,10 @@ struct Board {
 
 fn main() {
     var r = Rect{w: 2, h: 3}
-    let q = Square{side: 4}
+    const q = Square{side: 4}
     println(describe(r))
     println(describe(q))
-    let rects = [Rect{w: 1, h: 1}, Rect{w: 2, h: 2}]
+    const rects = [Rect{w: 1, h: 1}, Rect{w: 2, h: 2}]
     println("{total(rects)}")
     println(bigger(r, q))
     enlarge(r, 5)

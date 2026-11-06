@@ -20,27 +20,27 @@ fn pick(f: fn(int) int) fn(int) int {   // error[E0702]: a function cannot retur
 }
 
 fn innerBlock() {
-    let a = [1]
+    const a = [1]
     var r = &a
     {
-        let b = [2, 3]
+        const b = [2, 3]
         r = &b                  // error[E0706]: `b` does not live long enough: it is dropped at the end of its block while still borrowed by `r`
     }
     println("{r.len()}")
 }
 
 fn eachIteration() {
-    let a = [1]
+    const a = [1]
     var r = &a
     for i in 0..3 {
         println("{r.len()}")
-        let b = [i]
+        const b = [i]
         r = &b                  // error[E0706]: `b` does not live long enough: it is dropped at the end of its block while still borrowed by `r`
     }
 }
 
 fn loopVariable() {
-    let a = 0
+    const a = 0
     var r = &a
     for i in 0..3 {
         r = &i                  // error[E0706]: `i` does not live long enough: it is dropped at the end of its block while still borrowed by `r`
@@ -49,10 +49,10 @@ fn loopVariable() {
 }
 
 fn breakOut() {
-    let a = [1]
+    const a = [1]
     var r = &a
     for i in 0..3 {
-        let b = [i]
+        const b = [i]
         r = &b                  // error[E0706]: `b` does not live long enough: it is dropped at the end of its block while still borrowed by `r`
         break
     }
@@ -60,8 +60,8 @@ fn breakOut() {
 }
 
 fn blockValue() {
-    let r = {
-        let b = [1]
+    const r = {
+        const b = [1]
         &b                      // error[E0706]: `b` does not live long enough: the value of its block borrows it
     }
     println("{r.len()}")

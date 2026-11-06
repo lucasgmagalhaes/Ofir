@@ -27,7 +27,7 @@ fn total(xs: List<int>) int {
 // A borrow lasts until the last use of the reference.
 fn lastUse() {
     var list = [1, 2, 3]
-    let r = &list
+    const r = &list
     println("{r.len()}")
     list.push(4)
 }
@@ -46,7 +46,7 @@ fn disjointFields() {
     var lx = Lexer{interpolations: [], brackets: [1]}
     lx.interpolations.push(lx.brackets.len())
     var pair = Pair{a: [1], b: [2]}
-    let r = &pair.a
+    const r = &pair.a
     pair.b.push(3)
     println("{r.len()}")
 }
@@ -66,7 +66,7 @@ fn breakAfterPush() {
 // The reference is used on one branch, the list modified on the other.
 fn branches(flag: bool) {
     var list = [1, 2, 3]
-    let r = &list
+    const r = &list
     if flag {
         println("{r.len()}")
     } else {
@@ -87,9 +87,9 @@ fn reassigned() {
 
 // Shared borrows may overlap.
 fn shared() {
-    let list = [1, 2, 3]
-    let r = &list
-    let s = &list
+    const list = [1, 2, 3]
+    const r = &list
+    const s = &list
     println("{total(list)} {r.len()} {s.len()}")
 }
 
@@ -97,7 +97,7 @@ fn shared() {
 fn eachIteration() {
     var list = [1, 2, 3]
     for i in 0..3 {
-        let r = &list
+        const r = &list
         println("{r.len()} {i}")
         list.push(i)
     }
@@ -106,8 +106,8 @@ fn eachIteration() {
 // A result that holds no reference does not borrow.
 fn copied() {
     var list = [1, 2, 3]
-    let n = list.len()
-    let first = match list.first() {
+    const n = list.len()
+    const first = match list.first() {
         Option.Some(x) => *x
         Option.None => 0
     }

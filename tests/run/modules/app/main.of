@@ -5,10 +5,10 @@ import geometry.shapes.Kind
 import util as u
 
 fn main() {
-    let c = Circle{radius: 2.0}
-    let s = shapes.Square.new(3.0)
+    const c = Circle{radius: 2.0}
+    const s = shapes.Square.new(3.0)
     println("{shapes.area(c)} {s.area()} {u.twice(21)} {u.LIMIT}")
-    let kind = shapes.Kind.Round
+    const kind = shapes.Kind.Round
     println("{shapes.describe(kind)} {shapes.describe(Kind.Angular)}")
     println("{geometry.unitArea()}")
 }

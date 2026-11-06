@@ -12,10 +12,10 @@ fn maybe(f: Option<fn(int)>) {
 
 // A borrow of an inner local that is not used after its block.
 fn innerBlock() {
-    let a = [1]
+    const a = [1]
     var r = &a
     {
-        let b = [2, 3]
+        const b = [2, 3]
         r = &b
         println("{r.len()}")
     }
@@ -26,17 +26,17 @@ fn innerBlock() {
 // A reference made and used in each iteration.
 fn eachIteration() {
     for i in 0..3 {
-        let b = [i]
-        let r = &b
+        const b = [i]
+        const r = &b
         println("{r.len()}")
     }
 }
 
 // A block whose value copies out of a local of the block.
 fn blockValue() {
-    let n = {
-        let b = [1, 2]
-        let r = &b
+    const n = {
+        const b = [1, 2]
+        const r = &b
         r.len()
     }
     println("{n}")

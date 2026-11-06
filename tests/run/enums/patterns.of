@@ -50,22 +50,22 @@ fn quadrant(p: Point) str {
 }
 
 fn main() {
-    let tokens = (Token.Number(0), Token.Number(-3), Token.Number(7), Token.Word("hi"))
+    const tokens = (Token.Number(0), Token.Number(-3), Token.Number(7), Token.Word("hi"))
     println("{describe(tokens.0)}, {describe(tokens.1)}, {describe(tokens.2)}, {describe(tokens.3)}")
     println("{describe(Token.Word("x"))}, {describe(Token.Pair(0, 5))}, {describe(Token.Pair(2, 3))}, {describe(Token.End)}")
     println("{eval(Expr.Literal(4))} {eval(Expr.Negate(Token.Number(5)))} {eval(Expr.Add(Token.Number(1), Token.Number(2)))} {eval(Expr.Negate(Token.End))}")
     println("{quadrant(Point{x: 0, y: 0})} {quadrant(Point{x: 0, y: 3})} {quadrant(Point{x: 2, y: 2})} {quadrant(Point{x: -1, y: 2})}")
-    let id = UserId(42)
-    let UserId(raw) = id
-    let Point{x, y: height} = Point{x: 7, y: 8}
-    let (first, (second, third)) = (1, (2.5, "three"))
+    const id = UserId(42)
+    const UserId(raw) = id
+    const Point{x, y: height} = Point{x: 7, y: 8}
+    const (first, (second, third)) = (1, (2.5, "three"))
     println("{raw} {x} {height} {first} {second} {third}")
-    let flag = true
+    const flag = true
     match flag {
         true => println("yes")
         false => println("no")
     }
-    let grade = match 85 {
+    const grade = match 85 {
         90..=100 => "A"
         80..90 => "B"
         _ => "C"

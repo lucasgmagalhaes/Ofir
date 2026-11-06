@@ -42,7 +42,7 @@ struct Holder {
 }
 
 fn main() {
-    let p = Point{x: 1}
-    let s: &dyn Shape = &p      // error[E0300]: mismatched types: expected &dyn Shape, found &Point: missing method `area`
-    let q: &dyn Shape = &Square{side: 2}
+    const p = Point{x: 1}
+    const s: &dyn Shape = &p      // error[E0300]: mismatched types: expected &dyn Shape, found &Point: missing method `area`
+    const q: &dyn Shape = &Square{side: 2}
 }

@@ -8,9 +8,9 @@
 // CHECK: call void @ofir_panic_cast(
 // CHECK: trunc i64
 fn checks(small: u8, d: u32, n: int) {
-    let a = small + 1
-    let b = 100 / d
-    let c = n as i16
+    const a = small + 1
+    const b = 100 / d
+    const c = n as i16
 }
 
 fn main() {

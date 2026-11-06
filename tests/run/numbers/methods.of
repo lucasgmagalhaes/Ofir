@@ -1,18 +1,18 @@
 fn main() {
-    let a: u8 = 250
+    const a: u8 = 250
     println("{a.wrappingAdd(10)} {a.wrappingSub(255)} {a.wrappingMul(2)}")
-    let n = -7
+    const n = -7
     println("{n.abs()} {n.min(3)} {n.max(3)} {n.clamp(-5, 5)} {20.clamp(-5, 5)}")
     println("{2.pow(10)} {3.pow(0)} {(-2).pow(3)} {10.pow(18)}")
-    let big = 300
+    const big = 300
     println("{big.wrappingCast<u8>()} {big.saturatingCast<u8>()} {(-1).wrappingCast<u8>()}")
     println("{(-300).saturatingCast<i8>()} {big.saturatingCast<i64>()} {(-5).saturatingCast<u32>()}")
-    let u: u64 = 18446744073709551615
+    const u: u64 = 18446744073709551615
     println("{u.saturatingCast<i64>()} {u.wrappingCast<i32>()}")
     println("{i8.MIN} {i8.MAX} {u16.MAX} {int.MIN} {uint.MAX}")
-    let x = 2.0
+    const x = 2.0
     println("{x.sqrt()} {(-1.5).abs()} {2.7.floor()} {2.1.ceil()} {x.min(1.5)} {x.max(1.5)}")
-    let nan = float.NAN
+    const nan = float.NAN
     println("{nan.isNan()} {x.isNan()} {float.INFINITY} {float.EPSILON > 0.0}")
     assert(1 + 1 == 2)
     println("done")

@@ -39,20 +39,20 @@ fn main() {
     *b = Point{x: 0, y: 0}
     println("{b.sum()}")
 
-    let bb = Box.new(Box.new("deep"))
+    const bb = Box.new(Box.new("deep"))
     println("{**bb} {bb.len()}")
-    let pair = Box.new((7, "seven"))
+    const pair = Box.new((7, "seven"))
     println("{pair.0} {pair.1}")
 
-    let list = prepend(prepend(prepend(List<str>.Nil, "c"), "b"), "a")
+    const list = prepend(prepend(prepend(List<str>.Nil, "c"), "b"), "a")
     println("{list.len()}")
-    if let List.Cons(head, rest) = list {
-        if let List.Cons(second, _) = *rest {
+    if const List.Cons(head, rest) = list {
+        if const List.Cons(second, _) = *rest {
             println("{head} {second}")
         }
     }
 
     println("{sizeOf<i32>()} {sizeOf<Point>()} {sizeOf<str>()} {sizeOf<Box<Point>>()} {sizeOf<()>()}")
-    let p = b.unbox()
+    const p = b.unbox()
     println("{p.x}")
 }

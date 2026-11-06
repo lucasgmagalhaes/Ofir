@@ -9,5 +9,5 @@ fn grow<T>(n: int, x: move T) int {   // error[E0331]: instantiating `grow` nest
 }
 
 fn main() {
-    let n = grow(3, 1)
+    const n = grow(3, 1)
 }

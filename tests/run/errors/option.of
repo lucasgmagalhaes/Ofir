@@ -20,31 +20,31 @@ fn describe(o: Option<int>) str {
 
 // `?` returns None from the function on None.
 fn sumOfPositions(values: List<int>, a: int, b: int) Option<int> {
-    let i = find(values, a)?
-    let j = find(values, b)?
+    const i = find(values, a)?
+    const j = find(values, b)?
     return Option.Some(i + j)
 }
 
 fn main() {
-    let xs = [10, 20, 30]
+    const xs = [10, 20, 30]
     println("{describe(find(xs, 30))} {describe(find(xs, 99))} {describe(Option.Some(-4))}")
     println("{find(xs, 20).isSome()} {find(xs, 5).isNone()}")
     println("{find(xs, 10).unwrap()} {find(xs, 7).unwrapOr(-1)} {find(xs, 30).expect("present")}")
     println("{sumOfPositions(xs, 20, 30).unwrapOr(-1)} {sumOfPositions(xs, 20, 31).unwrapOr(-1)}")
 
-    let port = find(xs, 7) ?? 8080
-    let chained = find(xs, 1) ?? find(xs, 30) ?? 0
-    let fallback: Option<int> = find(xs, 1) ?? find(xs, 2)
+    const port = find(xs, 7) ?? 8080
+    const chained = find(xs, 1) ?? find(xs, 30) ?? 0
+    const fallback: Option<int> = find(xs, 1) ?? find(xs, 2)
     println("{port} {chained} {fallback.isNone()}")
 
     var slot = Option.Some("token")
-    let taken = slot.take()
+    const taken = slot.take()
     println("{taken.unwrap()} {slot.isNone()}")
 
-    if let Option.Some(i) = find(xs, 20) {
+    if const Option.Some(i) = find(xs, 20) {
         println("found at {i}")
     }
-    let Option.Some(first) = find(xs, 10) else {
+    const Option.Some(first) = find(xs, 10) else {
         return
     }
     println("first {first}")
@@ -52,15 +52,15 @@ fn main() {
     var stack = [1, 2, 3]
     var total = 0
     for {
-        let Option.Some(top) = stack.pop() else {
+        const Option.Some(top) = stack.pop() else {
             break
         }
         total += top
     }
     println("{total} {stack.len()}")
 
-    let words: Option<str> = Option.None
+    const words: Option<str> = Option.None
     println(words ?? "empty")
-    let r: Result<int, str> = Option.Some(5).okOr("missing")
+    const r: Result<int, str> = Option.Some(5).okOr("missing")
     println("{r.unwrap()}")
 }

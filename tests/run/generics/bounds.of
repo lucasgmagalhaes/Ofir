@@ -52,7 +52,7 @@ fn sorted<T: Ord + Clone>(xs: List<T>) List<T> {
 fn tally<K: Hash + Eq + Clone>(keys: List<K>) Map<K, int> {
     var m: Map<K, int> = Map.new()
     for i in 0..keys.len() {
-        let n = *(m.get(keys[i]) ?? &0) + 1
+        const n = *(m.get(keys[i]) ?? &0) + 1
         m.insert(keys[i].clone(), n)
     }
     return m
@@ -65,10 +65,10 @@ fn main() {
     println("{count([(1, "a"), (2, "b"), (1, "a")], (1, "a"))}")
     println("{differs((1, 2), (1, 3))} {differs("a", "a")}")
     println("{ordered(1, 2)} {ordered("b", "b")} {ordered(2.5, 1.0)}")
-    let s = sorted(["pear", "apple", "fig"])
+    const s = sorted(["pear", "apple", "fig"])
     println("{s[0]} {s[1]} {s[2]}")
-    let m = tally(["a", "b", "a"])
+    const m = tally(["a", "b", "a"])
     println("{m.len()} {*(m.get("a") ?? &0)} {*(m.get("b") ?? &0)}")
-    let pairs = tally([(1, true), (1, true), (2, false)])
+    const pairs = tally([(1, true), (1, true), (2, false)])
     println("{pairs.len()}")
 }

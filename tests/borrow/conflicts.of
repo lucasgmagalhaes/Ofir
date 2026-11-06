@@ -15,8 +15,8 @@ fn append(dst: mut List<int>, src: List<int>) {
 }
 
 fn swap(a: mut List<int>, b: mut List<int>) {
-    let t = mem.replace(a, [])
-    let u = mem.replace(b, t)
+    const t = mem.replace(a, [])
+    const u = mem.replace(b, t)
     a.push(u.len())
 }
 
@@ -31,36 +31,36 @@ fn sameArgument() {
 
 fn mutateWhileBorrowed() {
     var list = [1, 2, 3]
-    let r = &list
+    const r = &list
     list.push(4)                // error[E0701]: cannot borrow `list` as mutable because it is also borrowed as shared by `r`
     println("{r.len()}")
 }
 
 fn assignWhileBorrowed() {
     var list = [1, 2, 3]
-    let r = &list
+    const r = &list
     list = [4]                  // error[E0704]: cannot assign to `list` while it is borrowed by `r`
     println("{r.len()}")
 }
 
 fn moveWhileBorrowed() {
-    let list = [1, 2, 3]
-    let r = &list
+    const list = [1, 2, 3]
+    const r = &list
     consume(list)               // error[E0705]: cannot move out of `list` while it is borrowed by `r`
     println("{r.len()}")
 }
 
 fn readWhileBorrowedMutably() {
     var list = [1, 2, 3]
-    let r = &mut list
+    const r = &mut list
     println("{list.len()}")     // error[E0703]: cannot use `list` while it is borrowed as mutable by `r`
     r.push(4)
 }
 
 fn twoMutable() {
     var list = [1, 2, 3]
-    let r = &mut list
-    let s = &mut list           // error[E0700]: cannot borrow `list` as mutable more than once: it is also borrowed by `r`
+    const r = &mut list
+    const s = &mut list           // error[E0700]: cannot borrow `list` as mutable more than once: it is also borrowed by `r`
     r.push(4)
     s.push(5)
 }
@@ -74,14 +74,14 @@ fn mutateInLoop() {
 
 fn returnedBorrow() {
     var list = [1, 2, 3]
-    let first = list.first()
+    const first = list.first()
     list.push(4)                // error[E0701]: cannot borrow `list` as mutable because it is also borrowed as shared by `first`
     println("{first.isSome()}")
 }
 
 fn throughBranches(flag: bool) {
     var list = [1, 2, 3]
-    let r = &list
+    const r = &list
     if flag {
         list.clear()            // error[E0701]: cannot borrow `list` as mutable because it is also borrowed as shared by `r`
     }
@@ -99,15 +99,15 @@ fn nextIteration() {
 
 fn field() {
     var pair = Pair{a: [1], b: [2]}
-    let r = &pair.a
+    const r = &pair.a
     pair = Pair{a: [], b: []}   // error[E0704]: cannot assign to `pair` while it is borrowed by `r`
     println("{r.len()}")
 }
 
 fn copiedReference() {
     var list = [1, 2, 3]
-    let r = &list
-    let s = r
+    const r = &list
+    const s = r
     list.push(4)                // error[E0701]: cannot borrow `list` as mutable because it is also borrowed as shared by `s`
     println("{s.len()}")
 }

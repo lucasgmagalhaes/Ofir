@@ -2,8 +2,8 @@ fn generic<K>(m: Map<K, int>) {     // error[E0332]: the type `K` does not satis
 }
 
 fn main() {
-    let a: Map<float, int> = Map.new()   // error[E0332]: the type `float` does not satisfy the bound `Hash` of `K`
-    let c = Map<str, int>.new()
+    const a: Map<float, int> = Map.new()   // error[E0332]: the type `float` does not satisfy the bound `Hash` of `K`
+    const c = Map<str, int>.new()
     for key in c {                       // error[E0300]: iterate a map with two variables: `for key, value in map`
     }
     for i, j in 0..3 {                   // error[E0300]: a range gives one variable: `for i in a..b`

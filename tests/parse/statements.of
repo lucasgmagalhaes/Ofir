@@ -1,8 +1,8 @@
 fn statements() {
-    let x = 1
-    let y: int = 2
-    let (a, b) = pair
-    let .Some(value) = maybe else {
+    const x = 1
+    const y: int = 2
+    const (a, b) = pair
+    const .Some(value) = maybe else {
         return
     }
     var count = 0

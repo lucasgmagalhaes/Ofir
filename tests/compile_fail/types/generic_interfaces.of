@@ -45,7 +45,7 @@ fn twice<S: Source<int, str>>(s: S) int {   // error[E0302]: wrong number of typ
 
 fn main() {
     var w = Words{items: []}
-    let a = total(w)            // error[E0332]: the type `Words` does not satisfy the bound `Source<int>` of `S`: method `next` has a different signature
-    let b = count(w)
-    let d: dyn Source<str> = w  // error[E0901]: `dyn` of generic interfaces is not supported yet
+    const a = total(w)            // error[E0332]: the type `Words` does not satisfy the bound `Source<int>` of `S`: method `next` has a different signature
+    const b = count(w)
+    const d: dyn Source<str> = w  // error[E0901]: `dyn` of generic interfaces is not supported yet
 }

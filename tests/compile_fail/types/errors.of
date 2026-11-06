@@ -7,12 +7,12 @@ fn maybe() Option<int> {
 }
 
 fn noResult() int {
-    let n = parse("1")?          // error[E0300]: `?` on a Result needs the function to return a Result, not `int`
+    const n = parse("1")?          // error[E0300]: `?` on a Result needs the function to return a Result, not `int`
     return n
 }
 
 fn otherError() Result<int, int> {
-    let n = parse("1")?          // error[E0300]: mismatched types: `?` returns the error `str`, but the function returns errors of type `int`
+    const n = parse("1")?          // error[E0300]: mismatched types: `?` returns the error `str`, but the function returns errors of type `int`
     return Result.Ok(n)
 }
 
@@ -25,25 +25,25 @@ struct Borrowing {
 }
 
 fn wrongFrom() Result<int, Borrowing> {
-    let n = parse("1")?          // error[E0300]: mismatched types: `?` returns the error `str`, but the function returns errors of type `Borrowing`
+    const n = parse("1")?          // error[E0300]: mismatched types: `?` returns the error `str`, but the function returns errors of type `Borrowing`
     return Result.Ok(n)
 }
 
 fn optionInResult() Result<int, str> {
-    let n = maybe()?             // error[E0300]: `?` on an Option needs the function to return an Option, not `Result<int, str>`
+    const n = maybe()?             // error[E0300]: `?` on an Option needs the function to return an Option, not `Result<int, str>`
     return Result.Ok(n)
 }
 
 fn notWrapped() Option<int> {
-    let n = 5?                   // error[E0313]: `?` needs an Option or a Result, not `int`
+    const n = 5?                   // error[E0313]: `?` needs an Option or a Result, not `int`
     return Option.Some(n)
 }
 
 fn main() {
-    parse("1")                   // error[E0305]: unused `Result` that must be used: handle the error, or ignore it explicitly with `let _ = ...`
-    let a = 5 ?? 6               // error[E0313]: `??` needs an Option on its left, not `int`
-    let b: str = maybe() ?? 0    // error[E0300]: mismatched types: expected str, found int
-    let c = Option.None                 // error[E0330]: cannot infer the type parameter `T`: write the type arguments, as in `f<int>(x)`
-    let d: Option<str> = Option.Some(1) // error[E0300]: mismatched types: expected str, found int
-    let e = maybe() ?? "x"       // error[E0300]: mismatched types: expected int, found str
+    parse("1")                   // error[E0305]: unused `Result` that must be used: handle the error, or ignore it explicitly with `const _ = ...`
+    const a = 5 ?? 6               // error[E0313]: `??` needs an Option on its left, not `int`
+    const b: str = maybe() ?? 0    // error[E0300]: mismatched types: expected str, found int
+    const c = Option.None                 // error[E0330]: cannot infer the type parameter `T`: write the type arguments, as in `f<int>(x)`
+    const d: Option<str> = Option.Some(1) // error[E0300]: mismatched types: expected str, found int
+    const e = maybe() ?? "x"       // error[E0300]: mismatched types: expected int, found str
 }

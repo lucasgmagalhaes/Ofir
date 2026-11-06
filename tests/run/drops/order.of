@@ -22,39 +22,39 @@ fn consume(n: move Noisy) {
 }
 
 fn early(flag: bool) int {
-    let _a = make("early-a")
+    const _a = make("early-a")
     if flag {
-        let _b = make("early-b")
+        const _b = make("early-b")
         return 1
     }
     return 2
 }
 
 fn main() {
-    let _first = make("first")
-    let _second = make("second")
+    const _first = make("first")
+    const _second = make("second")
     println("scope")
     {
-        let _inner = make("inner")
+        const _inner = make("inner")
         println("inner block")
     }
-    let moved = make("moved")
+    const moved = make("moved")
     consume(moved)
     var slot = make("old")
     slot = make("new")
     println("{make("temp").name.len()} after temp")
-    let n = early(true)
+    const n = early(true)
     for i in 0..3 {
-        let _each = make("loop{i}")
+        const _each = make("loop{i}")
         if i == 1 {
             break
         }
     }
-    let pair = Pair{left: make("left"), right: make("right")}
-    let taken = pair.left
+    const pair = Pair{left: make("left"), right: make("right")}
+    const taken = pair.left
     println("took {taken.name}")
-    let _ = make("ignored")
+    const _ = make("ignored")
     println("after ignored")
-    let _maybe = Option.Some(make("inside"))
+    const _maybe = Option.Some(make("inside"))
     println("end {n}")
 }

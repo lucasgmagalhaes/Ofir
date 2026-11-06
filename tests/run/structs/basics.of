@@ -12,22 +12,22 @@ struct Line {
 copy struct Meters(float)
 
 fn length(line: Line) float {
-    let dx = line.end.x - line.start.x
-    let dy = line.end.y - line.start.y
+    const dx = line.end.x - line.start.x
+    const dy = line.end.y - line.start.y
     return (dx * dx + dy * dy).sqrt()
 }
 
 fn main() {
     var a = Point{x: 1.0, y: 2.0}
-    let b = Point{x: 4.0}
+    const b = Point{x: 4.0}
     var line = Line{start: a, end: Point{x: 4.0, y: 6.0}}
     println("{length(line)} {line.name} {b.y}")
     a.x = 10.0
     line.end.y += 1.0
     line.name.push("!")
     println("{a.x} {line.start.x} {line.end.y} {line.name}")
-    let m = Meters(1500.0)
+    const m = Meters(1500.0)
     println("{m.0 / 1000.0}")
-    let c = Point{x: 9.0, ..a}
+    const c = Point{x: 9.0, ..a}
     println("{c.x} {c.y}")
 }

@@ -1,7 +1,7 @@
 // One error per statement: the parser resynchronizes at the next line.
 fn first() {
-    let = 1   // error[E0100]: expected a pattern
-    let ok = 2
+    const = 1   // error[E0100]: expected a pattern
+    const ok = 2
 }
 
 fn second() {

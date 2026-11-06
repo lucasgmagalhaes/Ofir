@@ -1,5 +1,5 @@
 // requires: stage0
 // Features left to stage 1 (docs/bootstrap.md).
 fn apply() {
-    let f = (x: int) int => x   // error[E0100]: closures are not supported by stage 0
+    const f = (x: int) int => x   // error[E0100]: closures are not supported by stage 0
 }

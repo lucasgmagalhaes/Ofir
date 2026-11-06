@@ -23,24 +23,24 @@ fn change(n: mut int) {
 }
 
 fn unknown(p: Point) {
-    let a = p.size()         // error[E0301]: no method `size` on type `Point`
+    const a = p.size()         // error[E0301]: no method `size` on type `Point`
 }
 
 fn onType() {
-    let b = Point.get()      // error[E0301]: `get` is a method: call it on a value, `value.m()`
+    const b = Point.get()      // error[E0301]: `get` is a method: call it on a value, `value.m()`
 }
 
 fn onValue(p: Point) {
-    let c = p.origin()       // error[E0301]: `origin` is an associated function: call it on the type, `Type.f()`
+    const c = p.origin()       // error[E0301]: `origin` is an associated function: call it on the type, `Type.f()`
 }
 
 fn immutableReceiver() {
-    let p = Point.origin()
+    const p = Point.origin()
     p.set(2)                 // error[E0315]: this value cannot be modified: declare it with `var`
 }
 
 fn immutableArgument() {
-    let n = 0
+    const n = 0
     change(n)                // error[E0315]: this value cannot be modified: declare it with `var`
 }
 

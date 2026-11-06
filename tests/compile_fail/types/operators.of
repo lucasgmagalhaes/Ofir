@@ -1,30 +1,30 @@
 fn arithmetic(flag: bool, text: str) {
-    let a = flag + flag     // error[E0313]: operator cannot be applied to type `bool`
+    const a = flag + flag     // error[E0313]: operator cannot be applied to type `bool`
 }
 
 fn subtraction(text: str) {
-    let b = text - text     // error[E0313]: operator cannot be applied to type `str`
+    const b = text - text     // error[E0313]: operator cannot be applied to type `str`
 }
 
 fn negation(n: u32) {
-    let c = -n              // error[E0313]: operator cannot be applied to type `u32`
+    const c = -n              // error[E0313]: operator cannot be applied to type `u32`
 }
 
 fn logic(n: int) {
-    let d = n && n          // error[E0313]: operator cannot be applied to type `int`
+    const d = n && n          // error[E0313]: operator cannot be applied to type `int`
 }
 
 fn casts(text: str) {
-    let e = text as int     // error[E0313]: cannot cast `str` to `int`
+    const e = text as int     // error[E0313]: cannot cast `str` to `int`
 }
 
 // Accepted.
 fn valid(a: int, b: int, x: float, s: str, flag: bool) {
-    let sum = a + b * 2 - a / b % 3
-    let bits = a & b | a ^ b << 2 >> 1
-    let less = a < b && x >= 1.5 || !flag
-    let same = s == "x" && s != "y" && s < "z"
-    let joined = s + "!"
-    let converted = a as float + x
-    let small = x as u8
+    const sum = a + b * 2 - a / b % 3
+    const bits = a & b | a ^ b << 2 >> 1
+    const less = a < b && x >= 1.5 || !flag
+    const same = s == "x" && s != "y" && s < "z"
+    const joined = s + "!"
+    const converted = a as float + x
+    const small = x as u8
 }

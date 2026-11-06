@@ -26,9 +26,9 @@ fn unwrapOr(m: Maybe, fallback: int) int {
 }
 
 fn main() {
-    let points = [Point{x: 3, y: 4}]
-    let empty: List<Point> = []
-    if let Option.Some(p) = first(&points) {
+    const points = [Point{x: 3, y: 4}]
+    const empty: List<Point> = []
+    if const Option.Some(p) = first(&points) {
         println("{p.x} {p.y}")
     }
     println("{first(&empty).isNone()}")
@@ -38,6 +38,6 @@ fn main() {
     println("{boxed.isSome()}")
     println("{unwrapOr(Maybe.Just(Box.new(5)), 0)} {unwrapOr(Maybe.Nothing, 9)}")
     println("{sizeOf<Option<&Point>>()} {sizeOf<Option<Box<int>>>()} {sizeOf<Maybe>()}")
-    let nested: Option<Option<&Point>> = Option.Some(Option.None)
+    const nested: Option<Option<&Point>> = Option.Some(Option.None)
     println("{nested.isSome()} {sizeOf<Option<Option<&Point>>>()}")
 }

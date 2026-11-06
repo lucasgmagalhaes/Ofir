@@ -45,7 +45,7 @@ fn pair(v: move Noisy | Quiet | int) {
 fn main() {
     take(Noisy{name: "a"})
     take(4)
-    let kept: Noisy | int = Noisy{name: "b"}
+    const kept: Noisy | int = Noisy{name: "b"}
     look(kept)
     look(5)
     pair(Noisy{name: "c"})

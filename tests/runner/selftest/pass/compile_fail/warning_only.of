@@ -1,4 +1,4 @@
 // fake-diag: 3 W0001 unused variable `x`
 fn main() {
-    let x = 1   // warning[W0001]: unused variable
+    const x = 1   // warning[W0001]: unused variable
 }

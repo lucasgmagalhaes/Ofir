@@ -7,9 +7,9 @@ fn control(n: int) int {
         println("positive")
     }
 
-    let kind = if n % 2 == 0 { "even" } else { "odd" }
+    const kind = if n % 2 == 0 { "even" } else { "odd" }
 
-    if let .Some(value) = lookup(n) {
+    if const .Some(value) = lookup(n) {
         println("{value}")
     }
 
@@ -17,11 +17,11 @@ fn control(n: int) int {
         return 0
     }
 
-    let size = match shape {
+    const size = match shape {
         .Circle(r) => r * r
         .Rect(w, h) if w > h => w * h
         .Rect(w, h) => {
-            let area = w * h
+            const area = w * h
             area
         }
         _ => 0

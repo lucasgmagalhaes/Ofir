@@ -7,7 +7,7 @@ type Keys = keyof Account
 type Balance = Account[.balance]   // error[E0202]: `balance` is private to module `lib`
 
 fn main() {
-    let _: Keys = 1   // error[E0300]: mismatched types: expected .owner, found int
-    let _: lib.Own = 1   // error[E0300]: mismatched types: expected .balance | .owner, found int
-    let _: Balance = 1
+    const _: Keys = 1   // error[E0300]: mismatched types: expected .owner, found int
+    const _: lib.Own = 1   // error[E0300]: mismatched types: expected .balance | .owner, found int
+    const _: Balance = 1
 }

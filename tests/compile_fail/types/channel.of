@@ -9,5 +9,5 @@ struct Raw {
 }
 
 fn main() {
-    let _ = channel<Raw>()   // error[E0332]: `Raw` does not satisfy the bound `Send`
+    const _ = channel<Raw>()   // error[E0332]: `Raw` does not satisfy the bound `Send`
 }

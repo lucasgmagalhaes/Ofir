@@ -57,17 +57,17 @@ struct Node {
 }
 
 fn main() {
-    let p = Pair{a: "x", b: "y"}.swapped()
+    const p = Pair{a: "x", b: "y"}.swapped()
     println("{p.a}{p.b}")
-    let s = Stack{items: ["a", "b"]}
+    const s = Stack{items: ["a", "b"]}
     println("{s.contains("b")} {s.contains("z")} {s.top()}")
-    let t: Tree<int, str> = Tree.Node(3, "three")
+    const t: Tree<int, str> = Tree.Node(3, "three")
     println("{holds(t, 3)} {holds(t, 4)}")
     var a: Map<str, int> = Map.new()
     a.insert("one", 1)
-    let b: Map<str, int> = Map.new()
+    const b: Map<str, int> = Map.new()
     println("{merge(a, b)}")
-    let n = Node{name: "root", kids: Pair{a: [], b: []}}
-    let twin = n.clone()
+    const n = Node{name: "root", kids: Pair{a: [], b: []}}
+    const twin = n.clone()
     println("{twin.name} {twin.kids.a.len()}")
 }

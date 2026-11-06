@@ -7,10 +7,10 @@ struct Point {
 }
 
 fn main() {
-    let b = Box.new(Point{x: 1})
+    const b = Box.new(Point{x: 1})
     b.x = 2                      // error[E0315]: this value cannot be modified: declare it with `var`
     b.shift()                    // error[E0315]: this value cannot be modified: declare it with `var`
     *b = Point{x: 3}             // error[E0315]: this value cannot be modified: declare it with `var`
-    let n: int = *Box.new("s")   // error[E0300]: mismatched types: expected int, found str
-    let q = b.ptr                // error[E0316]: no field `ptr` on type `Point`
+    const n: int = *Box.new("s")   // error[E0300]: mismatched types: expected int, found str
+    const q = b.ptr                // error[E0316]: no field `ptr` on type `Point`
 }

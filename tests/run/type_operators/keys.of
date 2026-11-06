@@ -24,14 +24,14 @@ fn main() {
     var p = Point{x: 1.0, y: 2.0, label: "p"}
     p[.x] = 3.0
     p[.y] += 1.5
-    let x: X = p[.x]
-    let y: Coord = p[.y]
+    const x: X = p[.x]
+    const y: Coord = p[.y]
     println("{x} {y} {p[.label]} {scale(y, 2.0)}")
-    let t = (7, "seven")
-    let s: Second = t[.1]
-    let pair = Pair(8, "eight")
-    let n: Both = pair[.0]
+    const t = (7, "seven")
+    const s: Second = t[.1]
+    const pair = Pair(8, "eight")
+    const n: Both = pair[.0]
     println("{t[.0]} {s} {n} {pair[.1]}")
-    let list = [10, 20]
+    const list = [10, 20]
     println("{list[1]}")
 }

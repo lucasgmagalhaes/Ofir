@@ -1,41 +1,41 @@
 fn expressions() {
-    let a = 1 + 2 * 3 - 4 / 5 % 6
-    let b = (1 + 2) * 3
-    let c = x << 2 | y >> 1 & mask ^ bits
-    let d = a < b && c >= d || !e
-    let e = -x as i64 as f64
-    let f = first ?? second ?? 0
-    let g = 0..10
-    let h = 0..=n
-    let i = ..end
-    let j = start..
-    let k = *ptr + &value + &mut other
-    let l = items[i + 1].field.method(1, two: 2)?.0
-    let m = pair.0.1
-    let n = List<int>.new()
-    let o = Map<str, List<int>> { }
-    let p = [1, 2, 3]
-    let q = [0; 16]
-    let r = (1, "two", 3.5)
-    let s = (single,)
-    let t = .Circle(1.0)
-    let u = .Empty
-    let v = Point { x: 1.0, y: 2.0, ..origin }
-    let w = "sum = {a + b}, name = {name}"
-    let x = b'a' + 0xff + 0b1010 + 1_000_000 + 1.5e3
-    let y = true != false
-    let z = a > b
-    let shifted = value >> 3
-    let total = a +
+    const a = 1 + 2 * 3 - 4 / 5 % 6
+    const b = (1 + 2) * 3
+    const c = x << 2 | y >> 1 & mask ^ bits
+    const d = a < b && c >= d || !e
+    const e = -x as i64 as f64
+    const f = first ?? second ?? 0
+    const g = 0..10
+    const h = 0..=n
+    const i = ..end
+    const j = start..
+    const k = *ptr + &value + &mut other
+    const l = items[i + 1].field.method(1, two: 2)?.0
+    const m = pair.0.1
+    const n = List<int>.new()
+    const o = Map<str, List<int>> { }
+    const p = [1, 2, 3]
+    const q = [0; 16]
+    const r = (1, "two", 3.5)
+    const s = (single,)
+    const t = .Circle(1.0)
+    const u = .Empty
+    const v = Point { x: 1.0, y: 2.0, ..origin }
+    const w = "sum = {a + b}, name = {name}"
+    const x = b'a' + 0xff + 0b1010 + 1_000_000 + 1.5e3
+    const y = true != false
+    const z = a > b
+    const shifted = value >> 3
+    const total = a +
         b +
         c
-    let call = f(
+    const call = f(
         1,
         2,
     )
-    let block = {
-        let inner = 1
+    const block = {
+        const inner = 1
         inner + 1
     }
-    let unsafeRead = unsafe { *ptr }
+    const unsafeRead = unsafe { *ptr }
 }

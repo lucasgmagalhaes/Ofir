@@ -6,7 +6,7 @@ extern "C" {
 }
 
 fn cLen(s: str) uint {
-    let c = s.toCString()          // owned, null-terminated copy
+    const c = s.toCString()          // owned, null-terminated copy
     return unsafe { strlen(c.ptr()) }
 }
 
@@ -14,6 +14,6 @@ fn main() {
     println("{cLen("hello")} {cLen("")} {cLen("café")}")
     var digits = "12"
     digits.push("34")
-    let c = digits.toCString()
+    const c = digits.toCString()
     println("{c.len()} {unsafe { atoi(c.ptr()) }}")
 }

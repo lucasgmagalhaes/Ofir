@@ -31,7 +31,7 @@ fn main() {
     println("{sum(&grid)}")
     fill(&mut grid, 7)
     println("{grid[0]} {grid[3]}")
-    let view: &mut [int] = &mut list
+    const view: &mut [int] = &mut list
     view[1] = 10
     println("{view.len()} {view.isEmpty()} {list[1]}")
 }

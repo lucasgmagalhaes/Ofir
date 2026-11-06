@@ -1,5 +1,5 @@
 // requires: stage1
-// Type switches (spec 9.8): `name: T` patterns on `dyn` values, `if let`,
+// Type switches (spec 9.8): `name: T` patterns on `dyn` values, `if const`,
 // `Box<dyn Any>` taken apart by move, and `typeName`.
 
 interface Shape {
@@ -76,11 +76,11 @@ fn isType<T>(v: dyn Any) bool {
 fn main() {
     println(kind(Circle{radius: 2.0}))
     println(kind(Square{side: 1.0}))
-    let r: &dyn Shape = &Circle{radius: 1.0}
-    if let c: Circle = r {
+    const r: &dyn Shape = &Circle{radius: 1.0}
+    if const c: Circle = r {
         println("if let: {c.area()}")
     }
-    if let _: Square = r {
+    if const _: Square = r {
         println("unreachable")
     } else {
         println("not a square")
@@ -90,19 +90,19 @@ fn main() {
     println(describe(Point{x: 1, y: 2}))
     println(describe(2.5))
     println(describe([1, 2]))
-    let some = takeConfig(Box.new(Config{name: "a".toOwned()}))
-    if let Option.Some(c) = some {
+    const some = takeConfig(Box.new(Config{name: "a".toOwned()}))
+    if const Option.Some(c) = some {
         println("took {c.name}")
     }
-    let other = takeConfig(Box.new(3))
+    const other = takeConfig(Box.new(3))
     println("other: {other.isNone()}")
-    let miss = takePoint(Box.new(Config{name: "d".toOwned()}))
+    const miss = takePoint(Box.new(Config{name: "d".toOwned()}))
     println("miss: {miss.isNone()}")
-    let one: &dyn Any = &1
-    let origin: &dyn Any = &Point{x: 0, y: 0}
+    const one: &dyn Any = &1
+    const origin: &dyn Any = &Point{x: 0, y: 0}
     println("isType: {isType<int>(one)} {isType<str>(one)} {isType<Point>(origin)}")
-    let boxed: Box<dyn Any> = Box.new(Config{name: "c".toOwned()})
-    if let n: int = boxed {
+    const boxed: Box<dyn Any> = Box.new(Config{name: "c".toOwned()})
+    if const n: int = boxed {
         println("unreachable {n}")
     }
     println("end")

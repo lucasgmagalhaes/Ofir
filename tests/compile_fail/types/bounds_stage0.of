@@ -14,5 +14,5 @@ fn show<T: Debug>(a: T) {   // error[E0901]: the bound `Debug` is not supported 
 }
 
 fn main() {
-    let p = max(Point{x: 1}, Point{x: 2}) // error[E0901]: the bound `Ord` of `T` on `Point` is not supported by stage 0
+    const p = max(Point{x: 1}, Point{x: 2}) // error[E0901]: the bound `Ord` of `T` on `Point` is not supported by stage 0
 }

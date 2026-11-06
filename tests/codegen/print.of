@@ -7,6 +7,6 @@
 // CHECK-NOT: ofir_str_push
 // CHECK: ret void
 fn main() {
-    let n = 3
+    const n = 3
     println("n = {n}, ok = {n > 2}")
 }

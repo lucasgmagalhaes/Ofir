@@ -63,8 +63,8 @@ extern "C" {
 fn main() {
     println(family())
     println("{KNOWN_ARCH} {mode()}")
-    let matches = os.name() == "linux" || os.name() == "macos"
+    const matches = os.name() == "linux" || os.name() == "macos"
     println("{matches}")
-    let c = Config{name: "etc", root: "/"}
+    const c = Config{name: "etc", root: "/"}
     println(c.path())
 }

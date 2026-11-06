@@ -53,6 +53,6 @@ fn main() {
     bump(n)
     bump(by: 10, n: n)
     println("{n}")
-    let sq = Square{side: 2}
+    const sq = Square{side: 2}
     println("{sq.area()} {sq.area(scale: 2)} {describe(&sq)}")
 }

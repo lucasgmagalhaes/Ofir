@@ -28,9 +28,9 @@ fn area(s: Shape) int {
 
 fn make(a: int,
         b: int) Point {
-    let p = Point{x: a,
-                  y: b}
-    let all = call(
+    const p = Point{x: a,
+                    y: b}
+    const all = call(
         a,
         b,
     )

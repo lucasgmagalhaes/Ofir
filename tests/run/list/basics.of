@@ -32,16 +32,16 @@ fn main() {
     xs[0] += 100
     println(show(xs))
 
-    let empty: List<str> = []
+    const empty: List<str> = []
     println("{empty.len()} {empty.isEmpty()}")
-    let zeros = [0; 5]
+    const zeros = [0; 5]
     println(show(zeros))
 
     var words = ["b", "c"]
     words.insert(0, "a")
     words.push("d")
-    let removed = words.remove(1)
-    let swapped = words.swapRemove(0)
+    const removed = words.remove(1)
+    const swapped = words.swapRemove(0)
     println("{removed} {swapped} {words.len()} {words[0]} {words[1]}")
 
     var points = [Point{x: 1, y: 2}, Point{x: 3, y: 4}]

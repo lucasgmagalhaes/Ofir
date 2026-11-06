@@ -29,7 +29,7 @@ fn bumpTwice(c: Cell<int>) {
 }
 
 fn fill(slot: Slot) {
-    if let Slot.Full(c) = slot {
+    if const Slot.Full(c) = slot {
         c.set(c.get() * 10)
     }
 }
@@ -46,41 +46,41 @@ fn pair(cells: (Cell<bool>, int)) {
 }
 
 fn main() {
-    let c = Cell.new(1)
+    const c = Cell.new(1)
     bump(&c)
     bumpTwice(c)
     println("{c.get()}")
-    let old = c.replace(7)
+    const old = c.replace(7)
     println("{old} {c.get()}")
 
-    let counter = Counter{name: "visits", hits: Cell.new(0)}
+    const counter = Counter{name: "visits", hits: Cell.new(0)}
     counter.hit()
     counter.hit()
     println("{counter.name}: {counter.hits.get()}")
 
-    let slot = Slot.Full(Cell.new(4))
+    const slot = Slot.Full(Cell.new(4))
     fill(slot)
     fill(slot)
-    if let Slot.Full(n) = slot {
+    if const Slot.Full(n) = slot {
         println("{n.get()}")
     }
 
-    let full = Slot.Full(Cell.new(400))
+    const full = Slot.Full(Cell.new(400))
     println("{drain(full)} {drain(full)} {drain(Slot.Empty)}")
 
-    let cells = [Cell.new(1), Cell.new(2)]
+    const cells = [Cell.new(1), Cell.new(2)]
     for cell in cells {
         cell.set(cell.get() + 10)
     }
-    let r = &cells[1]
+    const r = &cells[1]
     r.set(r.get() + 1000)
     println("{cells[0].get()} {cells[1].get()}")
 
-    let both = (Cell.new(false), 3)
+    const both = (Cell.new(false), 3)
     pair(both)
     println("{both.0.get()} {both.1}")
 
-    let raw = UnsafeCell.new(5)
+    const raw = UnsafeCell.new(5)
     unsafe {
         *raw.get() = *raw.get() + 1
     }

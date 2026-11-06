@@ -52,10 +52,10 @@ fn same<T: Eq>(x: T, y: T) bool {
 }
 
 fn main() {
-    let a = P{x: 1, y: 2}
-    let b = P{x: 1, y: 3}
+    const a = P{x: 1, y: 2}
+    const b = P{x: 1, y: 3}
     println("{a == b} {a != b} {a < b} {b <= a} {a == P{x: 1, y: 2}}")
-    let c = Color.Rgb(1, 2, 3)
+    const c = Color.Rgb(1, 2, 3)
     println("{c == Color.Rgb(1, 2, 3)} {c == Color.Red} {Color.Red < Color.Green}")
     println("{Color.Rgb(1, 2, 3) < Color.Rgb(1, 2, 4)} {Color.Green < Color.Rgb(0, 0, 0)}")
     var m: Map<P, int> = Map.new()

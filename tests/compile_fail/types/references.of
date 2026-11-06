@@ -16,7 +16,7 @@ fn twoSources(a: List<int>, b: List<int>) &int {   // error[E0702]: a function t
 }
 
 fn dangling(xs: List<int>) &int {
-    let local = 5
+    const local = 5
     return &local                // error[E0702]: cannot return a reference to `local`, which ends with the function
 }
 
@@ -44,14 +44,14 @@ fn element(w: &Wrapped) &int {
 }
 
 fn main() {
-    let n = 1
-    let r = &mut n               // error[E0315]: this value cannot be modified: declare it with `var`
+    const n = 1
+    const r = &mut n               // error[E0315]: this value cannot be modified: declare it with `var`
     var m = 2
-    let shared = &m
+    const shared = &m
     *shared = 3                  // error[E0315]: this value cannot be modified: it is reached through a `&T`, not a `&mut T`
-    let xs = [1, 2, 3]
-    let view = xs[0..2]
+    const xs = [1, 2, 3]
+    const view = xs[0..2]
     view[0] = 5                  // error[E0315]: this value cannot be modified: the elements of a `&[T]` are read-only
-    let refs = [&m]              // error[E0702]: a reference cannot be stored in a container or a struct: store an owned value, or declare a `ref struct`
-    let wrong: &[str] = xs       // error[E0300]: mismatched types: expected Slice<str>, found List<int>
+    const refs = [&m]              // error[E0702]: a reference cannot be stored in a container or a struct: store an owned value, or declare a `ref struct`
+    const wrong: &[str] = xs       // error[E0300]: mismatched types: expected Slice<str>, found List<int>
 }

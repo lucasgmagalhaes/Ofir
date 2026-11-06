@@ -46,7 +46,7 @@ where
 }
 
 fn main() {
-    let p = max(Point{x: true}, Point{x: false}) // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
-    let s: Sorted<Point> = Sorted{items: []}     // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
-    let e = same([1], [2])                       // error[E0332]: the type `List<int>` does not satisfy the bound `Eq` of `T`
+    const p = max(Point{x: true}, Point{x: false}) // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
+    const s: Sorted<Point> = Sorted{items: []}     // error[E0332]: the type `Point` does not satisfy the bound `Ord` of `T`
+    const e = same([1], [2])                       // error[E0332]: the type `List<int>` does not satisfy the bound `Eq` of `T`
 }

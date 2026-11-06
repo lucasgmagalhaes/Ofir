@@ -17,8 +17,8 @@ fn first(points: &List<Point>) Option<&Point> {
 }
 
 fn main() {
-    let points = [Point{x: 3, y: 4}]
-    if let Option.Some(p) = first(&points) {
+    const points = [Point{x: 3, y: 4}]
+    if const Option.Some(p) = first(&points) {
         println("{p.x}")
     }
 }

@@ -1,5 +1,5 @@
 // panic: assertion failed
 fn main() {
-    let x = 2
+    const x = 2
     assert(x == 3)
 }

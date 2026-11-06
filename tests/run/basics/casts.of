@@ -1,10 +1,10 @@
 fn main() {
-    let a: i32 = 300
+    const a: i32 = 300
     println("{a as i64} {a as u16} {a as float}")
-    let f = 3.9
+    const f = 3.9
     println("{f as int} {-3.9 as int} {f as f32}")
-    let big: u64 = 4000000000
+    const big: u64 = 4000000000
     println("{big as i64} {big as float}")
-    let byte: u8 = 100
+    const byte: u8 = 100
     println("{byte as i8 as i16}")
 }

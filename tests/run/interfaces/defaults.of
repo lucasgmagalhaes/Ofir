@@ -62,7 +62,7 @@ fn total<T: Sized>(a: T, b: T) int {
 }
 
 fn main() {
-    let f = File{path: "a.txt", bytes: 12}
+    const f = File{path: "a.txt", bytes: 12}
     println(f.greet())
     println(f.describe())
     show(f)

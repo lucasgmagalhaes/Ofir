@@ -42,22 +42,22 @@ fn pick(ok: bool) int | str {
 }
 
 fn main() {
-    let a: LoadError = IoError{code: 1}
-    let b = same(a)
-    let c = flat(b)
+    const a: LoadError = IoError{code: 1}
+    const b = same(a)
+    const c = flat(b)
     println("take {take(ParseError{line: 4})} {take(c)}")
-    let _d = make(true)
-    let _e: Option<int | bool> = Option.Some(true)
-    let _h = Holder{value: "text"}
+    const _d = make(true)
+    const _e: Option<int | bool> = Option.Some(true)
+    const _h = Holder{value: "text"}
     var n: int | str = 5
     n = "five"
-    let _m = n
-    let _p = pick(false)
-    let k = 2
-    let _q: int | bool = match k {
+    const _m = n
+    const _p = pick(false)
+    const k = 2
+    const _q: int | bool = match k {
         2 => true
         _ => 7
     }
-    let _r: int | str = if k > 1 { 1 } else { "one" }
+    const _r: int | str = if k > 1 { 1 } else { "one" }
     println("done")
 }

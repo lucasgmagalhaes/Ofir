@@ -14,7 +14,7 @@ fn main() {
     for _ in 6..=5 {
         println("never")
     }
-    let top: u8 = 255
+    const top: u8 = 255
     var count = 0
     for _ in 250..=top {   // stops at the maximum without overflowing
         count += 1

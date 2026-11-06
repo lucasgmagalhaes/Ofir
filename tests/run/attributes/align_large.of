@@ -33,11 +33,11 @@ fn pageAt(p: &Page) int {
 fn main() {
     println("{sizeOf<Line>()} {alignOf<Line>()} {sizeOf<Holder>()} {alignOf<Slot>()}")
     println("{sizeOf<Page>()} {alignOf<Page>()}")
-    let line = Line{a: 1}
-    let page = Page{a: 2}
-    let h = Holder{b: 3, line: Line{a: 4}}
+    const line = Line{a: 1}
+    const page = Page{a: 2}
+    const h = Holder{b: 3, line: Line{a: 4}}
     println("{lineAt(&line)} {pageAt(&page)} {lineAt(&h.line)}")
-    let boxed = Box.new(Page{a: 5})
+    const boxed = Box.new(Page{a: 5})
     println("{pageAt(&*boxed)} {boxed.a}")
     var lines: List<Line> = []
     for _i in 0..100 {
@@ -48,12 +48,12 @@ fn main() {
         pages.push(Page{a: 7})
     }
     println("{lineAt(&lines[99])} {pageAt(&pages[9])} {lines.len()} {pages[9].a}")
-    let slots = [Slot.Empty, Slot.Full(Line{a: 8})]
-    let inSlot = match slots[1] {
+    const slots = [Slot.Empty, Slot.Full(Line{a: 8})]
+    const inSlot = match slots[1] {
         Slot.Full(l) => lineAt(&l)
         Slot.Empty => -1
     }
-    let captured = Page{a: 9}
-    let f = move () int => pageAt(&captured) + captured.a as int
+    const captured = Page{a: 9}
+    const f = move () int => pageAt(&captured) + captured.a as int
     println("{inSlot} {f()}")
 }

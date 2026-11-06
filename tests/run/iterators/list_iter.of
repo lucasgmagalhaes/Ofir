@@ -17,7 +17,7 @@ fn longest(ps: &List<P>) int {
 }
 
 fn main() {
-    let rows = [[1, 2], [3], [4, 5, 6]]
+    const rows = [[1, 2], [3], [4, 5, 6]]
     var sum = 0
     for row in rows.iter() {
         for x in row.iter() {
@@ -25,10 +25,10 @@ fn main() {
         }
     }
     println("{sum}")
-    let ps = [P{name: "a", tags: ["x"]}, P{name: "b", tags: ["y", "z"]}]
+    const ps = [P{name: "a", tags: ["x"]}, P{name: "b", tags: ["y", "z"]}]
     println("{longest(&ps)}")
     var it = ps.iter()
-    if let Option.Some(p) = it.next() {
+    if const Option.Some(p) = it.next() {
         println(p.name)
     }
     for p in it {

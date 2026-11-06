@@ -1,12 +1,12 @@
 // A local is visible from its declaration to the end of its block.
 fn early() {
-    let a = b   // error[E0200]: cannot find `b` in this scope
-    let b = 1
+    const a = b   // error[E0200]: cannot find `b` in this scope
+    const b = 1
 }
 
 fn block() {
     if true {
-        let inner = 1
+        const inner = 1
     }
     println(inner)   // error[E0200]: cannot find `inner` in this scope
 }
@@ -14,14 +14,14 @@ fn block() {
 fn loop() {
     for i in 0..10 {
     }
-    let last = i   // error[E0200]: cannot find `i` in this scope
+    const last = i   // error[E0200]: cannot find `i` in this scope
 }
 
 fn arm(value: int) {
     match value {
         n => println("one")
     }
-    let x = n   // error[E0200]: cannot find `n` in this scope
+    const x = n   // error[E0200]: cannot find `n` in this scope
 }
 
 fn free() {
