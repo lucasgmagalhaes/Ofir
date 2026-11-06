@@ -55,6 +55,7 @@ void *parser_alloc(Parser *p, size_t size);
 
 // ---- types (parse_types.c)
 TypeExpr *parse_type(Parser *p);
+TypeExpr *parse_simple_type(Parser *p);   // without `[`: the target of `as`
 bool can_start_type(const Parser *p);
 TypeList parse_type_args(Parser *p);                // after `<`, up to and including `>`
 typedef Vec(WherePred) WhereVec;

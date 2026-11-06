@@ -87,7 +87,7 @@ static Expr *cast(Parser *p) {
     while (accept(p, TOK_KW_AS)) {
         Expr *c = new_expr(p, EXPR_CAST, e->span);
         c->as.cast.value = e;
-        c->as.cast.type = parse_type(p);
+        c->as.cast.type = parse_simple_type(p);
         c->span = span_since(p, e->span);
         e = c;
     }
