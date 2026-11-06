@@ -101,6 +101,22 @@ pub fn typeText(t: &TypeExpr, names: Interner) str {
             "({typeText(&*left, names)} {symbol} {typeText(&*right, names)})"
         }
         TypeKind.Index(base, key) => "{typeText(&*base, names)}[{typeText(&*key, names)}]"
+        TypeKind.Mapped(param, keys, filter, optional, field) => {
+            let cond = match filter {
+                Option.Some(f) => " if {typeText(&*f, names)}"
+                Option.None => "".toOwned()
+            }
+            let mark = if optional { "?" } else { "" }
+            let head = "[{names.name(param)} in {typeText(&*keys, names)}{cond}]{mark}"
+            "\{ {head}: {typeText(&*field, names)} \}"
+        }
+        TypeKind.Is(left, pattern) => "{typeText(&*left, names)} is {typeText(&*pattern, names)}"
+        TypeKind.Cond(test, then, otherwise) => {
+            let body = "\{ {typeText(&*then, names)} \}"
+            "if {typeText(&*test, names)} {body} else \{ {typeText(&*otherwise, names)} \}"
+        }
+        TypeKind.Infer(name) => "infer {names.name(name)}"
+        TypeKind.Bool(value) => if value { "true".toOwned() } else { "false".toOwned() }
     }
 }
 

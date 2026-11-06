@@ -1,0 +1,21 @@
+// requires: stage1
+// Mapped and conditional types (spec 16.4-16.5): `[K in Keys]`, `?:`,
+// `if` filters, `if A is B { X } else { Y }`, `else if`, `infer`, `true` and
+// `false`.
+
+struct Point {
+    x: float
+    y: float
+}
+
+type Partial<T> = { [K in keyof T]?: T[K] }
+type Record<K, V> = { [P in K]: V }
+type Ints<T> = {
+    [K in keyof T if T[K] is int]: T[K]
+}
+type Unwrap<T> = if T is Option<infer U> { U } else { T }
+type IsInt<T> = if T is int { true } else if T is bool { false } else { false }
+type Flat<T> = { [K in keyof T - .y if IsInt<T[K]>]: Unwrap<T[K]> }
+
+fn main() {
+}

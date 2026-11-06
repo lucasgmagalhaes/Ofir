@@ -88,6 +88,17 @@ pub enum TypeKind {
     KeyOp(op: Op, left: Box<TypeExpr>, right: Box<TypeExpr>)
     /** `T[K]`, an indexed access type (spec 16.3) */
     Index(base: Box<TypeExpr>, key: Box<TypeExpr>)
+    /** `{ [K in Keys if Cond]?: F }`, a mapped type (spec 16.4) */
+    Mapped(param: Symbol, keys: Box<TypeExpr>, filter: Option<Box<TypeExpr>>, optional: bool,
+           field: Box<TypeExpr>)
+    /** `A is B`, the condition of a conditional type (spec 16.5) */
+    Is(left: Box<TypeExpr>, pattern: Box<TypeExpr>)
+    /** `if A is B { X } else { Y }`, a conditional type (spec 16.5) */
+    Cond(test: Box<TypeExpr>, then: Box<TypeExpr>, otherwise: Box<TypeExpr>)
+    /** `infer U` in the pattern of a conditional type */
+    Infer(name: Symbol)
+    /** `true` or `false`, the value of a condition */
+    Bool(value: bool)
 }
 
 // ---------------------------------------------------------------------------
