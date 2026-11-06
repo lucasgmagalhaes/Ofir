@@ -13,7 +13,7 @@ required before version 1.0.
 | prelude, `std.core` | [core.md](core.md): `Option`, `Result`, `Ordering`, interfaces, numbers |
 | `std.collections` | [collections.md](collections.md): `List`, `Map`, `Box` |
 | `std.strings` | [strings.md](strings.md): `str` methods and helpers |
-| `std.io`, `std.fs`, `std.os` | [system.md](system.md): input/output, files, processes |
+| `std.io`, `std.fs`, `std.os`, `std.task` | [system.md](system.md): input/output, files, processes, tasks |
 | `std.mem`, `std.math`, `std.testing`, `std.fmt` | [utilities.md](utilities.md) |
 
 ## Planned API ecosystem
