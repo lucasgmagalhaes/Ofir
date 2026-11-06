@@ -72,8 +72,10 @@ fn placeRootBelow(c: mut Checker, e: &Expr) Option<(&Expr, int)> {
     }
 }
 
-// Whether the place goes through an element of a `&[T]`, which is read-only.
-fn throughSlice(c: Checker, e: &Expr) bool {
+// Whether the place goes through an element of a slice: 1 for a `&[T]`,
+// which is read-only, 2 for a `&mut [T]`, which is writable whatever binds
+// it, and 0 for neither.
+fn throughSlice(c: Checker, e: &Expr) int {
     var at = e
     for {
         let base = match at.kind {
@@ -82,13 +84,19 @@ fn throughSlice(c: Checker, e: &Expr) bool {
             ExprKind.Index(base, _) => {
                 let ty = adjustedType(c, &*base)
                 let slice = c.r.langItems[4]
-                if slice != 0 && c.types.kind(ty) == TyKind.Adt && c.types.get(ty).data == slice {
-                    return true
+                if c.types.kind(ty) == TyKind.Adt && c.types.get(ty).data != 0 {
+                    let data = c.types.get(ty).data
+                    if data == slice {
+                        return 1
+                    }
+                    if data == c.r.langItems[7] {
+                        return 2
+                    }
                 }
                 &*base
             }
             _ => {
-                return false
+                return 0
             }
         }
         at = base
@@ -107,7 +115,11 @@ pub fn requireMutable(c: mut Checker, p: Program, place: &Expr) {
 }
 
 fn requirePlace(c: mut Checker, p: Program, place: &Expr, withOwn: bool) {
-    if throughSlice(c, place) {
+    let through = throughSlice(c, place)
+    if through == 2 {
+        return
+    }
+    if through == 1 {
         c.error("E0315", place.span, "this value cannot be modified: the elements of a `&[T]` "
                 + "are read-only")
         return
