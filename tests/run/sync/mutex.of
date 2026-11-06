@@ -1,0 +1,42 @@
+// requires: stage1
+// `Mutex` and `RwLock`: guards that unlock when dropped, shared between
+// tasks through an `Arc` (spec 14.4).
+
+import std.sync.Arc
+import std.sync.Mutex
+import std.sync.RwLock
+import std.task
+
+fn main() {
+    let total = Arc.new(Mutex.new(0))
+    var tasks: List<task.Task<()>> = []
+    for _ in 0..4 {
+        let mine = total.clone()
+        tasks.push(task.run(move () => {
+            for _ in 0..1000 {
+                var guard = mine.get().lock()
+                *guard.getMut() = *guard.get() + 1
+            }
+        }))
+    }
+    for _ in 0..4 {
+        tasks.pop().unwrap().join()
+    }
+    println("{*total.get().lock().get()}")
+    let names = Mutex.new(List<str>.new())
+    {
+        var guard = names.lock()
+        guard.getMut().push("ana")
+        guard.getMut().push("bia")
+    }
+    let guard = names.lock()   // one guard: a second `lock()` here would wait forever
+    println("{guard.get().len()} {guard.get()[1]}")
+    let config = RwLock.new("fast")
+    {
+        var w = config.write()
+        *w.getMut() = "safe"
+    }
+    let r1 = config.read()
+    let r2 = config.read()
+    println("{r1.get()} {r2.get()}")
+}
