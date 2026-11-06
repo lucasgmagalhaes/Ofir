@@ -1,0 +1,13 @@
+// requires: stage1
+// The values of a channel move between tasks, so they must be `Send`
+// (spec 14.4).
+
+import std.sync.channel
+
+struct Raw {
+    p: *int,
+}
+
+fn main() {
+    let _ = channel<Raw>()   // error[E0332]: `Raw` does not satisfy the bound `Send`
+}
