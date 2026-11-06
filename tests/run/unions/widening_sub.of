@@ -1,0 +1,55 @@
+// requires: stage1
+// Widening a sub-union into a larger union (spec 17.3).
+
+struct IoError {
+    path: str
+}
+
+struct ParseError {
+    line: int
+}
+
+struct NetError {
+    code: int
+}
+
+type ReadError = IoError | ParseError
+
+type LoadError = IoError | ParseError | NetError
+
+fn describe(err: LoadError) str {
+    return match err {
+        e: IoError => "io {e.path}"
+        e: ParseError => "parse {e.line}"
+        e: NetError => "net {e.code}"
+    }
+}
+
+fn read(fail: bool) Result<int, ReadError> {
+    if fail {
+        let err: ReadError = ParseError { line: 7 }
+        return Result.Err(err)
+    }
+    return Result.Ok(1)
+}
+
+fn load(fail: bool) Result<int, LoadError> {
+    let n = read(fail)?
+    return Result.Ok(n + 1)
+}
+
+fn main() {
+    let small: ReadError = IoError { path: "a.txt" }
+    let big: LoadError = small
+    println(describe(big))
+    let other: ReadError = ParseError { line: 3 }
+    println(describe(other))
+    match load(false) {
+        Result.Ok(n) => println("ok {n}")
+        Result.Err(e) => println(describe(e))
+    }
+    match load(true) {
+        Result.Ok(n) => println("ok {n}")
+        Result.Err(e) => println(describe(e))
+    }
+}
