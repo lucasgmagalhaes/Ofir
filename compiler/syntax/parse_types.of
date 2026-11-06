@@ -13,6 +13,7 @@ import syntax.ast.TypeKind
 import syntax.ast.WherePred
 import syntax.parse_exprs.parseExpr
 import syntax.parser.Parser
+import syntax.parser.symbolOf
 import syntax.token.TokenKind
 import syntax.token.TokenValue
 
@@ -128,7 +129,7 @@ fn pathType(p: mut Parser) TypeExpr {
     return newType(p, TypeKind.Path(segments, args), start)
 }
 
-// `fn(A, mut B) R` or `move fn(A) R`; the `fn` keyword is next.
+// `fn(A, mut B) R` or `move fn(A) R`, then `+ Send`; the `fn` keyword is next.
 fn fnType(p: mut Parser, start: Span, owned: bool) TypeExpr {
     p.advance()
     p.expect(TokenKind.LParen, "`(` after `fn`")
@@ -146,7 +147,14 @@ fn fnType(p: mut Parser, start: Span, owned: bool) TypeExpr {
     if canStartType(p) {
         ret = Option.Some(Box.new(parseType(p)))
     }
-    return newType(p, TypeKind.Fn(params, modes, ret, owned), start)
+    let send = p.at(TokenKind.Plus) && p.peekAt(1) == TokenKind.Ident &&
+               symbolOf(p.token(1)).0 == p.words.send.unwrapOr(Symbol(0)).0 &&
+               p.words.send.isSome()
+    if send {
+        p.advance()
+        p.advance()
+    }
+    return newType(p, TypeKind.Fn(params, modes, ret, owned, send), start)
 }
 
 // `[T]` or `[T; N]`; the `[` is next.
