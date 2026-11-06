@@ -73,7 +73,7 @@ another identifier is an error (E0809).
 
 Stage 0 and stage 1 implement `@inline`, `@cold`, `@test` and `@lang`;
 stage 1 also implements `@deprecated`, `@allow`, `@cfg`, `@repr(C)`,
-`@packed`, `@align`, `@export` and `@link`. `@bench` and `@tag` are checked,
+`@packed`, `@align`, `@export`, `@link` and `@bench`. `@tag` is checked,
 then reported as not supported yet (E0901).
 
 ## 12.2 Tests
@@ -125,6 +125,18 @@ fn benchSort(b: mut Bencher) {
 
 `ofir bench` runs benchmarks with optimizations enabled and reports time
 per iteration.
+
+- A benchmark is a function marked `@bench` that takes `b: mut Bencher`
+  and returns nothing (E0206). Like tests, benchmarks are excluded from
+  other builds and only their signature is checked there; `ofir bench`
+  does not compile the `@test` functions or test files, nor call `main`.
+- `Bencher` is in the prelude under `ofir bench` (`std/core/bench.of`).
+  `b.run(f)` calls `f` once to warm up, then repeatedly, doubling the count
+  until the calls take about half a second, and prints
+  `N ns/iter (M iterations)`.
+- Each benchmark runs in its own process, as a test does: `ofir bench`
+  prints `bench module.name ... ` before its time and a summary at the end.
+- Stage 1 implements benchmarks; stage 0 has no `bench` command.
 
 ## 12.4 Conditional compilation
 
