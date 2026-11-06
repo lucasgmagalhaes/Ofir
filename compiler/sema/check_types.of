@@ -404,7 +404,13 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
         }
         TypeKind.Never => NEVER
         TypeKind.Dyn(inner) => dynType(c, p, &*inner, t.span)
-        TypeKind.Optional(_) => c.unsupported(t.span, "optional types (`T?`) are")
+        TypeKind.Optional(inner) => {   // `T?` is `Option<T>` (spec 2.6)
+            let target = resolveType(c, p, &*inner)
+            if c.r.langItems[2] == 0 {
+                return c.unsupported(t.span, "optional types (`T?`) without std are")
+            }
+            c.types.adt(c.r.langItems[2], [target])
+        }
         TypeKind.KeyOf(inner) => keyofType(c, p, &*inner, t.span)
         TypeKind.Key(name) => c.types.keys([name.0])
         TypeKind.KeyOp(op, left, right) => keyOpType(c, p, op, &*left, &*right, t.span)
