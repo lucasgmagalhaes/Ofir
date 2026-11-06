@@ -116,6 +116,8 @@ import sema.check_types.fnSignature
 import sema.derive.fromMethod
 import sema.check_dyn.dynBorrowed
 import sema.check_dyn.dynSourceType
+import sema.check_union.memberIndex
+import sema.check_union.unionSourceType
 import sema.check_methods.typeNameOf
 import sema.def.Res
 import sema.moves.COERCION_CONSUMED
@@ -441,6 +443,9 @@ pub fn lowerExpr(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     }
     if dynSourceType(c, e) >= 0 {
         return dynCoercion(l, c, p, e)
+    }
+    if unionSourceType(c, e) >= 0 {
+        return unionCoercion(l, c, p, e)
     }
     return lowerView(l, c, p, e, derefCount(c, e))
 }
@@ -1307,6 +1312,16 @@ fn dynCoercion(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
     return tempValue(l, ty, rv)
 }
 
+// A value widened to a union (spec 17.3): the variant of its type, holding it.
+fn unionCoercion(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr) Operand {
+    let found = unionSourceType(c, e)
+    let ty = c.typeOf(e.id.0)
+    c.setType(e.id.0, found)   // the expression itself has the type found
+    let value = lowerView(l, c, p, e, derefCount(c, e))
+    c.setType(e.id.0, ty)
+    return variantValue(l, c, p, ty, memberIndex(c, ty, found), [value])
+}
+
 // `base.m(args)` where `base` reaches a `dyn I`: the method is loaded from
 // the vtable and called with the data pointer as its `self`.
 fn dynCall(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, base: &Expr, id: int,
@@ -1674,8 +1689,14 @@ fn lowerTry(l: mut Lowerer, c: mut Checker, p: Program, inner: &Expr, ty: int) O
     var fields: List<Operand> = []
     if !option {
         let target = c.types.get(ret).args[1]
-        let from = if compatible(error, target) { 0 } else { fromMethod(c, p, target, error) }
-        if from == 0 {
+        let member = if compatible(error, target) { -1 } else { memberIndex(c, target, error) }
+        let from = if compatible(error, target) || member >= 0 { 0 } else {
+            fromMethod(c, p, target, error)
+        }
+        if member >= 0 {
+            let widened = variantValue(l, c, p, target, member, [payload(&value, bad, 0, error)])
+            fields.push(widened)
+        } else if from == 0 {
             fields.push(payload(&value, bad, 0, error))
         } else {
             let converted = newTemp(l, target)
