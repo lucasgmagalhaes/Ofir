@@ -1,0 +1,77 @@
+// requires: stage1
+// Channels between tasks: `channel`, `send`, `recv` and the end of a
+// channel once every sender is dropped (spec 14.4).
+
+import std.sync.channel
+import std.sync.Sender
+import std.task
+
+struct Noisy {
+    n: int
+
+    fn drop(mut self) {
+        println("drop {self.n}")
+    }
+}
+
+fn produce(tx: move Sender<int>, from: int) task.Task<()> {
+    return task.run(move () => {
+        for i in from..from + 3 {
+            tx.send(i)
+        }
+    })
+}
+
+fn one() {
+    let (tx, rx) = channel<int>()
+    let t = task.run(move () => tx.send(42))
+    println("{rx.recv().unwrap()}")
+    t.join()
+    println("{rx.recv().isNone()}")
+}
+
+// Two senders; the values of each arrive in order.
+fn many() {
+    let (tx, rx) = channel<int>()
+    let a = produce(tx.clone(), 0)
+    let b = produce(tx, 10)
+    var sum = 0
+    var count = 0
+    for _ in 0..6 {
+        sum += rx.recv().unwrap()
+        count += 1
+    }
+    a.join()
+    b.join()
+    println("{count} values, sum {sum}, then {rx.tryRecv().isNone()}")
+}
+
+fn owned() {
+    let (tx, rx) = channel<str>()
+    tx.send("one".toOwned())
+    tx.send("two".toOwned())
+    println("{rx.tryRecv().unwrap()}")
+    let rest = rx.recv().unwrap()
+    println(rest)
+}
+
+// Dropping the receiver drops what it never took; later sends drop theirs.
+fn dropped() {
+    let (tx, rx) = channel<Noisy>()
+    tx.send(Noisy{n: 1})
+    tx.send(Noisy{n: 2})
+    discard(rx)
+    tx.send(Noisy{n: 3})
+    println("sent after the receiver")
+}
+
+fn discard<T>(_: move T) {
+}
+
+fn main() {
+    one()
+    many()
+    owned()
+    dropped()
+    println("end")
+}
