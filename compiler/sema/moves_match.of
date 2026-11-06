@@ -16,6 +16,7 @@ import sema.borrows.killHolder
 import sema.check.Checker
 import sema.check_dyn.boxesDyn
 import sema.check_pattern.testedDyn
+import sema.check_union.unionMembers
 import sema.moves.MOVES
 import sema.moves.Moves
 import sema.moves.Part
@@ -80,9 +81,12 @@ pub fn bindsByMove(c: Checker, p: Program, pattern: &Pattern) bool {
             }
             false
         }
-        // `c: Config` on a `Box<dyn I>` takes the value out of the box
+        // `c: Config` on a `Box<dyn I>` takes the value out of the box; on a
+        // union, a member that is not Copy
         PatternKind.TypeTest(_, _) => c.localAt(pattern.id.0) >= 0 &&
-                          boxesDyn(c, c.typeOf(pattern.id.0))
+                          (boxesDyn(c, c.typeOf(pattern.id.0)) ||
+                           (unionMembers(c, c.typeOf(pattern.id.0)).len() > 0 &&
+                            !isCopy(c, p, c.members[c.module()][pattern.id.0])))
         _ => false
     }
 }
