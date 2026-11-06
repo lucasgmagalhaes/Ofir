@@ -2,7 +2,7 @@
 
 @test
 fn filesAreCreatedOnce() {
-    var di = DebugInfo.new()
+    let di = DebugInfo.new()
     const a = di.file(0, "a.of", "/src")
     const b = di.file(1, "b.of", "/src")
     assert(a == 4 && b == 5 && di.file(0, "a.of", "/src") == 4)
@@ -10,7 +10,7 @@ fn filesAreCreatedOnce() {
 
 @test
 fn locationsAreShared() {
-    var di = DebugInfo.new()
+    let di = DebugInfo.new()
     const file = di.file(0, "a.of", "/src")
     const f = di.subprogram("main", file, 3)
     const first = di.location(4, 5, f)
@@ -21,7 +21,7 @@ fn locationsAreShared() {
 
 @test
 fn finishWritesTheFixedNodes() {
-    var di = DebugInfo.new()
+    let di = DebugInfo.new()
     const file = di.file(0, "a.of", "/src")
     const f = di.subprogram("main", file, 1)
     di.location(2, 1, f)

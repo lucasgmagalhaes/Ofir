@@ -103,7 +103,7 @@ pub struct DebugInfo {
      * @returns the named metadata and every node
      */
     pub fn finish(self, root: int) str {
-        var out = "!llvm.dbg.cu = !\{!0\}\n!llvm.module.flags = !\{!1\}\n\n"
+        let out = "!llvm.dbg.cu = !\{!0\}\n!llvm.module.flags = !\{!1\}\n\n"
         out.push("!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !{root}, ")
         out.push("producer: \"ofir\", isOptimized: false, runtimeVersion: 0, ")
         out.push("emissionKind: FullDebug)\n")
