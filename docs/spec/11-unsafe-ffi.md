@@ -94,6 +94,14 @@ var COUNTER: int = 0          // mutable global: access requires unsafe
 const LIMIT: int = 10         // constants are always safe
 ```
 
+- Reading, writing or borrowing a mutable global is an unsafe operation
+  (E0803), in the module that declares it and through a path
+  (`stats.TOTAL`).
+- The initializer is a constant expression (chapter 3.2); a call or any
+  other run-time value is E0801.
+- Stage 1 implements globals of numeric and `bool` types; other types are
+  E0901. Stage 0 has the declaration but no accesses.
+
 ## 11.6 Undefined behavior
 
 Safe Ofir code cannot cause undefined behavior. Unsafe code causes undefined
