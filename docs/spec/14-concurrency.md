@@ -35,28 +35,65 @@ fn main() {
 
 `task.run` starts a task and returns its handle; `join` waits for the task
 and returns its result. A task runs on an OS thread of its own. `task.run`
-takes a `move fn() T` (chapter 10.2), so a task can never hold a reference
-into another task's stack.
+takes a `move fn() T + Send` (chapter 10.2, 14.3), so a task can never hold
+a reference into another task's stack, nor a value that is unsafe to use
+from another thread.
 
 `run` returns a `task.Task<T>`. A task that panics ends the whole program,
 as a panic on the main thread does. The output of `print` and `println`
 reaches standard output a line at a time, so lines from different tasks
-never interleave. Until `Send` (14.3) exists, nothing stops a closure from
-capturing a value that is unsafe to move to another thread, such as a raw
-pointer.
+never interleave.
 
-## 14.3 Marker interfaces **[planned]**
+## 14.3 Marker interfaces
 
-Two built-in marker interfaces (no methods), derived automatically:
+Two built-in marker interfaces (no methods), derived from the structure of
+a type:
 
 | Interface | Meaning |
 |-----------|---------|
 | `Send` | values of the type may be moved to another task |
 | `Sync` | shared references to the type may be used from several tasks |
 
-Raw pointers and `Rc<T>` are neither `Send` nor `Sync`. A struct is `Send`
-when all its fields are `Send`. `task.run` requires its closure to be
-`Send`.
+- Numbers, `bool`, `str`, `()`, `never` and key types are both.
+- Raw pointers (`*T`, `*mut T`) and `dyn I` are neither.
+- `&T` is `Send` when `T` is `Sync`; `&mut T` is `Send` when `T` is `Send`.
+  Both are `Sync` when `T` is `Sync`.
+- A slice, array or tuple is `Send` (`Sync`) when its elements are.
+- A struct or enum is `Send` (`Sync`) when all its fields are; a recursive
+  type counts as `Send` (`Sync`) where it reaches itself again.
+- A struct or enum marked `@threadsafe` (chapter 12) is `Send` (`Sync`)
+  when its type arguments are, whatever its fields hold. The marker is how
+  a type built on raw pointers, such as `List<T>`, `Box<T>` or `str`,
+  states that it owns what they reach. The compiler cannot check it, so it
+  belongs to code that is correct under `unsafe` rules (chapter 11).
+- A type parameter is `Send` (`Sync`) when it has that bound:
+  `fn spawn<T: Send>(x: move T)`.
+
+A function type may add `+ Send`: `move fn() T + Send`. A closure
+converts to it only if it may run on another task: a `move` closure moves
+its captures, which must all be `Send`; a borrowing closure shares them,
+which must all be `Sync` (E0360). A named function captures nothing and
+converts to any `+ Send` type. `fn() T + Send` converts to `fn() T`, and
+no function type is `Sync`.
+
+```ofir
+import std.task
+
+fn twice(f: fn() int + Send) int {
+    return f() + f()
+}
+
+fn main() {
+    let n = 21
+    println("{twice(() int => n)}")
+    let t = task.run(move () int => n * 2)
+    println("{t.join()}")
+}
+```
+
+`task.run` takes a `move fn() T + Send` and requires `T: Send`, since the
+result moves back to the task that calls `join`. Stage 0 has no tasks: it
+accepts `@threadsafe` and does not check `Send`.
 
 ## 14.4 Communication **[planned]**
 
