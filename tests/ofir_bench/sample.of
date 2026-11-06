@@ -1,0 +1,32 @@
+// requires: stage1
+// `ofir bench` (spec 12.3): the `@bench` functions run, `main` and the
+// `@test` functions do not. tools/run_std_tests.py checks the output, with
+// the times replaced.
+
+fn sum(xs: [int]) int {
+    var total = 0
+    for x in xs {
+        total += x
+    }
+    return total
+}
+
+@bench
+fn benchSum(b: mut Bencher) {
+    var xs: List<int> = []
+    for i in 0..100 {
+        xs.push(i)
+    }
+    b.run(() => {
+        assert(sum(xs) == 4950)
+    })
+}
+
+@test
+fn notRun() {
+    panic("a test under `ofir bench`")
+}
+
+fn main() {
+    panic("`main` under `ofir bench`")
+}

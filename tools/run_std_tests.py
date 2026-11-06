@@ -15,6 +15,7 @@ checks `ofir test` itself: the standard output of each
 import argparse
 import concurrent.futures
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -74,7 +75,9 @@ def main() -> int:
         print(f"unit tests (std, compiler): {total} tests in {len(paths)} modules, "
               f"{len(failed)} modules with failures")
         checked = check_std_whole(args.compiler, pool, args.stage)
-    return 1 if failed or not checked or not check_fixtures(args.compiler) else 0
+    fixtures = check_fixtures(args.compiler)
+    benches = args.stage == 0 or check_bench_fixtures(args.compiler)
+    return 1 if failed or not checked or not fixtures or not benches else 0
 
 
 def requires_stage1(path: Path) -> bool:
@@ -111,6 +114,21 @@ def check_fixtures(compiler: str) -> bool:
         if result.stdout != expected:
             ok = False
             print(f"FAIL {path.relative_to(ROOT)}: the output of `ofir test` differs")
+            sys.stdout.write(result.stdout)
+    return ok
+
+
+def check_bench_fixtures(compiler: str) -> bool:
+    """Runs `ofir bench` on each file of tests/ofir_bench (stage 1 only) and
+    compares its output, with each number of the times written `N`."""
+    ok = True
+    times = re.compile(r"\d+ ns/iter \(\d+ iterations\)")
+    for path in sorted((ROOT / "tests" / "ofir_bench").glob("*.of")):
+        result = subprocess.run([compiler, "bench", str(path)], capture_output=True, text=True)
+        output = times.sub("N ns/iter (N iterations)", result.stdout)
+        if output != path.with_suffix(".out").read_text():
+            ok = False
+            print(f"FAIL {path.relative_to(ROOT)}: the output of `ofir bench` differs")
             sys.stdout.write(result.stdout)
     return ok
 
