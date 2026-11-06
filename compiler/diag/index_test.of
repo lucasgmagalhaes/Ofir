@@ -5,14 +5,14 @@ import base.span.SourceMap
 import base.span.Span
 
 fn sample() SourceMap {
-    var map = SourceMap.new()
+    let map = SourceMap.new()
     map.add("a.of".toOwned(), "fn main() \{\n\tlet x = 1 +\n\}\n".toOwned())
     return map
 }
 
 @test
 fn humanFormatMatchesStageZero() {
-    var diags = Diagnostics.new()
+    let diags = Diagnostics.new()
     const span = Span{file: FileId(0), start: 22, end: 23}
     diags.error("E0101", span, "expected an expression".toOwned())
     const text = diags.render(sample(), Format.Human)
@@ -26,7 +26,7 @@ fn humanFormatMatchesStageZero() {
 
 @test
 fn shortFormatIsSortedAndDeduplicated() {
-    var diags = Diagnostics.new()
+    let diags = Diagnostics.new()
     const late = Span{file: FileId(0), start: 13, end: 16}
     diags.warning("W0001", late, "unused variable `x`".toOwned())
     diags.error("E0200", Span{file: FileId(0), start: 3, end: 7}, "cannot find `main`".toOwned())
@@ -39,7 +39,7 @@ fn shortFormatIsSortedAndDeduplicated() {
 
 @test
 fn jsonFormatHasOneObjectPerLine() {
-    var diags = Diagnostics.new()
+    let diags = Diagnostics.new()
     const span = Span{file: FileId(0), start: 22, end: 23}
     diags.error("E0101", span, "expected an expression".toOwned())
     const text = diags.render(sample(), Format.Json)
@@ -51,7 +51,7 @@ fn jsonFormatHasOneObjectPerLine() {
 
 @test
 fn notesFollowTheExcerpt() {
-    var diags = Diagnostics.new()
+    let diags = Diagnostics.new()
     diags.error("E0101", Span{file: FileId(0), start: 22, end: 23}, "expected".toOwned())
     diags.note("an operand".toOwned())
     diags.help("write one".toOwned())
@@ -64,7 +64,7 @@ fn notesFollowTheExcerpt() {
 
 @test
 fn aSilencedWarningDropsItsNotes() {
-    var diags = Diagnostics.new()
+    let diags = Diagnostics.new()
     diags.allow("W0001", Span{file: FileId(0), start: 0, end: 40})
     diags.error("E0101", Span{file: FileId(0), start: 22, end: 23}, "expected".toOwned())
     diags.warning("W0001", Span{file: FileId(0), start: 13, end: 16}, "unused".toOwned())
@@ -81,7 +81,7 @@ fn jsonStringEscapes() {
 
 @test
 fn denyWarningsMakesErrors() {
-    var diags = Diagnostics.new()
+    let diags = Diagnostics.new()
     diags.denyWarnings = true
     diags.warning("W0001", noSpan(), "unused".toOwned())
     assert(diags.hasErrors())
@@ -89,7 +89,7 @@ fn denyWarningsMakesErrors() {
 
 @test
 fn caretStopsAtTheEndOfTheLine() {
-    var diags = Diagnostics.new()
+    let diags = Diagnostics.new()
     diags.error("E0003", Span{file: FileId(0), start: 0, end: 40}, "unterminated".toOwned())
     const text = diags.render(sample(), Format.Human)
     assert(text.endsWith("1 | fn main() \{\n  | ^^^^^^^^^^^^\n\n"))
@@ -97,7 +97,7 @@ fn caretStopsAtTheEndOfTheLine() {
 
 @test
 fn allowSilencesAWarningInsideItsSpan() {
-    var diags = Diagnostics.new()
+    let diags = Diagnostics.new()
     diags.allow("W0001", Span{file: FileId(0), start: 0, end: 20})
     diags.warning("W0001", Span{file: FileId(0), start: 13, end: 16}, "unused".toOwned())
     diags.warning("W0002", Span{file: FileId(0), start: 13, end: 16}, "unused".toOwned())

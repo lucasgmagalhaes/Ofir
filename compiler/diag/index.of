@@ -72,7 +72,7 @@ pub struct Diagnostic {
  *
  * @example
  * ```ofir
- * var diags = Diagnostics.new()
+ * let diags = Diagnostics.new()
  * diags.error("E0001", span, "unexpected character")
  * assert(diags.hasErrors())
  * ```
@@ -191,7 +191,7 @@ pub struct Diagnostics {
      * @returns the text, as stage 0 writes it to standard error
      */
     pub fn render(self, map: SourceMap, format: Format) str {
-        var out = ""
+        let out = ""
         const order = self.sortedOrder()
         for k in 0..order.len() {
             const d = &self.items[order[k]]
@@ -239,10 +239,10 @@ pub struct Diagnostics {
     // The indices of the diagnostics by (file, start, code), stable: an
     // insertion sort, as a compilation reports few diagnostics.
     fn sortedOrder(self) List<int> {
-        var order: List<int> = []
+        let order: List<int> = []
         for i in 0..self.items.len() {
             order.push(i)
-            var k = order.len() - 1
+            let k = order.len() - 1
             for k > 0 && before(&self.items[order[k]], &self.items[order[k - 1]]) {
                 const previous = order[k - 1]
                 order[k - 1] = order[k]
@@ -290,8 +290,8 @@ fn shortLine(d: &Diagnostic, map: SourceMap) str {
  * @returns the literal
  */
 pub fn jsonString(text: str) str {
-    var out = "\""
-    var copied = 0   // text before it is in `out`
+    let out = "\""
+    let copied = 0   // text before it is in `out`
     for i in 0..text.len() {
         const escape = jsonEscape(text[i])
         if escape.len() > 0 {
@@ -346,7 +346,7 @@ fn jsonLine(d: &Diagnostic, map: SourceMap) str {
     const file = map.file(d.span.file)
     const at = file.lineCol(d.span.start)
     const end = file.lineCol(if d.span.end > d.span.start { d.span.end } else { d.span.start })
-    var out = jsonFields(d.severity, d.code, d.message)
+    let out = jsonFields(d.severity, d.code, d.message)
     out.push(",\"file\":{jsonString(file.path)},\"line\":{at.line},\"column\":{at.column},")
     out.push("\"endLine\":{end.line},\"endColumn\":{end.column},\"notes\":[")
     for i in 0..d.notes.len() {
@@ -365,7 +365,7 @@ fn excerpt(d: &Diagnostic, map: SourceMap) str {
     const line = file.lineText(at.line)
     const number = "{at.line}"
     const pad = " ".repeat(number.len())
-    var out = "{severityName(d.severity)}[{d.code}]: {d.message}\n"
+    let out = "{severityName(d.severity)}[{d.code}]: {d.message}\n"
     out.push("{pad}--> {file.path}:{at.line}:{at.column}\n")
     out.push("{pad} |\n")
     out.push("{number} | {line}\n")
@@ -373,7 +373,7 @@ fn excerpt(d: &Diagnostic, map: SourceMap) str {
     for i in 0..at.column - 1 {   // tabs are kept so the caret stays under the text
         out.push(if line[i] == b'\t' { "\t" } else { " " })
     }
-    var len = if d.span.end > d.span.start { d.span.end - d.span.start } else { 1 }
+    let len = if d.span.end > d.span.start { d.span.end - d.span.start } else { 1 }
     if at.column - 1 + len > line.len() + 1 {   // a span running past the line is clipped
         len = line.len() + 1 - (at.column - 1)
     }
