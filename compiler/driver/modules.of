@@ -22,6 +22,7 @@ import driver.cfg.CfgTarget
 import driver.cfg.stripCfg
 import sema.program.Program
 import sema.program.ProgramModule
+import sema.program.newProgram
 import std.fs
 import std.mem
 import std.os
@@ -356,5 +357,5 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
             }
         }
     }
-    return Program{modules: ld.modules}
+    return newProgram(ld.modules)
 }

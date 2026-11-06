@@ -3,6 +3,10 @@
  * The modules of a program, as the loader gives them to the resolver.
  */
 
+import base.intern.Symbol
+import diag.index.noSpan
+import syntax.ast.Item
+import syntax.ast.ItemKind
 import syntax.ast.Module
 
 /**
@@ -23,4 +27,19 @@ pub struct ProgramModule {
 pub struct Program {
     /** The modules. */
     pub modules: List<ProgramModule>
+    /** The declaration of the types the checker makes, union types (spec 17.6): an enum
+     * without variants, attributes or type parameters. */
+    pub synthetic: Item
+}
+
+/**
+ * A program of the modules given.
+ *
+ * @param modules the modules, the root first
+ * @returns the program
+ */
+pub fn newProgram(modules: move List<ProgramModule>) Program {
+    let synthetic = Item{kind: ItemKind.Enum(false, [], [], []), span: noSpan(), name: Symbol(0),
+                         attributes: [], isPub: true, bounds: [], asserts: []}
+    return Program{modules, synthetic}
 }
