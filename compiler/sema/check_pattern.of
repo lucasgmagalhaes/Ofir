@@ -12,6 +12,8 @@ import sema.check.Checker
 import sema.check_box.boxInner
 import sema.check_types.resolveType
 import sema.check_types.moduleType
+import sema.check_union.memberIndex
+import sema.check_union.unionMembers
 import sema.def.DefKind
 import sema.def.Res
 import sema.enums.enumOf
@@ -288,6 +290,10 @@ fn typeTest(c: mut Checker, p: Program, pat: &Pattern, target: &TypeExpr, ty: in
     if local >= 0 {
         c.localTypes[local] = concrete
     }
+    if unionMembers(c, ty).len() > 0 {
+        unionTest(c, pat, concrete, ty)
+        return
+    }
     let object = testedDyn(c, ty)
     if object < 0 {
         mismatch(c, pat.span, "a type test", ty)
@@ -307,6 +313,29 @@ fn typeTest(c: mut Checker, p: Program, pat: &Pattern, target: &TypeExpr, ty: in
     if why.len() > 0 {
         c.error("E0354", pat.span, "the type test can never match: {c.typeName(concrete)} does "
                 + "not satisfy {c.text(c.def(iface).name)}: {why}")
+    }
+}
+
+// `e: IoError` on a union (spec 17.4): `IoError` must be one of its members,
+// or a union of some of them.
+fn unionTest(c: mut Checker, pat: &Pattern, concrete: int, ty: int) {
+    if concrete == ERROR {
+        return
+    }
+    let tested = unionMembers(c, concrete)
+    if tested.len() == 0 {
+        if memberIndex(c, ty, concrete) < 0 {
+            c.error("E0352", pat.span, "`{c.typeName(concrete)}` is not a member of the union "
+                    + "`{c.typeName(ty)}`")
+        }
+        return
+    }
+    for i in 0..tested.len() {
+        if memberIndex(c, ty, tested[i]) < 0 {
+            c.error("E0352", pat.span, "`{c.typeName(tested[i])}` is not a member of the union "
+                    + "`{c.typeName(ty)}`")
+            return
+        }
     }
 }
 
