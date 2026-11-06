@@ -475,6 +475,9 @@ pub struct Checker {
     /** The values converted to `&dyn I`, `*dyn I` or `Box<dyn I>`, by module: `NodeId` to
      * the type before the conversion. */
     pub dynCoercions: List<Map<int, int>>
+    /** The values widened to a union (spec 17.3), by module: `NodeId` to the type before
+     * the widening. */
+    pub unionCoercions: List<Map<int, int>>
     /** What the move analysis found, by module and `NodeId`: `moves.MOVES`, `moves.CONSUMED`. */
     pub moveFlags: List<Map<int, int>>
     /** The std functions checked with the root whose move analysis waits for the lowering. */
@@ -526,6 +529,10 @@ pub struct Checker {
     pub inferNames: List<Symbol>
     /** Whether a pattern of a conditional type is being resolved. */
     pub inferring: bool
+    /** The enum of each union type (spec 17.6), by the tuple type of its sorted members. */
+    pub unions: Map<int, int>
+    /** The members of each union's enum, as a tuple type, by its `DefId`. */
+    pub unionDefs: Map<int, int>
 
     /**
      * Reports an error.
@@ -536,6 +543,16 @@ pub struct Checker {
      */
     pub fn error(mut self, code: str, span: Span, message: move str) {
         self.r.diags.error(code, span, message)
+    }
+
+    /**
+     * Whether an enum is the one of a union type (spec 17.6): it has no declaration.
+     *
+     * @param id its `DefId`
+     * @returns true for a union's enum
+     */
+    pub fn isUnion(self, id: int) bool {
+        return self.unionDefs.get(id).isSome()
     }
 
     /**
@@ -819,6 +836,9 @@ pub copy struct Loc {
  * @returns its item
  */
 pub fn itemOf(p: Program, def: Loc) &Item {
+    if def.item < 0 {   // a type the checker made
+        return &p.synthetic
+    }
     return &p.modules[def.module].module.items[def.item]
 }
 
@@ -885,6 +905,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     var argSlots: List<Map<int, List<int>>> = []
     var sliceCoercions: List<Map<int, int>> = []
     var dynCoercions: List<Map<int, int>> = []
+    var unionCoercions: List<Map<int, int>> = []
     var moveFlags: List<Map<int, int>> = []
     var capturesMut: List<Map<int, List<int>>> = []
     for m in 0..p.modules.len() {
@@ -898,6 +919,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         argSlots.push(Map.new())
         sliceCoercions.push(Map.new())
         dynCoercions.push(Map.new())
+        unionCoercions.push(Map.new())
         moveFlags.push(Map.new())
         capturesMut.push(Map.new())
     }
@@ -912,13 +934,14 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
                    adjusted,
                    members, callTypeArgs, argSlots, defaultsChecked: Map.new(), sliceCoercions,
-                   dynCoercions, moveFlags, fnMoves: Map.new(),
+                   dynCoercions, unionCoercions, moveFlags, fnMoves: Map.new(),
                    bodyChecked: Map.new(), movesPending: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
                    selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
                    shorthandSpan: noSpan(), closures: [], closureMoves: [], capturesMut,
                    boundArgs: Map.new(), typeVars: [], typeVarTypes: [], aliasDef: 0,
-                   mapped: Map.new(), inferNames: [], inferring: false}
+                   mapped: Map.new(), inferNames: [], inferring: false, unions: Map.new(),
+                   unionDefs: Map.new()}
 }
 
 // ---------------------------------------------------------------------------

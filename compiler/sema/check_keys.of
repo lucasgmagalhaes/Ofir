@@ -10,6 +10,7 @@ import sema.check.Checker
 import sema.check.Generics
 import sema.check_methods.checkVisible
 import sema.check_types.resolveType
+import sema.check_union.unionType
 import sema.program.Program
 import sema.struct_exprs.fieldIsPub
 import sema.struct_exprs.structDef
@@ -134,7 +135,7 @@ pub fn keyOpType(c: mut Checker, p: Program, op: Op, left: &TypeExpr, right: &Ty
     let keysB = c.types.kind(b) == TyKind.Key
     if !keysA || !keysB {
         if op == Op.Or {
-            return c.unsupported(span, "union types are")
+            return unionType(c, a, left.span, b, right.span, span)
         }
         let found = if keysA { b } else { a }
         let symbol = if op == Op.And { "&" } else { "-" }
