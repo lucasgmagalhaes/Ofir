@@ -26,6 +26,7 @@ pub copy enum IoErrorKind {
 | `fn stdin() Stdin` | | ✓ |
 | `fn readLine(mut self, buf: mut str) Result<int, IoError>` | returns bytes read, `0` at end of input | ✓ |
 | `fn readToString(mut self) Result<str, IoError>` | | ✓ |
+| `fn read(mut self, n: int) Result<str, IoError>` | up to `n` bytes, fewer only at the end of input | |
 | `interface Reader`, `interface Writer` | spec 9.4 | |
 | `struct BufWriter<W>` | buffered writer over any `Writer` | |
 | `fn flush() Result<(), IoError>` | flush standard output | ✓ |

@@ -1,0 +1,47 @@
+// The tests of `lsp.json`.
+
+@test
+fn parsesNestedValues() {
+    const text = "\{\"id\": 3, \"params\": \{\"items\": [true, null, \"a\\nb\"]\}\}"
+    const Option.Some(doc) = parseJson(text) else {
+        panic("not parsed")
+    }
+    assert(doc.int(doc.field(0, "id")) == 3)
+    const items = doc.elements(doc.at(["params", "items"]))
+    assert(items.len() == 3)
+    assert(doc.nodes[items[0]].kind == JsonKind.Bool)
+    assert(doc.nodes[items[1]].kind == JsonKind.Null)
+    assert(doc.text(items[2]) == "a\nb")
+    assert(doc.field(0, "missing") == -1)
+    assert(doc.text(doc.at(["params", "missing", "deeper"])) == "")
+}
+
+@test
+fn decodesUnicodeEscapes() {
+    const Option.Some(doc) = parseJson("\"caf\\u00e9 \\ud83d\\ude00\"") else {
+        panic("not parsed")
+    }
+    assert(doc.text(0) == "café 😀")
+}
+
+@test
+fn keepsTheIdAsItCame() {
+    const Option.Some(doc) = parseJson("[-12, \"x\\\"y\", \{\}]") else {
+        panic("not parsed")
+    }
+    const items = doc.elements(0)
+    assert(doc.raw(items[0]) == "-12")
+    assert(doc.int(items[0]) == -12)
+    assert(doc.raw(items[1]) == "\"x\\\"y\"")
+    assert(doc.raw(items[2]) == "null")
+}
+
+@test
+fn rejectsInvalidDocuments() {
+    assert(parseJson("\{\"a\": \}").isNone())
+    assert(parseJson("[1, 2").isNone())
+    assert(parseJson("\"open").isNone())
+    assert(parseJson("tru").isNone())
+    assert(parseJson("1 2").isNone())
+    assert(parseJson(" [ ] ").isSome())
+}

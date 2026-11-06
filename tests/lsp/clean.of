@@ -1,0 +1,4 @@
+// A document without diagnostics: an empty list is published.
+fn main() {
+    println("hello")
+}

@@ -245,7 +245,10 @@ These gaps remain:
 | 6.1c | Channels: `channel<T>()`, `send`, `recv` (14.4); **done** (stage 1): `std.sync`, `tests/run/sync/channel` | M |
 | 6.1d | `std.sync`: `Mutex`, `RwLock`, atomics, `Arc`, `WaitGroup` (14.4); **done** (stage 1): `runtime/src/sync.c`, `tests/run/sync` | M |
 | 6.2 | `ofir fmt` implementing the [style guide](style-guide.md); **done** (stage 1): `compiler/fmt`, `tests/fmt` | M |
-| 6.3 | Language server (diagnostics, go to definition, completion) | L |
+| 6.3 | Language server (diagnostics, go to definition, completion), in the steps below | L |
+| 6.3a | `ofir lsp`: JSON-RPC on stdio, documents synchronized whole, diagnostics published; **done** (stage 1): `compiler/lsp`, `tests/lsp` | M |
+| 6.3b | Go to definition | M |
+| 6.3c | Completion | M |
 | 6.4 | `ofir doc` and doc tests | M |
 | 6.5 | Package manager: `ofir.json` dependencies, lock file, registry design | L |
 | 6.6 | Incremental and parallel compilation | L |

@@ -9,6 +9,7 @@ extern "C" {
     fn ofir_error_message(code: i32, len: *mut int) *u8
     fn ofir_read_line(out: *mut Buffer) i32
     fn ofir_read_stdin(out: *mut Buffer) i32
+    fn ofir_read_bytes(n: int, out: *mut Buffer) i32
     fn ofir_stdout_flush()
 }
 
@@ -162,6 +163,25 @@ pub struct Stdin {
         const n = out.len
         buf.push(unsafe { out.intoStr() })
         return Result.Ok(n)
+    }
+
+    /**
+     * Reads up to `n` bytes, fewer only at the end of the input.
+     *
+     * @param n how many bytes to read
+     * @returns the bytes, as text: empty at the end of the input
+     * @example
+     * ```ofir
+     * import std.io
+     *
+     * let input = io.stdin()
+     * const head = input.read(4)?
+     * ```
+     */
+    pub fn read(mut self, n: int) Result<str, IoError> {
+        let out = Buffer.new()
+        check(unsafe { ofir_read_bytes(n, &mut out as *mut Buffer) })?
+        return Result.Ok(unsafe { out.intoStr() })
     }
 
     /**

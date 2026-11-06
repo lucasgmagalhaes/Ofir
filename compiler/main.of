@@ -6,6 +6,7 @@
  *     ofir build <file.of>   compile a program
  *     ofir run <file.of>     compile and run a program
  *     ofir test <file.of>    compile and run the `@test` functions
+ *     ofir lsp               run the language server (compiler/lsp)
  *     ofir version           print the compiler version
  */
 
@@ -24,6 +25,7 @@ import driver.explain.explain
 import fmt.fmtCommand
 import driver.modules.Front
 import driver.modules.loadProgram
+import lsp.lspCommand
 import sema.c_symbols.linkLibraries
 import sema.check.Checker
 import sema.check.checkProgram
@@ -50,6 +52,7 @@ fn printUsage() {
              + "  explain <code>    explain an error or warning code, as E0600\n"
              + "  fmt [paths]       format the source files (--check: list those that would "
              + "change; --stdout: print them)\n"
+             + "  lsp               run the language server on standard input and output\n"
              + "  version           print the compiler version\n\noptions:\n"
              + "  -o <path>                 output path\n"
              + "  --emit=tokens             print the tokens and stop\n"
@@ -176,6 +179,9 @@ fn main() {
         }
         os.exit(fmtCommand(rest))
     }
+    if command == "lsp" {
+        os.exit(lspCommand())
+    }
     if command == "help" {
         printUsage()
         return
@@ -233,7 +239,8 @@ fn build(given: move Options) int {
     let opts = given
     opts.input = testRoot(&opts)
     let pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
-    let front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new()}
+    let front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new(),
+                      overlays: Map.new()}
     front.diags.denyWarnings = opts.deny
     const Option.Some(file) = front.load(opts.input) else {
         driverError(opts.format, "E0900", "cannot read `{opts.input}`")

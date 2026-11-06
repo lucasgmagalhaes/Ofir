@@ -15,6 +15,7 @@ A single executable provides every tool:
 | `ofir fmt [--check] [--stdout] [paths]` | format source files (below) |
 | `ofir doc` | generate HTML documentation **[planned]** |
 | `ofir explain <code>` | describe an error code |
+| `ofir lsp` | run the language server on standard input and output (below) |
 | `ofir version` | print version and LLVM/clang versions in use |
 
 A single file can be compiled without a project: `ofir run hello.of`.
@@ -187,6 +188,31 @@ only:
 A file that does not lex or parse is reported and left as it is, and before
 a file is written the formatter checks that its tokens are unchanged but
 for the added commas.
+
+### `ofir lsp`
+
+`ofir lsp` (stage 1) is a language server: it speaks the Language Server
+Protocol 3.17, JSON-RPC messages with a `Content-Length` header, on standard
+input and output, and exits when the client sends `exit` (status 0 after
+`shutdown`, 1 otherwise). The code is in `compiler/lsp`.
+
+It keeps the text of each open document, synchronized whole
+(`textDocumentSync.change` is 1), and checks a document each time it is
+opened or changed, as `ofir build --stop-after=check` would, with every open
+document read in place of its file. The diagnostics are published for that
+document: positions count lines from 0 and columns in UTF-16 code units,
+errors have severity 1 and warnings 2, the code is the diagnostic's code and
+the notes and help follow the message on their own lines. A diagnostic
+located in another file, such as an imported module, is shown at the start
+of the document, its message preceded by `path:line:column:`. Closing a
+document clears its diagnostics.
+
+Other requests are answered with the error -32601 (method not found), and a
+message that is not JSON with -32700. Go to definition and completion are
+[planned] (roadmap 6.3).
+
+`tests/lsp` holds the tests: a `.of` file, an optional `.lsp` file with the
+client's messages, and the server's messages in `.out`.
 
 ## 3. Build profiles
 

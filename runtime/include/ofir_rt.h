@@ -166,6 +166,7 @@ int32_t ofir_create_dir_all(const uint8_t *path, int64_t len);
 int32_t ofir_read_dir(const uint8_t *path, int64_t len, OfirBuf *out);
 int32_t ofir_read_line(OfirBuf *out);
 int32_t ofir_read_stdin(OfirBuf *out);
+int32_t ofir_read_bytes(int64_t n, OfirBuf *out);
 int32_t ofir_current_dir(OfirBuf *out);
 int32_t ofir_executable_path(OfirBuf *out);
 int32_t ofir_error_kind(int32_t code);

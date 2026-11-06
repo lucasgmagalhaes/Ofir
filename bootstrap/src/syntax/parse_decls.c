@@ -266,6 +266,11 @@ void parse_enum(Parser *p, Item *item) {
     WhereVec bounds = {0};
     item->as.enum_.type_params = parse_type_params(p, &bounds);
     TO_LIST(p, bounds, item->bounds);
+    if (at(p, TOK_COLON)) {
+        syntax_error(p, peek_token(p, 0)->span,
+                     "interface assertions are not supported by stage 0");
+        return;
+    }
     Vec(Variant) variants = {0};
     Vec(FnDecl *) methods = {0};
     expect(p, TOK_LBRACE, "`{` and the variants");

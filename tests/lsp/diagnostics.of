@@ -1,0 +1,9 @@
+// A warning and an error, the error after a non-ASCII string so that its
+// column counts UTF-16 code units: `é` is one and `𝄞` two.
+fn takes(_a: str, _b: int) {
+}
+
+fn main() {
+    let unused = 1
+    takes("é𝄞", "x")
+}

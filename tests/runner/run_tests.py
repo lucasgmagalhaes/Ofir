@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import os
+import json
 import re
 import subprocess
 import sys
@@ -28,7 +29,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SUITES = ["lex", "parse", "run", "compile_fail", "panic", "borrow", "codegen", "fmt"]
+SUITES = ["lex", "parse", "run", "compile_fail", "panic", "borrow", "codegen", "fmt", "lsp"]
 TIMEOUT_SECONDS = 20
 PANIC_EXIT_STATUS = 101
 
@@ -75,10 +76,12 @@ def executable(path: str) -> str:
     return str(full)
 
 
-def run_process(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+def run_process(cmd: list[str], cwd: Path | None = None,
+                input_text: str | None = None) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
-            cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT_SECONDS
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
+            input=input_text
         )
     except subprocess.TimeoutExpired as exc:
         message = f"timeout after {TIMEOUT_SECONDS}s"
@@ -276,6 +279,48 @@ def check_fmt(cfg: Config, path: Path) -> Result:
     return result
 
 
+# The session of an `lsp` test without a `.lsp` file: open the document.
+DEFAULT_LSP_SCRIPT = """\
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"capabilities": {}}}
+{"jsonrpc": "2.0", "method": "initialized", "params": {}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": \
+{"uri": "$URI", "languageId": "ofir", "version": 1, "text": $TEXT}}}
+{"jsonrpc": "2.0", "id": 2, "method": "shutdown"}
+{"jsonrpc": "2.0", "method": "exit"}
+"""
+
+
+def check_lsp(cfg: Config, path: Path) -> Result:
+    """`ofir lsp` is sent the messages of the test's `.lsp` file, one JSON
+    object per line, where `$URI` is the `.of` file's URI and `$TEXT` its
+    text as a JSON string; its messages, one per line with the URI written
+    `$URI`, must match the `.out` file, and it must exit with status 0."""
+    if cfg.stage == 0:
+        return Result(path, "skip", "`lsp` is a stage 1 command")
+    script_path = path.with_suffix(".lsp")
+    script = script_path.read_text() if script_path.exists() else DEFAULT_LSP_SCRIPT
+    uri = path.resolve().as_uri()
+    text = json.dumps(path.read_text())
+    framed = ""
+    for line in script.replace("\\\n", "").splitlines():
+        if line.strip():
+            body = line.replace("$URI", uri).replace("$TEXT", text)
+            framed += f"Content-Length: {len(body.encode())}\r\n\r\n{body}"
+    proc = run_process(compiler_cmd(cfg, "lsp"), input_text=framed)
+    if proc.returncode != 0:
+        return Result(path, "fail", describe(proc))
+    messages = []
+    # Text mode reads each `\r\n` of the headers as `\n`; the bodies, JSON
+    # written on one line, are unchanged.
+    rest = proc.stdout.encode()
+    while rest:
+        header, _, rest = rest.partition(b"\n\n")
+        length = int(header.split(b":")[1])
+        messages.append(rest[:length].decode().replace(uri, "$URI"))
+        rest = rest[length:]
+    return compare_output(cfg, path, "".join(m + "\n" for m in messages), ".out")
+
+
 def run_test(cfg: Config, suite: str, path: Path) -> Result:
     source = path.read_text()
     for requirement in REQUIRES_RE.findall(source):
@@ -295,6 +340,8 @@ def run_test(cfg: Config, suite: str, path: Path) -> Result:
         return check_codegen(cfg, path, source)
     if suite == "fmt":
         return check_fmt(cfg, path)
+    if suite == "lsp":
+        return check_lsp(cfg, path)
     # compile_fail and borrow
     return check_diagnostics(cfg, path, source)
 

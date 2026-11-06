@@ -1,0 +1,5 @@
+// A session that changes the document, sends a request the server does not
+// know and a message that is not JSON, then closes the document.
+fn main() {
+    const x: int = "text"
+}
