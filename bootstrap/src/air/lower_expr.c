@@ -8,7 +8,7 @@ bool type_is_value(TypeId type) {
 }
 
 static Operand int_literal(Lowerer *l, Expr *e) {
-    if (type_get(l->types, e->type)->kind == TY_FLOAT) {   // `var x: float = 0`
+    if (type_get(l->types, e->type)->kind == TY_FLOAT) {   // `let x: float = 0`
         return (Operand){.kind = OPERAND_FLOAT, .type = e->type,
                          .as.float_value = (double)e->as.int_value};
     }
