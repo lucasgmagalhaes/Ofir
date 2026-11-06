@@ -109,7 +109,7 @@ ParamType     = [ Mode ] Type .                     (* `fn(mut List<int>)` *)
 TypeArgs      = "<" Type { "," Type } [ "," ] ">" .
 ```
 
-A one-element tuple type is written `(T,)`. `[T]` without a length is only
+A one-element tuple type is written `(T,)`; `(T)` is the type `T`. `[T]` without a length is only
 valid behind a reference (`&[T]`, `&mut [T]`).
 
 Type operators (chapter 16) **[planned]**: `keyof` and `infer` are
