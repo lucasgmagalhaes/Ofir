@@ -1,5 +1,6 @@
 pub fn main() {
     const type = move
+    let var = 0
     let x: Self = self
     if true && false {
         return
