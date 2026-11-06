@@ -6,7 +6,7 @@
  * Numbers, `bool`, `str` and `()` are both; raw pointers are neither; a
  * struct, enum, tuple or array is when all its parts are. A struct or enum
  * marked `@threadsafe` (`List`, `Map`, `Box`) is when its type arguments
- * are: its raw pointers are not checked.
+ * are: its raw pointers are not checked. `UnsafeCell` is never `Sync`.
  */
 
 import sema.check.BOUND_SEND
@@ -86,6 +86,9 @@ fn markedIn(c: mut Checker, p: Program, ty: int, sync: bool, seen: &mut List<int
         }
     }
     seen.push(ty)
+    if sync && kind == TyKind.Adt && c.types.get(ty).data == c.r.langItems[6] {
+        return false   // `UnsafeCell<T>` (and so `Cell<T>`) is never `Sync`
+    }
     let args = c.types.get(ty).args.clone()
     if kind == TyKind.Tuple || threadsafe(c, p, c.types.get(ty).data) {
         for i in 0..args.len() {
