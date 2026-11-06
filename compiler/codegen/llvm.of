@@ -186,13 +186,14 @@ fn intBits(data: int) int {
 }
 
 /**
- * Whether a type has a value in LLVM: false for (), ! and the error type.
+ * Whether a type has a value in LLVM: false for (), !, the error type and keys.
  *
+ * @param c the checker
  * @param ty the type
  * @returns true if it does
  */
-pub fn hasValue(ty: int) bool {
-    return ty != UNIT && ty != NEVER && ty != ERROR
+pub fn hasValue(c: Checker, ty: int) bool {
+    return ty != UNIT && ty != NEVER && ty != ERROR && c.types.kind(ty) != TyKind.Key
 }
 
 /**
@@ -1357,7 +1358,7 @@ fn valueCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt
     g.out.push("  {code} = extractvalue {FN_LLVM} {values[0].text}, 0\n")
     let env = nextTemp(g)
     g.out.push("  {env} = extractvalue {FN_LLVM} {values[0].text}, 1\n")
-    let hasDest = s.hasDest && hasValue(retType)
+    let hasDest = s.hasDest && hasValue(c, retType)
     var result = ""
     if hasDest {
         result = nextTemp(g)
@@ -1615,7 +1616,7 @@ fn userCall(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, s: &AirStmt)
         retType = c.types.subst(c.types.get(sig).inner, args)
     }
     let ret = llvmType(g, c, p, retType)
-    let hasDest = s.hasDest && hasValue(retType)   // an instance may return ()
+    let hasDest = s.hasDest && hasValue(c, retType)   // an instance may return ()
     var result = ""
     if hasDest {
         result = nextTemp(g)
@@ -1703,7 +1704,7 @@ fn terminator(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, t: &Termin
         }
         TermKind.Return => {
             let ret = body.locals[0].ty
-            if hasValue(ret) {
+            if hasValue(c, ret) {
                 let v = operand(g, c, p, body, &opCopy(0, ret))
                 g.out.push("  ret {v.ty} {v.text}\n")
             } else {
@@ -1844,7 +1845,7 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     for k in 0..params.len() {
         let i = params[k]
         let local = &body.locals[i]
-        if local.byRef || hasValue(local.ty) {
+        if local.byRef || hasValue(c, local.ty) {
             let attrs = if plain { aliasAttrs(c, p, body, i) } else { "" }
             g.out.push("{if first { "" } else { ", " }}{localType(g, c, p, body, i)}{attrs} %p{i}")
             first = false
@@ -1863,14 +1864,14 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     let prologue = tagStart(g)
     for i in 0..body.locals.len() {
         let local = &body.locals[i]
-        if local.byRef || hasValue(local.ty) {
+        if local.byRef || hasValue(c, local.ty) {
             g.out.push("  %l{i} = alloca {localType(g, c, p, body, i)}\n")
         }
     }
     for k in 0..params.len() {
         let i = params[k]
         let local = &body.locals[i]
-        if local.byRef || hasValue(local.ty) {
+        if local.byRef || hasValue(c, local.ty) {
             g.out.push("  store {localType(g, c, p, body, i)} %p{i}, ptr %l{i}\n")
         }
     }
