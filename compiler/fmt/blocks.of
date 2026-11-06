@@ -124,7 +124,7 @@ fn isStatement(units: List<Unit>, lo: int, hi: int) bool {
 
 fn isStatementWord(kind: TokenKind) bool {
     return kind == TokenKind.Return || kind == TokenKind.Break || kind == TokenKind.Continue ||
-        kind == TokenKind.Let || kind == TokenKind.Var
+        kind == TokenKind.Let
 }
 
 // Whether the unit at `i` is an assignment operator; `>=` is `>` and `=`.
