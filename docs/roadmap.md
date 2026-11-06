@@ -212,7 +212,7 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.17 | Key types (spec 16.1-16.3): `keyof`, key literals, `\|` `&` `-` on keys, key-bounded parameters (erased, instantiated per key), `T[K]` and `value[key]` | M | **done** (stage 1): `tests/run/type_operators/keys*` and `key_params` pass; E0340-E0343 tested; moving `value[key]` out needs an owned `value` |
 | 5.18 | Mapped types (16.4) with `?:` and `if` filters; conditional types with `infer` (16.5) | L | **done** (stage 1): `Partial`, `Pick`, `Omit`, `Record`, `Required` work in `tests/run/type_operators/mapped_types` and `conditional_types`; E0332, E0340, E0344 and E0345 tested; mapped and conditional types over type parameters wait for 5.19 |
 | 5.19 | `comptime for` over keys (16.6, after chapter 15) and the standard aliases in `std.core` (16.7) | M | `merge(base, patch)` written in Ofir |
-| 5.20 | Union types (spec 17.1-17.3, ADR 0022): normalization, member rules, layout as an enum, widening at the coercion points and in `?` | M | `tests/run/unions/*` pass; E0350-E0353 tested |
+| 5.20 | Union types (spec 17.1-17.3, ADR 0022): normalization, member rules, layout as an enum, widening at the coercion points and in `?` | M | **done** (stage 1): `tests/run/unions/*` pass; E0350, E0351 and E0353 (both stages) tested; widening a union into a larger one, E0352 and unions over type parameters wait for 5.21 |
 | 5.21 | Narrowing (17.4): type test patterns in `match` and `if let`, exhaustiveness, sub-unions; built-in interfaces on unions (17.5) | M | a std error type replaced by a union |
 
 **M5** is reached when every chapter of the specification not marked
