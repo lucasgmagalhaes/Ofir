@@ -35,10 +35,10 @@ const INDENT: int = 4
 pub fn layout(src: str, units: List<Unit>, forced: List<bool>) str {
     var l = Layout{}
     for i in 0..units.len() {
-        let u = units[i]
-        let starts = i == 0 || u.breaks > 0 || forced[i]
+        const u = units[i]
+        const starts = i == 0 || u.breaks > 0 || forced[i]
         if starts {
-            let orig = if u.breaks > 0 || i == 0 { u.space } else { -1 }
+            const orig = if u.breaks > 0 || i == 0 { u.space } else { -1 }
             l.newLine(units, i, orig)
         } else {
             l.line.push(" ".repeat(spacing(units, forced, i)))
@@ -88,13 +88,13 @@ struct Layout {
     // Starts the line of `units[i]`, `orig` its indentation in the source
     // (-1 for a line made by breaking a block).
     fn newLine(mut self, units: List<Unit>, i: int, orig: int) {
-        let u = units[i]
-        let closer = u.kind == UnitKind.Code && isCloser(u.tok)
+        const u = units[i]
+        const closer = u.kind == UnitKind.Code && isCloser(u.tok)
         if closer && u.tok != TokenKind.RBrace {
             self.trailingComma()
         }
         self.flush()
-        let opener = self.lastIsCode && isOpener(self.last)
+        const opener = self.lastIsCode && isOpener(self.last)
         if u.breaks >= 2 && self.lines.len() > 0 && !opener && !closer {
             self.lines.push("")
         }
@@ -106,30 +106,30 @@ struct Layout {
 
     // Adds the `,` that ends a multi-line list before its closing bracket.
     fn trailingComma(mut self) {
-        let Option.Some(top) = self.stack.last() else {
+        const Option.Some(top) = self.stack.last() else {
             return
         }
         if !top.comma || self.last == TokenKind.Comma || isOpener(self.last) {
             return
         }
         if self.codeLine == self.lines.len() {
-            let head = self.line.slice(0, self.codeEnd)
-            let tail = self.line.sliceFrom(self.codeEnd)
+            const head = self.line.slice(0, self.codeEnd)
+            const tail = self.line.sliceFrom(self.codeEnd)
             self.line = "{head},{tail}"
         } else if self.codeLine >= 0 {
-            let text = self.lines[self.codeLine].clone()
-            let head = text.slice(0, self.codeEnd)
-            let tail = text.sliceFrom(self.codeEnd)
+            const text = self.lines[self.codeLine].clone()
+            const head = text.slice(0, self.codeEnd)
+            const tail = text.sliceFrom(self.codeEnd)
             self.lines[self.codeLine] = "{head},{tail}"
         }
     }
 
     fn indentOf(mut self, u: Unit, orig: int) int {
         var inner = 0
-        if let Option.Some(top) = self.stack.last() {
-            let base = top.base
-            let origBase = top.origBase
-            let kind = top.kind
+        if const Option.Some(top) = self.stack.last() {
+            const base = top.base
+            const origBase = top.origBase
+            const kind = top.kind
             if u.kind == UnitKind.Code && isCloser(u.tok) {
                 if u.tok == TokenKind.RBrace {
                     self.stmt = base
@@ -152,7 +152,7 @@ struct Layout {
         }
         if self.last == TokenKind.Pipe && orig >= 0 {
             // the next alternative of a pattern: `A |` then `B => ...`
-            let kept = orig + self.stmt - self.stmtOrig
+            const kept = orig + self.stmt - self.stmtOrig
             return if kept > self.stmt { kept } else { self.stmt }
         }
         if isContinuation(self.last) {
@@ -166,7 +166,7 @@ struct Layout {
     }
 
     fn put(mut self, src: str, u: Unit) {
-        let text = src.slice(u.start, u.end)
+        const text = src.slice(u.start, u.end)
         if u.kind == UnitKind.Code && u.tok != TokenKind.DocComment &&
                 u.tok != TokenKind.ModuleDoc {
             self.line.push(text)
@@ -190,11 +190,11 @@ struct Layout {
         if kind == TokenKind.LParen || kind == TokenKind.LBracket {
             self.stack.push(Open{kind, base: self.indent, origBase: self.orig})
         } else if kind == TokenKind.LBrace && joined && self.codeEnd > self.indent + 1 {
-            let open = Open{kind, base: self.indent, origBase: self.orig, literal: true}
+            const open = Open{kind, base: self.indent, origBase: self.orig, literal: true}
             self.stack.push(open)
         } else if kind == TokenKind.LBrace {
             self.inWhere = false
-            let inBlock = match self.stack.last() {
+            const inBlock = match self.stack.last() {
                 Option.Some(top) => top.kind == TokenKind.LBrace
                 Option.None => true
             }
@@ -206,7 +206,7 @@ struct Layout {
         } else if isCloser(kind) {
             self.stack.pop()
         } else if kind == TokenKind.Comma && self.stack.len() > 0 {
-            let top = self.stack.len() - 1
+            const top = self.stack.len() - 1
             self.stack[top].comma = true
         }
     }
@@ -215,7 +215,7 @@ struct Layout {
 // The indentation of a continuation line: the alignment it had in the
 // source, if it is deeper than `base`, else 4 more than `base`.
 fn aligned(base: int, origBase: int, orig: int) int {
-    let kept = orig + base - origBase
+    const kept = orig + base - origBase
     return if orig >= 0 && kept > base { kept } else { base + INDENT }
 }
 
@@ -230,7 +230,7 @@ fn reindented(text: str, indent: int) str {
     for part in text.split("\n") {
         if !first {
             out.push("\n")
-            let rest = part.trimStart()
+            const rest = part.trimStart()
             if rest.startsWith("*") {
                 out.push(" ".repeat(indent + 1))
                 out.push(rest)
@@ -247,17 +247,17 @@ fn reindented(text: str, indent: int) str {
 
 // The spaces between `units[i]` and the unit before it on the same line.
 fn spacing(units: List<Unit>, forced: List<bool>, i: int) int {
-    let p = units[i - 1]
-    let u = units[i]
-    let orig = if u.space > 0 { 1 } else { 0 }
+    const p = units[i - 1]
+    const u = units[i]
+    const orig = if u.space > 0 { 1 } else { 0 }
     if u.kind == UnitKind.LineComment {
         return if u.space > 0 { u.space } else { 1 }   // keeps aligned comments
     }
     if p.kind != UnitKind.Code || u.kind != UnitKind.Code {
         return orig
     }
-    let a = p.tok
-    let b = u.tok
+    const a = p.tok
+    const b = u.tok
     if b == TokenKind.Comma || b == TokenKind.RParen || b == TokenKind.RBracket {
         return 0
     }
@@ -285,11 +285,11 @@ fn spacing(units: List<Unit>, forced: List<bool>, i: int) int {
     }
     if isPrefix(a) {
         // `a - b` or `-b`; `fn f() &T` and `fn f() *u8` are kept as written
-        let joined = i >= 2 && p.breaks == 0 && !forced[i - 1]
+        const joined = i >= 2 && p.breaks == 0 && !forced[i - 1]
         if !joined {
             return orig   // a `+` that starts a line
         }
-        let before = units[i - 2]
+        const before = units[i - 2]
         if before.kind != UnitKind.Code || !endsOperand(before.tok) {
             return 0
         }
@@ -303,7 +303,7 @@ fn startsGe(units: List<Unit>, i: int) bool {
     if i + 1 >= units.len() || units[i].tok != TokenKind.Gt {
         return false
     }
-    let next = units[i + 1]
+    const next = units[i + 1]
     return next.kind == UnitKind.Code && next.tok == TokenKind.Eq && next.space == 0 &&
         next.breaks == 0
 }

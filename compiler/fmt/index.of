@@ -32,21 +32,21 @@ import syntax.token.TokenKind
  */
 pub fn formatFile(path: str, src: str) Result<str, str> {
     var map = SourceMap.new()
-    let file = map.add(path.toOwned(), src.toOwned())
+    const file = map.add(path.toOwned(), src.toOwned())
     var names = Interner.new()
     var diags = Diagnostics.new()
-    let tokens = tokenize(src, file, names, diags)
-    let parsed = tokenize(src, file, names, diags)
+    const tokens = tokenize(src, file, names, diags)
+    const parsed = tokenize(src, file, names, diags)
     if diags.hasErrors() {
         return Result.Err(diags.render(map, Format.Human))
     }
-    let tree = parse(file, src, parsed, names, diags)
+    const tree = parse(file, src, parsed, names, diags)
     if tree.diags.hasErrors() {
         return Result.Err(tree.diags.render(map, Format.Human))
     }
-    let all = units(src, tokens)
-    let forced = brokenBlocks(src, all)
-    let text = layout(src, all, forced)
+    const all = units(src, tokens)
+    const forced = brokenBlocks(src, all)
+    const text = layout(src, all, forced)
     if !sameTokens(src, text) {
         return Result.Err("error: internal: formatting would change the tokens of `{path}`\n")
     }
@@ -100,11 +100,11 @@ pub fn fmtCommand(args: List<str>) int {
 // Formats one file; false if it does not parse, or would change under
 // `--check`.
 fn formatOne(path: str, check: bool, stdout: bool) bool {
-    let Result.Ok(src) = fs.readToString(path) else {
+    const Result.Ok(src) = fs.readToString(path) else {
         eprintln("error: cannot read `{path}`")
         return false
     }
-    let text = match formatFile(path, src) {
+    const text = match formatFile(path, src) {
         Result.Ok(text) => text
         Result.Err(errors) => {
             eprint(errors)
@@ -132,7 +132,7 @@ fn formatOne(path: str, check: bool, stdout: bool) bool {
 // Adds the `.of` files of `path` (a file, or a directory read recursively,
 // leaving out hidden entries) to `files`. False if `path` cannot be read.
 fn collect(path: str, given: bool, files: mut List<str>) bool {
-    let Result.Ok(entries) = fs.readDir(path) else {
+    const Result.Ok(entries) = fs.readDir(path) else {
         if given && !fs.exists(path) {
             return false
         }
@@ -152,13 +152,13 @@ fn collect(path: str, given: bool, files: mut List<str>) bool {
 // Whether two texts have the same tokens, but for the `,` the formatter
 // adds before a closing bracket.
 fn sameTokens(before: str, after: str) bool {
-    let old = significant(before)
-    let new = significant(after)
+    const old = significant(before)
+    const new = significant(after)
     var j = 0
     for i in 0..new.len() {
-        let t = new[i]
-        let text = after.slice(t.start, t.end)
-        let added = t.kind == TokenKind.Comma && i + 1 < new.len() &&
+        const t = new[i]
+        const text = after.slice(t.start, t.end)
+        const added = t.kind == TokenKind.Comma && i + 1 < new.len() &&
             (new[i + 1].kind == TokenKind.RParen || new[i + 1].kind == TokenKind.RBracket)
         if j < old.len() && old[j].kind == t.kind && sameText(before, old[j], text) {
             j += 1
@@ -188,13 +188,13 @@ copy struct Tok {
 // The tokens of a text but the newlines.
 fn significant(src: str) List<Tok> {
     var map = SourceMap.new()
-    let file = map.add("", src.toOwned())
+    const file = map.add("", src.toOwned())
     var names = Interner.new()
     var diags = Diagnostics.new()
-    let tokens = tokenize(src, file, names, diags)
+    const tokens = tokenize(src, file, names, diags)
     var out: List<Tok> = []
     for i in 0..tokens.len() {
-        let t = &tokens[i]
+        const t = &tokens[i]
         if t.kind != TokenKind.Newline {
             out.push(Tok{kind: t.kind, start: t.span.start, end: t.span.end})
         }
@@ -207,7 +207,7 @@ fn sortImports(text: str) str {
     var lines: List<str> = []
     var run: List<str> = []
     for line in text.split("\n") {
-        let plain = !line.contains("//") && !line.contains("/*")
+        const plain = !line.contains("//") && !line.contains("/*")
         if line.startsWith("import ") && plain {
             run.push(line.toOwned())
             continue

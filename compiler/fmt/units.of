@@ -46,7 +46,7 @@ pub fn units(src: str, tokens: List<Token>) List<Unit> {
     var gap = Gap{}
     var i = 0
     for i < tokens.len() && tokens[i].kind != TokenKind.Eof {
-        let t = &tokens[i]
+        const t = &tokens[i]
         if t.kind == TokenKind.Newline {
             i += 1
             continue
@@ -72,7 +72,7 @@ fn stringEnd(tokens: List<Token>, i: int) int {
     var depth = 0
     var j = i
     for j < tokens.len() {
-        let kind = tokens[j].kind
+        const kind = tokens[j].kind
         if kind == TokenKind.StrStart {
             depth += 1
         } else if kind == TokenKind.StrEnd {
@@ -100,7 +100,7 @@ struct Gap {
     space: int = 0
 
     fn unit(mut self, kind: UnitKind, tok: TokenKind, start: int, end: int) Unit {
-        let u = Unit{kind, tok, start, end, breaks: self.breaks, space: self.space}
+        const u = Unit{kind, tok, start, end, breaks: self.breaks, space: self.space}
         self.breaks = 0
         self.space = 0
         return u
@@ -109,27 +109,27 @@ struct Gap {
     // Reads the source from `pos` up to `end`, pushing its comments.
     fn scan(mut self, src: str, end: int, out: mut List<Unit>) {
         for self.pos < end {
-            let c = src[self.pos]
-            let next = if self.pos + 1 < end { src[self.pos + 1] } else { b' ' }
+            const c = src[self.pos]
+            const next = if self.pos + 1 < end { src[self.pos + 1] } else { b' ' }
             if c == b'\n' {
                 self.breaks += 1
                 self.space = 0
                 self.pos += 1
             } else if c == b'/' && next == b'/' {
-                let start = self.pos
+                const start = self.pos
                 for self.pos < end && src[self.pos] != b'\n' {
                     self.pos += 1
                 }
-                let comment = self.unit(UnitKind.LineComment, TokenKind.Invalid, start, self.pos)
+                const comment = self.unit(UnitKind.LineComment, TokenKind.Invalid, start, self.pos)
                 out.push(comment)
             } else if c == b'/' && next == b'*' {
-                let start = self.pos
+                const start = self.pos
                 self.pos += 2
                 for self.pos < end && !closes(src, self.pos, end) {
                     self.pos += 1
                 }
                 self.pos = if self.pos < end { self.pos + 2 } else { end }
-                let comment = self.unit(UnitKind.BlockComment, TokenKind.Invalid, start, self.pos)
+                const comment = self.unit(UnitKind.BlockComment, TokenKind.Invalid, start, self.pos)
                 out.push(comment)
             } else {
                 if c != b'\r' {
