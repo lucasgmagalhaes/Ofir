@@ -641,9 +641,10 @@ fn keyedBase(c: Checker, ty: int) bool {
 // ---------------------------------------------------------------------------
 // Clones (spec 5.1)
 
-fn inStd(c: Checker, id: int) bool {
-    let name = c.r.moduleNames[c.def(id).module].sliceFrom(0)
-    return name == "std" || name.startsWith("std.")
+// `Box` and `List`, whose `clone` clones their elements; the `clone` of other
+// std types (`Arc`, `Sender`) shares them.
+fn clonesElements(c: Checker, id: int) bool {
+    return id != 0 && (id == c.r.langItems[0] || id == c.r.langItems[1])
 }
 
 fn cloneableArgs(c: mut Checker, p: Program, ty: int, visiting: mut List<int>) bool {
@@ -685,15 +686,15 @@ fn cloneableFields(c: mut Checker, p: Program, ty: int, id: int, visiting: mut L
     return true
 }
 
-// A std type's `clone` (List, Box) clones its elements; a user type's is its
-// own business.
+// The `clone` of `List` and `Box` clones their elements; any other type's is
+// its own business.
 fn cloneableAdt(c: mut Checker, p: Program, ty: int, visiting: mut List<int>) bool {
     let id = c.types.get(ty).data
     let cloneName = c.r.names.find("clone")
     let dropName = c.r.names.find("drop")
     if let Option.Some(name) = cloneName {
         if hasMethod(c, p, id, name) {
-            return !inStd(c, id) || cloneableArgs(c, p, ty, visiting)
+            return !clonesElements(c, id) || cloneableArgs(c, p, ty, visiting)
         }
     }
     if let Option.Some(name) = dropName {
@@ -772,7 +773,7 @@ fn checkDerivedClone(c: mut Checker, p: Program, call: &Expr, field: &Expr,
 // `list.clone()` calls the std method, which clones each element.
 fn checkStdClone(c: mut Checker, p: Program, field: &Expr, owner: int, hasSelf: bool,
                  selfType: int) {
-    if !inStd(c, owner) || !hasSelf {
+    if !clonesElements(c, owner) || !hasSelf {
         return
     }
     if !isCloneable(c, p, selfType) {
