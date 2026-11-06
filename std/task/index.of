@@ -1,8 +1,10 @@
-// requires: stage1
 /**
  * @module
  * `std.task`: tasks, each on an OS thread of its own (spec 14.2).
+ *
+ * Only stage 1 compiles this module: it needs `move fn` closures.
  */
+// requires: stage1 (closures, roadmap 5.7)
 
 @link("pthread")
 extern "C" {
@@ -32,6 +34,8 @@ extern "C" fn taskEntry(job: *mut u8) {
 
 /**
  * A running task: `join` waits for it and returns its result.
+ *
+ * @typeParam T the type of the task's result
  */
 pub struct Task<T> {
     thread: *mut u8
@@ -55,6 +59,7 @@ pub struct Task<T> {
 /**
  * Starts a task that runs `f` on an OS thread of its own.
  *
+ * @typeParam T the type of the task's result
  * @param f the task's body; it owns everything it captures
  * @returns the task's handle
  * @example
