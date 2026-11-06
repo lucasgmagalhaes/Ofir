@@ -214,6 +214,77 @@ fn keyLiteral(p: mut Parser, start: Span) TypeExpr {
     return newType(p, TypeKind.Key(name), start)
 }
 
+// `{ [K in Keys if Cond]?: F }`; the `{` is next.
+fn mappedType(p: mut Parser, start: Span) TypeExpr {
+    p.advance()
+    p.skipNewlines()
+    p.expect(TokenKind.LBracket, "`[` to start the mapped field")
+    let param = p.expectName("the key parameter of the mapped type") ?? Symbol(0)
+    p.expect(TokenKind.In, "`in` after the key parameter")
+    let keys = Box.new(parseType(p))
+    var filter: Option<Box<TypeExpr>> = Option.None
+    if p.accept(TokenKind.If) {
+        filter = Option.Some(Box.new(condition(p)))
+    }
+    p.expect(TokenKind.RBracket, "`]` to close the mapped keys")
+    let optional = p.accept(TokenKind.Question)
+    p.expect(TokenKind.Colon, "`:` before the field type")
+    let field = Box.new(parseType(p))
+    p.skipNewlines()
+    p.expect(TokenKind.RBrace, "`\}` to close the mapped type")
+    return newType(p, TypeKind.Mapped(param, keys, filter, optional, field), start)
+}
+
+// A condition: `A is B`, or a type that is `true` or `false`.
+fn condition(p: mut Parser) TypeExpr {
+    let left = typeIn(p, true)
+    if !p.atWord(p.words.is) {
+        return left
+    }
+    let start = left.span
+    p.advance()
+    let pattern = Box.new(typeIn(p, true))
+    return newType(p, TypeKind.Is(Box.new(left), pattern), start)
+}
+
+// `{ X }`, a branch of a conditional type.
+fn branchType(p: mut Parser) TypeExpr {
+    p.expect(TokenKind.LBrace, "`\{` before the branch type")
+    p.skipNewlines()
+    let t = parseType(p)
+    p.skipNewlines()
+    p.expect(TokenKind.RBrace, "`\}` after the branch type")
+    return t
+}
+
+// `if A is B { X } else { Y }`, with `else if`; the `if` is next.
+fn condType(p: mut Parser, start: Span) TypeExpr {
+    p.advance()
+    let test = Box.new(condition(p))
+    let then = Box.new(branchType(p))
+    p.expect(TokenKind.Else, "`else`: a conditional type has both branches")
+    let otherwise = if p.at(TokenKind.If) {
+        let elseStart = p.here()
+        Box.new(condType(p, elseStart))
+    } else {
+        Box.new(branchType(p))
+    }
+    return newType(p, TypeKind.Cond(test, then, otherwise), start)
+}
+
+// A mapped type, a conditional type, `true` or `false`.
+fn typeOperator(p: mut Parser, start: Span) TypeExpr {
+    if p.at(TokenKind.LBrace) {
+        return mappedType(p, start)
+    }
+    if p.at(TokenKind.If) {
+        return condType(p, start)
+    }
+    let value = p.at(TokenKind.True)
+    p.advance()
+    return newType(p, TypeKind.Bool(value), start)
+}
+
 fn baseType(p: mut Parser, ops: bool) TypeExpr {
     let start = p.here()
     return match p.peek() {
@@ -224,6 +295,10 @@ fn baseType(p: mut Parser, ops: bool) TypeExpr {
             p.advance()
             let inner = Box.new(postfixType(p, true))
             newType(p, TypeKind.KeyOf(inner), start)
+        } else if ops && p.atWord(p.words.infer) && p.peekAt(1) == TokenKind.Ident {
+            p.advance()
+            let name = p.takeName()
+            newType(p, TypeKind.Infer(name), start)
         } else {
             pathType(p)
         }
@@ -235,6 +310,12 @@ fn baseType(p: mut Parser, ops: bool) TypeExpr {
         TokenKind.Star => pointerType(p, start, false, ops)
         TokenKind.Dot => if ops {
             keyLiteral(p, start)
+        } else {
+            p.unexpected("a type")
+            newType(p, TypeKind.Never, start)
+        }
+        TokenKind.LBrace | TokenKind.If | TokenKind.True | TokenKind.False => if ops {
+            typeOperator(p, start)
         } else {
             p.unexpected("a type")
             newType(p, TypeKind.Never, start)
