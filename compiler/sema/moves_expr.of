@@ -148,6 +148,16 @@ pub fn viewType(c: Checker, e: &Expr, depth: int) int {
     return stepType(c, e, depth)
 }
 
+// Whether `e` is a slice (`&[T]` or `&mut [T]`): its elements are behind a
+// pointer, not in a place `e` owns.
+fn viewsSlice(c: Checker, e: &Expr) bool {
+    let t = c.types.get(viewType(c, e, -1))
+    if t.kind != TyKind.Adt || t.data == 0 {
+        return false
+    }
+    return t.data == c.r.langItems[4] || t.data == c.r.langItems[7]
+}
+
 fn coerced(c: Checker, e: &Expr) bool {
     return c.sliceCoercions[c.module()].get(e.id.0).isSome() || dynBorrowed(c, e)
 }
@@ -290,6 +300,11 @@ fn placeOf(m: mut Moves, c: mut Checker, p: Program, e: &Expr, depth: int, s: mu
         ExprKind.Index(base, index) => {
             if c.types.kind(c.typeOf(index.id.0)) == TyKind.Param {   // `value[key]`: a field
                 return fieldPlace(m, c, p, &*base, keyStep(c, &*base, &*index), s)
+            }
+            if viewsSlice(c, &*base) {   // `view[i]`: an element behind the slice's pointer
+                movesNode(m, c, p, &*base, s, Use.Read)
+                movesNode(m, c, p, &*index, s, Use.Read)
+                return noPlace(Via.Deref)
             }
             var place = placeOf(m, c, p, &*base, derefCount(c, &*base), s)
             movesNode(m, c, p, &*index, s, Use.Read)
