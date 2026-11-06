@@ -234,8 +234,13 @@ compiler/
 │   └── validate.of           AIR invariants checker [planned]
 ├── opt/                      Ofir-level passes before LLVM [planned]
 │   └── inline_small.of
-└── codegen/
-    └── llvm.of               AIR → LLVM IR text: types, layout, names, bodies, the module
+├── codegen/
+│   └── llvm.of               AIR → LLVM IR text: types, layout, names, bodies, the module
+├── fmt/                      `ofir fmt`
+└── lsp/
+    ├── index.of              `ofir lsp`: the messages, the documents, diagnostics as LSP
+    ├── check.of              checking a file with the open documents
+    └── json.of               the JSON parser
 ```
 
 ## `runtime/` — C runtime
@@ -333,9 +338,7 @@ tools/
 ├── check_sizes.py            size rules of the style guide (make test)
 ├── check_docs.py             documentation comments of std, ADR 0020 (make test)
 ├── check_leaks.py            every run test under valgrind (make check-leaks)
-├── gen_core_numbers.py       generates std/core/num/
-├── fmt/                      `ofir fmt` [planned]
-└── lsp/                      language server [planned]
+└── gen_core_numbers.py       generates std/core/num/
 ```
 
 ## Dependency rules
