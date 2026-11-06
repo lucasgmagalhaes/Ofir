@@ -18,7 +18,7 @@ static Stmt *let_stmt(Parser *p, Span start) {
     Stmt *s = new_stmt(p, STMT_LET, start);
     s->as.let.pattern = parse_pattern(p);
     s->as.let.type = optional_type(p);
-    if (expect(p, TOK_EQ, "`=` in `let`")) {
+    if (expect(p, TOK_EQ, "`=` in `const`")) {
         skip_newlines(p);
         s->as.let.value = parse_expr(p);
     }

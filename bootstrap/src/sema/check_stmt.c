@@ -23,12 +23,12 @@ static TypeId let_stmt(Checker *c, Stmt *s) {
         TypeId other = check_block(c, s->as.let.else_, NO_TYPE, false);
         if (other.id != TID_NEVER) {
             check_error(c, "E0307", s->as.let.else_->span,
-                        "the `else` block of `let ... else` must not fall through: end it "
+                        "the `else` block of `const ... else` must not fall through: end it "
                         "with `return`, `break`, `continue` or a panic");
         }
     } else if (!pattern_irrefutable(c, pattern)) {
         check_error(c, "E0501", pattern->span,
-                    "this pattern does not match every value: use `match` or `if let`");
+                    "this pattern does not match every value: use `match` or `if const`");
     }
     return found.id == TID_NEVER ? found : type_id(TID_UNIT);
 }
