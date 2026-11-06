@@ -356,8 +356,12 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
                 return STR   // stage 0: `&str` is a `str` view
             }
             if isSliceType(&*inner) {   // `&[T]` is the slice itself
-                if mutable {
-                    return c.unsupported(t.span, "mutable slices `&mut [T]` are")
+                if mutable {   // `&mut [T]` is `SliceMut<T>`
+                    let sliceMut = c.r.langItems[7]
+                    if sliceMut == 0 || c.types.kind(target) != TyKind.Adt {
+                        return c.unsupported(t.span, "mutable slices `&mut [T]` are")
+                    }
+                    return c.types.adt(sliceMut, [c.types.get(target).args[0]])
                 }
                 return target
             }
