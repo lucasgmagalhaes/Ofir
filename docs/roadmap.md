@@ -216,7 +216,8 @@ release (bootstrap chain, `docs/bootstrap.md`).
 | 5.21b | Built-in interfaces on unions (17.5): `Eq`, `Hash`, `Clone`, `Debug`, `Display` dispatching on the tag | S | **done** (stage 1): `tests/run/unions/interfaces` and `compile_fail/types/union_interfaces` pass; `{u}` interpolates the member, `{u:?}` shows it without a variant name, no `Ord`; replacing a std error type by a union waits |
 
 **M5** is reached when every chapter of the specification not marked
-**[planned]** is implemented and tested → release 0.5.
+**[planned]** is implemented and tested → release 0.5. **Reached**: the
+M5 check below has no open gap.
 
 ### M5 check
 
