@@ -328,6 +328,8 @@ pub copy struct Words {
     pub where: Option<Symbol>
     /** `_` */
     pub wildcard: Option<Symbol>
+    /** `keyof` */
+    pub keyof: Option<Symbol>
 }
 
 /**
@@ -408,7 +410,8 @@ pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move I
         }
     }
     let words = Words{move: names.find("move"), type: names.find("type"), ref: names.find("ref"),
-                      where: names.find("where"), wildcard: names.find("_")}
+                      where: names.find("where"), wildcard: names.find("_"),
+                      keyof: names.find("keyof")}
     var p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
                    typeTests: false, recovering: false, names, diags, words, nextId: firstId,
                    typeBounds: [], typeAsserts: []}

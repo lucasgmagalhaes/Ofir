@@ -11,7 +11,7 @@ import syntax.ast.ExprKind
 import syntax.ast.Op
 import syntax.parse_primary.parsePostfix
 import syntax.parse_primary.parsePrimary
-import syntax.parse_types.parseType
+import syntax.parse_types.parseSimpleType
 import syntax.parser.Parser
 import syntax.token.TokenKind
 
@@ -87,7 +87,7 @@ fn castExpr(p: mut Parser) Expr {
     var e = unary(p)
     for p.accept(TokenKind.As) {
         let start = e.span
-        let to = parseType(p)
+        let to = parseSimpleType(p)
         e = newExpr(p, ExprKind.Cast(Box.new(e), to), start)
     }
     return e

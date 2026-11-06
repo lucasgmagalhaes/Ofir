@@ -13,7 +13,7 @@ with clang.
   `docs/bootstrap.md`).
 - `std/`, `runtime/`, `tests/`, `tools/`, `docs/` (spec, ADRs, roadmap).
 - Manifest: `ofir.json` (JSONC, camelCase keys; ADR 0026).
-- Work follows `docs/roadmap.md`; next item (phase 5): 5.14 optimization (noalias, niches).
+- Work follows `docs/roadmap.md`; next item (phase 5): 5.17 key types (spec 16.1-16.3).
 
 ## Working rules
 

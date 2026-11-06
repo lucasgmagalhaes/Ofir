@@ -370,6 +370,9 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
         TypeKind.Never => NEVER
         TypeKind.Dyn(inner) => dynType(c, p, &*inner, t.span)
         TypeKind.Optional(_) => c.unsupported(t.span, "optional types (`T?`) are")
+        TypeKind.KeyOf(_) | TypeKind.Key(_) | TypeKind.KeyOp(_, _, _) | TypeKind.Index(_, _) => {
+            c.unsupported(t.span, "key types are")
+        }
     }
 }
 

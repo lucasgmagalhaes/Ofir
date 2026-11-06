@@ -7,12 +7,14 @@
 import base.intern.Symbol
 import base.span.Span
 import syntax.ast.Mode
+import syntax.ast.Op
 import syntax.ast.TypeExpr
 import syntax.ast.TypeKind
 import syntax.ast.WherePred
 import syntax.parse_exprs.parseExpr
 import syntax.parser.Parser
 import syntax.token.TokenKind
+import syntax.token.TokenValue
 
 fn newType(p: Parser, kind: move TypeKind, start: Span) TypeExpr {
     return TypeExpr{kind, span: p.spanSince(start)}
@@ -174,10 +176,10 @@ fn tupleType(p: mut Parser, start: Span) TypeExpr {
     return newType(p, TypeKind.Tuple(elems), start)
 }
 
-fn pointerType(p: mut Parser, start: Span, reference: bool) TypeExpr {
+fn pointerType(p: mut Parser, start: Span, reference: bool, ops: bool) TypeExpr {
     p.advance()
     let mutable = p.accept(TokenKind.Mut)
-    let inner = Box.new(parseType(p))
+    let inner = Box.new(typeIn(p, ops))
     let kind: TypeKind = if reference {
         TypeKind.Ref(mutable, inner)
     } else {
@@ -186,12 +188,42 @@ fn pointerType(p: mut Parser, start: Span, reference: bool) TypeExpr {
     return newType(p, kind, start)
 }
 
-fn baseType(p: mut Parser) TypeExpr {
+// Whether `keyof` starts the type here: it is a keyword only before a type.
+fn atKeyOf(p: Parser) bool {
+    if !p.atWord(p.words.keyof) {
+        return false
+    }
+    let next = p.peekAt(1)
+    return next == TokenKind.Ident || next == TokenKind.LParen || next == TokenKind.SelfType
+}
+
+// `.x` or `.0`; the `.` is next.
+fn keyLiteral(p: mut Parser, start: Span) TypeExpr {
+    p.advance()
+    var name = Symbol(0)
+    if p.at(TokenKind.Int) {
+        let index: u64 = match p.token(0).value {
+            TokenValue.Int(value) => value
+            _ => 0
+        }
+        p.advance()
+        name = p.names.intern("{index}")
+    } else {
+        name = p.expectName("a field name or index after `.`") ?? Symbol(0)
+    }
+    return newType(p, TypeKind.Key(name), start)
+}
+
+fn baseType(p: mut Parser, ops: bool) TypeExpr {
     let start = p.here()
     return match p.peek() {
         TokenKind.Ident => if p.atWord(p.words.move) && p.peekAt(1) == TokenKind.Fn {
             p.advance()
             fnType(p, start, true)
+        } else if ops && atKeyOf(p) {
+            p.advance()
+            let inner = Box.new(postfixType(p, true))
+            newType(p, TypeKind.KeyOf(inner), start)
         } else {
             pathType(p)
         }
@@ -199,8 +231,14 @@ fn baseType(p: mut Parser) TypeExpr {
             p.advance()
             newType(p, TypeKind.SelfType, start)
         }
-        TokenKind.Amp => pointerType(p, start, true)
-        TokenKind.Star => pointerType(p, start, false)
+        TokenKind.Amp => pointerType(p, start, true, ops)
+        TokenKind.Star => pointerType(p, start, false, ops)
+        TokenKind.Dot => if ops {
+            keyLiteral(p, start)
+        } else {
+            p.unexpected("a type")
+            newType(p, TypeKind.Never, start)
+        }
         TokenKind.LBracket => bracketType(p, start)
         TokenKind.LParen => tupleType(p, start)
         TokenKind.Fn => fnType(p, start, false)
@@ -210,7 +248,7 @@ fn baseType(p: mut Parser) TypeExpr {
         }
         TokenKind.Dyn => {
             p.advance()
-            let inner = Box.new(parseType(p))
+            let inner = Box.new(typeIn(p, ops))
             newType(p, TypeKind.Dyn(inner), start)
         }
         _ => {
@@ -220,18 +258,68 @@ fn baseType(p: mut Parser) TypeExpr {
     }
 }
 
+// A type with its postfix `?` and, with `ops`, `[K]` (spec 16.3).
+fn postfixType(p: mut Parser, ops: bool) TypeExpr {
+    var t = baseType(p, ops)
+    for {
+        let start = t.span
+        if p.accept(TokenKind.Question) {
+            t = newType(p, TypeKind.Optional(Box.new(t)), start)
+        } else if ops && p.accept(TokenKind.LBracket) {
+            let key = Box.new(parseType(p))
+            p.expect(TokenKind.RBracket, "`]` to close the key")
+            t = newType(p, TypeKind.Index(Box.new(t), key), start)
+        } else {
+            return t
+        }
+    }
+}
+
+// `&` and `-` on key types, left-associative and tighter than `|`.
+fn keyTerm(p: mut Parser) TypeExpr {
+    var t = postfixType(p, true)
+    for p.at(TokenKind.Amp) || p.at(TokenKind.Minus) {
+        let start = t.span
+        let op = if p.at(TokenKind.Amp) { Op.And } else { Op.Sub }
+        p.advance()
+        let right = Box.new(postfixType(p, true))
+        t = newType(p, TypeKind.KeyOp(op, Box.new(t), right), start)
+    }
+    return t
+}
+
+fn typeIn(p: mut Parser, ops: bool) TypeExpr {
+    if !ops {
+        return postfixType(p, false)
+    }
+    var t = keyTerm(p)
+    for p.accept(TokenKind.Pipe) {
+        let start = t.span
+        let right = Box.new(keyTerm(p))
+        t = newType(p, TypeKind.KeyOp(Op.Or, Box.new(t), right), start)
+    }
+    return t
+}
+
 /**
- * A type; `T?` is `Option<T>`.
+ * A type; `T?` is `Option<T>`. Key types (spec 16.1-16.3) are included:
+ * `keyof T`, `.x`, `A | B`, `A & B`, `A - B` and `T[K]`.
  *
  * @param p the parser
  * @returns the type
  */
 pub fn parseType(p: mut Parser) TypeExpr {
-    var t = baseType(p)
-    for p.at(TokenKind.Question) {
-        p.advance()
-        let span = t.span
-        t = TypeExpr{kind: TypeKind.Optional(Box.new(t)), span: p.spanSince(span)}
-    }
-    return t
+    return typeIn(p, true)
+}
+
+/**
+ * A type without key operators or indexed access: the target of `as` and
+ * of a type test, where `|`, `&`, `-` and `[` belong to the expression or
+ * the pattern around it.
+ *
+ * @param p the parser
+ * @returns the type
+ */
+pub fn parseSimpleType(p: mut Parser) TypeExpr {
+    return typeIn(p, false)
 }
