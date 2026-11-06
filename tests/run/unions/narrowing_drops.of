@@ -1,0 +1,55 @@
+// requires: stage1
+// A type test moves the member out of an owned union and borrows it from a
+// borrowed one (spec 17.4).
+
+struct Noisy {
+    name: str
+
+    fn drop(mut self) {
+        println("drop {self.name}")
+    }
+}
+
+struct Quiet {
+    n: int
+}
+
+fn take(v: move Noisy | Quiet | int) {
+    match v {
+        n: Noisy => println("took {n.name}")
+        _ => println("not noisy")
+    }
+    println("after take")
+}
+
+fn look(v: Noisy | int) {
+    match v {
+        n: Noisy => println("saw {n.name}")
+        i: int => println("saw {i}")
+    }
+}
+
+fn pair(v: move Noisy | Quiet | int) {
+    match v {
+        e: (Noisy | Quiet) => {
+            println("pair")
+            match e {
+                n: Noisy => println("inner {n.name}")
+                q: Quiet => println("inner {q.n}")
+            }
+        }
+        _: int => println("int")
+    }
+}
+
+fn main() {
+    take(Noisy{name: "a"})
+    take(4)
+    let kept: Noisy | int = Noisy{name: "b"}
+    look(kept)
+    look(5)
+    pair(Noisy{name: "c"})
+    pair(Quiet{n: 1})
+    pair(2)
+    println("end")
+}
