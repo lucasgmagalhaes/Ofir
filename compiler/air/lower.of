@@ -502,7 +502,7 @@ fn computeNeedsDrop(l: mut Lowerer, c: mut Checker, p: Program, ty: int) bool {
         return false
     }
     if kind == TyKind.Fn {   // a `move fn` owns its environment
-        return c.types.get(ty).data == FN_OWNED
+        return c.types.get(ty).data & FN_OWNED != 0
     }
     if kind == TyKind.Dyn {   // dropped through its vtable
         return true
