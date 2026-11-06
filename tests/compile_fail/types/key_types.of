@@ -15,7 +15,7 @@ type E = Point[.z]   // error[E0341]: `Point` has no field `.z`
 type F = (int, str)[.2]   // error[E0341]: `(int, str)` has no field `.2`
 type G = Point[keyof Point - keyof Point]   // error[E0341]: `Point` has no field for the empty key type `keyof ()`
 type H = Point[keyof Point]   // error[E0342]: the fields of these keys have different types: `float` and `int`
-type I = int | str   // error[E0901]: union types are not supported yet
+type I = keyof Point | int   // error[E0351]: type `int` cannot be a member of a union of keys
 
 fn use(a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H, i: I) {
 }
