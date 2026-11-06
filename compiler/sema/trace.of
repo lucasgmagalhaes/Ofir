@@ -3,15 +3,27 @@
  * `--emit=names`: a trace of what the names of the root module resolve to,
  * one line per declaration of a local or use of a name, as stage 0 prints
  * it (bootstrap/src/sema/resolve.c), so that the two resolvers can be
- * compared (roadmap 4.5).
+ * compared (roadmap 4.5). For the language server, the same uses are kept
+ * as links from a name to its declaration.
  */
 
 import base.intern.Symbol
+import base.span.FileId
 import base.span.Span
 import sema.def.DefKind
 import sema.def.Res
 import sema.def.kindName
 import sema.resolve.Resolver
+
+/**
+ * A use of a name of the root module and the declaration it stands for.
+ */
+pub struct Link {
+    /** The name, or the path, as written. */
+    pub name: Span
+    /** The declaration; the start of its file for a module. */
+    pub decl: Span
+}
 
 /**
  * The trace being written.
@@ -23,6 +35,12 @@ pub struct Trace {
     pub active: bool
     /** The lines so far. */
     pub out: str
+    /** Whether the links are kept (the language server). */
+    pub linking: bool
+    /** The links of the root module so far. */
+    pub links: List<Link>
+    /** The file of each module, for the links to modules. */
+    pub moduleFiles: List<FileId>
 
     /**
      * A trace, off unless `enabled`.
@@ -31,7 +49,7 @@ pub struct Trace {
      * @returns the empty trace
      */
     pub fn new(enabled: bool) Trace {
-        return Trace{enabled, active: false, out: ""}
+        return Trace{enabled, active: false, out: "", linking: false, links: [], moduleFiles: []}
     }
 
     /**
@@ -72,8 +90,38 @@ pub fn traceAt(r: mut Resolver, span: Span, text: str) {
  * @param res what it resolves to
  */
 pub fn traceUse(r: mut Resolver, what: str, name: Symbol, span: Span, res: Res) {
+    link(r, span, res)
     if r.trace.active {
         traceAt(r, span, "{what} {r.text(name)} -> {resText(r, res)}")
+    }
+}
+
+/**
+ * Keeps a link from a name of the root module to its declaration, when the
+ * links are kept; names of the prelude's built-in declarations have none.
+ *
+ * @param r the resolver
+ * @param span the name
+ * @param res what it resolves to
+ */
+pub fn link(r: mut Resolver, span: Span, res: Res) {
+    if !r.trace.linking || r.current != 0 {
+        return
+    }
+    let decl = Span{file: FileId(-1), start: 0, end: 0}
+    if const Res.Local(local) = res {
+        decl = r.locals[local].span
+    } else if const Res.Def(id) = res {
+        const def = r.def(id)
+        if def.kind == DefKind.Module && def.target >= 0 &&
+            def.target < r.trace.moduleFiles.len() {
+            decl = Span{file: r.trace.moduleFiles[def.target], start: 0, end: 0}
+        } else if id != 0 && !def.inPrelude {
+            decl = def.span
+        }
+    }
+    if decl.file.0 >= 0 {
+        r.trace.links.push(Link{name: span, decl})
     }
 }
 

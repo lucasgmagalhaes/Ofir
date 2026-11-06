@@ -207,12 +207,20 @@ located in another file, such as an imported module, is shown at the start
 of the document, its message preceded by `path:line:column:`. Closing a
 document clears its diagnostics.
 
+Go to definition (`textDocument/definition`) checks the document again and
+answers with the declaration of the name at the position: a local or a
+parameter, a declaration of the document or of an imported module, the
+module of an import (its file, at the start), or a type written in a type.
+The range is the whole declaration. Fields, methods and the declarations of
+the prelude are not linked yet; the answer is then `null`.
+
 Other requests are answered with the error -32601 (method not found), and a
-message that is not JSON with -32700. Go to definition and completion are
-[planned] (roadmap 6.3).
+message that is not JSON with -32700. Completion is [planned] (roadmap
+6.3c).
 
 `tests/lsp` holds the tests: a `.of` file, an optional `.lsp` file with the
-client's messages, and the server's messages in `.out`.
+client's messages, and the server's messages in `.out`, where `$URI` is the
+document and `$STD` the standard library's directory.
 
 ## 3. Build profiles
 

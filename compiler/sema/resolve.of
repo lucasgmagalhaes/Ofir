@@ -251,14 +251,21 @@ const PRIMITIVE_TYPES: int = 15
  * @param testing `ofir test` or `ofir bench`: the `@test` (or `@bench`)
  *   functions are checked and compiled
  * @param benching `ofir bench`
+ * @param links record name uses and their declarations (`ofir lsp`)
  * @returns the resolver, with the results and the tables it took over
  */
 pub fn resolveProgram(program: Program, names: move Interner, diags: move Diagnostics,
                       map: move SourceMap, trace: bool, testing: bool,
-                      benching: bool) Resolver {
+                      benching: bool, links: bool) Resolver {
     let r = newResolver(program, names, diags, map, trace)
     r.testing = testing
     r.benching = benching
+    r.trace.linking = links
+    if links {
+        for m in 0..program.modules.len() {
+            r.trace.moduleFiles.push(program.modules[m].module.file)
+        }
+    }
     for m in 0..program.modules.len() {
         const name = program.modules[m].name.clone()
         const late = name == "std.core.any" || name == "std.core.iter" || name == "std.core.bench"

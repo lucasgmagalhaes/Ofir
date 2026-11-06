@@ -247,7 +247,7 @@ These gaps remain:
 | 6.2 | `ofir fmt` implementing the [style guide](style-guide.md); **done** (stage 1): `compiler/fmt`, `tests/fmt` | M |
 | 6.3 | Language server (diagnostics, go to definition, completion), in the steps below | L |
 | 6.3a | `ofir lsp`: JSON-RPC on stdio, documents synchronized whole, diagnostics published; **done** (stage 1): `compiler/lsp`, `tests/lsp` | M |
-| 6.3b | Go to definition | M |
+| 6.3b | Go to definition; **done** (stage 1): links recorded by the resolver and the type checker, `tests/lsp/definition` | M |
 | 6.3c | Completion | M |
 | 6.4 | `ofir doc` and doc tests | M |
 | 6.5 | Package manager: `ofir.json` dependencies, lock file, registry design | L |

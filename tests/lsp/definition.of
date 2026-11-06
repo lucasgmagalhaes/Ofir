@@ -1,0 +1,15 @@
+import std.strings
+
+struct Point {
+    x: int
+}
+
+fn twice(p: Point) int {
+    return p.x * 2
+}
+
+fn main() {
+    const v = twice(Point{x: 1})
+    const _ = strings.fromUtf8([])
+    print("{v}")
+}

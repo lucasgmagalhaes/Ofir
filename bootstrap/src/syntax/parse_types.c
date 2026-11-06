@@ -204,13 +204,22 @@ static TypeExpr *base_type(Parser *p) {
     }
 }
 
-TypeExpr *parse_type(Parser *p) {
+TypeExpr *parse_simple_type(Parser *p) {
     TypeExpr *t = base_type(p);
     while (at(p, TOK_QUESTION)) {   // T? is Option<T>
         advance(p);
         TypeExpr *option = new_type(p, TYPE_OPTION, t->span);
         option->as.inner = t;
         t = option;
+    }
+    return t;
+}
+
+TypeExpr *parse_type(Parser *p) {
+    TypeExpr *t = parse_simple_type(p);
+    if (!p->recovering && at(p, TOK_LBRACKET)) {   // `T[K]`, as stage 1 reads it
+        syntax_error(p, peek_token(p, 0)->span,
+                     "indexed access types are not supported by stage 0");
     }
     return t;
 }
