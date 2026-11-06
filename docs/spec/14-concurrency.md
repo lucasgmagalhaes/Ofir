@@ -95,14 +95,28 @@ fn main() {
 result moves back to the task that calls `join`. Stage 0 has no tasks: it
 accepts `@threadsafe` and does not check `Send`.
 
-## 14.4 Communication **[planned]**
+## 14.4 Communication
 
 ```ofir
-let (tx, rx) = channel<int>()
-task.run(move () => tx.send(42))
-println("{rx.recv().unwrap()}")
+import std.sync.channel
+import std.task
+
+fn main() {
+    let (tx, rx) = channel<int>()
+    let t = task.run(move () => tx.send(42))
+    println("{rx.recv().unwrap()}")
+    t.join()
+}
 ```
 
-Synchronization primitives in `std.sync`: `Mutex<T>` (the data lives inside
+`channel<T: Send>()` in `std.sync` returns a `Sender<T>` and a
+`Receiver<T>`. The channel is unbounded: `send` never waits, and it drops
+the value if the receiver is gone. `clone` on a sender makes another
+sender of the same channel. `recv` waits for the next value and returns
+`None` once the queue is empty and every sender is dropped; `tryRecv`
+returns `None` instead of waiting. The values of one sender arrive in the
+order it sent them. Dropping the receiver drops the values it never took.
+
+**[planned]** Synchronization primitives in `std.sync`: `Mutex<T>` (the data lives inside
 the mutex and is reachable only while the lock is held), `RwLock<T>`,
 `Atomic*` types, `Arc<T>` (atomically reference counted) and `WaitGroup`.
