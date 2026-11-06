@@ -228,7 +228,11 @@ fn fnValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
 
 fn defValue(c: mut Checker, p: Program, id: int, span: Span, expected: int) int {
     return match c.def(id).kind {
-        DefKind.Const | DefKind.Global => checkConst(c, p, id)
+        DefKind.Const => checkConst(c, p, id)
+        DefKind.Global => {   // spec 11.5: another thread may write it
+            requireUnsafe(c, span, "using a mutable global")
+            checkConst(c, p, id)
+        }
         DefKind.Fn => fnValue(c, p, id, span, expected)
         DefKind.Builtin => c.unsupported(span, "function values are")
         _ => {
@@ -735,6 +739,10 @@ pub fn checkConst(c: mut Checker, p: Program, id: int) int {
             c.info[id].ty = ty
             if isConst {
                 c.info[id].value = constEval(c, p, &value)   // while `checking`: catches cycles
+            } else if ty != ERROR && !c.types.isNumeric(ty) && ty != BOOL {
+                c.unsupported(item.span, "mutable globals of type `{c.typeName(ty)}` are")
+            } else if ty != ERROR {   // the initial value, stored in the binary
+                c.info[id].value = constEval(c, p, &value)
             }
         }
         _ => {}

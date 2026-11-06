@@ -1,0 +1,44 @@
+// requires: stage1
+// Mutable globals (spec 11.5): reads and writes in `unsafe`, compound
+// assignment, a pointer to a global and a global of another module.
+
+import stats
+
+var HITS: i32 = 0
+var RATE: float = 1.5
+var ON: bool = false
+var BIG: u64 = 1 << 40
+const STEP: int = 2
+var NEXT: int = STEP * 10
+
+fn bump() int {
+    unsafe {
+        NEXT += 1
+        return NEXT
+    }
+}
+
+unsafe fn reset() {
+    HITS = 0
+}
+
+fn main() {
+    unsafe {
+        HITS += 2
+        HITS = HITS * 10
+        RATE = RATE * 2.0
+        ON = !ON
+        BIG -= 1
+        let p = &mut HITS
+        *p += 1
+        println("{HITS} {RATE} {ON} {BIG}")
+        reset()
+        println("{HITS}")
+    }
+    println("{bump()} {bump()}")
+    stats.add(4)
+    unsafe {
+        stats.TOTAL += 1
+        println("{stats.TOTAL}")
+    }
+}

@@ -253,6 +253,11 @@ fn lowerPlaceAt(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, depth: int
     if depth > 0 {
         return derefPlace(l, c, p, e, depth)
     }
+    if let Res.Def(id) = c.res(e.id.0) {   // `COUNTER` or `lib.COUNTER`
+        if c.def(id).kind == DefKind.Global {
+            return globalPlace(l, c, id)
+        }
+    }
     match e.kind {
         ExprKind.Field(base, _, _) => {
             let field = fieldOf(c, e)
@@ -583,8 +588,19 @@ fn name(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, ty: int) Operand {
         rv.flag = id
         return tempValue(l, ty, rv)
     }
+    if kind == DefKind.Global {
+        return placeOperand(&globalPlace(l, c, id), OperandKind.Copy, ty)
+    }
     c.error("E0901", e.span, "global variables are not supported yet".toOwned())
     return unit()
+}
+
+// The mutable global `id`: the place its address points to (spec 11.5).
+fn globalPlace(l: mut Lowerer, c: mut Checker, id: int) Place {
+    var rv = rvalue(RvalueKind.GlobalAddr, Op.Add, unit(), unit())
+    rv.flag = id
+    let addr = tempValue(l, c.types.ptr(c.info[id].ty, true), rv)
+    return Place{local: toLocal(l, addr), fields: [], deref: true}
 }
 
 // ---------------------------------------------------------------------------
