@@ -241,7 +241,7 @@ struct Printer {
         self.line("if")
         self.depth += 1
         if const Option.Some(pattern) = *letPattern {
-            self.line("let {patternText(&pattern, names)}")
+            self.line("const {patternText(&pattern, names)}")
         }
         self.expr(cond, names)
         self.block("then", then, names)
@@ -285,7 +285,7 @@ struct Printer {
     fn stmt(mut self, s: &Stmt, names: Interner) {
         match s.kind {
             StmtKind.Let(pattern, ty, value, otherwise) => {
-                self.line("let {patternText(&pattern, names)}")
+                self.line("const {patternText(&pattern, names)}")
                 self.depth += 1
                 self.typeLine("type", &ty, names)
                 self.expr(&value, names)
@@ -295,7 +295,7 @@ struct Printer {
                 self.depth -= 1
             }
             StmtKind.Var(name, ty, value) => {
-                self.line("var {names.name(name)}")
+                self.line("let {names.name(name)}")
                 self.depth += 1
                 self.typeLine("type", &ty, names)
                 if const Option.Some(e) = value {
