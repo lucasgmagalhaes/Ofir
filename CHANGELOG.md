@@ -21,6 +21,10 @@ project uses [Semantic Versioning](https://semver.org/).
 - `ofir doc`: an HTML page for each module, with its public declarations,
   their signatures and the Markdown and tags of their documentation
   comments, and an index (roadmap 6.4b).
+- Path dependencies: the `dependencies` of `ofir.json` with a `path` are
+  read, transitively, and their modules imported by the dependency's key
+  (`import json.parser`); `ofir.json` is read as JSONC. Errors E0910,
+  E0911 and E0915 (ADR 0032, roadmap 6.5b, stage 1).
 
 ### Changed
 
