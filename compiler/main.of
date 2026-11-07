@@ -28,6 +28,7 @@ import driver.explain.explain
 import driver.fetch.fetchCommand
 import fmt.fmtCommand
 import driver.modules.Front
+import driver.object_cache
 import driver.modules.loadProgram
 import lsp.lspCommand
 import sema.c_symbols.linkLibraries
@@ -72,6 +73,7 @@ fn printUsage() {
              + "  --release                 optimize the program\n"
              + "  --codegen-units=1         compile the program as one LLVM module\n"
              + "  -j N, --jobs N            run at most N clang processes (default: the cores)\n"
+             + "  --no-cache                compile every unit, without the object cache\n"
              + "  -g                        write debug info (DWARF: functions, lines)\n"
              + "  --deny-warnings           treat warnings as errors\n"
              + "  --locked                  fail instead of changing ofir.lock (also fetch)\n"
@@ -109,6 +111,8 @@ struct Options {
     oneUnit: bool
     /** `-j N` or `--jobs N`: at most N clang processes; 0 is the number of cores. */
     jobs: int
+    /** `--no-cache`: neither read nor write the object cache. */
+    noCache: bool
     /** `--message-format=human`, `short` or `json`. */
     format: Format
 }
@@ -116,7 +120,7 @@ struct Options {
 fn parseOptions(args: &List<str>) Option<Options> {
     let opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
                        stopAfter: "", release: false, debugInfo: false, deny: false,
-                       locked: false, offline: false, oneUnit: false, jobs: 0,
+                       locked: false, offline: false, oneUnit: false, jobs: 0, noCache: false,
                        format: Format.Human}
     let hasInput = false
     let i = 2
@@ -141,6 +145,8 @@ fn parseOptions(args: &List<str>) Option<Options> {
                     return Option.None
                 }
                 i += 1
+            } else if arg == "--no-cache" {
+                opts.noCache = true
             } else if arg == "--codegen-units=1" {
                 opts.oneUnit = true
             } else if arg == "--release" {
@@ -376,6 +382,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     }
     const exe = outputPath(&opts)
     let files: List<str> = []
+    let cached: List<str> = []   // where the object of each unit is cached
     if opts.emit == "llvm" || opts.oneUnit {
         const ll = "{exe}.ll"
         files.push(ll.clone())
@@ -386,7 +393,15 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
         }
     } else {   // a module for each codegen unit (ADR 0033)
         const units = generateUnits(c, program, &l.out, opts.debugInfo, opts.release)
+        const salt = if opts.noCache || opts.emit == "llvm" || units.len() < 2 {
+            "".toOwned()
+        } else {
+            object_cache.cacheSalt(clangPath(), &clangFlags(&opts))
+        }
         for k in 0..units.len() {
+            if salt.len() > 0 {
+                cached.push(object_cache.objectPath(salt, units[k].text))
+            }
             const ll = "{exe}.{k}.ll"
             files.push(ll.clone())
             if fs.writeString(ll, units[k].text).isErr() {
@@ -403,7 +418,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     if opts.emit == "llvm" {
         return true
     }
-    const linked = link(&opts, &files, exe.clone(), linkLibraries(c.r, program))
+    const linked = link(&opts, &files, &cached, exe.clone(), linkLibraries(c.r, program))
     removeFiles(&files)
     if linked {
         pipeline.exe = exe
@@ -499,36 +514,85 @@ fn runtimeLibrary() Option<str> {
 
 // clang compiles the modules and links them with the runtime and the
 // `@link` libraries. The modules have no target triple: clang uses its
-// default target.
-fn link(opts: &Options, files: &List<str>, exe: str, libraries: List<str>) bool {
+// default target. `cached` is empty without the object cache, or holds
+// where the object of each unit is cached (ADR 0033).
+fn link(opts: &Options, files: &List<str>, cached: &List<str>, exe: str,
+        libraries: List<str>) bool {
     const Option.Some(runtime) = runtimeLibrary() else {
         const message = "cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)"
         driverError(opts.format, "E0902", message)
         return false
     }
-    let clang = "clang".toOwned()
-    if const Option.Some(name) = os.env("OFIR_CLANG") {
-        if name.len() > 0 {
-            clang = name
-        }
-    }
+    const clang = clangPath()
     let objects: List<str> = []
+    let hits: List<int> = []   // the units whose objects came from the cache
     if files.len() > 1 {   // the units are compiled apart, then linked (ADR 0033)
-        for i in 0..files.len() {
-            objects.push("{files[i].slice(0, files[i].len() - 3)}.o")
-        }
-        if !compileUnits(opts, clang, files, &objects) {
-            removeFiles(&objects)
+        const tag = object_cache.tempTag(exe)
+        if !compileUnits(opts, clang, files, cached, tag, objects, hits) {
+            removeObjects(&objects, cached)
             driverError(opts.format, "E0902", "clang failed to compile the generated code")
             return false
         }
     }
+    let inputs = if files.len() > 1 { objects.clone() } else { files.clone() }
+    let ok = linkObjects(opts, clang, &inputs, runtime, &libraries, exe, hits.len() > 0)
+    if !ok && hits.len() > 0 {   // a cached object may be bad: compile those units again
+        let again: List<str> = []
+        let fresh: List<str> = []
+        for i in 0..hits.len() {
+            const _ = fs.removeFile(objects[hits[i]])
+            again.push(files[hits[i]].clone())
+        }
+        const noCache: List<str> = []
+        let none: List<int> = []
+        ok = compileUnits(opts, clang, &again, &noCache, "", fresh, none)
+        for i in 0..hits.len() {
+            if i < fresh.len() {
+                objects[hits[i]] = fresh[i].clone()
+            }
+        }
+        if ok {
+            ok = linkObjects(opts, clang, &objects, runtime, &libraries, exe, false)
+        }
+        removeFiles(&fresh)
+    }
+    removeObjects(&objects, cached)
+    if !ok {
+        driverError(opts.format, "E0902", "clang failed to compile the generated code")
+    } else if cached.len() > 0 && hits.len() < cached.len() {   // objects were added
+        object_cache.prune()
+    }
+    return ok
+}
+
+// The clang program: `OFIR_CLANG`, or `clang`.
+fn clangPath() str {
+    if const Option.Some(name) = os.env("OFIR_CLANG") {
+        if name.len() > 0 {
+            return name
+        }
+    }
+    return "clang".toOwned()
+}
+
+// Removes the objects that are not in the cache.
+fn removeObjects(objects: &List<str>, cached: &List<str>) {
+    for i in 0..objects.len() {
+        if i >= cached.len() || objects[i] != cached[i] {
+            const _ = fs.removeFile(objects[i])
+        }
+    }
+}
+
+// The final clang call. With `quiet`, a failure prints nothing: the
+// caller tries again.
+fn linkObjects(opts: &Options, clang: str, inputs: &List<str>, runtime: str,
+               libraries: &List<str>, exe: str, quiet: bool) bool {
     let args = clangFlags(opts)
-    const inputs = if files.len() > 1 { &objects } else { files }
     for i in 0..inputs.len() {
         args.push(inputs[i].clone())
     }
-    args.push(runtime)
+    args.push(runtime.toOwned())
     for i in 0..libraries.len() {
         args.push("-l{libraries[i]}")
     }
@@ -539,21 +603,15 @@ fn link(opts: &Options, files: &List<str>, exe: str, libraries: List<str>) bool 
     if onWindows() {
         args.push("-Wl,--stack,8388608".toOwned())
     }
-    const ok = match os.spawn(clang, args) {
-        Result.Ok(child) => finishClang(opts, clang, child)
+    return match os.spawn(clang, args) {
+        Result.Ok(child) => finishClang(opts, clang, child, quiet)
         Result.Err(_) => {
             driverError(opts.format, "E0902", "cannot run `{clang}`")
             false
         }
     }
-    removeFiles(&objects)
-    if !ok {
-        driverError(opts.format, "E0902", "clang failed to compile the generated code")
-    }
-    return ok
 }
 
-// Runs a program, its output passed on; returns its exit status.
 // The clang flags of both compiling and linking: the optimization level,
 // debug info and, on Windows, MinGW rather than MSVC.
 fn clangFlags(opts: &Options) List<str> {
@@ -569,45 +627,83 @@ fn clangFlags(opts: &Options) List<str> {
 }
 
 // Compiles each unit to its object, with at most `-j N` clang processes
-// running. The processes are waited for in the order they started, so
-// their output comes in the order of the units. After a failure no more
-// are started, and the running ones are waited for.
-fn compileUnits(opts: &Options, clang: str, files: &List<str>, objects: &List<str>) bool {
+// running, and pushes the objects to `objects`. A unit whose object is in
+// the cache is not compiled, and its index goes to `hits`; another is
+// compiled to a temporary name in the cache and renamed into place. The
+// processes are waited for in the order they started, so their output
+// comes in the order of the units. After a failure no more are started,
+// and the running ones are waited for.
+fn compileUnits(opts: &Options, clang: str, files: &List<str>, cached: &List<str>, tag: str,
+                objects: mut List<str>, hits: mut List<int>) bool {
     const jobs = if opts.jobs > 0 { opts.jobs } else { os.cpuCount() }
     let running: List<os.Child> = []
+    let units: List<int> = []   // the unit of each running process
     let ok = true
     let next = 0
     for (ok && next < files.len()) || running.len() > 0 {
         if ok && next < files.len() && running.len() < jobs {
+            const k = next
+            next += 1
+            const local = "{files[k].slice(0, files[k].len() - 3)}.o"
+            if k >= cached.len() {
+                objects.push(local)
+            } else if object_cache.useObject(cached[k]) {
+                objects.push(cached[k].clone())
+                hits.push(k)
+                continue
+            } else {
+                const _ = fs.createDirAll(parentDir(cached[k]))
+                objects.push("{cached[k]}.{tag}.tmp")
+            }
             let args = clangFlags(opts)
             args.push("-c".toOwned())
-            args.push(files[next].clone())
+            args.push(files[k].clone())
             args.push("-o".toOwned())
-            args.push(objects[next].clone())
+            args.push(objects[k].clone())
             match os.spawn(clang, args) {
-                Result.Ok(child) => running.push(child)
+                Result.Ok(child) => {
+                    running.push(child)
+                    units.push(k)
+                }
                 Result.Err(_) => {
                     driverError(opts.format, "E0902", "cannot run `{clang}`")
                     ok = false
                 }
             }
-            next += 1
         } else {
             const child = running.remove(0)
-            if !finishClang(opts, clang, child) {
+            const k = units.remove(0)
+            if !finishClang(opts, clang, child, false) {
                 ok = false
+            } else if k < cached.len() {   // into the cache; the temporary name if that fails
+                if fs.rename(objects[k], cached[k]).isOk() {
+                    objects[k] = cached[k].clone()
+                }
             }
         }
     }
     return ok
 }
 
-// Waits for a clang process and passes its output on.
-fn finishClang(opts: &Options, clang: str, child: move os.Child) bool {
+// The directory of a path: what comes before its last `/`.
+fn parentDir(path: str) str {
+    let slash = 0
+    for i in 0..path.len() {
+        if path[i] == b'/' {
+            slash = i
+        }
+    }
+    return path.slice(0, slash).toOwned()
+}
+
+// Waits for a clang process and passes its output on, unless `quiet`.
+fn finishClang(opts: &Options, clang: str, child: move os.Child, quiet: bool) bool {
     return match child.wait() {
         Result.Ok(out) => {
-            print(out.stdout)
-            eprint(out.stderr)
+            if !quiet || out.status == 0 {
+                print(out.stdout)
+                eprint(out.stderr)
+            }
             out.status == 0
         }
         Result.Err(_) => {
@@ -632,6 +728,7 @@ fn parseCount(text: str) int {
     return n
 }
 
+// Runs a program, its output passed on; returns its exit status.
 fn runProgram(exe: str, args: [str]) int {
     return match os.run(exe, args) {
         Result.Ok(out) => {

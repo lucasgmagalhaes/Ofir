@@ -1,0 +1,196 @@
+/**
+ * @module
+ * The object cache of ADR 0033: the object of each codegen unit, in
+ * `$OFIR_HOME/cache/objects/<hh>/<hash>.o`, keyed by the SHA-256 of the
+ * unit's text, the clang flags, and the path and version of clang.
+ */
+
+import driver.git.ofirHome
+import driver.sha256.Sha256
+import driver.sha256.sha256Hex
+import std.fs
+import std.os
+
+/**
+ * What every key holds besides the unit's text: the clang flags, the path
+ * of clang and the output of `clang --version`.
+ *
+ * @param clang the clang program
+ * @param flags the flags given to clang
+ * @returns the text, or "" if `clang --version` fails (no cache then)
+ */
+pub fn cacheSalt(clang: str, flags: &List<str>) str {
+    const run = os.run(clang, ["--version"])
+    if run.isErr() {
+        return ""
+    }
+    const out = run.expect("checked")
+    if out.status != 0 {
+        return ""
+    }
+    let salt = "{clang}\n{out.stdout}"
+    for i in 0..flags.len() {
+        salt.push("\n{flags[i]}")
+    }
+    return salt
+}
+
+/**
+ * The directory of the cached objects.
+ *
+ * @returns `$OFIR_HOME/cache/objects`
+ */
+pub fn objectsDir() str {
+    return "{ofirHome()}/cache/objects"
+}
+
+/**
+ * Where the object of a unit is cached.
+ *
+ * @param salt what `cacheSalt` returned
+ * @param text the unit's text
+ * @returns the path of the object
+ */
+pub fn objectPath(salt: str, text: str) str {
+    let h = Sha256.new()
+    h.updateText(salt)
+    h.updateText("\n")
+    h.updateText(text)
+    const hash = h.finish()
+    return "{objectsDir()}/{hash.slice(0, 2)}/{hash}.o"
+}
+
+/**
+ * A short name that tells apart the temporary objects of two builds.
+ *
+ * @param exe the executable being built
+ * @returns 12 hex digits
+ */
+pub fn tempTag(exe: str) str {
+    return sha256Hex(exe).slice(0, 12).toOwned()
+}
+
+/**
+ * Whether a cached object can be used: it is non-empty and starts with
+ * the magic number of an ELF, Mach-O or COFF object. One that cannot is
+ * deleted. A usable one has its time updated, for `prune`.
+ *
+ * @param path the cached object
+ * @returns whether to use it
+ */
+pub fn useObject(path: str) bool {
+    if !fs.exists(path) {
+        return false
+    }
+    const empty: List<u8> = []
+    const bytes = fs.read(path).unwrapOr(empty)
+    if !isObject(&bytes) {
+        const _ = fs.removeFile(path)
+        return false
+    }
+    const _ = fs.touch(path)
+    return true
+}
+
+fn isObject(bytes: &List<u8>) bool {
+    if bytes.len() < 4 {
+        return false
+    }
+    const b0 = bytes[0]
+    const b1 = bytes[1]
+    const b2 = bytes[2]
+    const b3 = bytes[3]
+    if b0 == 0x7f && b1 == 0x45 && b2 == 0x4c && b3 == 0x46 {   // ELF
+        return true
+    }
+    if (b0 == 0xcf || b0 == 0xce) && b1 == 0xfa && b2 == 0xed && b3 == 0xfe {   // Mach-O
+        return true
+    }
+    return b0 == 0x64 && (b1 == 0x86 || b1 == 0xaa)   // COFF: x86-64 or ARM64
+}
+
+/** A cached object, for `prune`. */
+struct Entry {
+    path: str
+    size: int
+    modified: int
+}
+
+/**
+ * Deletes the objects used least recently, down to half of the limit,
+ * once the cache holds more than the limit: `OFIR_CACHE_LIMIT` bytes,
+ * 2 GiB by default.
+ */
+pub fn prune() {
+    const limit = cacheLimit()
+    let entries: List<Entry> = []
+    let total = 0
+    const noEntries: List<fs.DirEntry> = []
+    const groups = fs.readDir(objectsDir()).unwrapOr(noEntries.clone())
+    for i in 0..groups.len() {
+        const files = fs.readDir(groups[i].path).unwrapOr(noEntries.clone())
+        for j in 0..files.len() {
+            if const Result.Ok(info) = fs.metadata(files[j].path) {
+                total += info.size
+                entries.push(Entry{path: files[j].path.clone(), size: info.size,
+                                   modified: info.modified})
+            }
+        }
+    }
+    if total <= limit {
+        return
+    }
+    sortByTime(entries)
+    let i = 0
+    for total > limit / 2 && i < entries.len() {
+        if fs.removeFile(entries[i].path).isOk() {
+            total -= entries[i].size
+        }
+        i += 1
+    }
+}
+
+fn cacheLimit() int {
+    const text = os.env("OFIR_CACHE_LIMIT") ?? ""
+    if text.isEmpty() || text.len() > 18 {
+        return 2147483648
+    }
+    let n = 0
+    for b in text.bytes() {
+        if b < 48 || b > 57 {
+            return 2147483648
+        }
+        n = n * 10 + (b as int) - 48
+    }
+    return n
+}
+
+// Oldest first: a merge sort, since the cache can hold many objects.
+fn sortByTime(entries: mut List<Entry>) {
+    let width = 1
+    for width < entries.len() {
+        let merged: List<Entry> = []
+        let lo = 0
+        for lo < entries.len() {
+            const mid = if lo + width < entries.len() { lo + width } else { entries.len() }
+            const hi = if mid + width < entries.len() { mid + width } else { entries.len() }
+            let a = lo
+            let b = mid
+            for a < mid || b < hi {
+                if b >= hi || (a < mid && entries[a].modified <= entries[b].modified) {
+                    merged.push(entries[a].clone())
+                    a += 1
+                } else {
+                    merged.push(entries[b].clone())
+                    b += 1
+                }
+            }
+            lo = hi
+        }
+        entries.clear()
+        for i in 0..merged.len() {
+            entries.push(merged[i].clone())
+        }
+        width *= 2
+    }
+}

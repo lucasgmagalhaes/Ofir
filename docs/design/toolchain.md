@@ -384,17 +384,21 @@ it on.
 step 5 becomes two steps. First, at most `-j N` clang
 processes (`--jobs`, by default the number of cores) compile the units
 to objects. Then one more clang call links the objects with the runtime.
-**[planned]** (roadmap 6.6e): an object whose unit's text, clang flags
-and clang version are unchanged is reused from `$OFIR_HOME/cache/objects`:
+An object whose unit's text, clang flags and clang version are unchanged
+is reused from `$OFIR_HOME/cache/objects`:
 
 | Flag | Effect |
 |------|--------|
 | `-j N`, `--jobs N` | at most `N` clang processes at a time |
 | `--codegen-units=1` | one module for the whole program, as `--emit=llvm` writes |
-| `--no-cache` **[planned]** | neither read nor write the object cache |
+| `--no-cache` | neither read nor write the object cache |
 
-The cache holds at most `OFIR_CACHE_LIMIT` bytes (2 GiB by default). The
-objects used least recently are deleted first.
+The cache holds at most `OFIR_CACHE_LIMIT` bytes (2 GiB by default):
+once a build passes the limit, the objects used least recently are
+deleted until it holds half. A cached object that is not an ELF, Mach-O
+or COFF object is deleted and compiled again; if the link fails with
+cached objects, their units are compiled again and the link is retried
+once.
 
 The compiler finds:
 

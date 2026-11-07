@@ -49,7 +49,23 @@ fn main() {
         }
         Result.Err(e) => println("readDir: {e.message}")
     }
-    for name in ["a.txt", "b.txt", "c.bin"] {
+    match fs.metadata("{dir}/c.bin") {
+        Result.Ok(info) => println("metadata {info.size} {info.modified > 0}")
+        Result.Err(e) => println("metadata: {e.message}")
+    }
+    check("touch", fs.touch("{dir}/c.bin"))
+    check("touch missing", fs.touch("{dir}/none"))
+    check("rename", fs.rename("{dir}/b.txt", "{dir}/c.bin"))
+    match fs.readToString("{dir}/c.bin") {
+        Result.Ok(text) => print("renamed {text}")
+        Result.Err(e) => println("read: {e.message}")
+    }
+    check("rename missing", fs.rename("{dir}/b.txt", "{dir}/d.txt"))
+    match fs.metadata("{dir}/b.txt") {
+        Result.Ok(_) => println("metadata b")
+        Result.Err(e) => println("metadata gone {e.kind == io.IoErrorKind.NotFound}")
+    }
+    for name in ["a.txt", "c.bin"] {
         check("remove {name}", fs.removeFile("{dir}/{name}"))
     }
     match fs.readToString("{dir}/a.txt") {
