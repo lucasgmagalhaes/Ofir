@@ -8,6 +8,10 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `os.spawn` starts a program without waiting for it, `Child.wait` waits
+  for it, and `os.cpuCount` counts the processors; `os.run` is `spawn`
+  followed by `wait`, and the output of a program goes to temporary files
+  instead of pipes (roadmap 6.6b, ADR 0033).
 - `ofir lsp`, a language server on standard input and output: it publishes
   the diagnostics of each open document as it is opened and changed
   (roadmap 6.3a), and answers go to definition for locals, declarations,
