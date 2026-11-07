@@ -1,0 +1,19 @@
+// The tests of `driver.lock`.
+
+@test
+fn checksumHashesTheFilesInOrder() {
+    const sum = "760fe8af9eedfdbc434b8f6a76014f3d4a399865601f8913928b8d562e30a5c5"
+    assert(checksum("tests/git/shade/0.1.0") == sum)
+}
+
+@test
+fn lockTextIsSortedByName() {
+    const packages = [Locked{name: "b", git: "/b", version: "1.0.0", rev: "", commit: "c1",
+                             checksum: "s1"},
+                      Locked{name: "a", git: "/a", version: "", rev: "main", commit: "c2",
+                             checksum: ""}]
+    const text = lockText(&packages)
+    assert(text.find("\"a\"").expect("a") < text.find("\"b\"").expect("b"))
+    assert(text.contains("\"rev\": \"main\", \"commit\": \"c2\"\}"))
+    assert(text.contains("\"commit\": \"c1\", \"checksum\": \"s1\"\}"))
+}

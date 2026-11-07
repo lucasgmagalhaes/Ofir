@@ -2,11 +2,12 @@
  * @module
  * `ofir.lock` (ADR 0032): the git packages a program was resolved to,
  * next to its `ofir.json`. It is generated JSON, sorted by name: each
- * package's repository, its version (or the `rev` or `branch` it follows)
- * and its commit. Path dependencies are not in it.
+ * package's repository, its version (or the `rev` or `branch` it follows),
+ * its commit and the checksum of its files. Path dependencies are not in it.
  */
 
 import diag.jsonString
+import driver.sha256.Sha256
 import lsp.json.JsonKind
 import lsp.json.parseJsonc
 import std.fs
@@ -25,6 +26,8 @@ pub struct Locked {
     pub rev: str
     /** The commit it is at. */
     pub commit: str
+    /** The SHA-256 of its files (`checksum`); empty in a lock that has none. */
+    pub checksum: str
 }
 
 /**
@@ -50,7 +53,8 @@ pub fn readLock(dir: str) List<Locked> {
                              git: doc.text(doc.field(node, "git")),
                              version: doc.text(doc.field(node, "version")),
                              rev: doc.text(doc.field(node, "rev")),
-                             commit: doc.text(doc.field(node, "commit"))}
+                             commit: doc.text(doc.field(node, "commit")),
+                             checksum: doc.text(doc.field(node, "checksum"))}
         if entry.git.len() > 0 && entry.commit.len() > 0 {
             out.push(entry)
         }
@@ -83,10 +87,29 @@ pub fn lockText(packages: &List<Locked>) str {
         } else {
             out.push("\"rev\": {jsonString(p.rev)}, ")
         }
-        out.push("\"commit\": {jsonString(p.commit)}\}")
+        out.push("\"commit\": {jsonString(p.commit)}")
+        if p.checksum.len() > 0 {
+            out.push(", \"checksum\": {jsonString(p.checksum)}")
+        }
+        out.push("\}")
     }
     out.push(if order.len() > 0 { "\n  ]\n\}\n" } else { "]\n\}\n" })
     return out
+}
+
+/**
+ * Whether the lock of the project in `dir` is the one `packages` make;
+ * no lock matches no packages.
+ *
+ * @param dir the project's directory
+ * @param packages its packages
+ * @returns true if it would not change
+ */
+pub fn lockMatches(dir: str, packages: &List<Locked>) bool {
+    if const Result.Ok(old) = fs.readToString("{dir}/ofir.lock") {
+        return old == lockText(packages)
+    }
+    return packages.len() == 0
 }
 
 /**
@@ -97,16 +120,46 @@ pub fn lockText(packages: &List<Locked>) str {
  * @returns false if it could not be written
  */
 pub fn writeLock(dir: str, packages: &List<Locked>) bool {
-    const path = "{dir}/ofir.lock"
-    const text = lockText(packages)
-    if const Result.Ok(old) = fs.readToString(path) {
-        if old == text {
-            return true
-        }
-    } else if packages.len() == 0 {
+    if lockMatches(dir, packages) {
         return true
     }
-    return fs.writeString(path, text).isOk()
+    return fs.writeString("{dir}/ofir.lock", lockText(packages)).isOk()
+}
+
+/**
+ * The checksum of a package: the SHA-256 of its files, sorted by path,
+ * each as its path from `dir`, a NUL, its size, a NUL and its bytes. The
+ * `.git` directory is left out.
+ *
+ * @param dir the package's directory
+ * @returns the hash, as 64 hex digits
+ */
+pub fn checksum(dir: str) str {
+    let h = Sha256.new()
+    addTree(h, dir, "")
+    return h.finish()
+}
+
+// Feeds the files under `dir`/`rel` to `h`.
+fn addTree(h: mut Sha256, dir: str, rel: str) {
+    const path = if rel.len() > 0 { "{dir}/{rel}" } else { dir.toOwned() }
+    const Result.Ok(entries) = fs.readDir(path) else {
+        return
+    }
+    for i in 0..entries.len() {
+        const name = entries[i].name.clone()
+        if rel.len() == 0 && name == ".git" {
+            continue
+        }
+        const sub = if rel.len() > 0 { "{rel}/{name}" } else { name.clone() }
+        if fs.readDir(entries[i].path.clone()).isOk() {
+            addTree(h, dir, sub)
+        } else {
+            const data = fs.read(entries[i].path.clone()).ok() ?? []
+            h.updateText("{sub}\0{data.len()}\0")
+            h.update(&data)
+        }
+    }
 }
 
 // Whether `a` sorts before `b`.
