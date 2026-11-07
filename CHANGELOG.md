@@ -15,6 +15,12 @@ project uses [Semantic Versioning](https://semver.org/).
 - `-j N` (`--jobs N`): the codegen units are compiled by at most `N`
   clang processes at a time, by default one per core, then linked in one
   more clang call (roadmap 6.6d).
+- The object cache: the object of each codegen unit is kept in
+  `$OFIR_HOME/cache/objects`, keyed by the unit's text, the clang flags
+  and the clang version, and reused by later builds; `OFIR_CACHE_LIMIT`
+  bounds it (2 GiB by default) and `--no-cache` turns it off (roadmap
+  6.6e, ADR 0033).
+- `fs.rename`, `fs.metadata` (size and modification time) and `fs.touch`.
 - `os.spawn` starts a program without waiting for it, `Child.wait` waits
   for it, and `os.cpuCount` counts the processors; `os.run` is `spawn`
   followed by `wait`, and the output of a program goes to temporary files
