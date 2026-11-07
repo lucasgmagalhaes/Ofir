@@ -15,7 +15,9 @@ extern "C" {
     fn ofir_arch_name(len: *mut int) *u8
     fn ofir_env(name: *u8, len: int, value_len: *mut int) *u8
     fn ofir_exit(code: int) !
-    fn ofir_run(args: *u8, len: int, count: int, out: *mut Captured) i32
+    fn ofir_spawn(args: *u8, len: int, count: int, child: *mut *mut u8) i32
+    fn ofir_wait(child: *mut u8, out: *mut Captured)
+    fn ofir_cpu_count() int
     fn ofir_current_dir(out: *mut Buffer) i32
     fn ofir_executable_path(out: *mut Buffer) i32
 }
@@ -100,8 +102,61 @@ struct Captured {
 }
 
 /**
- * Runs a program and waits for it to end, capturing its output. The
- * program is looked up in `PATH` when its name has no `/`.
+ * A program started by `spawn`, running beside this one. Its standard
+ * output and error are captured until `wait` returns them.
+ */
+pub struct Child {
+    handle: *mut u8
+
+    /**
+     * Waits for the program to end.
+     *
+     * @returns its exit status and what it wrote
+     */
+    pub fn wait(move self) Result<Output, IoError> {
+        let captured = Captured{status: 0, out: Buffer.new(), err: Buffer.new()}
+        unsafe {
+            ofir_wait(self.handle, &mut captured as *mut Captured)
+        }
+        return Result.Ok(Output{status: captured.status, stdout: unsafe { captured.out.intoStr() },
+                          stderr: unsafe { captured.err.intoStr() }})
+    }
+}
+
+/**
+ * Starts a program without waiting for it, capturing its output. The
+ * program is looked up in `PATH` when its name has no `/`. Its output goes
+ * to temporary files, so a program that writes a lot never blocks.
+ *
+ * @param program the program to run
+ * @param args its arguments, without the program itself
+ * @returns the running program; `Err` when it cannot be started
+ * @example
+ * ```ofir no_run
+ * import std.os
+ *
+ * const a = os.spawn("clang", ["-c", "a.c"]).expect("clang starts")
+ * const b = os.spawn("clang", ["-c", "b.c"]).expect("clang starts")
+ * const statusA = a.wait().expect("clang ends").status
+ * const statusB = b.wait().expect("clang ends").status
+ * ```
+ */
+pub fn spawn(program: str, args: [str]) Result<Child, IoError> {
+    let packed = "{program}\0"
+    for i in 0..args.len() {
+        packed.push(args[i])
+        packed.push("\0")
+    }
+    let handle = unsafe { 0 as *mut u8 }
+    io.check(unsafe {
+        ofir_spawn(packed.asPtr(), packed.len(), args.len() + 1, &mut handle as *mut *mut u8)
+    })?
+    return Result.Ok(Child{handle: handle})
+}
+
+/**
+ * Runs a program and waits for it to end, capturing its output: `spawn`
+ * followed by `wait`.
  *
  * @param program the program to run
  * @param args its arguments, without the program itself
@@ -115,17 +170,18 @@ struct Captured {
  * ```
  */
 pub fn run(program: str, args: [str]) Result<Output, IoError> {
-    let packed = "{program}\0"
-    for i in 0..args.len() {
-        packed.push(args[i])
-        packed.push("\0")
-    }
-    let captured = Captured{status: 0, out: Buffer.new(), err: Buffer.new()}
-    io.check(unsafe {
-        ofir_run(packed.asPtr(), packed.len(), args.len() + 1, &mut captured as *mut Captured)
-    })?
-    return Result.Ok(Output{status: captured.status, stdout: unsafe { captured.out.intoStr() },
-                      stderr: unsafe { captured.err.intoStr() }})
+    const child = spawn(program, args)?
+    return child.wait()
+}
+
+/**
+ * The number of processors the system has online, for choosing how many
+ * programs to run at once.
+ *
+ * @returns at least 1
+ */
+pub fn cpuCount() int {
+    return unsafe { ofir_cpu_count() }
 }
 
 /**
