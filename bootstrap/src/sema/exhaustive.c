@@ -189,7 +189,9 @@ static Matrix default_rows(Ctx *x, Matrix m) {
 
 static const char *copy_text(Ctx *x, const StrBuf *text) {
     char *out = ARENA_ARRAY(x->arena, char, text->len + 1);
-    memcpy(out, text->data, text->len);
+    if (text->len > 0) {   // an empty buffer may have no data
+        memcpy(out, text->data, text->len);
+    }
     out[text->len] = '\0';
     return out;
 }
