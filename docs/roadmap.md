@@ -254,7 +254,7 @@ These gaps remain:
 | 6.4b | `ofir doc`: HTML documentation from the doc comments; **done** (stage 1): `compiler/doc`, `tests/doc` | M |
 | 6.5 | Package manager (ADR 0032, stage 1), in the steps below | L |
 | 6.5a | Design: ADR 0032, `docs/design/toolchain.md`, codes E0910-E0915; **done** | S |
-| 6.5b | Path dependencies: a JSONC reader for `ofir.json`, `dependencies` with `path`, imports by package name (E0910, E0911, E0915) | M |
+| 6.5b | Path dependencies: a JSONC reader for `ofir.json`, `dependencies` with `path`, imports by package name (E0910, E0911, E0915); **done** (stage 1): `tests/run/packages/app` and `tests/compile_fail/packages` | M |
 | 6.5c | Git dependencies, semver requirements, resolution, `ofir.lock`, `ofir fetch` and `ofir update` (E0912) | M |
 | 6.5d | SHA-256 checksums in `ofir.lock`, `--locked` and `--offline` (E0913, E0914) | S |
 | 6.5e | Registry client: the git index and version archives | M |

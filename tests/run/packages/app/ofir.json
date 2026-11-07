@@ -1,0 +1,13 @@
+// A program with path dependencies (ADR 0032).
+{
+  "name": "app",
+  "version": "0.1.0",
+  "build": {
+    "kind": "exe",
+    "root": "main.of",
+  },
+  "dependencies": {
+    "hello": {"path": "deps/greet"},   // renamed: the key is the name the imports use
+    "text": {"path": "deps/text"},
+  },
+}

@@ -1,0 +1,7 @@
+// requires: stage1
+import lib.answer
+import util.unit
+
+fn main() {
+    println("{answer()} {unit()}")
+}

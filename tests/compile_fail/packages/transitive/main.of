@@ -1,0 +1,8 @@
+// requires: stage1
+// A dependency of a dependency is not imported without declaring it.
+import outer.twice
+import inner.one   // error[E0204]: cannot find module `inner`
+
+fn main() {
+    println("{twice(one())}")
+}

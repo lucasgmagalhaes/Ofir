@@ -145,7 +145,7 @@ allowed, the format of `tsconfig.json` (ADR 0026). Keys are camelCase.
     "kind": "exe",            // "exe" or "lib"
     "root": "src/main.of",
   },
-  "dependencies": {          // [planned] packages (ADR 0032)
+  "dependencies": {          // packages (ADR 0032)
     "util": {"path": "../util"},
   },
   "fmt": {                    // what `ofir fmt` produces (docs/style-guide.md)
@@ -164,7 +164,7 @@ allowed, the format of `tsconfig.json` (ADR 0026). Keys are camelCase.
 default. `tools/check_format.py` checks the repository against the same
 rules, and `--fix` applies them.
 
-### Dependencies [planned]
+### Dependencies
 
 The package manager (ADR 0032, roadmap 6.5, stage 1) reads the
 `dependencies` of `ofir.json`. Each key is a package name, the first
@@ -192,6 +192,14 @@ requirement, resolution fails (E0912).
 `ofir.lock` sits next to `ofir.json` and is generated: each package's
 version, source and SHA-256 checksum, sorted by name. Commit it for
 programs. Downloads are cached under `$OFIR_HOME` (default `~/.ofir`).
+
+Implemented so far (6.5b, stage 1): `path` dependencies, read
+transitively; a package is the same when its canonical directory is.
+`git` and registry ones are E0901, and there is no `ofir.lock` yet.
+The modules of a package are found from the directory of its
+`build.root` (default `src/index.of`), which is the module named like the
+package; a package imports its own modules by their names in it, as a
+project does.
 
 ### `ofir fmt`
 

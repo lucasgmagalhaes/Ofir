@@ -1,0 +1,6 @@
+// requires: stage1
+import inner.one
+
+pub fn twice(n: int) int {
+    return n * 2 * one()
+}

@@ -57,6 +57,8 @@ class Diagnostic:
     severity: str
     code: str
     message: str
+    # "ofir.json" for a diagnostic of a project's manifest, else "".
+    file: str = ""
 
 
 @dataclass
@@ -117,8 +119,9 @@ def compare_output(cfg: Config, path: Path, actual: str, expected_suffix: str) -
                                 f"{path.with_suffix('.actual').name}")
 
 
-def parse_annotations(source: str) -> list[tuple[int, Diagnostic]]:
-    """Returns (function_start_line, diagnostic) for each annotation."""
+def parse_annotations(source: str, file: str = "") -> list[tuple[int, Diagnostic]]:
+    """Returns (function_start_line, diagnostic) for each annotation. The
+    `ofir.json` of a project test is annotated with the same comments."""
     annotations = []
     current_fn = 0
     for number, text in enumerate(source.splitlines(), start=1):
@@ -126,7 +129,8 @@ def parse_annotations(source: str) -> list[tuple[int, Diagnostic]]:
             current_fn = number
         m = ANNOTATION_RE.search(text)
         if m:
-            annotations.append((current_fn, Diagnostic(number, m.group(1), m.group(2), m.group(3))))
+            annotations.append((current_fn, Diagnostic(number, m.group(1), m.group(2), m.group(3),
+                                                       file)))
     return annotations
 
 
@@ -135,7 +139,9 @@ def parse_diagnostics(output: str) -> list[Diagnostic]:
     for text in output.splitlines():
         m = DIAGNOSTIC_RE.match(text)
         if m:
-            diagnostics.append(Diagnostic(int(m.group(2)), m.group(4), m.group(5), m.group(6)))
+            file = "ofir.json" if m.group(1).endswith("ofir.json") else ""
+            diagnostics.append(Diagnostic(int(m.group(2)), m.group(4), m.group(5), m.group(6),
+                                          file))
     return diagnostics
 
 
@@ -143,29 +149,29 @@ def unexpected_diagnostics(reported, annotations) -> list[str]:
     """Every reported error must be annotated (both stages); every warning
     too, in a test that annotates warnings. A test of errors is not about
     the unused variables it needs to trigger them."""
-    annotated = {(d.line, d.code) for _, d in annotations}
+    annotated = {(d.file, d.line, d.code) for _, d in annotations}
     checks_warnings = any(d.severity == "warning" for _, d in annotations)
     return [f"unexpected {d.severity}[{d.code}] at line {d.line}: {d.message}"
-            for d in reported if (d.line, d.code) not in annotated
+            for d in reported if (d.file, d.line, d.code) not in annotated
             and (d.severity == "error" or checks_warnings)]
 
 
 def missing_stage0(reported, annotations) -> list[str]:
     """Stage 0 reports only the first error of each function and its messages
     are terse: require the first annotation of each function."""
-    reported_keys = {(d.line, d.code) for d in reported}
+    reported_keys = {(d.file, d.line, d.code) for d in reported}
     firsts: dict[int, Diagnostic] = {}
     for fn_line, d in annotations:
         firsts.setdefault(fn_line, d)
     return [f"missing {d.severity}[{d.code}] at line {d.line}"
-            for d in firsts.values() if (d.line, d.code) not in reported_keys]
+            for d in firsts.values() if (d.file, d.line, d.code) not in reported_keys]
 
 
 def missing_stage1(reported, annotations) -> list[str]:
     """Stage 1 must report every annotation, with a matching message."""
     problems = []
     for _, d in annotations:
-        matches = [r for r in reported if (r.line, r.code) == (d.line, d.code)]
+        matches = [r for r in reported if (r.file, r.line, r.code) == (d.file, d.line, d.code)]
         if not matches:
             problems.append(f"missing {d.severity}[{d.code}] at line {d.line}: {d.message}")
         elif d.message and not any(d.message in r.message for r in matches):
@@ -176,6 +182,9 @@ def missing_stage1(reported, annotations) -> list[str]:
 
 def check_diagnostics(cfg: Config, path: Path, source: str) -> Result:
     annotations = parse_annotations(source)
+    manifest = path.parent / "ofir.json"
+    if path.name == "main.of" and manifest.exists():
+        annotations += parse_annotations(manifest.read_text(), "ofir.json")
     proc = run_process(compiler_cmd(cfg, "build", str(path), "--message-format=short",
                                     "-o", str(cfg.tmp / path.stem)))
     reported = parse_diagnostics(proc.stdout + proc.stderr)

@@ -55,6 +55,10 @@ fn main() {
 The runner checks that exactly the annotated errors are produced, matching
 the **code and line** strictly and the message as a substring.
 
+In a project test, errors in its `ofir.json` (a dependency that cannot
+be found, say) are annotated there, as JSONC comments on their line;
+the runner matches them by file, line and code.
+
 Stage 0 reports only the first error per function and has terser messages.
 When testing stage 0, the runner therefore checks only that the **first**
 annotated error of each function is reported with the right code and line,

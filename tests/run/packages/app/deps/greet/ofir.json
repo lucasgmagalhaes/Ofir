@@ -1,0 +1,8 @@
+{
+  "name": "greet",
+  "version": "1.0.0",
+  "build": {"kind": "lib", "root": "src/index.of"},
+  "dependencies": {
+    "txt": {"path": "../text"},   // the same package as the root's `text`
+  },
+}

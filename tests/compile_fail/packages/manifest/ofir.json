@@ -1,0 +1,18 @@
+// The errors of the `dependencies` of `ofir.json` (ADR 0032).
+{
+  "name": "manifest",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "lib": {"path": "deps/app_lib"},
+    "std": {"path": "deps/app_lib"},          // error[E0915]: the dependency `std` is named like the standard library
+    "util": {"path": "deps/app_lib"},         // error[E0915]: the dependency `util` is named like a module of the project
+    "bad-name": {"path": "deps/app_lib"},     // error[E0910]: `bad-name` is not a valid package name
+    "fn": {"path": "deps/app_lib"},           // error[E0910]: `fn` is not a valid package name
+    "json": "^1.2",                           // error[E0901]: registry dependencies are not supported yet
+    "http": {"git": "https://example.com/http.git"},   // error[E0901]: git dependencies are not supported yet
+    "nothing": {"path": "deps/missing"},      // error[E0911]: cannot find the dependency `nothing`
+    "tool": {"path": "deps/exe"},             // error[E0911]: the dependency `tool` is not a library
+    "three": 3,                               // error[E0910]: the dependency `three` must be a version or an object
+    "empty": {},                              // error[E0910]: the dependency `empty` needs a `path`
+  },
+}

@@ -1,0 +1,12 @@
+// requires: stage1
+// `hello.style` in the program; `style` here.
+import txt.repeat
+import util.LIMIT
+
+pub fn decorate(text: str) str {
+    return "{text}{repeat("!", LIMIT)}"
+}
+
+pub fn shout(text: str) str {
+    return text.toUpper()
+}

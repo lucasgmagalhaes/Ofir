@@ -1,0 +1,5 @@
+{
+  "name": "transitive",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {"outer": {"path": "deps/outer"}},
+}

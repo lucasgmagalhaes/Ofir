@@ -1,0 +1,312 @@
+/**
+ * @module
+ * The packages of a program (ADR 0032, roadmap 6.5b): the `dependencies`
+ * of the project's `ofir.json`, then theirs, transitively. A package is a
+ * project whose `build.kind` is `"lib"`; its modules are found from the
+ * directory of its `build.root` file. Only `path` dependencies are read
+ * yet: git and registry ones are E0901.
+ *
+ * Each package has one name in the program, the prefix of its modules
+ * (`json.parser`): the key it is first reached by, made unique if it is
+ * taken. Every key a project declares maps to that name.
+ */
+
+import base.span.FileId
+import base.span.SourceMap
+import base.span.Span
+import diag.Diagnostics
+import lsp.json.JsonDoc
+import lsp.json.JsonKind
+import lsp.json.parseJsonc
+import std.fs
+
+/**
+ * A dependency as a project declares it.
+ */
+pub struct Dependency {
+    /** Its key in `dependencies`: the first segment of its imports there. */
+    pub key: str
+    /** The package it names, an index into the list of packages. */
+    pub package: int
+}
+
+/**
+ * A project of the program: the root (package 0) or a dependency.
+ */
+pub struct Package {
+    /** The prefix of its modules; empty for the root. */
+    pub name: str
+    /** Its directory, the one with its `ofir.json`; canonical for a dependency. */
+    pub dir: str
+    /** The directory its modules are found from. */
+    pub srcDir: str
+    /** The file of the module named like the package. */
+    pub rootFile: str
+    /** The packages it declares. */
+    pub deps: List<Dependency>
+}
+
+/**
+ * Where a package's own name is in the program's: the package whose
+ * modules have `name` as their first segment, if any.
+ *
+ * @param packages the packages
+ * @param name a module name's first segment
+ * @returns its index, or -1 (the root's own modules, or std)
+ */
+pub fn packageNamed(packages: &List<Package>, name: str) int {
+    for i in 1..packages.len() {
+        if packages[i].name == name {
+            return i
+        }
+    }
+    return -1
+}
+
+/**
+ * The dependency `key` of the package `p`.
+ *
+ * @param packages the packages
+ * @param p a package
+ * @param key the first segment of an import
+ * @returns the package it names, or -1
+ */
+pub fn dependencyOf(packages: &List<Package>, p: int, key: str) int {
+    const deps = &packages[p].deps
+    for i in 0..deps.len() {
+        if deps[i].key == key {
+            return deps[i].package
+        }
+    }
+    return -1
+}
+
+/**
+ * Reads the packages of the program whose project is in `rootDir`.
+ *
+ * @param rootDir the root project's directory, where its modules are found
+ * @param hasManifest whether it holds an `ofir.json`
+ * @param map where the manifests go, for the diagnostics
+ * @param diags where the errors go
+ * @returns the packages, the root first
+ */
+pub fn readPackages(rootDir: str, hasManifest: bool, map: mut SourceMap,
+                    diags: mut Diagnostics) List<Package> {
+    let packages = [Package{name: "", dir: rootDir.toOwned(), srcDir: rootDir.toOwned(),
+                            rootFile: "", deps: []}]
+    if !hasManifest {
+        return packages
+    }
+    let p = 0
+    for p < packages.len() {   // grows while it is walked
+        const deps = readDependencies(packages, p, map, diags)
+        packages[p].deps = deps
+        p += 1
+    }
+    return packages
+}
+
+// The manifest in `dir`, parsed. Its file goes in the source map only when
+// it can hold an error: it is invalid, or `register` and it has `dependencies`
+// (a program without any keeps the file ids it had).
+fn readManifest(dir: str, register: bool, map: mut SourceMap,
+                diags: mut Diagnostics) Option<(JsonDoc, FileId)> {
+    const path = "{dir}/ofir.json"
+    const Result.Ok(text) = fs.readToString(path) else {
+        return Option.None
+    }
+    match parseJsonc(text) {
+        Result.Ok(doc) => {
+            if register && doc.field(0, "dependencies") >= 0 {
+                return Option.Some((doc, map.add(path, text.clone())))
+            }
+            return Option.Some((doc, FileId(-1)))
+        }
+        Result.Err(at) => {
+            const file = map.add(path, text.clone())
+            diags.error("E0910", Span{file, start: at, end: at}, "`ofir.json` is not valid JSONC")
+            return Option.None
+        }
+    }
+}
+
+fn spanOf(doc: &JsonDoc, file: FileId, node: int) Span {
+    return Span{file, start: doc.nodes[node].start, end: doc.nodes[node].end}
+}
+
+// The dependencies of package `p`; the packages they name are added.
+fn readDependencies(packages: mut List<Package>, p: int, map: mut SourceMap,
+                    diags: mut Diagnostics) List<Dependency> {
+    let out: List<Dependency> = []
+    const dir = packages[p].dir.clone()
+    const Option.Some(manifest) = readManifest(dir, true, map, diags) else {
+        return out
+    }
+    const (doc, file) = manifest
+    const list = doc.field(0, "dependencies")
+    if list < 0 {
+        return out
+    }
+    if doc.nodes[list].kind != JsonKind.Object {
+        diags.error("E0910", spanOf(&doc, file, list), "`dependencies` must be an object")
+        return out
+    }
+    let member = doc.nodes[list].child
+    for member >= 0 {
+        const key = doc.nodes[member].key.clone()
+        const at = spanOf(&doc, file, member)
+        const target = dependencyTarget(packages, p, &doc, file, member, map, diags)
+        if target >= 0 && validKey(&packages, p, key, at, diags) {
+            out.push(Dependency{key, package: target})
+        }
+        member = doc.nodes[member].next
+    }
+    return out
+}
+
+// Whether `key` can name a dependency of package `p` (E0910, E0915).
+fn validKey(packages: &List<Package>, p: int, key: str, at: Span, diags: mut Diagnostics) bool {
+    if !isModuleName(key) {
+        diags.error("E0910", at, "`{key}` is not a valid package name")
+        return false
+    }
+    const src = &packages[p].srcDir
+    if key == "std" || fs.exists("{src}/{key}.of") || fs.exists("{src}/{key}") {
+        const what = if key == "std" { "the standard library" } else { "a module of the project" }
+        diags.error("E0915", at, "the dependency `{key}` is named like {what}")
+        diags.help("rename it: its key in `dependencies` is the name the imports use")
+        return false
+    }
+    return true
+}
+
+// An identifier that is not a keyword.
+fn isModuleName(key: str) bool {
+    if key.len() == 0 {
+        return false
+    }
+    let i = 0
+    for b in key.bytes() {
+        const letter = (b >= b'a' && b <= b'z') || (b >= b'A' && b <= b'Z') || b == b'_'
+        if !letter && (i == 0 || b < b'0' || b > b'9') {
+            return false
+        }
+        i += 1
+    }
+    return !isKeyword(key)
+}
+
+// The reserved keywords (`syntax.lexer`).
+fn isKeyword(word: str) bool {
+    const words = ["as", "break", "const", "continue", "copy", "dyn", "else", "enum", "extern",
+                   "false", "fn", "for", "if", "import", "in", "interface", "let", "match", "mut",
+                   "pub", "return", "self", "Self", "struct", "true", "unsafe"]
+    for i in 0..words.len() {
+        if words[i] == word {
+            return true
+        }
+    }
+    return false
+}
+
+// The package that the dependency `member` names, read if it is new, or -1.
+fn dependencyTarget(packages: mut List<Package>, p: int, doc: &JsonDoc, file: FileId, member: int,
+                    map: mut SourceMap, diags: mut Diagnostics) int {
+    const key = doc.nodes[member].key.clone()
+    const at = spanOf(doc, file, member)
+    if doc.nodes[member].kind == JsonKind.String {
+        diags.error("E0901", at, "registry dependencies are not supported yet")
+        return -1
+    }
+    if doc.nodes[member].kind != JsonKind.Object {
+        diags.error("E0910", at, "the dependency `{key}` must be a version or an object")
+        return -1
+    }
+    if doc.field(member, "git") >= 0 {
+        diags.error("E0901", at, "git dependencies are not supported yet")
+        return -1
+    }
+    const pathNode = doc.field(member, "path")
+    if pathNode < 0 || doc.nodes[pathNode].kind != JsonKind.String {
+        diags.error("E0910", at, "the dependency `{key}` needs a `path`, a `git` URL or a version")
+        return -1
+    }
+    const given = doc.nodes[pathNode].text.clone()
+    const base = packages[p].dir.clone()
+    const joined = if given.startsWith("/") { given.clone() } else { "{base}/{given}" }
+    const Result.Ok(dir) = fs.canonicalize(joined) else {
+        diags.error("E0911", spanOf(doc, file, pathNode), "cannot find the dependency `{key}`")
+        diags.note("no directory `{given}` next to `ofir.json`")
+        return -1
+    }
+    for i in 1..packages.len() {
+        if packages[i].dir == dir {
+            return i
+        }
+    }
+    if !fs.exists("{dir}/ofir.json") {
+        diags.error("E0911", spanOf(doc, file, pathNode), "cannot find the dependency `{key}`")
+        diags.note("`{given}` has no `ofir.json`")
+        return -1
+    }
+    const Option.Some(root) = libraryRoot(dir, key, at, map, diags) else {
+        return -1
+    }
+    const slash = lastSlash(root)
+    const srcDir = if slash > 0 { root.slice(0, slash).toOwned() } else { dir.clone() }
+    const name = uniqueName(&packages, key)
+    packages.push(Package{name, dir, srcDir, rootFile: root, deps: []})
+    return packages.len() - 1
+}
+
+// The `build.root` file of the library in `dir`.
+fn libraryRoot(dir: str, key: str, at: Span, map: mut SourceMap,
+               diags: mut Diagnostics) Option<str> {
+    const Option.Some(manifest) = readManifest(dir, false, map, diags) else {
+        return Option.None
+    }
+    const (doc, _) = manifest
+    if doc.text(doc.at(["build", "kind"])) != "lib" {
+        diags.error("E0911", at, "the dependency `{key}` is not a library")
+        diags.note("its `ofir.json` must have `\"build\": \{\"kind\": \"lib\"\}`")
+        return Option.None
+    }
+    const given = doc.text(doc.at(["build", "root"]))
+    const root = if given.len() > 0 { given } else { "src/index.of" }
+    const file = "{dir}/{root}"
+    if !fs.exists(file) {
+        diags.error("E0911", at, "cannot find the root file of the dependency `{key}`")
+        diags.note("no `{root}` in `{dir}`")
+        return Option.None
+    }
+    return Option.Some(file)
+}
+
+// `key`, or `key_2`, `key_3`... when another package has it.
+fn uniqueName(packages: &List<Package>, key: str) str {
+    let name = key.toOwned()
+    let n = 2
+    for packageNamed(packages, name) >= 0 || takenByRoot(packages, name) {
+        name = "{key}_{n}"
+        n += 1
+    }
+    return name
+}
+
+// Whether the root project has a top-level module `name`, or it is std.
+fn takenByRoot(packages: &List<Package>, name: str) bool {
+    const src = &packages[0].srcDir
+    return name == "std" || fs.exists("{src}/{name}.of") || fs.exists("{src}/{name}")
+}
+
+fn lastSlash(path: str) int {
+    let found = -1
+    let i = 0
+    for b in path.bytes() {
+        if b == b'/' {
+            found = i
+        }
+        i += 1
+    }
+    return found
+}
