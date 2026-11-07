@@ -30,6 +30,10 @@ project uses [Semantic Versioning](https://semver.org/).
   semver requirement accepts (E0912); `ofir.lock` records the commits, and
   `ofir fetch` and `ofir update [name]` fetch and resolve them (ADR 0032,
   roadmap 6.5c, stage 1).
+- `ofir.lock` records the SHA-256 of each git package's files, and a
+  checkout that differs is E0914; `--locked` fails instead of changing the
+  lock (E0913) and `--offline` uses only the package cache (ADR 0032,
+  roadmap 6.5d, stage 1).
 
 ### Changed
 
