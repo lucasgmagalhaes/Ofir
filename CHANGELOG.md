@@ -8,6 +8,9 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Seeded maps: `Map.seeded()` keys the hash with a random seed from the
+  operating system and `Map.withSeed(seed)` with a given one, against
+  hash flooding (ADR 0034). String keys now hash with SipHash-1-3.
 - Codegen units in stage 1: a program is compiled as one LLVM module per
   Ofir module, with `hidden` and `linkonce_odr` linkage between them;
   `--codegen-units=1` keeps one module, and `--emit=llvm` is unchanged
