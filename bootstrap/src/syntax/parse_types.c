@@ -198,6 +198,9 @@ static TypeExpr *base_type(Parser *p) {
         t->as.inner = inner;
         return t;
     }
+    case TOK_LBRACE:   // `{[K in T]: V}`, as stage 1 reads it
+        syntax_error(p, start, "mapped types are not supported by stage 0");
+        return new_type(p, TYPE_NEVER, start);
     default:
         unexpected(p, "a type");
         return new_type(p, TYPE_NEVER, start);
