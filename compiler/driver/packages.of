@@ -17,6 +17,8 @@ import base.span.SourceMap
 import base.span.Span
 import diag.Diagnostics
 import driver.lock.Locked
+import driver.lock.lockMatches
+import driver.lock.readLock
 import driver.lock.writeLock
 import driver.resolve.Mode
 import driver.resolve.Resolution
@@ -122,13 +124,80 @@ pub fn readPackages(rootDir: str, hasManifest: bool, mode: &Mode, map: mut Sourc
             const pin = &r.pins[i]
             locked.push(Locked{name: pin.name.clone(), git: pin.url.clone(),
                                version: pin.version.clone(), rev: pin.rev.clone(),
-                               commit: pin.commit.clone()})
+                               commit: pin.commit.clone(), checksum: pin.checksum.clone()})
         }
-        if !writeLock(rootDir, &locked) {
+        if mode.locked {
+            if !lockMatches(rootDir, &locked) {
+                staleLock(rootDir, &locked, map, diags)
+            }
+        } else if !writeLock(rootDir, &locked) {
             eprintln("warning: cannot write `{rootDir}/ofir.lock`")
         }
     }
     return packages
+}
+
+// Reports that the lock would change under `--locked` (E0913), at the
+// root manifest's `dependencies`, with a note for each package that differs.
+fn staleLock(rootDir: str, packages: &List<Locked>, map: mut SourceMap, diags: mut Diagnostics) {
+    const path = "{rootDir}/ofir.json"
+    let file = FileId(-1)
+    for i in 0..map.len() {
+        if map.file(FileId(i)).path == path {
+            file = FileId(i)
+        }
+    }
+    if file.0 < 0 {
+        const text = fs.readToString(path).ok() ?? ""
+        file = map.add(path.clone(), text)
+    }
+    let span = Span{file, start: 0, end: 0}
+    if const Result.Ok(doc) = parseJsonc(map.file(file).text.clone()) {
+        const deps = doc.field(0, "dependencies")
+        if deps >= 0 {
+            span = Span{file, start: doc.nodes[deps].start, end: doc.nodes[deps].start + 1}
+        }
+    }
+    diags.error("E0913", span, "`ofir.lock` is out of date and `--locked` was given")
+    if !fs.exists("{rootDir}/ofir.lock") {
+        diags.note("there is no `ofir.lock`: run `ofir fetch`")
+        return
+    }
+    const old = readLock(rootDir)
+    for i in 0..packages.len() {
+        const p = &packages[i]
+        let found = -1
+        for k in 0..old.len() {
+            if old[k].git == p.git {
+                found = k
+            }
+        }
+        if found < 0 {
+            diags.note("`{p.name}` is not in it")
+        } else if old[found].commit != p.commit {
+            diags.note("`{p.name}` would move from {lockedText(&old[found])} to {lockedText(p)}")
+        } else if old[found].checksum != p.checksum {
+            diags.note("`{p.name}` has no checksum in it")
+        }
+    }
+    for k in 0..old.len() {
+        let used = false
+        for i in 0..packages.len() {
+            if packages[i].git == old[k].git {
+                used = true
+            }
+        }
+        if !used {
+            diags.note("`{old[k].name}` is in it but no longer used")
+        }
+    }
+}
+
+// A locked package as `1.2.0 (0123456789ab)`.
+fn lockedText(p: &Locked) str {
+    const what = if p.version.len() > 0 { p.version.clone() } else { p.rev.clone() }
+    const n = if p.commit.len() < 12 { p.commit.len() } else { 12 }
+    return "{what} ({p.commit.slice(0, n)})"
 }
 
 // The manifest in `dir`, parsed. Its file goes in the source map only when
