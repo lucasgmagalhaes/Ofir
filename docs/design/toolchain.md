@@ -199,7 +199,8 @@ directory, the current directory otherwise. The code is in `compiler/doc`.
 
 Each file is a module, named by its path from the directory given (`/`
 becomes `.`, and `index.of` names its directory): `net/http.of` is
-`net.http`. A file given by itself is named after its stem. The pages go to
+`net.http`. A file given by itself is named after its stem, or its directory for
+an `index.of`. The pages go to
 `build/doc` (`-o dir` chooses another directory): one `<module>.html` per
 module and an `index.html` that lists the modules with the first paragraph
 of each module comment. `--stdout` writes nothing: it prints the page of
