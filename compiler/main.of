@@ -24,6 +24,7 @@ import diag.jsonNoSource
 import doc.docCommand
 import driver.cfg.CfgTarget
 import driver.explain.explain
+import driver.fetch.fetchCommand
 import fmt.fmtCommand
 import driver.modules.Front
 import driver.modules.loadProgram
@@ -56,6 +57,8 @@ fn printUsage() {
              + "change; --stdout: print them)\n"
              + "  doc [paths]       write HTML documentation to build/doc (-o: another "
              + "directory; --stdout: print it)\n"
+             + "  fetch             fetch the git dependencies and write ofir.lock\n"
+             + "  update [name]     choose the newest versions of the git dependencies again\n"
              + "  lsp               run the language server on standard input and output\n"
              + "  version           print the compiler version\n\noptions:\n"
              + "  -o <path>                 output path\n"
@@ -189,6 +192,13 @@ fn main() {
             rest.push(args[i].clone())
         }
         os.exit(docCommand(rest))
+    }
+    if command == "fetch" || command == "update" {
+        let rest: List<str> = []
+        for i in 2..args.len() {
+            rest.push(args[i].clone())
+        }
+        os.exit(fetchCommand(rest, command == "update"))
     }
     if command == "lsp" {
         os.exit(lspCommand())
