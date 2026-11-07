@@ -38,6 +38,8 @@ pub fn idAt<T>(index: int) Id<T> {
  * @typeParam T the type of the elements
  * @example
  * ```ofir
+ * import base.index_vec.IndexVec
+ *
  * let names: IndexVec<str> = IndexVec.new()
  * const id = names.push("main".toOwned())
  * assert(names.get(id) == "main")

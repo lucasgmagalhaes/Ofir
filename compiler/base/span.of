@@ -14,6 +14,9 @@ pub copy struct FileId(int)
  *
  * @example
  * ```ofir
+ * import base.span.FileId
+ * import base.span.Span
+ *
  * const span = Span{file: FileId(0), start: 4, end: 9}
  * assert(span.len() == 5)
  * ```
