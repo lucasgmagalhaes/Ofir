@@ -174,6 +174,8 @@ Operand lower_tuple(Lowerer *l, Expr *e);
 // Tests `p` against the value at `place`: jumps to `fail` if it does not
 // match, else continues in the current block with the bindings assigned.
 void lower_pattern(Lowerer *l, Pattern *p, Place place, BlockId fail);
+void keep_unbound(Lowerer *l, const Pattern *p, Place place);
+void keep_place(Lowerer *l, Place place, TypeId type);
 Operand lower_match(Lowerer *l, Expr *e);
 
 // lower_drop.c: drop glue (spec 5.2)

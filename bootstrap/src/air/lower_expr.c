@@ -172,14 +172,23 @@ static Operand lower_if(Lowerer *l, Expr *e) {
                                          : lower_condition(l, e->as.if_.cond);
     BlockId then = air_new_block(l->body), other = air_new_block(l->body);
     BlockId join = air_new_block(l->body);
+    Place place = {0};
+    bool consumed = e->as.if_.cond->consumed || e->as.if_.cond->moves;
     if (e->as.if_.let_pattern) {   // the pattern's tests jump to `else` on a mismatch
-        lower_pattern(l, e->as.if_.let_pattern, (Place){.local = to_local(l, cond)}, other);
+        place = (Place){.local = to_local(l, cond)};
+        lower_pattern(l, e->as.if_.let_pattern, place, other);
         emit_goto(l, then);
     } else {
         terminate(l, (Terminator){.kind = TERM_BRANCH, .cond = cond, .target = then,
                                   .other = other});
     }
     switch_to(l, then);
+    // A consumed value: its unbound parts end with `then`, all of it with `else`.
+    bool keep = e->as.if_.let_pattern && consumed;
+    temp_scope_enter(l);
+    if (keep) {
+        keep_unbound(l, e->as.if_.let_pattern, place);
+    }
     drop_scope_enter(l);   // the bindings of `if const` live in the `then` block
     if (e->as.if_.let_pattern) {
         own_bindings(l, e->as.if_.let_pattern);
@@ -187,14 +196,20 @@ static Operand lower_if(Lowerer *l, Expr *e) {
     Operand then_value = lower_block(l, e->as.if_.then, has_value);
     store(l, dest, has_value, then_value);
     drop_scope_leave(l);
+    temp_scope_leave(l);
     emit_goto(l, join);
     switch_to(l, other);
+    temp_scope_enter(l);
+    if (keep) {
+        keep_place(l, place, concrete_type(l, e->as.if_.let_pattern->type));
+    }
     Expr *else_ = e->as.if_.else_;
     if (else_) {
         Operand value = else_->kind == EXPR_IF ? lower_if(l, else_)
                                                : lower_block(l, else_->as.block, has_value);
         store(l, dest, has_value, value);
     }
+    temp_scope_leave(l);
     emit_goto(l, join);
     switch_to(l, join);
     return has_value ? op_copy(dest, e->type) : op_unit();

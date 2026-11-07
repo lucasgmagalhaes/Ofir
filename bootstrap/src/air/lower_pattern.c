@@ -169,6 +169,93 @@ static void lower_patterns(Lowerer *l, PatternList list, Place place, uint32_t p
     }
 }
 
+// Whether a binding of `p` takes a part that needs dropping.
+static bool binds_owned(Lowerer *l, const Pattern *p);
+
+static bool any_owned(Lowerer *l, PatternList list) {
+    for (uint32_t i = 0; i < list.len; i++) {
+        if (binds_owned(l, list.items[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool binds_owned(Lowerer *l, const Pattern *p) {
+    switch (p->kind) {
+    case PAT_BINDING: return needs_drop(l, concrete_type(l, p->type));
+    case PAT_VARIANT: return any_owned(l, p->as.variant.args);
+    case PAT_TUPLE: return any_owned(l, p->as.tuple);
+    case PAT_TUPLE_STRUCT: return any_owned(l, p->as.tuple_struct.args);
+    case PAT_OR: return any_owned(l, p->as.alternatives);
+    case PAT_STRUCT:
+        for (uint32_t i = 0; i < p->as.struct_.fields.len; i++) {
+            if (binds_owned(l, p->as.struct_.fields.items[i].pattern)) {
+                return true;
+            }
+        }
+        return false;
+    default: return false;
+    }
+}
+
+// `place` becomes a temporary of the innermost temporary scope.
+void keep_place(Lowerer *l, Place place, TypeId type) {
+    if (!needs_drop(l, type) || l->temp_scopes.len == 0 || is_glue(l->body->def)) {
+        return;
+    }
+    LocalId local = place.local;
+    if (place.path.len > 0 || place.path.deref) {
+        local = new_temp(l, type);
+        emit_store(l, (Place){.local = local}, place_operand(place, OPERAND_COPY, type));
+    }
+    VEC_PUSH(l->temps, ((Temp){local, type}));
+}
+
+static void keep_list(Lowerer *l, PatternList list, Place place) {
+    for (uint32_t i = 0; i < list.len; i++) {
+        keep_unbound(l, list.items[i], place_child(l, place, i));
+    }
+}
+
+static void keep_fields(Lowerer *l, const Pattern *p, Place place, TypeId type) {
+    const StructInfo *info = sema_def(l->sema, (DefId){type_get(l->types, type)->data})->fields;
+    for (uint32_t index = 0; index < info->count; index++) {
+        const Pattern *field = NULL;
+        for (uint32_t i = 0; i < p->as.struct_.fields.len && !field; i++) {
+            FieldPattern *f = &p->as.struct_.fields.items[i];
+            field = symbol_eq(info->names[index], f->name) ? f->pattern : NULL;
+        }
+        Place at = place_child(l, place, index);
+        if (field) {
+            keep_unbound(l, field, at);
+        } else {
+            keep_place(l, at, concrete_type(l, struct_field_type(l->sema, type, index)));
+        }
+    }
+}
+
+// The parts of a consumed value that `p` does not move into its bindings
+// become temporaries, dropped with the innermost temporary scope (spec
+// 5.2). The parts left by an or-pattern whose alternatives bind
+// differently are not tracked.
+void keep_unbound(Lowerer *l, const Pattern *p, Place place) {
+    TypeId type = concrete_type(l, p->type);
+    if (!binds_owned(l, p)) {
+        keep_place(l, place, type);
+        return;
+    }
+    switch (p->kind) {
+    case PAT_VARIANT:
+        keep_list(l, p->as.variant.args, place_child(l, place, PATH_VARIANT | p->as.variant.index));
+        break;
+    case PAT_TUPLE: keep_list(l, p->as.tuple, place); break;
+    case PAT_TUPLE_STRUCT: keep_list(l, p->as.tuple_struct.args, place); break;
+    case PAT_STRUCT: keep_fields(l, p, place, type); break;
+    default: break;
+    }
+}
+
 static Operand arm_value(Lowerer *l, Expr *body, bool as_value) {
     if (body->kind == EXPR_BLOCK || body->kind == EXPR_UNSAFE) {
         return lower_block(l, body->as.block, as_value);
@@ -179,7 +266,9 @@ static Operand arm_value(Lowerer *l, Expr *body, bool as_value) {
 Operand lower_match(Lowerer *l, Expr *e) {
     bool as_value = type_is_value(e->type);
     LocalId dest = as_value ? new_temp(l, e->type) : (LocalId){0};
-    Place place = {.local = to_local(l, lower_expr(l, e->as.match.scrutinee))};
+    Expr *scrutinee = e->as.match.scrutinee;
+    Place place = {.local = to_local(l, lower_expr(l, scrutinee))};
+    bool consumed = scrutinee->consumed || scrutinee->moves;
     BlockId join = air_new_block(l->body);
     for (uint32_t i = 0; i < e->as.match.arms.len; i++) {
         MatchArm *arm = &e->as.match.arms.items[i];
@@ -192,6 +281,10 @@ Operand lower_match(Lowerer *l, Expr *e) {
             temp_scope_leave(l);
             test(l, guard, next);
         }
+        temp_scope_enter(l);   // the rest of a consumed value ends with the arm
+        if (consumed) {
+            keep_unbound(l, arm->pattern, place);
+        }
         drop_scope_enter(l);   // the arm's bindings own what they took
         own_bindings(l, arm->pattern);
         Operand value = arm_value(l, arm->body, as_value);
@@ -199,6 +292,7 @@ Operand lower_match(Lowerer *l, Expr *e) {
             emit_store(l, (Place){.local = dest}, value);
         }
         drop_scope_leave(l);
+        temp_scope_leave(l);
         emit_goto(l, join);
         switch_to(l, next);
     }

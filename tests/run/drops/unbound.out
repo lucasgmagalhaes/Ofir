@@ -1,0 +1,20 @@
+ok
+drop 1
+ok place
+drop 3
+else
+drop 5
+then 7
+drop 7
+drop 9
+tuple 8
+struct 10
+drop 10
+drop 11
+drop 13
+early 0
+drop 14
+firstOr -1
+drop 15
+end 8
+drop 8
