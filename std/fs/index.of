@@ -14,6 +14,9 @@ extern "C" {
     fn ofir_write_file(path: *u8, len: int, data: *u8, n: int) i32
     fn ofir_path_exists(path: *u8, len: int) bool
     fn ofir_remove_file(path: *u8, len: int) i32
+    fn ofir_rename(from: *u8, fromLen: int, to: *u8, toLen: int) i32
+    fn ofir_file_info(path: *u8, len: int, size: *mut int, modified: *mut int) i32
+    fn ofir_touch(path: *u8, len: int) i32
     fn ofir_canonicalize(path: *u8, len: int, out: *mut Buffer) i32
     fn ofir_create_dir_all(path: *u8, len: int) i32
     fn ofir_read_dir(path: *u8, len: int, out: *mut Buffer) i32
@@ -147,6 +150,52 @@ pub fn createDirAll(path: str) Result<(), IoError> {
  */
 pub fn removeFile(path: str) Result<(), IoError> {
     return io.check(unsafe { ofir_remove_file(path.asPtr(), path.len()) })
+}
+
+/**
+ * Renames a file, replacing `to` if it exists.
+ *
+ * @param from the file to rename
+ * @param to its new path, on the same file system
+ * @returns `Ok(())` once it is moved
+ */
+pub fn rename(from: str, to: str) Result<(), IoError> {
+    return io.check(unsafe { ofir_rename(from.asPtr(), from.len(), to.asPtr(), to.len()) })
+}
+
+/**
+ * The size and modification time of a file.
+ */
+pub struct Metadata {
+    /** The size in bytes. */
+    pub size: int
+    /** The modification time, in nanoseconds since 1970 (UTC). */
+    pub modified: int
+}
+
+/**
+ * The size and modification time of a file.
+ *
+ * @param path the file to look at; symbolic links are followed
+ * @returns its metadata
+ */
+pub fn metadata(path: str) Result<Metadata, IoError> {
+    let size = 0
+    let modified = 0
+    io.check(unsafe {
+        ofir_file_info(path.asPtr(), path.len(), &mut size as *mut int, &mut modified as *mut int)
+    })?
+    return Result.Ok(Metadata{size: size, modified: modified})
+}
+
+/**
+ * Sets the modification time of a file to now.
+ *
+ * @param path the file, which must exist
+ * @returns `Ok(())` once it is updated
+ */
+pub fn touch(path: str) Result<(), IoError> {
+    return io.check(unsafe { ofir_touch(path.asPtr(), path.len()) })
 }
 
 /**
