@@ -22,3 +22,36 @@ fn removeKeepsTheOtherEntries() {
     *m.getOrInsert(200, 0) += 5
     assert(*m.get(200).unwrap() == 5)
 }
+
+@test
+fn seededMapsFindEveryKey() {
+    let m: Map<str, int> = Map.seeded()
+    for i in 0..500 {
+        m.insert("key{i}", i)
+    }
+    for i in 0..250 {
+        assert(m.remove("key{i * 2}").unwrapOr(-1) == i * 2)
+    }
+    assert(m.len() == 250 && !m.contains("key10") && *m.get("key11").unwrap() == 11)
+    let twin = m.clone()
+    twin.insert("new".toOwned(), 1)
+    assert(twin.len() == 251 && *twin.get("key499").unwrap() == 499)
+}
+
+@test
+fn seededMapsKeepTheInsertionOrder() {
+    let m: Map<int, int> = Map.withSeed(0x5eed)
+    for i in 0..20 {
+        m.insert(19 - i, i)
+    }
+    let next = 19
+    for key, value in m {
+        assert(key == next && value == 19 - next)
+        next -= 1
+    }
+}
+
+@test
+fn theSeedChangesTheHash() {
+    assert(hashSeeded(1, 1) != hashSeeded(1, 2) && hashSeeded(1, 1) != hashSeeded(2, 1))
+}
