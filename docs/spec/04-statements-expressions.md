@@ -73,8 +73,21 @@ variable must be a `let`, and the loop leaves it where it stopped. Stage 0
 recognizes the method by its name and signature, until interfaces
 (roadmap 5.1).
 
-`break` and `continue` apply to the innermost loop. Labeled loops are
-**[planned]**.
+`break` and `continue` apply to the innermost loop. A loop with a label,
+`name: for`, can be left from the loops inside it: `break name` ends that
+loop and `continue name` starts its next iteration. The values of the
+loops left are dropped first. A label names an enclosing loop, and an
+enclosing loop cannot already use it.
+
+```ofir
+rows: for row in grid {
+    for cell in row {
+        if cell == target {
+            break rows
+        }
+    }
+}
+```
 
 ## 4.5 `match`
 

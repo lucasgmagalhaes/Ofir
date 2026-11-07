@@ -145,10 +145,10 @@ Statement     = ( ConstStmt
                 | LetStmt
                 | ConstDecl
                 | AssignStmt
-                | ForStmt
+                | [ identifier ":" ] ForStmt
                 | ReturnStmt
-                | "break"
-                | "continue"
+                | "break" [ identifier ]
+                | "continue" [ identifier ]
                 | ExprStmt ) [ NL ] .
 
 ConstStmt     = "const" Pattern [ ":" Type ] "=" Expr [ "else" Block ] .
