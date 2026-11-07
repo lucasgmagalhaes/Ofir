@@ -127,7 +127,7 @@ const size = sizeOf<Point>()
 **Disambiguation.** Because comparison operators do not chain (chapter
 4.8), `a < b > c` is never a valid comparison. In expressions, `Name<...>`
 is parsed as type arguments when the tokens between `<` and `>` form a valid
-type list **and** the `>` is immediately followed by `(`, `.` or `{`.
+type list (integer literals count as const arguments, chapter 8.7) **and** the `>` is immediately followed by `(`, `.` or `{`.
 Otherwise `<` is the less-than operator. In the rare case where an argument
 list really contains `a < b, c > (d)`, parenthesize the comparison.
 
@@ -142,10 +142,45 @@ list really contains `a < b, c > (d)`, parenthesize the comparison.
   function that compiles is valid for every type satisfying its bounds.
   This gives clear errors, unlike C++ templates.
 
-## 8.7 Const generics **[planned]**
+## 8.7 Const generics
+
+A type parameter written `const N: int` is a **const parameter**: its
+argument is a compile-time integer rather than a type. Inside the
+declaration, `N` is a value of type `int` and may be the length of an
+array type.
 
 ```ofir
-struct Matrix<const R: int, const C: int> {
-    cells: [float; R * C]
+struct Buffer<T, const N: int> {
+    items: [T; N]
+
+    fn capacity(self) int {
+        return N
+    }
+}
+
+fn sum<const N: int>(xs: [int; N]) int {
+    let total = 0
+    for x in xs {
+        total += x
+    }
+    return total
+}
+
+fn main() {
+    const b = Buffer<u8, 4>{items: [0; 4]}
+    println("{b.capacity()} {sum([1, 2, 3])}")   // 4 6
 }
 ```
+
+- A const argument is an integer literal (optionally negated), a `const`
+  item of type `int`, or a const parameter in scope. It is inferred like a
+  type argument (chapter 8.5): `sum([1, 2, 3])` infers `N = 3` from the
+  array's length.
+- The type of a const parameter is `int`; other types are an error
+  (E0361). A type where a constant is expected, or a constant where a type
+  is expected, is an error (E0362).
+- Each distinct argument is a separate instantiation: `Buffer<u8, 4>` and
+  `Buffer<u8, 8>` are different types.
+- The length of an array type in a generic declaration is an integer
+  constant or a const parameter. Arithmetic on const parameters in types
+  (`[float; R * C]`) is **[planned]**.
