@@ -1,0 +1,8 @@
+// `--offline` with a package that is not in the cache (ADR 0032).
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "shade": {"git": "../../../../build/git-fixtures/shade", "version": "^0.1"},   // error[E0911]: cannot fetch the dependency `shade`
+  },
+}

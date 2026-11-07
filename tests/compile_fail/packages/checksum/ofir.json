@@ -1,0 +1,8 @@
+// A package whose files differ from the checksum in `ofir.lock` (ADR 0032).
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "shade": {"git": "../../../../build/git-fixtures/shade", "version": "^0.1"},   // error[E0914]: the checksum of `shade` differs from `ofir.lock`
+  },
+}
