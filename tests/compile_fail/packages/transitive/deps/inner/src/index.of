@@ -1,0 +1,4 @@
+// requires: stage1
+pub fn one() int {
+    return 1
+}

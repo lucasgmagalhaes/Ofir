@@ -1,0 +1,1 @@
+{"name": "outer", "build": {"kind": "lib"}, "dependencies": {"inner": {"path": "../inner"}}}

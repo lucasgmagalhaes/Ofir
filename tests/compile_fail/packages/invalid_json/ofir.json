@@ -1,0 +1,5 @@
+{
+  "name": "invalid_json",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": nope,   // error[E0910]: `ofir.json` is not valid JSONC
+}
