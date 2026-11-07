@@ -3,4 +3,8 @@ unset none
 clang 0 true
 sh 3 [out] [err]
 missing true
+spawn 4 [fast] 0 [slow]
+big 1000000
+spawn missing true
+cpus true
 cwd absolute true
