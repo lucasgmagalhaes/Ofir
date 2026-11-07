@@ -47,7 +47,7 @@ struct Entry<K, V> {
  * let ages = Map<str, int>.new()
  * ages.insert("ana", 31)
  * ages.insert("bob", 27)
- * if const Some(age) = ages.get("ana") {
+ * if const Option.Some(age) = ages.get("ana") {
  *     println("ana is {age}")
  * }
  * for name, age in ages {
@@ -129,7 +129,7 @@ pub struct Map<K: Eq + Hash, V> {
      * ```ofir
      * let m = Map<str, int>.new()
      * assert(m.insert("a", 1).isNone())
-     * assert(m.insert("a", 2) ?? 0 == 1)
+     * assert((m.insert("a", 2) ?? 0) == 1)
      * ```
      */
     pub fn insert(mut self, key: move K, value: move V) Option<V> {
@@ -165,7 +165,9 @@ pub struct Map<K: Eq + Hash, V> {
      * the key is not in the map
      * @example
      * ```ofir
-     * if const Some(count) = counts.getMut("word") {
+     * let counts = Map<str, int>.new()
+     * counts.insert("word".toOwned(), 1)
+     * if const Option.Some(count) = counts.getMut("word") {
      *     *count += 1
      * }
      * ```
@@ -188,9 +190,10 @@ pub struct Map<K: Eq + Hash, V> {
      * @panics when the system is out of memory
      * @example
      * ```ofir
+     * const words = ["a", "b", "a"]
      * let counts = Map<str, int>.new()
      * for word in words {
-     *     *counts.getOrInsert(word, 0) += 1
+     *     *counts.getOrInsert(word.clone(), 0) += 1
      * }
      * ```
      */
