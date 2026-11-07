@@ -17,6 +17,7 @@ extern "C" {
     fn ofir_exit(code: int) !
     fn ofir_spawn(args: *u8, len: int, count: int, child: *mut *mut u8) i32
     fn ofir_wait(child: *mut u8, out: *mut Captured)
+    fn ofir_child_free(child: *mut u8)
     fn ofir_cpu_count() int
     fn ofir_current_dir(out: *mut Buffer) i32
     fn ofir_executable_path(out: *mut Buffer) i32
@@ -103,10 +104,17 @@ struct Captured {
 
 /**
  * A program started by `spawn`, running beside this one. Its standard
- * output and error are captured until `wait` returns them.
+ * output and error are captured until `wait` returns them. A child dropped
+ * without `wait` is waited for, and its output discarded.
  */
 pub struct Child {
     handle: *mut u8
+
+    fn drop(mut self) {
+        unsafe {
+            ofir_child_free(self.handle)
+        }
+    }
 
     /**
      * Waits for the program to end.
