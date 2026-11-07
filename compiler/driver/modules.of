@@ -32,6 +32,7 @@ import driver.packages.Package
 import driver.packages.dependencyOf
 import driver.packages.packageNamed
 import driver.packages.readPackages
+import driver.resolve.Mode
 import sema.program.Program
 import sema.program.ProgramModule
 import sema.program.newProgram
@@ -480,7 +481,8 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
         rootDir = dir
     }
     const testing = target.test
-    const packages = readPackages(rootDir, inProject, front.map, front.diags)
+    const mode = Mode{update: false, only: ""}
+    const packages = readPackages(rootDir, inProject, &mode, front.map, front.diags)
     let ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, docTests, target, packages}
     const name = rootModuleName(ld, input, inProject)
     let module = root

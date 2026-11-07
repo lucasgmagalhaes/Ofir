@@ -1,0 +1,55 @@
+/**
+ * @module
+ * `ofir fetch` and `ofir update [name]` (ADR 0032): resolve the git
+ * dependencies of the project in the current directory, fetch them into
+ * the cache and write `ofir.lock`. `fetch` keeps the locked versions that
+ * still fit; `update` fetches the repositories again and chooses the
+ * highest versions, for every package or only `name`.
+ */
+
+import base.span.SourceMap
+import diag.Diagnostics
+import diag.Format
+import driver.lock.readLock
+import driver.packages.readPackages
+import driver.resolve.Mode
+import std.fs
+
+/**
+ * Runs `ofir fetch` or `ofir update`.
+ *
+ * @param args the arguments after the command
+ * @param update whether it is `update`
+ * @returns the exit code
+ */
+pub fn fetchCommand(args: List<str>, update: bool) int {
+    const command = if update { "update" } else { "fetch" }
+    let only = ""
+    for i in 0..args.len() {
+        if !update || only.len() > 0 || args[i].startsWith("-") {
+            eprintln("error: unexpected argument `{args[i]}` for `{command}`")
+            return 2
+        }
+        only = args[i].clone()
+    }
+    if !fs.exists("ofir.json") {
+        eprintln("error: `{command}` needs an `ofir.json` in the current directory")
+        return 2
+    }
+    const dir = fs.canonicalize(".").ok() ?? "."
+    const mode = Mode{update, only}
+    let map = SourceMap.new()
+    let diags = Diagnostics.new()
+    readPackages(dir, true, &mode, map, diags)
+    if diags.hasErrors() {
+        eprint(diags.render(map, Format.Human))
+        return 1
+    }
+    const locked = readLock(dir)
+    for i in 0..locked.len() {
+        const p = &locked[i]
+        const what = if p.version.len() > 0 { p.version.clone() } else { p.rev.clone() }
+        println("{p.name} {what} ({p.commit.slice(0, 12)})")
+    }
+    return 0
+}

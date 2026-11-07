@@ -1,0 +1,467 @@
+/**
+ * @module
+ * The resolution of git dependencies (ADR 0032): one version of each
+ * repository for the whole program, the highest that every requirement on
+ * it accepts, recomputed until the requirements of the chosen versions
+ * agree. There is no backtracking. A locked version is kept while it still
+ * fits, unless the package is being updated.
+ */
+
+import driver.git.checkout
+import driver.git.commitOf
+import driver.git.hasCommit
+import driver.git.hashHex
+import driver.git.repository
+import driver.git.tags
+import driver.lock.Locked
+import driver.lock.readLock
+import driver.semver.Requirement
+import driver.semver.Version
+import driver.semver.parseRequirement
+import driver.semver.parseVersion
+import lsp.json.JsonDoc
+import lsp.json.JsonKind
+import lsp.json.parseJsonc
+import std.fs
+
+/**
+ * What a resolution may change.
+ */
+pub struct Mode {
+    /** Whether the lock is resolved again (`ofir update`). */
+    pub update: bool
+    /** The only package updated, by name; empty for all of them. */
+    pub only: str
+}
+
+/**
+ * The version chosen for a repository.
+ */
+pub struct Pin {
+    /** Its URL, or its canonical local path. */
+    pub url: str
+    /** The key it is reached by first. */
+    pub name: str
+    /** Its version; empty when it follows `rev`. */
+    pub version: str
+    /** The `rev` or `branch` it follows; empty when it has a version. */
+    pub rev: str
+    /** Its commit. */
+    pub commit: str
+    /** Its checkout. */
+    pub dir: str
+}
+
+/**
+ * A repository that could not be resolved.
+ */
+pub struct Failure {
+    pub url: str
+    /** E0911 (it cannot be fetched) or E0912 (no version fits). */
+    pub code: str
+    pub message: str
+    pub notes: List<str>
+}
+
+/**
+ * The result of a resolution.
+ */
+pub struct Resolution {
+    pub pins: List<Pin>
+    pub failures: List<Failure>
+    /** Whether the project had a lock. */
+    pub hadLock: bool
+}
+
+/**
+ * The repository a `git` entry names: a URL as it is, a local path made
+ * canonical.
+ *
+ * @param given the entry
+ * @param base the directory of the manifest it is in
+ * @returns its URL, or path
+ */
+pub fn gitUrl(given: str, base: str) str {
+    if given.contains("://") || given.startsWith("git@") {
+        return given.toOwned()
+    }
+    const joined = if given.startsWith("/") { given.toOwned() } else { "{base}/{given}" }
+    if const Result.Ok(dir) = fs.canonicalize(joined) {
+        return dir
+    }
+    return joined
+}
+
+/**
+ * The pin of a repository.
+ *
+ * @param r a resolution
+ * @param url the repository
+ * @returns its index in `r.pins`, or -1
+ */
+pub fn pinOf(r: &Resolution, url: str) int {
+    for i in 0..r.pins.len() {
+        if r.pins[i].url == url {
+            return i
+        }
+    }
+    return -1
+}
+
+/**
+ * The failure of a repository.
+ *
+ * @param r a resolution
+ * @param url the repository
+ * @returns its index in `r.failures`, or -1
+ */
+pub fn failureOf(r: &Resolution, url: str) int {
+    for i in 0..r.failures.len() {
+        if r.failures[i].url == url {
+            return i
+        }
+    }
+    return -1
+}
+
+/**
+ * Resolves the git dependencies of the project in `rootDir`, fetching
+ * what is missing.
+ *
+ * @param rootDir the root project's directory
+ * @param mode what may change
+ * @returns the pins and the failures
+ */
+pub fn resolve(rootDir: str, mode: &Mode) Resolution {
+    const lock = readLock(rootDir)
+    let r = Resolution{pins: [], failures: [], hadLock: fs.exists("{rootDir}/ofir.lock")}
+    let repos: List<Repo> = []
+    let round = 0
+    for round < 16 {
+        const needs = collect(rootDir, &r)
+        let next = Resolution{pins: [], failures: [], hadLock: r.hadLock}
+        let urls: List<str> = []
+        for i in 0..needs.len() {
+            if !contains(&urls, needs[i].url) {
+                urls.push(needs[i].url.clone())
+            }
+        }
+        for i in 0..urls.len() {
+            choose(urls[i], &needs, &lock, mode, repos, next)
+        }
+        const stable = samePins(&r, &next)
+        r = next
+        if stable {
+            return r
+        }
+        round += 1
+    }
+    return r
+}
+
+// A bare clone of the cache, and whether it was fetched in this run.
+struct Repo {
+    url: str
+    dir: str
+    fetched: bool
+}
+
+// A requirement on a repository: `version`, or `rev`, by a project.
+struct Need {
+    url: str
+    key: str
+    version: str
+    rev: str
+    from: str
+}
+
+// The requirements of the projects reached from `rootDir`, through path
+// dependencies and the checkouts of the pins of `r`. Invalid entries are
+// left for `driver.packages` to report.
+fn collect(rootDir: str, r: &Resolution) List<Need> {
+    let needs: List<Need> = []
+    let dirs = [rootDir.toOwned()]
+    let d = 0
+    for d < dirs.len() {   // grows while it is walked
+        const dir = dirs[d].clone()
+        d += 1
+        const Result.Ok(text) = fs.readToString("{dir}/ofir.json") else {
+            continue
+        }
+        const Result.Ok(doc) = parseJsonc(text) else {
+            continue
+        }
+        const from = projectName(&doc, dir)
+        const list = doc.field(0, "dependencies")
+        if list < 0 || doc.nodes[list].kind != JsonKind.Object {
+            continue
+        }
+        let member = doc.nodes[list].child
+        for member >= 0 {
+            const next = doc.nodes[member].next
+            if doc.nodes[member].kind == JsonKind.Object {
+                const gitNode = doc.field(member, "git")
+                const pathNode = doc.field(member, "path")
+                if gitNode >= 0 && doc.nodes[gitNode].kind == JsonKind.String {
+                    const url = gitUrl(doc.nodes[gitNode].text, dir)
+                    let rev = doc.text(doc.field(member, "rev"))
+                    if rev.len() == 0 {
+                        rev = doc.text(doc.field(member, "branch"))
+                    }
+                    const p = pinOf(r, url)
+                    if p >= 0 && !contains(&dirs, r.pins[p].dir) {
+                        dirs.push(r.pins[p].dir.clone())
+                    }
+                    needs.push(Need{url, key: doc.nodes[member].key.clone(),
+                                    version: doc.text(doc.field(member, "version")), rev,
+                                    from: from.clone()})
+                } else if pathNode >= 0 && doc.nodes[pathNode].kind == JsonKind.String {
+                    const path = gitUrl(doc.nodes[pathNode].text, dir)
+                    if !contains(&dirs, path) {
+                        dirs.push(path)
+                    }
+                }
+            }
+            member = next
+        }
+    }
+    return needs
+}
+
+// The `name` of a manifest, or the last part of its directory.
+fn projectName(doc: &JsonDoc, dir: str) str {
+    const name = doc.text(doc.field(0, "name"))
+    if name.len() > 0 {
+        return name
+    }
+    let slash = -1
+    let i = 0
+    for b in dir.bytes() {
+        if b == b'/' {
+            slash = i
+        }
+        i += 1
+    }
+    return dir.sliceFrom(slash + 1).toOwned()
+}
+
+// Chooses the commit of `url` for its requirements, into `out`.
+fn choose(url: str, needs: &List<Need>, lock: &List<Locked>, mode: &Mode, repos: mut List<Repo>,
+          out: mut Resolution) {
+    let mine: List<int> = []
+    for i in 0..needs.len() {
+        if needs[i].url == url {
+            mine.push(i)
+        }
+    }
+    const first = &needs[mine[0]]
+    const name = first.key.clone()
+    const updating = mode.update && (mode.only.len() == 0 || mode.only == name)
+    const r = fetched(url, updating, repos)
+    if r < 0 {
+        const message = "cannot fetch the dependency `{name}`"
+        out.failures.push(Failure{url: url.toOwned(), code: "E0911", message,
+                                  notes: [repos[repos.len() - 1].dir.clone()]})
+        return
+    }
+    let locked = -1
+    for i in 0..lock.len() {
+        if lock[i].git == url && !updating && hasCommit(repos[r].dir, lock[i].commit) {
+            locked = i
+        }
+    }
+    let rev = ""
+    let mixed = false
+    for k in 0..mine.len() {
+        const given = needs[mine[k]].rev.clone()
+        if k == 0 {
+            rev = given
+        } else if given != rev {
+            mixed = true
+        }
+    }
+    if mixed {
+        conflict(url, name, needs, &mine, "the requirements on it differ", out)
+        return
+    }
+    if rev.len() > 0 {
+        let commit = ""
+        if locked >= 0 && lock[locked].rev == rev {
+            commit = lock[locked].commit.clone()
+        } else if const Option.Some(c) = commitOf(repos[r].dir, rev) {
+            commit = c
+        } else {
+            conflict(url, name, needs, &mine, "it has no revision `{rev}`", out)
+            return
+        }
+        pin(url, name, "", rev, commit, &repos[r], out)
+        return
+    }
+    let reqs: List<Requirement> = []
+    for k in 0..mine.len() {
+        if const Option.Some(q) = parseRequirement(needs[mine[k]].version) {
+            reqs.push(q)
+        }
+    }
+    if locked >= 0 && lock[locked].rev.len() == 0 {
+        if const Option.Some(v) = parseVersion(lock[locked].version) {
+            if acceptsAll(&reqs, v) {
+                const version = v.text()
+                const commit = lock[locked].commit.clone()
+                pin(url, name, version, "", commit, &repos[r], out)
+                return
+            }
+        }
+    }
+    let best = highest(repos[r].dir, &reqs)
+    if best < 0 && !repos[r].fetched {
+        if refetch(repos[r]) {
+            best = highest(repos[r].dir, &reqs)
+        }
+    }
+    if best < 0 {
+        conflict(url, name, needs, &mine, versionsNote(repos[r].dir), out)
+        return
+    }
+    const found = tags(repos[r].dir)
+    const version = found[best].version.text()
+    const commit = found[best].commit.clone()
+    pin(url, name, version, "", commit, &repos[r], out)
+}
+
+// The index in the tags of `dir` of the highest version every requirement
+// accepts, or -1.
+fn highest(dir: str, reqs: &List<Requirement>) int {
+    const found = tags(dir)
+    let best = -1
+    for i in 0..found.len() {
+        const v = found[i].version
+        if acceptsAll(reqs, v) && (best < 0 || v.compare(found[best].version) > 0) {
+            best = i
+        }
+    }
+    return best
+}
+
+fn acceptsAll(reqs: &List<Requirement>, v: Version) bool {
+    for i in 0..reqs.len() {
+        if !reqs[i].matches(v) {
+            return false
+        }
+    }
+    return true
+}
+
+// The note listing the versions of a repository.
+fn versionsNote(dir: str) str {
+    const found = tags(dir)
+    if found.len() == 0 {
+        return "it has no tags `vX.Y.Z`"
+    }
+    let order: List<Version> = []
+    for i in 0..found.len() {
+        const v = found[i].version
+        let at = order.len()
+        for at > 0 && v.compare(order[at - 1]) < 0 {
+            at -= 1
+        }
+        order.insert(at, v)
+    }
+    let text = "its versions are "
+    for i in 0..order.len() {
+        if i > 0 {
+            text.push(", ")
+        }
+        text.push(order[i].text())
+    }
+    return text
+}
+
+// Records that no version of `url` fits (E0912).
+fn conflict(url: str, name: str, needs: &List<Need>, mine: &List<int>, why: str,
+            out: mut Resolution) {
+    let notes: List<str> = []
+    for k in 0..mine.len() {
+        const n = &needs[mine[k]]
+        const what = if n.rev.len() > 0 { n.rev.clone() } else { n.version.clone() }
+        notes.push("`{what}` (from `{n.from}`)")
+    }
+    notes.push(why.toOwned())
+    const message = "no version of `{name}` satisfies every requirement on it"
+    out.failures.push(Failure{url: url.toOwned(), code: "E0912", message, notes})
+}
+
+// Checks out `commit` and records it.
+fn pin(url: str, name: str, version: str, rev: str, commit: str, repo: &Repo,
+       out: mut Resolution) {
+    const tag = if version.len() > 0 { version.toOwned() } else { commit.slice(0, 12).toOwned() }
+    const label = "{name}-{tag}-{hashHex(url).slice(0, 8)}"
+    match checkout(repo.dir, commit, label) {
+        Result.Ok(dir) => {
+            const real = fs.canonicalize(dir.clone()).ok() ?? dir
+            out.pins.push(Pin{url: url.toOwned(), name: name.toOwned(), version: version.toOwned(),
+                              rev: rev.toOwned(), commit: commit.toOwned(), dir: real})
+        }
+        Result.Err(error) => {
+            out.failures.push(Failure{url: url.toOwned(), code: "E0911",
+                                      message: "cannot fetch the dependency `{name}`",
+                                      notes: [error]})
+        }
+    }
+}
+
+// The bare clone of `url`, fetched again if `refresh`; its index in
+// `repos`, or -1 with git's error as the last entry's `dir`.
+fn fetched(url: str, refresh: bool, repos: mut List<Repo>) int {
+    for i in 0..repos.len() {
+        if repos[i].url == url {
+            if repos[i].dir.len() == 0 {
+                return -1
+            }
+            if refresh && !repos[i].fetched {
+                refetch(repos[i])
+            }
+            return i
+        }
+    }
+    match repository(url, refresh) {
+        Result.Ok(dir) => {
+            repos.push(Repo{url: url.toOwned(), dir, fetched: refresh})
+            return repos.len() - 1
+        }
+        Result.Err(error) => {
+            repos.push(Repo{url: url.toOwned(), dir: "", fetched: true})
+            repos.push(Repo{url: "", dir: error, fetched: true})
+            return -1
+        }
+    }
+}
+
+// Fetches a clone again; whether it worked.
+fn refetch(repo: mut Repo) bool {
+    repo.fetched = true
+    return repository(repo.url, true).isOk()
+}
+
+fn contains(list: &List<str>, text: str) bool {
+    for i in 0..list.len() {
+        if list[i] == text {
+            return true
+        }
+    }
+    return false
+}
+
+// Whether two resolutions chose the same commits.
+fn samePins(a: &Resolution, b: &Resolution) bool {
+    if a.pins.len() != b.pins.len() || a.failures.len() != b.failures.len() {
+        return false
+    }
+    for i in 0..b.pins.len() {
+        const p = pinOf(a, b.pins[i].url)
+        if p < 0 || a.pins[p].commit != b.pins[i].commit {
+            return false
+        }
+    }
+    return true
+}

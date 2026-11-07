@@ -1,0 +1,6 @@
+// requires: stage1
+import mid
+
+fn main() {
+    mid.nothing()
+}

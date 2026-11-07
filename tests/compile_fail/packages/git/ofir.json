@@ -1,0 +1,15 @@
+// The errors of git dependencies (ADR 0032).
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "text": {"git": "../../../../build/git-fixtures/text", "version": "^2.0"},   // error[E0912]: no version of `text` satisfies every requirement on it
+    "mid": {"path": "deps/mid"},
+    "shade": {"git": "../../../../build/git-fixtures/shade", "rev": "nosuch"},   // error[E0912]: no version of `shade` satisfies every requirement on it
+    "gone": {"git": "deps/missing.git", "version": "^1"},   // error[E0911]: cannot fetch the dependency `gone`
+    "bad": {"git": "deps/missing.git", "version": "one"},   // error[E0910]: `one` is not a version requirement
+    "both": {"git": "deps/missing.git", "version": "^1", "rev": "main"},   // error[E0910]: the dependency `both` needs one of `version`, `rev` and `branch`
+    "neither": {"git": "deps/missing.git"},   // error[E0910]: the dependency `neither` needs one of `version`, `rev` and `branch`
+    "number": {"git": 3, "version": "^1"},   // error[E0910]: `git` must be a string
+  },
+}

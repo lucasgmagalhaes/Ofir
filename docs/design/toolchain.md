@@ -193,9 +193,18 @@ requirement, resolution fails (E0912).
 version, source and SHA-256 checksum, sorted by name. Commit it for
 programs. Downloads are cached under `$OFIR_HOME` (default `~/.ofir`).
 
-Implemented so far (6.5b, stage 1): `path` dependencies, read
-transitively; a package is the same when its canonical directory is.
-`git` and registry ones are E0901, and there is no `ofir.lock` yet.
+Implemented so far (6.5c, stage 1): `path` and `git` dependencies, read
+transitively; a package is the same when its canonical directory is. A
+`git` value that is not a URL (`://`, or `git@`) is a local path,
+relative to `ofir.json`. A repository is cloned bare into
+`$OFIR_HOME/cache/git/<hash of its URL>` and each version used checked
+out into `$OFIR_HOME/cache/src/<name>-<version>-<hash>`, by running `git`.
+`build`, `run` and `test` resolve too: they keep the locked versions that
+still fit, fetch a repository only when it is missing or has no fitting
+version, and write `ofir.lock` when it changed; `ofir update` fetches
+again and chooses the highest versions. The lock has no checksums yet,
+and `--locked` and `--offline` are not read (6.5d); registry
+dependencies are E0901.
 The modules of a package are found from the directory of its
 `build.root` (default `src/index.of`), which is the module named like the
 package; a package imports its own modules by their names in it, as a

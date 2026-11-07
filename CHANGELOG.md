@@ -25,6 +25,11 @@ project uses [Semantic Versioning](https://semver.org/).
   read, transitively, and their modules imported by the dependency's key
   (`import json.parser`); `ofir.json` is read as JSONC. Errors E0910,
   E0911 and E0915 (ADR 0032, roadmap 6.5b, stage 1).
+- Git dependencies: `{"git": URL, "version": "^1.2"}` (or `rev`,
+  `branch`), resolved to one version per package, the highest that every
+  semver requirement accepts (E0912); `ofir.lock` records the commits, and
+  `ofir fetch` and `ofir update [name]` fetch and resolve them (ADR 0032,
+  roadmap 6.5c, stage 1).
 
 ### Changed
 

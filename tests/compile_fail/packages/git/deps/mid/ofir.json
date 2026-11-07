@@ -1,0 +1,7 @@
+{
+  "name": "mid",
+  "build": {"kind": "lib"},
+  "dependencies": {
+    "text": {"git": "../../../../../../build/git-fixtures/text", "version": "~1.0"},
+  },
+}

@@ -1,0 +1,6 @@
+// requires: stage1
+import words
+
+pub fn textVersion() str {
+    return words.version()
+}
