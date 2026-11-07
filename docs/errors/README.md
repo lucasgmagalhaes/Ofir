@@ -162,7 +162,7 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0902 | the toolchain failed: clang or the runtime library is missing, or clang reported an error | stage 0 |
 | E0910 | invalid `ofir.json`: not JSONC, or a property of the wrong kind | stage 1 |
 | E0911 | the dependency `x` cannot be found or fetched | stage 1 |
-| E0912 | no version of `x` satisfies every requirement on it | planned |
+| E0912 | no version of `x` satisfies every requirement on it | stage 1 |
 | E0913 | `ofir.lock` is out of date and `--locked` was given | planned |
 | E0914 | the checksum of `x` differs from `ofir.lock` | planned |
 | E0915 | the dependency `x` is named like a module of the project, or `std` | stage 1 |
