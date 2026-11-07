@@ -1,0 +1,9 @@
+// The errors of registry dependencies (ADR 0032).
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "json": "^3.0",          // error[E0912]: no version of `json` satisfies every requirement on it
+    "nope": "^1.0",          // error[E0911]: cannot fetch the dependency `nope`
+  },
+}

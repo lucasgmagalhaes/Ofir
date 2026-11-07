@@ -46,7 +46,8 @@ pub fn repository(url: str, refresh: bool) Result<str, str> {
     const dir = clonePath(url)
     if fs.exists("{dir}/HEAD") {
         if refresh {
-            git(["-C", dir.clone(), "fetch", "--quiet", "--tags", "--force", "origin"])?
+            const heads = "+refs/heads/*:refs/heads/*"
+            git(["-C", dir.clone(), "fetch", "--quiet", "--tags", "--force", "origin", heads])?
         }
         return Result.Ok(dir)
     }
@@ -123,6 +124,17 @@ pub fn commitOf(dir: str, rev: str) Option<str> {
  */
 pub fn hasCommit(dir: str, commit: str) bool {
     return commitOf(dir, commit).isSome()
+}
+
+/**
+ * A file of a bare clone at `HEAD`.
+ *
+ * @param dir the clone
+ * @param path the file's path in the repository
+ * @returns its text, or `None` if there is no such file
+ */
+pub fn fileAt(dir: str, path: str) Option<str> {
+    return git(["-C", dir.clone(), "show", "HEAD:{path}"]).ok()
 }
 
 /**

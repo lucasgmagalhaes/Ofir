@@ -206,8 +206,23 @@ again and chooses the highest versions. Each git package's checksum is
 the SHA-256 of its files, sorted by path, each as its path, a NUL, its
 size, a NUL and its bytes, `.git` left out; a checkout that does not
 match the lock is E0914 (6.5d). With `--offline`, a repository missing
-from the cache is E0911 and nothing is fetched. Registry dependencies
-are E0901.
+from the cache is E0911 and nothing is fetched.
+
+A registry dependency is a version requirement, `"json": "^1.2"` or
+`{"version": "^1.2"}` (6.5e). The registry's index is a git repository,
+`$OFIR_REGISTRY` (default `https://github.com/ofir-lang/index`), cloned
+bare like a git dependency. Its file for a package (`1/a`, `2/ab`,
+`3/a/abc`, `js/on/json`) has a JSON line per published version:
+`{"version", "dependencies", "checksum", "yanked"}`. Its `config.json` has
+`{"download": URL}`, where `{name}` and `{version}` stand for the
+package's; the archive, a `.tar.gz` of the package's files, is downloaded
+with `curl` into `$OFIR_HOME/cache/archives` and extracted with `tar`
+into `$OFIR_HOME/cache/src/<name>-<version>-<hash>`. The highest version
+that fits and is not yanked is chosen; a locked one is kept while it
+fits, yanked or not. Its files must have the index's checksum (E0914);
+the lock records the index and the version, with no commit. A package
+missing from the index is E0911, and the manifest of the archive, not
+the index's `dependencies`, gives its dependencies.
 The modules of a package are found from the directory of its
 `build.root` (default `src/index.of`), which is the module named like the
 package; a package imports its own modules by their names in it, as a

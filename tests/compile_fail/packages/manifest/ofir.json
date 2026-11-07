@@ -8,7 +8,7 @@
     "util": {"path": "deps/app_lib"},         // error[E0915]: the dependency `util` is named like a module of the project
     "bad-name": {"path": "deps/app_lib"},     // error[E0910]: `bad-name` is not a valid package name
     "fn": {"path": "deps/app_lib"},           // error[E0910]: `fn` is not a valid package name
-    "json": "^1.2",                           // error[E0901]: registry dependencies are not supported yet
+    "json": "one.two",                        // error[E0910]: `one.two` is not a version requirement
     "http": {"git": "deps/http.git", "version": "^1"},   // error[E0911]: cannot fetch the dependency `http`
     "nothing": {"path": "deps/missing"},      // error[E0911]: cannot find the dependency `nothing`
     "tool": {"path": "deps/exe"},             // error[E0911]: the dependency `tool` is not a library

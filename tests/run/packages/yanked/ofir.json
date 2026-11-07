@@ -1,0 +1,8 @@
+// A yanked version is kept while it is locked and still fits (ADR 0032).
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "json": "^1.0",
+  },
+}

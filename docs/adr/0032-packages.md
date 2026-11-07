@@ -27,7 +27,7 @@ package name to where it comes from:
 
 ```jsonc
 "dependencies": {
-  "json": "^1.2",                                       // the registry [planned]
+  "json": "^1.2",                                       // the registry
   "http": {"git": "https://example.com/http.git", "version": "^0.3"},
   "util": {"path": "../util"},                          // a directory
 },
@@ -71,7 +71,7 @@ cache. A fetched package whose checksum differs from the lock is an error
 `cache/src/<name>-<version>`. Fetching runs `git`, which must be
 installed.
 
-**The registry** (designed here, implemented later). An index is a git
+**The registry** (implemented in roadmap 6.5e). An index is a git
 repository with a file per package (`js/on/json`, by its first letters):
 a JSON line per published version with its version, dependencies,
 checksum and whether it was yanked. An archive of each version is

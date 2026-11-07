@@ -1,0 +1,6 @@
+// requires: stage1
+import json
+
+pub fn jsonVersion() str {
+    return json.version()
+}

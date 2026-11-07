@@ -1,10 +1,11 @@
 /**
  * @module
- * The resolution of git dependencies (ADR 0032): one version of each
- * repository for the whole program, the highest that every requirement on
- * it accepts, recomputed until the requirements of the chosen versions
- * agree. There is no backtracking. A locked version is kept while it still
- * fits, unless the package is being updated.
+ * The resolution of git and registry dependencies (ADR 0032): one version
+ * of each repository, or registry package, for the whole program, the
+ * highest that every requirement on it accepts, recomputed until the
+ * requirements of the chosen versions agree. There is no backtracking. A
+ * locked version is kept while it still fits, unless the package is being
+ * updated.
  */
 
 import driver.git.checkout
@@ -17,6 +18,11 @@ import driver.git.tags
 import driver.lock.Locked
 import driver.lock.checksum
 import driver.lock.readLock
+import driver.lock.sourceOf
+import driver.registry.Release
+import driver.registry.archive
+import driver.registry.defaultIndex
+import driver.registry.releases
 import driver.semver.Requirement
 import driver.semver.Version
 import driver.semver.parseRequirement
@@ -44,15 +50,20 @@ pub struct Mode {
  * The version chosen for a repository.
  */
 pub struct Pin {
-    /** Its URL, or its canonical local path. */
+    /**
+     * Its URL, or its canonical local path; `<index>#<name>` for a
+     * registry package (`registrySource`).
+     */
     pub url: str
+    /** The index of the registry it comes from; empty for a git package. */
+    pub registry: str
     /** The key it is reached by first. */
     pub name: str
     /** Its version; empty when it follows `rev`. */
     pub version: str
     /** The `rev` or `branch` it follows; empty when it has a version. */
     pub rev: str
-    /** Its commit. */
+    /** Its commit; empty for a registry package. */
     pub commit: str
     /** The checksum of its checkout. */
     pub checksum: str
@@ -104,6 +115,17 @@ pub fn gitUrl(given: str, base: str) str {
 }
 
 /**
+ * How a registry package is named among the repositories.
+ *
+ * @param index the registry's index
+ * @param name the package
+ * @returns `<index>#<name>`
+ */
+pub fn registrySource(index: str, name: str) str {
+    return "{index}#{name}"
+}
+
+/**
  * The pin of a repository.
  *
  * @param r a resolution
@@ -145,11 +167,12 @@ pub fn failureOf(r: &Resolution, url: str) int {
  */
 pub fn resolve(rootDir: str, mode: &Mode) Resolution {
     const lock = readLock(rootDir)
+    const index = defaultIndex()
     let r = Resolution{pins: [], failures: [], hadLock: fs.exists("{rootDir}/ofir.lock")}
     let repos: List<Repo> = []
     let round = 0
     for round < 16 {
-        const needs = collect(rootDir, &r)
+        const needs = collect(rootDir, index, &r)
         let next = Resolution{pins: [], failures: [], hadLock: r.hadLock}
         let urls: List<str> = []
         for i in 0..needs.len() {
@@ -181,9 +204,12 @@ struct Repo {
     error: str
 }
 
-// A requirement on a repository: `version`, or `rev`, by a project.
+// A requirement on a repository, or a registry package: `version`, or
+// `rev`, by a project.
 struct Need {
     url: str
+    /** The registry's index; empty for a git repository. */
+    registry: str
     key: str
     version: str
     rev: str
@@ -193,7 +219,7 @@ struct Need {
 // The requirements of the projects reached from `rootDir`, through path
 // dependencies and the checkouts of the pins of `r`. Invalid entries are
 // left for `driver.packages` to report.
-fn collect(rootDir: str, r: &Resolution) List<Need> {
+fn collect(rootDir: str, index: str, r: &Resolution) List<Need> {
     let needs: List<Need> = []
     let dirs = [rootDir.toOwned()]
     let d = 0
@@ -214,7 +240,17 @@ fn collect(rootDir: str, r: &Resolution) List<Need> {
         let member = doc.nodes[list].child
         for member >= 0 {
             const next = doc.nodes[member].next
-            if doc.nodes[member].kind == JsonKind.Object {
+            const key = doc.nodes[member].key.clone()
+            const version = registryVersion(&doc, member)
+            if parseRequirement(version).isSome() {
+                const url = registrySource(index, key)
+                const p = pinOf(r, url)
+                if p >= 0 && !contains(&dirs, r.pins[p].dir) {
+                    dirs.push(r.pins[p].dir.clone())
+                }
+                needs.push(Need{url, registry: index.toOwned(), key, version, rev: "",
+                                from: from.clone()})
+            } else if doc.nodes[member].kind == JsonKind.Object {
                 const gitNode = doc.field(member, "git")
                 const pathNode = doc.field(member, "path")
                 if gitNode >= 0 && doc.nodes[gitNode].kind == JsonKind.String {
@@ -227,7 +263,7 @@ fn collect(rootDir: str, r: &Resolution) List<Need> {
                     if p >= 0 && !contains(&dirs, r.pins[p].dir) {
                         dirs.push(r.pins[p].dir.clone())
                     }
-                    needs.push(Need{url, key: doc.nodes[member].key.clone(),
+                    needs.push(Need{url, registry: "", key,
                                     version: doc.text(doc.field(member, "version")), rev,
                                     from: from.clone()})
                 } else if pathNode >= 0 && doc.nodes[pathNode].kind == JsonKind.String {
@@ -241,6 +277,27 @@ fn collect(rootDir: str, r: &Resolution) List<Need> {
         }
     }
     return needs
+}
+
+/**
+ * The requirement of a registry dependency: the dependency itself when it
+ * is a string, or the `version` of an object with no `git` and no `path`.
+ *
+ * @param doc a manifest
+ * @param member a member of its `dependencies`
+ * @returns the requirement; empty when it is not a registry dependency
+ */
+pub fn registryVersion(doc: &JsonDoc, member: int) str {
+    if doc.nodes[member].kind == JsonKind.String {
+        return doc.nodes[member].text.clone()
+    }
+    if doc.nodes[member].kind != JsonKind.Object {
+        return ""
+    }
+    if doc.field(member, "git") >= 0 || doc.field(member, "path") >= 0 {
+        return ""
+    }
+    return doc.text(doc.field(member, "version"))
 }
 
 // The `name` of a manifest, or the last part of its directory.
@@ -272,6 +329,11 @@ fn choose(url: str, needs: &List<Need>, lock: &List<Locked>, mode: &Mode, repos:
     const first = &needs[mine[0]]
     const name = first.key.clone()
     const updating = mode.update && (mode.only.len() == 0 || mode.only == name)
+    if first.registry.len() > 0 {
+        const index = first.registry.clone()
+        chooseRelease(url, index, name, needs, &mine, lock, updating, mode.offline, repos, out)
+        return
+    }
     const r = fetched(url, updating, mode.offline, repos)
     if repos[r].dir.len() == 0 {
         const message = "cannot fetch the dependency `{name}`"
@@ -281,7 +343,7 @@ fn choose(url: str, needs: &List<Need>, lock: &List<Locked>, mode: &Mode, repos:
     }
     let locked = -1
     for i in 0..lock.len() {
-        if lock[i].git == url && !updating && hasCommit(repos[r].dir, lock[i].commit) {
+        if sourceOf(&lock[i]) == url && !updating && hasCommit(repos[r].dir, lock[i].commit) {
             locked = i
         }
     }
@@ -342,6 +404,122 @@ fn choose(url: str, needs: &List<Need>, lock: &List<Locked>, mode: &Mode, repos:
     const version = found[best].version.text()
     const commit = found[best].commit.clone()
     pin(url, name, version, "", commit, &repos[r], out)
+}
+
+// Chooses the version of the registry package `name` for its requirements,
+// into `out`: the locked one while it fits, else the highest that is not
+// yanked. Its files must have the index's checksum (E0914).
+fn chooseRelease(url: str, index: str, name: str, needs: &List<Need>, mine: &List<int>,
+                 lock: &List<Locked>, updating: bool, offline: bool, repos: mut List<Repo>,
+                 out: mut Resolution) {
+    const r = fetched(index, updating, offline, repos)
+    if repos[r].dir.len() == 0 {
+        out.failures.push(Failure{url: url.toOwned(), code: "E0911",
+                                  message: "cannot fetch the dependency `{name}`",
+                                  notes: ["cannot fetch the registry `{index}`",
+                                          repos[r].error.clone()]})
+        return
+    }
+    let found = releases(repos[r].dir, name)
+    if found.isNone() && !repos[r].fetched && !offline && refetch(repos[r]) {
+        found = releases(repos[r].dir, name)
+    }
+    const Option.Some(listed) = found else {
+        out.failures.push(Failure{url: url.toOwned(), code: "E0911",
+                                  message: "cannot fetch the dependency `{name}`",
+                                  notes: ["the registry `{index}` has no package `{name}`"]})
+        return
+    }
+    let reqs: List<Requirement> = []
+    for k in 0..mine.len() {
+        if const Option.Some(q) = parseRequirement(needs[mine[k]].version) {
+            reqs.push(q)
+        }
+    }
+    let locked = ""
+    for i in 0..lock.len() {
+        if !updating && sourceOf(&lock[i]) == url {
+            locked = lock[i].version.clone()
+        }
+    }
+    let known = listed
+    let best = latestRelease(&known, &reqs, locked.clone())
+    if best < 0 && !repos[r].fetched && !offline && refetch(repos[r]) {
+        known = releases(repos[r].dir, name) ?? []
+        best = latestRelease(&known, &reqs, locked)
+    }
+    if best < 0 {
+        conflict(url, name, needs, mine, releasesNote(&known), out)
+        return
+    }
+    const version = known[best].version.text()
+    match archive(repos[r].dir, index, name, version, offline) {
+        Result.Ok(dir) => {
+            const real = fs.canonicalize(dir.clone()).ok() ?? dir
+            const sum = checksum(real)
+            const expected = known[best].checksum.clone()
+            if expected != sum {
+                const notes = ["the registry has `{expected}`",
+                               "its files at `{real}` have `{sum}`"]
+                const message = "the checksum of `{name}` differs from the registry"
+                out.failures.push(Failure{url: url.toOwned(), code: "E0914", message, notes})
+                return
+            }
+            out.pins.push(Pin{url: url.toOwned(), registry: index.toOwned(), name: name.toOwned(),
+                              version, rev: "", commit: "", checksum: sum, dir: real})
+        }
+        Result.Err(error) => {
+            out.failures.push(Failure{url: url.toOwned(), code: "E0911",
+                                      message: "cannot fetch the dependency `{name}`",
+                                      notes: [error]})
+        }
+    }
+}
+
+// The index of the release to use: `locked` while every requirement
+// accepts it, else the highest accepted that is not yanked; -1 if none.
+fn latestRelease(list: &List<Release>, reqs: &List<Requirement>, locked: str) int {
+    let best = -1
+    for i in 0..list.len() {
+        const v = list[i].version
+        if !acceptsAll(reqs, v) {
+            continue
+        }
+        if v.text() == locked {
+            return i
+        }
+        if !list[i].yanked && (best < 0 || v.compare(list[best].version) > 0) {
+            best = i
+        }
+    }
+    return best
+}
+
+// The note listing the versions of a registry package that are not yanked.
+fn releasesNote(list: &List<Release>) str {
+    let order: List<Version> = []
+    for i in 0..list.len() {
+        if list[i].yanked {
+            continue
+        }
+        const v = list[i].version
+        let at = order.len()
+        for at > 0 && v.compare(order[at - 1]) < 0 {
+            at -= 1
+        }
+        order.insert(at, v)
+    }
+    if order.len() == 0 {
+        return "it has no versions that are not yanked"
+    }
+    let text = "its versions are "
+    for i in 0..order.len() {
+        if i > 0 {
+            text.push(", ")
+        }
+        text.push(order[i].text())
+    }
+    return text
 }
 
 // The index in the tags of `dir` of the highest version every requirement
@@ -414,7 +592,8 @@ fn pin(url: str, name: str, version: str, rev: str, commit: str, repo: &Repo,
     match checkout(repo.dir, commit, label) {
         Result.Ok(dir) => {
             const real = fs.canonicalize(dir.clone()).ok() ?? dir
-            out.pins.push(Pin{url: url.toOwned(), name: name.toOwned(), version: version.toOwned(),
+            out.pins.push(Pin{url: url.toOwned(), registry: "", name: name.toOwned(),
+                              version: version.toOwned(),
                               rev: rev.toOwned(), commit: commit.toOwned(), checksum: "",
                               dir: real})
         }
@@ -431,10 +610,12 @@ fn pin(url: str, name: str, version: str, rev: str, commit: str, repo: &Repo,
 fn verify(r: mut Resolution, lock: &List<Locked>) {
     let i = 0
     for i < r.pins.len() {
-        const sum = checksum(r.pins[i].dir)
+        const pin = &r.pins[i]
+        const sum = if pin.checksum.len() > 0 { pin.checksum.clone() } else { checksum(pin.dir) }
         let expected = ""
         for k in 0..lock.len() {
-            if lock[k].git == r.pins[i].url && lock[k].commit == r.pins[i].commit {
+            const same = lock[k].commit == pin.commit && lock[k].version == pin.version
+            if sourceOf(&lock[k]) == pin.url && same {
                 expected = lock[k].checksum.clone()
             }
         }
@@ -501,6 +682,9 @@ fn samePins(a: &Resolution, b: &Resolution) bool {
     for i in 0..b.pins.len() {
         const p = pinOf(a, b.pins[i].url)
         if p < 0 || a.pins[p].commit != b.pins[i].commit {
+            return false
+        }
+        if a.pins[p].version != b.pins[i].version {
             return false
         }
     }

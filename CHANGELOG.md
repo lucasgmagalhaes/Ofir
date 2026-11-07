@@ -34,6 +34,11 @@ project uses [Semantic Versioning](https://semver.org/).
   checkout that differs is E0914; `--locked` fails instead of changing the
   lock (E0913) and `--offline` uses only the package cache (ADR 0032,
   roadmap 6.5d, stage 1).
+- Registry dependencies: `"json": "^1.2"` (or `{"version": ...}`) is
+  resolved from the index of `$OFIR_REGISTRY`, a git repository with a
+  line of JSON per published version; yanked versions are used only when
+  locked, and archives are downloaded into `$OFIR_HOME/cache` and checked
+  against the index's checksum (ADR 0032, roadmap 6.5e, stage 1).
 
 ### Changed
 

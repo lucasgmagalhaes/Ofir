@@ -1,0 +1,155 @@
+/**
+ * @module
+ * The registry client (ADR 0032): an index is a git repository with a file
+ * per package (`js/on/json`, by its first letters), each line of it the
+ * JSON of a published version: its `version`, `dependencies`, `checksum`
+ * and whether it was `yanked`. The index's `config.json` gives the URL of
+ * the archive of each version (`download`, with `{name}` and `{version}`
+ * in it). Archives are `.tar.gz` files of the package's directory,
+ * downloaded with `curl` into `$OFIR_HOME/cache/archives` and extracted
+ * with `tar` into `$OFIR_HOME/cache/src`.
+ */
+
+import driver.git.fileAt
+import driver.git.hashHex
+import driver.git.ofirHome
+import driver.semver.Version
+import driver.semver.parseVersion
+import lsp.json.parseJson
+import lsp.json.parseJsonc
+import std.fs
+import std.os
+
+/**
+ * A published version of a package.
+ */
+pub struct Release {
+    pub version: Version
+    /** The checksum of its files (`driver.lock.checksum`). */
+    pub checksum: str
+    /** Whether it was withdrawn: it is only used when it is locked. */
+    pub yanked: bool
+}
+
+/**
+ * The index of the default registry.
+ *
+ * @returns `$OFIR_REGISTRY` (a local path made canonical), or the
+ * official index
+ */
+pub fn defaultIndex() str {
+    const Option.Some(given) = os.env("OFIR_REGISTRY") else {
+        return "https://github.com/ofir-lang/index"
+    }
+    if given.contains("://") || given.startsWith("git@") {
+        return given
+    }
+    return fs.canonicalize(given.clone()).ok() ?? given
+}
+
+/**
+ * The file of a package in an index: `1/a`, `2/ab`, `3/a/abc`, and for
+ * longer names `js/on/json`.
+ *
+ * @param name the package
+ * @returns its path in the index
+ */
+pub fn indexPath(name: str) str {
+    const n = name.len()
+    if n <= 2 {
+        return "{n}/{name}"
+    }
+    if n == 3 {
+        return "3/{name.slice(0, 1)}/{name}"
+    }
+    return "{name.slice(0, 2)}/{name.slice(2, 4)}/{name}"
+}
+
+/**
+ * The published versions of a package.
+ *
+ * @param dir the bare clone of the index
+ * @param name the package
+ * @returns its versions, in the order of the file; `None` when the index
+ * has no such package
+ */
+pub fn releases(dir: str, name: str) Option<List<Release>> {
+    const Option.Some(text) = fileAt(dir, indexPath(name)) else {
+        return Option.None
+    }
+    let out: List<Release> = []
+    for line in text.lines() {
+        const Option.Some(doc) = parseJson(line.trim()) else {
+            continue
+        }
+        const Option.Some(version) = parseVersion(doc.text(doc.field(0, "version"))) else {
+            continue
+        }
+        const yank = doc.field(0, "yanked")
+        const yanked = yank >= 0 && doc.nodes[yank].text == "true"
+        out.push(Release{version, checksum: doc.text(doc.field(0, "checksum")), yanked})
+    }
+    return Option.Some(out)
+}
+
+/**
+ * The directory of a version of a package, downloaded and extracted if it
+ * is not in the cache.
+ *
+ * @param dir the bare clone of the index
+ * @param index the index's URL, or path
+ * @param name the package
+ * @param version its version
+ * @param offline whether only the cache may be used
+ * @returns its directory, or why it could not be had
+ */
+pub fn archive(dir: str, index: str, name: str, version: str, offline: bool) Result<str, str> {
+    const label = "{name}-{version}-{hashHex(index).slice(0, 8)}"
+    const dest = "{ofirHome()}/cache/src/{label}"
+    if fs.exists("{dest}/ofir.json") {
+        return Result.Ok(dest)
+    }
+    if offline {
+        return Result.Err("it is not in the cache, and `--offline` was given")
+    }
+    const Option.Some(config) = fileAt(dir, "config.json") else {
+        return Result.Err("the registry has no `config.json`")
+    }
+    const Result.Ok(doc) = parseJsonc(config) else {
+        return Result.Err("the `config.json` of the registry is not valid JSONC")
+    }
+    const template = doc.text(doc.field(0, "download"))
+    if template.len() == 0 {
+        return Result.Err("the `config.json` of the registry has no `download` URL")
+    }
+    const url = template.replace("\{name\}", name).replace("\{version\}", version)
+    const archives = "{ofirHome()}/cache/archives"
+    if fs.createDirAll(archives).isErr() {
+        return Result.Err("cannot create `{archives}`")
+    }
+    const file = "{archives}/{label}.tar.gz"
+    run("curl", ["--fail", "--silent", "--show-error", "--location", "--output", file.clone(),
+                 url.clone()])?
+    const part = "{dest}.part"
+    run("rm", ["-rf", part.clone()])?
+    if fs.createDirAll(part).isErr() {
+        return Result.Err("cannot create `{part}`")
+    }
+    run("tar", ["-xzf", file.clone(), "-C", part.clone()])?
+    if !fs.exists("{part}/ofir.json") {
+        return Result.Err("the archive `{url}` has no `ofir.json`")
+    }
+    run("mv", [part.clone(), dest.clone()])?
+    return Result.Ok(dest)
+}
+
+// Runs a program; its error output when it fails.
+fn run(program: str, args: [str]) Result<str, str> {
+    const Result.Ok(out) = os.run(program, args) else {
+        return Result.Err("cannot run `{program}`: is it installed?")
+    }
+    if out.status != 0 {
+        return Result.Err(out.stderr.trim().toOwned())
+    }
+    return Result.Ok(out.stdout)
+}
