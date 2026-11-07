@@ -261,7 +261,7 @@ These gaps remain:
 | 6.6 | Incremental and parallel compilation (ADR 0033, stage 1), in the steps below | L |
 | 6.6a | Design: ADR 0033, measurements of a self-compile; **done** | S |
 | 6.6b | `os.spawn`, `Child.wait` and `os.cpuCount` in std (runtime, both stages); **done**: `tests/run/system/os` | S |
-| 6.6c | Codegen units: one per module, stable text within a unit, `hidden` and `linkonce_odr` linkage, `--codegen-units=1`; `--emit=llvm` unchanged | M |
+| 6.6c | Codegen units: one per module, stable text within a unit, `hidden` and `linkonce_odr` linkage, `--codegen-units=1`; `--emit=llvm` unchanged; **done**: stage 1 builds a `.ll` file per module and links them in one clang call; all tests pass with units, and `verify` checks the single module | M |
 | 6.6d | Parallel clang with `-j N` and a separate link step | S |
 | 6.6e | The object cache in `$OFIR_HOME/cache/objects`: keys, atomic writes, checks, recovery after a failed link, `OFIR_CACHE_LIMIT`, `--no-cache`; cold and warm build times recorded | M |
 | 6.6f | Release benchmarks with units and with one unit; the release default chosen from them | S |

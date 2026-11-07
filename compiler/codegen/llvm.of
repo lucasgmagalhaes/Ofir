@@ -147,6 +147,28 @@ pub struct Gen {
     pub dir: str
     /** `--release`: whether to mark parameters `noalias` and `readonly`. */
     pub optimize: bool
+    /** Whether this is a codegen unit rather than the whole program (ADR 0033). */
+    pub units: bool
+    /** Whether the function being generated is `linkonce_odr` in its unit. */
+    pub linkonce: bool
+    /** In a unit: where the linkage of the function being generated goes, or -1. */
+    pub linkAt: int
+    /** The `declare` of the function last generated. */
+    pub declare: str
+    /** In a unit: the text before each linkage left open. */
+    pub parts: List<str>
+    /** In a unit: the body whose linkage follows each part. */
+    pub links: List<int>
+    /** In a unit: the number of the body being generated. */
+    pub body: int
+    /** In a unit: the `@.file.N` number of each file, by `FileId`. */
+    pub fileNums: Map<int, int>
+    /** By `DefId`: whether the thunk of a function value is written. */
+    pub thunked: List<bool>
+    /** The number of vtables written. */
+    pub vtDone: int
+    /** Whether a vtable needs `@ofir.dyn.nodrop`. */
+    pub noDrop: bool
 }
 
 fn hexDigit(n: u64) str {
@@ -212,7 +234,9 @@ pub fn newGen() Gen {
                slots: Map.new(),
                alignedHeap: false, mutGlobals: [],
                fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new(),
-               debug: false, di: DebugInfo.new(), scope: 0, dir: "", optimize: false}
+               debug: false, di: DebugInfo.new(), scope: 0, dir: "", optimize: false,
+               units: false, linkonce: false, linkAt: -1, declare: "", parts: [], links: [],
+               body: 0, fileNums: Map.new(), thunked: [], vtDone: 0, noDrop: false}
 }
 
 fn nextTemp(g: mut Gen) str {
@@ -494,8 +518,12 @@ fn typeArgsText(c: Checker, targs: int) str {
 }
 
 // `%"Shape.3"`, or `%"Pair<int, str>.5"` for an instance: the DefId keeps
-// same-named types apart.
-fn nameType(c: mut Checker, ty: int, suffix: str) str {
+// same-named types apart. A unit names a type by its qualified name, which
+// does not change when declarations are added elsewhere.
+fn nameType(c: mut Checker, ty: int, suffix: str, units: bool) str {
+    if units {
+        return "%\"{c.qualifiedTypeName(ty)}{suffix}\""
+    }
     const id = c.types.get(ty).data
     const args = c.types.get(ty).args.clone()
     let out = "%\"{c.text(c.def(id).name)}"
@@ -544,8 +572,8 @@ fn define(g: mut Gen, c: mut Checker, p: Program, name: str, types: &List<int>, 
  * @param v the variant
  * @returns its name
  */
-pub fn variantType(c: mut Checker, adt: int, v: int) str {
-    return nameType(c, adt, ".{v}")
+pub fn variantType(c: mut Checker, adt: int, v: int, units: bool) str {
+    return nameType(c, adt, ".{v}", units)
 }
 
 fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
@@ -553,7 +581,7 @@ fn defineEnum(g: mut Gen, c: mut Checker, p: Program, adt: int, name: str) {
     const id = c.types.get(adt).data
     for v in 0..variantsOf(c, id).variants.len() {
         const types = fieldTypes(c, p, adt, v)
-        define(g, c, p, variantType(c, adt, v), &types, false, 0)
+        define(g, c, p, variantType(c, adt, v, g.units), &types, false, 0)
     }
     const unit = payloadUnit(g, c, p, adt)
     const niche = nicheVariant(g, c, p, adt)
@@ -574,7 +602,7 @@ fn adtType(g: mut Gen, c: mut Checker, p: Program, ty: int) str {
         return known.clone()
     }
     const id = c.types.get(ty).data
-    const name = nameType(c, ty, "")
+    const name = nameType(c, ty, "", g.units)
     g.adtTypes.insert(ty, name.clone())
     if c.def(id).kind == DefKind.Enum {
         defineEnum(g, c, p, ty, name.clone())
@@ -641,7 +669,7 @@ fn placeAddress(g: mut Gen, c: mut Checker, p: Program, body: &AirBody, local: i
             base = next
             continue
         }
-        const container = if variant { variantType(c, current, index) } else {
+        const container = if variant { variantType(c, current, index, g.units) } else {
             llvmType(g, c, p, current)
         }
         const slot = if !variant && isStruct(c, current) {
@@ -757,7 +785,15 @@ fn stringGlobal(g: mut Gen, text: str) int {
 fn locationGlobal(g: mut Gen, c: Checker, span: Span) int {
     const file = c.r.map.file(span.file)
     const pos = file.lineCol(span.start)
-    const id = span.file.0
+    let id = span.file.0
+    if g.units {   // numbered within the unit
+        if const Option.Some(n) = g.fileNums.get(span.file.0) {
+            id = *n
+        } else {
+            id = g.fileNums.len()
+            g.fileNums.insert(span.file.0, id)
+        }
+    }
     if g.filesEmitted.get(id).isNone() {
         g.filesEmitted.insert(id, true)
         const path = file.path.clone()
@@ -1427,16 +1463,21 @@ fn mutGlobals(g: mut Gen, c: mut Checker, p: Program) {
                 ConstKind.Str => "zeroinitializer".toOwned()
             }
         }
-        g.module.push("\n{globalName(c, id)} = internal global {llty} {init}\n")
+        const linkage = if g.units { "linkonce_odr hidden" } else { "internal" }   // shared
+        g.module.push("\n{globalName(c, id)} = {linkage} global {llty} {init}\n")
     }
 }
 
 // The thunks of the functions used as values.
 fn thunks(g: mut Gen, c: mut Checker, p: Program) {
     for id in 0..g.fnValues.len() {
-        if !g.fnValues[id] {
+        if !g.fnValues[id] || (id < g.thunked.len() && g.thunked[id]) {
             continue
         }
+        for g.thunked.len() <= id {
+            g.thunked.push(false)
+        }
+        g.thunked[id] = true
         const sig = c.info[id].ty
         const ret = llvmType(g, c, p, c.types.get(sig).inner)
         const args = c.types.get(sig).args.clone()
@@ -1478,8 +1519,7 @@ fn vtable(g: mut Gen, ty: int, iface: int, drops: bool) int {
 // concrete type's number, for type switches: spec 9.8), then a thunk per
 // method, which takes the data pointer as `self` (spec 9.7).
 fn vtables(g: mut Gen, c: mut Checker, p: Program) {
-    let noDrop = false
-    for k in 0..g.vtTypes.len() {
+    for k in g.vtDone..g.vtTypes.len() {
         const ty = g.vtTypes[k]
         const slots = dynMethods(c, p, g.vtIfaces[k])
         const l = layout(g, c, p, ty)
@@ -1487,7 +1527,7 @@ fn vtables(g: mut Gen, c: mut Checker, p: Program) {
         if g.vtDrops[k] {
             drop = functionName(c, p, GLUE_DROP, c.types.tuple([ty]), false)
         } else {
-            noDrop = true
+            g.noDrop = true
         }
         g.module.push("\n@\"ofir.vt{k}\" = internal constant [{slots.len() + 4} x ptr] [")
         g.module.push("ptr {drop}, ptr inttoptr (i64 {l.size} to ptr), ")
@@ -1504,7 +1544,12 @@ fn vtables(g: mut Gen, c: mut Checker, p: Program) {
             }
         }
     }
-    if noDrop {
+    g.vtDone = g.vtTypes.len()
+}
+
+// The drop of a vtable whose type needs none.
+fn noDrop(g: mut Gen) {
+    if g.noDrop {
         g.module.push("\ndefine internal fastcc void @ofir.dyn.nodrop(ptr %self) \{\n")
         g.module.push("  ret void\n\}\n")
     }
@@ -1872,9 +1917,19 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
     const ret = body.locals[0].ty
     const closure = body.closure.isSome()
     const cfn = !closure && !isGlue(body.def) && isCFunction(c, p, body.def)   // callable from C
-    const linkage = if body.isMain || cfn { "" } else { "internal fastcc " }
+    let linkage = if body.isMain || cfn { "" } else { "internal fastcc " }
     const retType = if body.isMain { "void".toOwned() } else { llvmType(g, c, p, ret) }
-    g.out.push("define {linkage}{retType} ")
+    g.out.push("define ")
+    g.linkAt = -1
+    if g.units && linkage.len() > 0 {   // a unit's own functions: decided once all are known
+        linkage = if g.linkonce { "linkonce_odr hidden fastcc " } else { "fastcc " }
+        if !g.linkonce {
+            g.linkAt = g.out.len()
+        }
+    }
+    g.out.push(linkage)
+    const sigAt = g.out.len()
+    g.out.push("{retType} ")
     const nameAt = g.out.len()
     let params: List<int> = []
     if const Option.Some(info) = body.closure {
@@ -1904,7 +1959,12 @@ fn genBody(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
             first = false
         }
     }
-    g.out.push(") nounwind")
+    g.out.push(")")
+    if g.units {
+        const conv = if linkage.len() > 0 { "fastcc " } else { "" }
+        g.declare = "declare {conv}{g.out.sliceFrom(sigAt)} nounwind\n"
+    }
+    g.out.push(" nounwind")
     if !closure && !isGlue(body.def) {
         g.out.push(hints(c, p, body.def))
     }
@@ -2007,13 +2067,16 @@ fn runtimeDecls() str {
     return out
 }
 
-fn begin(g: mut Gen, c: mut Checker, p: Program) {
-    const root = c.r.map.file(p.modules[0].module.file)
+fn begin(g: mut Gen, c: mut Checker, p: Program, module: int) {
+    const root = c.r.map.file(p.modules[module].module.file)
     let path = ""
     escapedBytes(path, root.path)
     g.module.push("; Generated by the Ofir stage 0 compiler.\nsource_filename = \"{path}\"\n\n")
     g.module.push("%ofir.str = type \{ ptr, i64, i64 \}\n")
     g.module.push("%ofir.loc = type \{ ptr, i32, i32 \}\n")
+    if g.units {   // a unit defines the types it uses, as it uses them
+        return
+    }
     // Every struct is known after type checking. The definitions come first:
     // LLVM needs a type's size when a function allocates it.
     for i in 1..c.r.defs.len() {
@@ -2041,7 +2104,15 @@ fn function(g: mut Gen, c: mut Checker, p: Program, body: &AirBody) {
         g.module.push("\n")
         g.typeDefs = ""
     }
-    g.module.push(g.out)
+    if g.linkAt < 0 {
+        g.module.push(g.out)
+        return
+    }
+    g.module.push(g.out.slice(0, g.linkAt))   // the linkage is written by `units`
+    g.parts.push(g.module.clone())
+    g.links.push(g.body)
+    g.module = ""
+    g.module.push(g.out.sliceFrom(g.linkAt))
 }
 
 fn overflowDecls(g: mut Gen) {
@@ -2143,13 +2214,14 @@ pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>, debug: bool,
         escapedBytes(g.dir, os.currentDir().ok() ?? "")
         root = debugFile(g, c, p.modules[0].module.file)
     }
-    begin(g, c, p)
+    begin(g, c, p, 0)
     for i in 0..bodies.len() {
         function(g, c, p, &bodies[i])
     }
     thunks(g, c, p)
     mutGlobals(g, c, p)
     vtables(g, c, p)
+    noDrop(g)
     g.module.push(runtimeDecls())
     if g.formats {
         g.module.push("declare void @ofir_str_push_fixed(ptr, double, i64) nounwind\n")
@@ -2167,4 +2239,215 @@ pub fn generate(c: mut Checker, p: Program, bodies: &List<AirBody>, debug: bool,
         g.module.push(g.di.finish(root))
     }
     return g.module
+}
+
+// ---------------------------------------------------------------------------
+// Codegen units (ADR 0033)
+
+/** A codegen unit: the code of one module, compiled to an object of its own. */
+pub struct Unit {
+    /** The module. */
+    pub module: int
+    /** The unit's LLVM IR. */
+    pub text: str
+}
+
+// A unit as generated, before the linkage of its functions is known.
+struct Draft {
+    module: int
+    parts: List<str>
+    links: List<int>
+    tail: str
+    externs: List<int>
+}
+
+// What the units share while they are generated.
+struct Shared {
+    /** The body of each function name. */
+    names: Map<str, int>
+    /** By body: the module that owns it, or -1 for a `linkonce_odr` one. */
+    owner: List<int>
+    /** By body: its `declare`, once its unit generated it. */
+    declares: List<str>
+    /** By body: whether another unit calls it. */
+    exported: List<bool>
+}
+
+// The name a body defines, as `genBody` writes it.
+fn bodyName(c: mut Checker, p: Program, body: &AirBody) str {
+    if const Option.Some(info) = body.closure {
+        const name = closureName(c, p, body.def, body.targs, info.id)
+        return if info.drop { dropName(name) } else { name }
+    }
+    return functionName(c, p, body.def, body.targs, body.isMain)
+}
+
+// A function of a module belongs to its unit; glue and the instances of
+// generics are copied into each unit that uses them.
+fn bodyOwner(c: Checker, body: &AirBody) int {
+    if body.isMain {
+        return 0
+    }
+    if isGlue(body.def) || body.targs != UNIT {
+        return -1
+    }
+    return c.def(body.def).module
+}
+
+fn symbolByte(b: u8) bool {
+    const letter = (b >= b'a' && b <= b'z') || (b >= b'A' && b <= b'Z')
+    return letter || (b >= b'0' && b <= b'9') || b == b'_' || b == b'.' || b == b'$'
+}
+
+// The bodies whose names `text` refers to.
+fn references(text: str, names: &Map<str, int>, found: mut List<int>) {
+    let i = 0
+    for i < text.len() {
+        if text[i] != b'@' {
+            i += 1
+            continue
+        }
+        let end = i + 1
+        if end < text.len() && text[end] == b'"' {
+            end += 1
+            for end < text.len() && text[end] != b'"' {
+                end += 1
+            }
+            end = if end < text.len() { end + 1 } else { end }
+        } else {
+            for end < text.len() && symbolByte(text[end]) {
+                end += 1
+            }
+        }
+        if const Option.Some(j) = names.get(text.slice(i, end)) {
+            found.push(*j)
+        }
+        i = end
+    }
+}
+
+// Generates the unit of `module`: its functions, then each instance or glue
+// they use, until no new one is used.
+fn draft(c: mut Checker, p: Program, bodies: &List<AirBody>, module: int, s: mut Shared,
+         debug: bool, optimize: bool) Draft {
+    let g = newGen()
+    g.units = true
+    g.debug = debug
+    g.optimize = optimize
+    let root = 0
+    if debug {
+        escapedBytes(g.dir, os.currentDir().ok() ?? "")
+        root = debugFile(g, c, p.modules[module].module.file)
+    }
+    begin(g, c, p, module)
+    let queue: List<int> = []
+    let inUnit = List.filled(false, bodies.len())
+    let isExtern = List.filled(false, bodies.len())
+    let externs: List<int> = []
+    for i in 0..bodies.len() {
+        if s.owner[i] == module {
+            queue.push(i)
+            inUnit[i] = true
+        }
+    }
+    let next = 0
+    for next < queue.len() {
+        let found: List<int> = []
+        for next < queue.len() {
+            const i = queue[next]
+            next += 1
+            g.body = i
+            g.linkonce = s.owner[i] < 0
+            function(g, c, p, &bodies[i])
+            if s.owner[i] >= 0 {
+                s.declares[i] = g.declare.clone()
+            }
+            references(g.out, &s.names, found)
+        }
+        const mark = g.module.len()
+        thunks(g, c, p)
+        vtables(g, c, p)
+        references(g.module.sliceFrom(mark), &s.names, found)
+        for k in 0..found.len() {
+            const j = found[k]
+            if s.owner[j] < 0 && !inUnit[j] {
+                inUnit[j] = true
+                queue.push(j)
+            } else if s.owner[j] >= 0 && s.owner[j] != module && !isExtern[j] {
+                isExtern[j] = true
+                externs.push(j)
+                s.exported[j] = true
+            }
+        }
+    }
+    noDrop(g)
+    mutGlobals(g, c, p)
+    g.module.push(runtimeDecls())
+    if g.formats {
+        g.module.push("declare void @ofir_str_push_fixed(ptr, double, i64) nounwind\n")
+        g.module.push("declare void @ofir_str_push_radix(ptr, i64, i64) nounwind\n")
+        g.module.push("declare void @ofir_str_push_padded(ptr, ptr, i64) nounwind\n")
+        g.module.push("declare void @ofir_str_push_debug(ptr, ptr) nounwind\n")
+    }
+    overflowDecls(g)
+    floatDecls(g)
+    cDecls(g, c, p)
+    g.module.push("\n")
+    g.module.push(g.globals)
+    if debug {
+        g.module.push("\n")
+        g.module.push(g.di.finish(root))
+    }
+    return Draft{module: module, parts: g.parts, links: g.links, tail: g.module,
+                 externs: externs}
+}
+
+/**
+ * The codegen units of the lowered bodies (ADR 0033): one for each module
+ * that has functions. A function called from another unit is `hidden`, the
+ * others are `internal`; glue and instances are `linkonce_odr hidden` in
+ * each unit that uses them.
+ *
+ * @param c the checker
+ * @param p the program
+ * @param bodies the bodies, in the order the lowering reached them
+ * @param debug `-g`: with debug info
+ * @param optimize `--release`
+ * @returns the units, by module
+ */
+pub fn generateUnits(c: mut Checker, p: Program, bodies: &List<AirBody>, debug: bool,
+                     optimize: bool) List<Unit> {
+    let s = Shared{names: Map.new(), owner: [], declares: [], exported: []}
+    let owns = List.filled(false, p.modules.len())
+    for i in 0..bodies.len() {
+        s.names.insert(bodyName(c, p, &bodies[i]), i)
+        const owner = bodyOwner(c, &bodies[i])
+        s.owner.push(owner)
+        s.declares.push("")
+        s.exported.push(false)
+        if owner >= 0 {
+            owns[owner] = true
+        }
+    }
+    let drafts: List<Draft> = []
+    for m in 0..p.modules.len() {
+        if owns[m] {
+            drafts.push(draft(c, p, bodies, m, s, debug, optimize))
+        }
+    }
+    let units: List<Unit> = []
+    for u in 0..drafts.len() {
+        const d = &drafts[u]
+        let text = ""
+        for k in 0..d.parts.len() {
+            text.push(d.parts[k])
+            text.push(if s.exported[d.links[k]] { "hidden " } else { "internal " })
+        }
+        text.push(d.tail)
+        for k in 0..d.externs.len() {
+            text.push(s.declares[d.externs[k]])
+        }
+        units.push(Unit{module: d.module, text: text})
+    }
+    return units
 }

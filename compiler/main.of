@@ -17,6 +17,7 @@ import air.lower.lowerProgram
 import base.intern.Interner
 import base.span.SourceMap
 import codegen.llvm.generate
+import codegen.llvm.generateUnits
 import diag.Diagnostics
 import diag.Format
 import diag.Severity
@@ -69,6 +70,7 @@ fn printUsage() {
              + "  --emit=air                print the intermediate representation and stop\n"
              + "  --emit=llvm               write <output>.ll and stop\n"
              + "  --release                 optimize the program\n"
+             + "  --codegen-units=1         compile the program as one LLVM module\n"
              + "  -g                        write debug info (DWARF: functions, lines)\n"
              + "  --deny-warnings           treat warnings as errors\n"
              + "  --locked                  fail instead of changing ofir.lock (also fetch)\n"
@@ -102,6 +104,8 @@ struct Options {
     locked: bool
     /** `--offline`. */
     offline: bool
+    /** `--codegen-units=1`: one LLVM module instead of one for each module. */
+    oneUnit: bool
     /** `--message-format=human`, `short` or `json`. */
     format: Format
 }
@@ -109,7 +113,7 @@ struct Options {
 fn parseOptions(args: &List<str>) Option<Options> {
     let opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
                        stopAfter: "", release: false, debugInfo: false, deny: false,
-                       locked: false, offline: false, format: Format.Human}
+                       locked: false, offline: false, oneUnit: false, format: Format.Human}
     let hasInput = false
     let i = 2
     for i < args.len() {
@@ -126,6 +130,8 @@ fn parseOptions(args: &List<str>) Option<Options> {
                 opts.locked = true
             } else if arg == "--offline" {
                 opts.offline = true
+            } else if arg == "--codegen-units=1" {
+                opts.oneUnit = true
             } else if arg == "--release" {
                 opts.release = true
             } else if arg == "-g" {
@@ -358,24 +364,46 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
         return true
     }
     const exe = outputPath(&opts)
-    const ll = "{exe}.ll"
-    if fs.writeString(ll, generate(c, program, &l.out, opts.debugInfo, opts.release)).isErr() {
-        driverError(opts.format, "E0902", "cannot write `{ll}`")
-        return false
+    let files: List<str> = []
+    if opts.emit == "llvm" || opts.oneUnit {
+        const ll = "{exe}.ll"
+        files.push(ll.clone())
+        const text = generate(c, program, &l.out, opts.debugInfo, opts.release)
+        if fs.writeString(ll, text).isErr() {
+            driverError(opts.format, "E0902", "cannot write `{ll}`")
+            return false
+        }
+    } else {   // a module for each codegen unit (ADR 0033)
+        const units = generateUnits(c, program, &l.out, opts.debugInfo, opts.release)
+        for k in 0..units.len() {
+            const ll = "{exe}.{k}.ll"
+            files.push(ll.clone())
+            if fs.writeString(ll, units[k].text).isErr() {
+                driverError(opts.format, "E0902", "cannot write `{ll}`")
+                removeFiles(&files)
+                return false
+            }
+        }
     }
     if c.r.diags.hasErrors() {   // the lowering reported errors
-        const _ = fs.removeFile(ll)
+        removeFiles(&files)
         return true
     }
     if opts.emit == "llvm" {
         return true
     }
-    const linked = link(&opts, ll, exe.clone(), linkLibraries(c.r, program))
-    const _ = fs.removeFile(ll)
+    const linked = link(&opts, &files, exe.clone(), linkLibraries(c.r, program))
+    removeFiles(&files)
     if linked {
         pipeline.exe = exe
     }
     return linked
+}
+
+fn removeFiles(files: &List<str>) {
+    for i in 0..files.len() {
+        const _ = fs.removeFile(files[i])
+    }
 }
 
 // The executable: `-o`, the input's name without `.of`, or for `run` and
@@ -458,10 +486,10 @@ fn runtimeLibrary() Option<str> {
     return Option.None
 }
 
-// clang compiles the module and links it with the runtime and the
-// `@link` libraries. The module has no target triple: clang uses its
+// clang compiles the modules and links them with the runtime and the
+// `@link` libraries. The modules have no target triple: clang uses its
 // default target.
-fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
+fn link(opts: &Options, files: &List<str>, exe: str, libraries: List<str>) bool {
     const Option.Some(runtime) = runtimeLibrary() else {
         const message = "cannot find the runtime library libofir_rt.a (set OFIR_RUNTIME)"
         driverError(opts.format, "E0902", message)
@@ -474,7 +502,11 @@ fn link(opts: &Options, ll: str, exe: str, libraries: List<str>) bool {
         }
     }
     const level = if opts.release { "-O2" } else { "-O0" }
-    let args = [level.toOwned(), "-Wno-override-module".toOwned(), ll.toOwned(), runtime]
+    let args = [level.toOwned(), "-Wno-override-module".toOwned()]
+    for i in 0..files.len() {
+        args.push(files[i].clone())
+    }
+    args.push(runtime)
     for i in 0..libraries.len() {
         args.push("-l{libraries[i]}")
     }
