@@ -59,6 +59,8 @@ map` visits the entries.
 | Method | Description | S0 |
 |--------|-------------|:--:|
 | `fn new() Map<K, V>` | | ✓ |
+| `fn seeded() Map<K, V>` | hash keyed by a random seed (ADR 0034) | ✓ |
+| `fn withSeed(seed: u64) Map<K, V>` | hash keyed by `seed` | ✓ |
 | `fn len(self) int` | | ✓ |
 | `fn insert(mut self, k: move K, v: move V) Option<V>` | returns the previous value | ✓ |
 | `fn get(self, k: K) Option<&V>` | | ✓ |
