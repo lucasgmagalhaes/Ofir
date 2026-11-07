@@ -18,13 +18,15 @@
  * @typeParam E the type of the error
  * @example
  * ```ofir
- * fn parsePort(s: str) Result<u16, str> {
- *     const n = parseInt(s)?          // returns the error to the caller
+ * fn parsePort(s: str) Result<u16, ParseError> {
+ *     const n = i64.parse(s)?          // returns the error to the caller
  *     if n < 1 || n > 65535 {
- *         return Err("port out of range: {n}")
+ *         return Result.Err(ParseError{})
  *     }
- *     return Ok(n as u16)
+ *     return Result.Ok(n as u16)
  * }
+ *
+ * assert(parsePort("8080").unwrapOr(0) == 8080)
  * ```
  */
 @lang("result")
@@ -76,8 +78,10 @@ pub enum Result<T, E> {
      * @returns the value of `Ok`
      * @panics on `Err`, with `message`
      * @example
-     * ```ofir
-     * const text = readFile("config.toml").expect("the config file exists")
+     * ```ofir no_run
+     * import std.fs
+     *
+     * const text = fs.readToString("config.toml").expect("the config file exists")
      * ```
      */
     pub fn expect(move self, message: str) T {
@@ -94,7 +98,7 @@ pub enum Result<T, E> {
      * @returns the value of `Ok`, else `fallback`
      * @example
      * ```ofir
-     * const n = parseInt("x").unwrapOr(0)   // 0
+     * assert(i64.parse("x").unwrapOr(0) == 0)
      * ```
      */
     pub fn unwrapOr(move self, fallback: move T) T {

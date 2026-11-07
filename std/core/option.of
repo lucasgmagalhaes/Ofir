@@ -19,10 +19,10 @@
  * fn find(names: List<str>, wanted: str) Option<int> {
  *     for i in 0..names.len() {
  *         if names[i] == wanted {
- *             return Some(i)
+ *             return Option.Some(i)
  *         }
  *     }
- *     return None
+ *     return Option.None
  * }
  *
  * const index = find(["ana", "bob"], "bob") ?? -1   // 1
@@ -64,7 +64,7 @@ pub enum Option<T> {
      * @panics on `None`, with "called `unwrap` on a `None` value"
      * @example
      * ```ofir
-     * assert(Some(4).unwrap() == 4)
+     * assert(Option.Some(4).unwrap() == 4)
      * ```
      */
     pub fn unwrap(move self) T {
@@ -82,6 +82,8 @@ pub enum Option<T> {
      * @panics on `None`, with `message`
      * @example
      * ```ofir
+     * let config = Map<str, str>.new()
+     * config.insert("port".toOwned(), "8080".toOwned())
      * const port = config.get("port").expect("the config has a port")
      * ```
      */
@@ -100,7 +102,7 @@ pub enum Option<T> {
      * @returns the content of `Some`, else `fallback`
      * @example
      * ```ofir
-     * const none: Option<int> = None
+     * const none: Option<int> = Option.None
      * assert(none.unwrapOr(8080) == 8080)
      * ```
      */
@@ -117,7 +119,7 @@ pub enum Option<T> {
      * @returns the previous value: `Some` with the content, or `None`
      * @example
      * ```ofir
-     * let slot = Some("token")
+     * let slot = Option.Some("token")
      * const taken = slot.take()   // Some("token"); slot is now None
      * ```
      */
@@ -136,7 +138,14 @@ pub enum Option<T> {
      * @returns `Ok` with the content of `Some`, else `Err(error)`
      * @example
      * ```ofir
-     * const user = findUser(id).okOr("no such user")?
+     * fn findUser(id: int) Option<str> {
+     *     return if id == 1 { Option.Some("ada".toOwned()) } else { Option.None }
+     * }
+     *
+     * fn userName(id: int) Result<str, str> {
+     *     const user = findUser(id).okOr("no such user".toOwned())?
+     *     return Result.Ok(user)
+     * }
      * ```
      */
     pub fn okOr<E>(move self, error: move E) Result<T, E> {
