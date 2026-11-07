@@ -30,7 +30,10 @@ pub copy enum TyKind {
     Ptr
     /** `[T]` */
     Slice
-    /** `[T; N]`; `data` is the length. */
+    /**
+     * `[T; N]`; `data` is the length, or -1 when it is a const parameter,
+     * then the only one of `args`.
+     */
     Array
     /** `(A, B)` */
     Tuple
@@ -58,6 +61,8 @@ pub copy enum TyKind {
     KeyOf
     /** `T[K]` of types with a parameter, resolved by `subst`; `inner` is `T`, `args` `[K]`. */
     Index
+    /** The argument of a const parameter (spec 8.7); `data` is the integer. */
+    Value
 }
 
 /**
@@ -410,6 +415,16 @@ pub struct TypeTable {
     }
 
     /**
+     * The argument `n` of a const parameter (spec 8.7).
+     *
+     * @param n the integer
+     * @returns its type
+     */
+    pub fn value(mut self, n: int) int {
+        return self.intern(TyKind.Value, n, 0, [])
+    }
+
+    /**
      * `ty` with each type parameter `i` replaced by `args[i]` (spec 8.6).
      *
      * @param ty a type
@@ -439,6 +454,12 @@ pub struct TypeTable {
         }
         if kind == TyKind.Index && !self.types[inner].hasParam && !self.types[items[0]].hasParam {
             return self.indexFields(inner, items[0])
+        }
+        if kind == TyKind.Array && items.len() == 1 && self.types[items[0]].kind == TyKind.Value {
+            return self.intern(kind, self.types[items[0]].data, inner, [])   // `[T; N]`
+        }
+        if kind == TyKind.Array && items.len() == 1 && !self.types[items[0]].hasParam {
+            return ERROR   // a type given for `N`: E0362
         }
         return self.intern(kind, data, inner, items)
     }
@@ -687,6 +708,7 @@ pub fn kindNumber(kind: TyKind) int {
         TyKind.Key => 16
         TyKind.KeyOf => 17
         TyKind.Index => 18
+        TyKind.Value => 19
     }
 }
 
