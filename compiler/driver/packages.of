@@ -5,7 +5,8 @@
  * project whose `build.kind` is `"lib"`; its modules are found from the
  * directory of its `build.root` file. A `path` dependency is that
  * directory; a `git` one is the checkout of the version `driver.resolve`
- * chose, recorded in `ofir.lock`. Registry dependencies are E0901.
+ * chose, recorded in `ofir.lock`; a registry one (a version requirement)
+ * is the archive of the version it chose, extracted.
  *
  * Each package has one name in the program, the prefix of its modules
  * (`json.parser`): the key it is first reached by, made unique if it is
@@ -19,13 +20,17 @@ import diag.Diagnostics
 import driver.lock.Locked
 import driver.lock.lockMatches
 import driver.lock.readLock
+import driver.lock.sourceOf
 import driver.lock.writeLock
 import driver.resolve.Mode
 import driver.resolve.Resolution
 import driver.resolve.failureOf
 import driver.resolve.gitUrl
 import driver.resolve.pinOf
+import driver.resolve.registrySource
+import driver.resolve.registryVersion
 import driver.resolve.resolve
+import driver.registry.defaultIndex
 import driver.semver.parseRequirement
 import lsp.json.JsonDoc
 import lsp.json.JsonKind
@@ -122,7 +127,8 @@ pub fn readPackages(rootDir: str, hasManifest: bool, mode: &Mode, map: mut Sourc
         let locked: List<Locked> = []
         for i in 0..r.pins.len() {
             const pin = &r.pins[i]
-            locked.push(Locked{name: pin.name.clone(), git: pin.url.clone(),
+            const git = if pin.registry.len() > 0 { "" } else { pin.url.clone() }
+            locked.push(Locked{name: pin.name.clone(), git, registry: pin.registry.clone(),
                                version: pin.version.clone(), rev: pin.rev.clone(),
                                commit: pin.commit.clone(), checksum: pin.checksum.clone()})
         }
@@ -168,13 +174,13 @@ fn staleLock(rootDir: str, packages: &List<Locked>, map: mut SourceMap, diags: m
         const p = &packages[i]
         let found = -1
         for k in 0..old.len() {
-            if old[k].git == p.git {
+            if sourceOf(&old[k]) == sourceOf(p) {
                 found = k
             }
         }
         if found < 0 {
             diags.note("`{p.name}` is not in it")
-        } else if old[found].commit != p.commit {
+        } else if old[found].commit != p.commit || old[found].version != p.version {
             diags.note("`{p.name}` would move from {lockedText(&old[found])} to {lockedText(p)}")
         } else if old[found].checksum != p.checksum {
             diags.note("`{p.name}` has no checksum in it")
@@ -183,7 +189,7 @@ fn staleLock(rootDir: str, packages: &List<Locked>, map: mut SourceMap, diags: m
     for k in 0..old.len() {
         let used = false
         for i in 0..packages.len() {
-            if packages[i].git == old[k].git {
+            if sourceOf(&packages[i]) == sourceOf(&old[k]) {
                 used = true
             }
         }
@@ -193,8 +199,11 @@ fn staleLock(rootDir: str, packages: &List<Locked>, map: mut SourceMap, diags: m
     }
 }
 
-// A locked package as `1.2.0 (0123456789ab)`.
+// A locked package as `1.2.0 (0123456789ab)`, or `1.2.0` from the registry.
 fn lockedText(p: &Locked) str {
+    if p.commit.len() == 0 {
+        return p.version.clone()
+    }
     const what = if p.version.len() > 0 { p.version.clone() } else { p.rev.clone() }
     const n = if p.commit.len() < 12 { p.commit.len() } else { 12 }
     return "{what} ({p.commit.slice(0, n)})"
@@ -309,9 +318,11 @@ fn dependencyTarget(packages: mut List<Package>, p: int, doc: &JsonDoc, file: Fi
                     diags: mut Diagnostics) int {
     const key = doc.nodes[member].key.clone()
     const at = spanOf(doc, file, member)
-    if doc.nodes[member].kind == JsonKind.String {
-        diags.error("E0901", at, "registry dependencies are not supported yet")
-        return -1
+    if registryVersion(doc, member).len() > 0 {
+        const Option.Some(dir) = registryTarget(doc, file, member, r, reported, diags) else {
+            return -1
+        }
+        return packageAt(packages, dir, key, at, map, diags)
     }
     if doc.nodes[member].kind != JsonKind.Object {
         diags.error("E0910", at, "the dependency `{key}` must be a version or an object")
@@ -383,6 +394,30 @@ fn gitTarget(doc: &JsonDoc, file: FileId, member: int, base: str, r: &Resolution
         return Option.None
     }
     const url = gitUrl(doc.nodes[gitNode].text, base)
+    return pinnedDir(doc, file, member, url, r, reported, diags)
+}
+
+// The directory that the registry dependency `member` was resolved to.
+fn registryTarget(doc: &JsonDoc, file: FileId, member: int, r: &Resolution,
+                  reported: mut List<str>, diags: mut Diagnostics) Option<str> {
+    const key = doc.nodes[member].key.clone()
+    const node = if doc.nodes[member].kind == JsonKind.String {
+        member
+    } else {
+        doc.field(member, "version")
+    }
+    const text = doc.nodes[node].text.clone()
+    if parseRequirement(text).isNone() {
+        diags.error("E0910", spanOf(doc, file, node), "`{text}` is not a version requirement")
+        diags.note("a requirement is `^1.2.3`, `~1.2.3`, `=1.2.3`, `>=1.2.3` or `*`")
+        return Option.None
+    }
+    return pinnedDir(doc, file, member, registrySource(defaultIndex(), key), r, reported, diags)
+}
+
+// The directory of the pin of `url`, or its failure reported once, at `member`.
+fn pinnedDir(doc: &JsonDoc, file: FileId, member: int, url: str, r: &Resolution,
+             reported: mut List<str>, diags: mut Diagnostics) Option<str> {
     const pin = pinOf(r, url)
     if pin >= 0 {
         return Option.Some(r.pins[pin].dir.clone())
