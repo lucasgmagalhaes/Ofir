@@ -8,6 +8,10 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Codegen units in stage 1: a program is compiled as one LLVM module per
+  Ofir module, with `hidden` and `linkonce_odr` linkage between them;
+  `--codegen-units=1` keeps one module, and `--emit=llvm` is unchanged
+  (roadmap 6.6c, ADR 0033).
 - `os.spawn` starts a program without waiting for it, `Child.wait` waits
   for it, and `os.cpuCount` counts the processors; `os.run` is `spawn`
   followed by `wait`, and the output of a program goes to temporary files
