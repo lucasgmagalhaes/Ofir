@@ -147,7 +147,8 @@ fn inTypeArgs(kind: TokenKind) bool {
         TokenKind.Ident | TokenKind.Comma | TokenKind.Amp | TokenKind.Mut | TokenKind.LBracket |
         TokenKind.RBracket | TokenKind.LParen | TokenKind.RParen => true
         TokenKind.Question | TokenKind.Star | TokenKind.Semicolon | TokenKind.Int | TokenKind.Fn |
-        TokenKind.Dyn | TokenKind.SelfType | TokenKind.Bang | TokenKind.Dot | TokenKind.Pipe => true
+        TokenKind.Dyn | TokenKind.SelfType | TokenKind.Bang | TokenKind.Dot | TokenKind.Pipe |
+        TokenKind.Minus | TokenKind.Const => true
         _ => false
     }
 }

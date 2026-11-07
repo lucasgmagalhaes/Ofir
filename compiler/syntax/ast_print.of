@@ -368,7 +368,8 @@ struct Printer {
 
     fn bounds(mut self, preds: &List<WherePred>, names: Interner) {
         for i in 0..preds.len() {
-            let text = "bound {typeText(&preds[i].ty, names)}:"
+            const prefix = if preds[i].isConst { "const " } else { "" }
+            let text = "bound {prefix}{typeText(&preds[i].ty, names)}:"
             for j in 0..preds[i].bounds.len() {
                 text.push(if j > 0 { " + " } else { " " })
                 text.push(typeText(&preds[i].bounds[j], names))

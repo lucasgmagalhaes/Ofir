@@ -34,6 +34,7 @@ import syntax.ast.ItemKind
 import syntax.ast.Mode
 import syntax.ast.TypeExpr
 import syntax.ast.TypeKind
+import syntax.ast.WherePred
 
 /**
  * What the resolver found in one module, by `NodeId`.
@@ -102,6 +103,8 @@ pub struct Resolver {
     pub locals: List<Local>
     /** The name of the struct or enum whose methods are resolved. */
     pub owner: Option<Symbol>
+    /** The const parameters in scope: the type's, then the function's (spec 8.7). */
+    pub constParams: List<Symbol>
     /** The `@deprecated` declarations, by def id: their message, or "". */
     pub deprecated: Map<int, str>
     /** `self` */
@@ -320,8 +323,8 @@ fn newResolver(program: Program, given: move Interner, diags: move Diagnostics,
     return Resolver{defs, scope, tables, langItems: List.filled(0, 8),
                     lang: List.filled(0, PRIMITIVE_TYPES), names, diags, map,
                     trace: Trace.new(trace), moduleNames, current: 0, moduleName: "", locals: [],
-                    owner: Option.None, deprecated: Map.new(), selfName, testing: false,
-                    benching: false,
+                    owner: Option.None, constParams: [], deprecated: Map.new(), selfName,
+                    testing: false, benching: false,
                     imports: [], closureBases: [], closureCaptures: []}
 }
 
@@ -592,14 +595,35 @@ fn namedSlot(r: mut Resolver, item: &Item, index: int) {
 // ---------------------------------------------------------------------------
 // Passes
 
+/**
+ * The names of the const parameters among bounds: `N` of `const N: int`
+ * (spec 8.7).
+ *
+ * @param preds the bounds
+ * @returns the names
+ */
+pub fn constParamsOf(preds: &List<WherePred>) List<Symbol> {
+    let names: List<Symbol> = []
+    for i in 0..preds.len() {
+        if preds[i].isConst {
+            if const TypeKind.Path(segments, _) = preds[i].ty.kind {
+                names.push(segments[0])
+            }
+        }
+    }
+    return names
+}
+
 fn resolveItem(r: mut Resolver, item: &Item) {
     match item.kind {
         ItemKind.Fn(decl) => resolveFn(r, &*decl)
         ItemKind.Struct(_, _, _, _, fields, methods) => {
             r.owner = Option.Some(item.name)
+            r.constParams = constParamsOf(&item.bounds)
             for i in 0..methods.len() {
                 resolveFn(r, &methods[i])
             }
+            r.constParams = []
             r.owner = Option.None
             for i in 0..fields.len() {
                 if const Option.Some(value) = fields[i].defaultValue {
@@ -609,9 +633,11 @@ fn resolveItem(r: mut Resolver, item: &Item) {
         }
         ItemKind.Enum(_, _, _, methods) | ItemKind.Interface(_, _, methods) => {
             r.owner = Option.Some(item.name)
+            r.constParams = constParamsOf(&item.bounds)
             for i in 0..methods.len() {
                 resolveFn(r, &methods[i])
             }
+            r.constParams = []
             r.owner = Option.None
         }
         ItemKind.Const(_, value) => resolveExpr(r, &value)

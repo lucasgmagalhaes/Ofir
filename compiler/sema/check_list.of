@@ -104,12 +104,19 @@ pub fn requireCopy(c: mut Checker, p: Program, span: Span, ty: int, what: str) {
 pub fn checkListLiteral(c: mut Checker, p: Program, e: &Expr, items: &List<Expr>,
                         expected: int) int {
     if c.types.kind(expected) == TyKind.Array {   // `[a, b]` as a `[T; N]` (spec 2.7)
-        const elem = c.types.get(expected).inner
+        let elem = c.types.get(expected).inner
+        let ty = expected
         for i in 0..items.len() {
-            coerce(c, p, &items[i], elem)
+            if elem == ERROR {   // a generic `[T; N]` (spec 8.7): `T` from the first element
+                elem = checkExpr(c, p, &items[i], ERROR)
+                const len = c.types.get(expected).data
+                ty = c.types.intern(TyKind.Array, len, elem, [])
+            } else {
+                coerce(c, p, &items[i], elem)
+            }
         }
-        arrayElements(c, p, e.span, expected, items.len())
-        return expected
+        arrayElements(c, p, e.span, ty, items.len())
+        return ty
     }
     if c.r.langItems[1] == 0 {
         return c.unsupported(e.span, "list literals without the standard library are")

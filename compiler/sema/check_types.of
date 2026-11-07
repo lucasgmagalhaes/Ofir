@@ -6,6 +6,7 @@
 
 import base.intern.Symbol
 import base.span.Span
+import sema.check.BOUND_CONST
 import sema.check.Checker
 import sema.check.fnGenericsIn
 import sema.check.interfaceOf
@@ -27,6 +28,7 @@ import sema.check_mapped.checkAliasBounds
 import sema.check_mapped.mappedType
 import sema.check_ref.checkInstanceStorable
 import sema.def.DefKind
+import sema.expr_check.checkConst
 import sema.def.Res
 import sema.interfaces.dynIncompatible
 import sema.program.Program
@@ -36,6 +38,7 @@ import sema.types.ERROR
 import sema.types.FN_BORROWED
 import sema.types.FN_OWNED
 import sema.types.FN_SEND
+import sema.types.I64
 import sema.types.NEVER
 import sema.types.STR
 import sema.types.TyKind
@@ -194,8 +197,14 @@ pub fn adtInstance(c: mut Checker, p: Program, id: int, args: [int], span: Span)
     return ty
 }
 
-// The type parameter named `name`, if it is in scope.
-fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
+/**
+ * The type parameter named `name`, if it is in scope.
+ *
+ * @param c the checker
+ * @param name its name
+ * @returns its type
+ */
+pub fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
     let bound = c.typeVars.len()
     for bound > 0 {   // the innermost first
         bound -= 1
@@ -215,6 +224,63 @@ fn typeParameter(c: mut Checker, name: Symbol) Option<int> {
         }
     }
     return Option.None
+}
+
+// `SIZE`, a `const` item of type `int`, as the argument of a const
+// parameter (spec 8.7).
+fn constArg(c: mut Checker, p: Program, id: int, span: Span) int {
+    const ty = checkConst(c, p, id)
+    if ty == ERROR {
+        return ERROR
+    }
+    if ty != I64 {
+        c.error("E0362", span, "the constant `{c.text(c.def(id).name)}` is of type "
+                + "`{c.typeName(ty)}`: const arguments are of type `int` (spec 8.7)")
+        return ERROR
+    }
+    return match c.info[id].value {
+        Option.Some(v) => c.types.value(v.bits.wrappingCast<i64>())
+        Option.None => ERROR
+    }
+}
+
+// `[T; N]` with a const parameter or a `const` item as its length (spec 8.7).
+fn namedLength(c: mut Checker, p: Program, name: Symbol, item: int, span: Span) int {
+    let len = ERROR
+    if const Option.Some(param) = typeParameter(c, name) {
+        len = param
+    } else {
+        const path = [name]
+        const id = pathTarget(c, &path, span)
+        if id != 0 && c.def(id).kind == DefKind.Const {
+            len = constArg(c, p, id, span)
+        } else if id != 0 {
+            c.error("E0362", span, "`{c.text(name)}` is not a constant: an array length is an "
+                    + "integer constant or a const parameter (spec 8.7)")
+            return ERROR
+        } else {
+            c.error("E0200", span, "cannot find `{c.text(name)}` in this scope")
+            return ERROR
+        }
+    }
+    const t = c.types.get(len)
+    if t.kind == TyKind.Value {
+        if t.data < 0 {
+            c.error("E0362", span, "an array length cannot be negative: found {t.data}")
+            return ERROR
+        }
+        return c.types.intern(TyKind.Array, t.data, item, [])
+    }
+    const isConst = t.kind == TyKind.Param && t.data < c.generics.bounds.len() &&
+                    c.generics.bounds[t.data] & BOUND_CONST != 0
+    if !isConst {
+        if len != ERROR {
+            c.error("E0362", span, "`{c.text(name)}` is a type: an array length is an integer "
+                    + "constant or a const parameter (spec 8.7)")
+        }
+        return ERROR
+    }
+    return c.types.intern(TyKind.Array, -1, item, [len])
 }
 
 fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: Span) int {
@@ -238,6 +304,7 @@ fn namedType(c: mut Checker, p: Program, id: int, args: &List<TypeExpr>, span: S
             }
             adtInstance(c, p, id, types, span)
         }
+        DefKind.Const => constArg(c, p, id, span)
         DefKind.Interface => {
             const name = c.text(c.def(id).name)
             c.error("E0356", span, "`{name}` is an interface: only a parameter type can name it "
@@ -408,6 +475,7 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
                     }
                     c.types.intern(TyKind.Array, n as int, item, [])
                 }
+                ExprKind.Ident(name) => namedLength(c, p, name, item, len.span)
                 _ => c.unsupported(len.span, "array lengths other than integer literals are")
             }
         }
@@ -451,6 +519,7 @@ pub fn resolveType(c: mut Checker, p: Program, t: &TypeExpr) int {
         TypeKind.Cond(test, then, otherwise) => condType(c, p, &*test, &*then, &*otherwise)
         TypeKind.Infer(name) => inferType(c, name, t.span)
         TypeKind.Bool(value) => boolType(c, value)
+        TypeKind.Const(value) => c.types.value(value)
     }
 }
 

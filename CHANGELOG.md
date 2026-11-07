@@ -8,6 +8,9 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Const generics in stage 1: `const N: int` parameters, used as values
+  and as array lengths (`[T; N]`), given as `Buffer<u8, 4>` or inferred
+  from an array's length (spec 8.7; E0361, E0362).
 - Seeded maps: `Map.seeded()` keys the hash with a random seed from the
   operating system and `Map.withSeed(seed)` with a given one, against
   hash flooding (ADR 0034). String keys now hash with SipHash-1-3.

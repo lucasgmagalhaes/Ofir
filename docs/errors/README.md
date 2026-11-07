@@ -133,6 +133,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0358 | a parameter without a default follows one with a default (spec 3.3) | stage 1 |
 | E0359 | a default value must be a constant expression, `[]` or a call to an associated function without arguments (spec 3.3) | stage 1 |
 | E0360 | the closure captures a value that is not `Send` (a `move` closure) or not `Sync` (a borrowing one), so it cannot be a `+ Send` function (spec 14.3) | stage 1 |
+| E0361 | the type of a const parameter is not `int` (spec 8.7) | stage 1 |
+| E0362 | a type where a constant is expected, or a constant where a type is expected (spec 8.7) | stage 1 |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0501 | refutable pattern in `const` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
