@@ -13,7 +13,7 @@ A single executable provides every tool:
 | `ofir test [filter]` | build and run `@test` functions and doc tests |
 | `ofir bench [filter]` | build with optimizations and run `@bench` functions |
 | `ofir fmt [--check] [--stdout] [paths]` | format source files (below) |
-| `ofir doc` | generate HTML documentation **[planned]** |
+| `ofir doc [-o dir] [--stdout] [paths]` | generate HTML documentation (below) |
 | `ofir explain <code>` | describe an error code |
 | `ofir lsp` | run the language server on standard input and output (below) |
 | `ofir version` | print version and LLVM/clang versions in use |
@@ -188,6 +188,41 @@ only:
 A file that does not lex or parse is reported and left as it is, and before
 a file is written the formatter checks that its tokens are unchanged but
 for the added commas.
+
+### `ofir doc`
+
+`ofir doc` (stage 1) writes HTML documentation from the documentation
+comments (spec 12.5, ADR 0020) of the `.of` files of the paths it is given:
+files, or directories read recursively without their hidden entries and
+without the `_test.of` files. By default it reads `src` when that is a
+directory, the current directory otherwise. The code is in `compiler/doc`.
+
+Each file is a module, named by its path from the directory given (`/`
+becomes `.`, and `index.of` names its directory): `net/http.of` is
+`net.http`. A file given by itself is named after its stem. The pages go to
+`build/doc` (`-o dir` chooses another directory): one `<module>.html` per
+module and an `index.html` that lists the modules with the first paragraph
+of each module comment. `--stdout` writes nothing: it prints the page of
+each module instead.
+
+A page holds the module comment, then the public declarations in the order
+of the file, each with an anchor named after it (`#parse`, `#Point.x`): its
+signature as written, without its attributes and body, on one line, and its
+comment. A struct lists its public fields and methods, an enum its variants
+and public methods, an interface its methods. Private declarations, imports
+and `extern` blocks are left out; a public declaration without a comment is
+listed all the same.
+
+A comment's text is Markdown, of which `ofir doc` renders paragraphs
+(separated by blank lines), `-` lists, fenced code blocks and `` `code` ``
+spans; anything else is text. A line that starts with a tag starts a section,
+which runs up to the next line that starts with a tag:
+`@typeParam` and `@param` become lists of names and descriptions,
+`@returns`, `@panics`, `@safety`, `@example` and `@see` titled paragraphs,
+and `@deprecated` a note before the text.
+
+A file that does not lex or parse is reported and left out; the exit status
+is then 1.
 
 ### `ofir lsp`
 
