@@ -1,0 +1,3 @@
+// requires: stage1
+// Named like a module of the program: each package has its own.
+pub const LIMIT: int = 2

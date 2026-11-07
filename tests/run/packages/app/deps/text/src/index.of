@@ -1,0 +1,8 @@
+// requires: stage1
+pub fn repeat(text: str, times: int) str {
+    let out = ""
+    for _ in 0..times {
+        out.push(text)
+    }
+    return out
+}

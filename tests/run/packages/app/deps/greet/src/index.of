@@ -1,0 +1,7 @@
+// requires: stage1
+// The root module of the package: `import hello` in the program.
+import style.decorate
+
+pub fn greet(name: str) str {
+    return decorate("hello, {name}")
+}

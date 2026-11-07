@@ -1,0 +1,11 @@
+// requires: stage1
+import hello
+import hello.style.shout
+import text.repeat
+import util.LIMIT
+
+fn main() {
+    println(hello.greet("ofir"))
+    println(shout("packages"))
+    println(repeat("ab", LIMIT))
+}
