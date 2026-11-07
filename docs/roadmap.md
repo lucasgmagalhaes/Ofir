@@ -258,7 +258,13 @@ These gaps remain:
 | 6.5c | Git dependencies, semver requirements, resolution, `ofir.lock`, `ofir fetch` and `ofir update` (E0912); **done** (stage 1): `tests/run/packages/git` and `tests/compile_fail/packages/git` | M |
 | 6.5d | SHA-256 checksums in `ofir.lock`, `--locked` and `--offline` (E0913, E0914); **done** (stage 1): `tests/compile_fail/packages/{locked,checksum,offline}` | S |
 | 6.5e | Registry client: the git index and version archives; **done** (stage 1): `tests/run/packages/{registry,yanked}` and `tests/compile_fail/packages/{registry,registry_checksum}` | M |
-| 6.6 | Incremental and parallel compilation | L |
+| 6.6 | Incremental and parallel compilation (ADR 0033, stage 1), in the steps below | L |
+| 6.6a | Design: ADR 0033, measurements of a self-compile; **done** | S |
+| 6.6b | `os.spawn`, `Child.wait` and `os.cpuCount` in std (runtime, both stages) | S |
+| 6.6c | Codegen units: one per module, stable text within a unit, `hidden` and `linkonce_odr` linkage, `--codegen-units=1`; `--emit=llvm` unchanged | M |
+| 6.6d | Parallel clang with `-j N` and a separate link step | S |
+| 6.6e | The object cache in `$OFIR_HOME/cache/objects`: keys, atomic writes, checks, recovery after a failed link, `OFIR_CACHE_LIMIT`, `--no-cache`; cold and warm build times recorded | M |
+| 6.6f | Release benchmarks with units and with one unit; the release default chosen from them | S |
 | 6.7 | Seeded `Map` hasher, labeled loops, const generics | M |
 | 6.7a | Compile-time code: `comptime`, `std.meta`, `comptime for`/`if`, `@tag` (spec chapter 15) | L |
 | 6.7b | `comptime for` over keys (spec 16.6) and the standard aliases in `std.core` (16.7), moved from 5.19: it needs 6.7a, mapped and conditional types over type parameters, and type operators that stage 0 can load in `std.core`; done when `merge(base, patch)` is written in Ofir | M |
