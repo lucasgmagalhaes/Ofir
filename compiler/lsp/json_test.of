@@ -59,14 +59,20 @@ fn jsoncAllowsCommentsAndTrailingCommas() {
     assert(parseJson(text).isNone())
 }
 
+// Where `text` stops parsing as JSONC, or -1.
+fn failsAt(text: str) int {
+    match parseJsonc(text) {
+        Result.Ok(_) => {
+            return -1
+        }
+        Result.Err(at) => {
+            return at
+        }
+    }
+}
+
 @test
 fn jsoncReportsWhereItFails() {
-    const Result.Err(at) = parseJsonc("\{\"a\": nope\}") else {
-        panic("parsed")
-    }
-    assert(at == 6)
-    const Result.Err(open) = parseJsonc("[1 /* never closed") else {
-        panic("parsed")
-    }
-    assert(open == 18)
+    assert(failsAt("\{\"a\": nope\}") == 6)
+    assert(failsAt("[1 /* never closed") == 18)
 }
