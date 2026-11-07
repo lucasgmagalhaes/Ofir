@@ -7,7 +7,9 @@ only the std bodies they use. Every module with tests (in its `_test.of`
 file) is compiled with `ofir test`, which
 runs each test in a process of its own. Fails if any test fails. Then
 checks `ofir test` itself: the standard output of each
-`tests/ofir_test/*.of` must match its `.out` file.
+`tests/ofir_test/*.of` must match its `.out` file. Under stage 1, modules
+with doc tests (spec 12.5) run too, and so do the `tests/ofir_doctest`
+fixtures.
 
     python3 tools/run_std_tests.py --compiler build/stage0/ofir
 """
@@ -37,14 +39,19 @@ def executable(path: str) -> str:
     return str(full)
 
 
-def modules_with_tests() -> list[Path]:
+def modules_with_tests(stage: int) -> list[Path]:
     """The modules with tests: the module of each `x_test.of` file
-    (spec 12.2), and any module with `@test` functions of its own."""
+    (spec 12.2), and any module with `@test` functions of its own or, under
+    stage 1, doc tests (spec 12.5)."""
     found = set()
     for path in sorted(p for d in DIRS for p in (ROOT / d).rglob("*.of")):
         if path.stem.endswith("_test"):
             found.add(path.with_name(path.stem[:-len("_test")] + ".of"))
-        elif any(line.startswith("@test") for line in path.read_text().splitlines()):
+            continue
+        lines = path.read_text().splitlines()
+        if any(line.startswith("@test") for line in lines):
+            found.add(path)
+        elif stage > 0 and any(line.strip().startswith("* ```ofir") for line in lines):
             found.add(path)
     return sorted(found)
 
@@ -61,7 +68,7 @@ def main() -> int:
         parser.error("--jobs must be at least 1")
     failed = []
     total = 0
-    paths = modules_with_tests()
+    paths = modules_with_tests(args.stage)
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = pool.map(lambda path: subprocess.run(
             [args.compiler, "test", str(path), "--deny-warnings"],
@@ -75,7 +82,9 @@ def main() -> int:
         print(f"unit tests (std, compiler): {total} tests in {len(paths)} modules, "
               f"{len(failed)} modules with failures")
         checked = check_std_whole(args.compiler, pool, args.stage)
-    fixtures = check_fixtures(args.compiler)
+    fixtures = check_fixtures(args.compiler, "ofir_test")
+    if args.stage > 0:
+        fixtures = check_fixtures(args.compiler, "ofir_doctest") and fixtures
     benches = args.stage == 0 or check_bench_fixtures(args.compiler)
     return 1 if failed or not checked or not fixtures or not benches else 0
 
@@ -104,9 +113,11 @@ def check_std_whole(compiler: str, pool: concurrent.futures.ThreadPoolExecutor,
     return ok
 
 
-def check_fixtures(compiler: str) -> bool:
+def check_fixtures(compiler: str, directory: str) -> bool:
+    """Runs `ofir test` on each file of `tests/<directory>` and compares its
+    standard output with the `.out` file."""
     ok = True
-    for path in sorted((ROOT / "tests" / "ofir_test").glob("*.of")):
+    for path in sorted((ROOT / "tests" / directory).glob("*.of")):
         if path.stem.endswith("_test"):
             continue   # loaded with its module
         result = subprocess.run([compiler, "test", str(path)], capture_output=True, text=True)
