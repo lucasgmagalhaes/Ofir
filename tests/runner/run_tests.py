@@ -29,7 +29,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SUITES = ["lex", "parse", "run", "compile_fail", "panic", "borrow", "codegen", "fmt", "lsp"]
+SUITES = ["lex", "parse", "run", "compile_fail", "panic", "borrow", "codegen", "fmt", "doc",
+          "lsp"]
 TIMEOUT_SECONDS = 20
 PANIC_EXIT_STATUS = 101
 
@@ -279,6 +280,16 @@ def check_fmt(cfg: Config, path: Path) -> Result:
     return result
 
 
+def check_doc(cfg: Config, path: Path) -> Result:
+    """`ofir doc --stdout` of the file must match its .html file."""
+    if cfg.stage == 0:
+        return Result(path, "skip", "`doc` is a stage 1 command")
+    proc = run_process(compiler_cmd(cfg, "doc", "--stdout", str(path)))
+    if proc.returncode != 0:
+        return Result(path, "fail", describe(proc))
+    return compare_output(cfg, path, proc.stdout, ".html")
+
+
 # The session of an `lsp` test without a `.lsp` file: open the document.
 DEFAULT_LSP_SCRIPT = """\
 {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"capabilities": {}}}
@@ -343,6 +354,8 @@ def run_test(cfg: Config, suite: str, path: Path) -> Result:
         return check_codegen(cfg, path, source)
     if suite == "fmt":
         return check_fmt(cfg, path)
+    if suite == "doc":
+        return check_doc(cfg, path)
     if suite == "lsp":
         return check_lsp(cfg, path)
     # compile_fail and borrow
