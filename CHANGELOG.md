@@ -14,6 +14,10 @@ project uses [Semantic Versioning](https://semver.org/).
   imported modules and types (roadmap 6.3b), and completes names in scope,
   module members, fields, methods and types (roadmap 6.3c).
 - `Stdin.read(n)` in `std.io`: up to `n` bytes of standard input.
+- Doc tests: under `ofir test`, the ```` ```ofir ```` blocks of
+  documentation comments are compiled and run as tests, `no_run` blocks
+  only compiled and `ignore` blocks skipped (spec 12.5, roadmap 6.4a).
+  The examples of std and `compiler/` now compile and pass.
 
 ### Changed
 
