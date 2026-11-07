@@ -43,6 +43,9 @@ pub copy enum IoErrorKind {
 | `fn canonicalize(path: str) Result<str, IoError>` | the absolute path, without `.`, `..` or symbolic links | ✓ |
 | `fn createDirAll(path: str) Result<(), IoError>` | | ✓ |
 | `fn removeFile(path: str) Result<(), IoError>` | | ✓ |
+| `fn rename(from: str, to: str) Result<(), IoError>` | replaces `to` if it exists | ✓ |
+| `fn metadata(path: str) Result<Metadata, IoError>` | `Metadata` has `size` (bytes) and `modified` (nanoseconds since 1970) | ✓ |
+| `fn touch(path: str) Result<(), IoError>` | sets the modification time to now | ✓ |
 | `fn readDir(path: str) Result<List<DirEntry>, IoError>` | sorted by name, for determinism; `DirEntry` has `name` and `path` | ✓ |
 | `struct File` with `open`, `create`, `read`, `write`, closed on drop | | |
 
