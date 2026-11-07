@@ -237,13 +237,25 @@ def missing_stage1(reported, annotations) -> list[str]:
     return problems
 
 
+def write_lock(cfg: Config, template: Path) -> None:
+    """Writes the `ofir.lock` of a test from its `ofir.lock.in`, where
+    `{fixtures}` stands for the absolute path of the git fixtures."""
+    fixtures = Path(__file__).resolve().parents[2] / "build" / "git-fixtures"
+    text = template.read_text().replace("{fixtures}", fixtures.as_posix())
+    (template.parent / "ofir.lock").write_text(text)
+
+
 def check_diagnostics(cfg: Config, path: Path, source: str) -> Result:
     annotations = parse_annotations(source)
     manifest = path.parent / "ofir.json"
     if path.name == "main.of" and manifest.exists():
         annotations += parse_annotations(manifest.read_text(), "ofir.json")
+    template = path.parent / "ofir.lock.in"
+    if path.name == "main.of" and template.exists():
+        write_lock(cfg, template)
     proc = run_process(compiler_cmd(cfg, "build", str(path), "--message-format=short",
-                                    "-o", str(cfg.tmp / path.stem)), env=test_env(cfg, path))
+                                    "-o", str(cfg.tmp / path.stem), *test_flags(source)),
+                       env=test_env(cfg, path))
     reported = parse_diagnostics(proc.stdout + proc.stderr)
     expects_error = any(d.severity == "error" for _, d in annotations)
 
