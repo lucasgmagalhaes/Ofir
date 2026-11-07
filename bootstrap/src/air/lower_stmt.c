@@ -16,16 +16,27 @@ static void lower_let(Lowerer *l, Stmt *s) {
     } else if (pattern->kind != PAT_WILDCARD && value.kind != OPERAND_UNIT) {
         // On a mismatch: the `else` block, which cannot fall through; without
         // `else` the pattern always matches (checked).
+        // A consumed value: what the bindings leave ends with the statement,
+        // all of it on a mismatch.
+        Expr *init = s->as.let.value;
+        bool consumed = init->consumed || init->moves;
+        Place place = {.local = to_local(l, value)};
         BlockId fail = air_new_block(l->body);
-        lower_pattern(l, pattern, (Place){.local = to_local(l, value)}, fail);
+        lower_pattern(l, pattern, place, fail);
         BlockId next = air_new_block(l->body);
         emit_goto(l, next);
         switch_to(l, fail);
         if (s->as.let.else_) {
+            if (consumed) {
+                emit_drop(l, place, concrete_type(l, pattern->type));
+            }
             lower_block(l, s->as.let.else_, false);
         }
         terminate(l, (Terminator){.kind = TERM_UNREACHABLE});
         switch_to(l, next);
+        if (consumed) {
+            keep_unbound(l, pattern, place);
+        }
     }
     own_bindings(l, pattern);
 }
