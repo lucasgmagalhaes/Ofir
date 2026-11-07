@@ -15,4 +15,4 @@ __pycache__/
 *.swp
 .DS_Store
 
-graphify-out/
+graphify-out//tests/**/ofir.lock

@@ -23,6 +23,7 @@ import concurrent.futures
 import os
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -79,16 +80,72 @@ def executable(path: str) -> str:
     return str(full)
 
 
-def run_process(cmd: list[str], cwd: Path | None = None,
-                input_text: str | None = None) -> subprocess.CompletedProcess:
+def run_process(cmd: list[str], cwd: Path | None = None, input_text: str | None = None,
+                env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
             cmd, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
-            input=input_text
+            input=input_text, env=env
         )
     except subprocess.TimeoutExpired as exc:
         message = f"timeout after {TIMEOUT_SECONDS}s"
         return subprocess.CompletedProcess(cmd, -1, exc.stdout or "", message)
+
+
+def test_env(cfg: Config, path: Path) -> dict[str, str]:
+    """The environment of a compiler run: each test has its own package
+    cache (`$OFIR_HOME`), so that tests running at once do not share one."""
+    rel = path.relative_to(cfg.tests_dir).as_posix().replace("/", "_")
+    return {**os.environ, "OFIR_HOME": str(cfg.tmp / "home" / rel)}
+
+
+def git_version_key(name: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in name.split("."))
+
+
+def make_git_fixtures(sources: Path, dest: Path) -> None:
+    """Builds the repositories that git dependency tests name: each
+    directory `tests/git/<repo>/<X.Y.Z>/` is a commit tagged `vX.Y.Z` of
+    `build/git-fixtures/<repo>`, in version order. Commits are dated and
+    signed the same on every run, so their hashes do not change; a
+    repository is made again only when its sources change."""
+    if not sources.is_dir():
+        return
+    for repo in sorted(p for p in sources.iterdir() if p.is_dir()):
+        files = sorted(f for f in repo.rglob("*") if f.is_file())
+        stamp = json.dumps([[f.relative_to(repo).as_posix(), f.read_text()] for f in files])
+        target = dest / repo.name
+        if (target / ".stamp").exists() and (target / ".stamp").read_text() == stamp:
+            continue
+        work = Path(tempfile.mkdtemp(prefix=f"git-{repo.name}-", dir=dest.parent))
+        env = {**os.environ, "GIT_AUTHOR_NAME": "ofir", "GIT_AUTHOR_EMAIL": "ofir@example.com",
+               "GIT_COMMITTER_NAME": "ofir", "GIT_COMMITTER_EMAIL": "ofir@example.com",
+               "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+               "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z", "GIT_CONFIG_GLOBAL": os.devnull}
+
+        def git(*args: str) -> None:
+            subprocess.run(["git", "-C", str(work), *args], env=env, check=True,
+                           capture_output=True)
+        git("init", "--quiet", "--initial-branch=main")
+        for version in sorted((v for v in repo.iterdir() if v.is_dir()),
+                              key=lambda v: git_version_key(v.name)):
+            for old in work.iterdir():
+                if old.name != ".git":
+                    shutil.rmtree(old) if old.is_dir() else old.unlink()
+            shutil.copytree(version, work, dirs_exist_ok=True)
+            # Same-sized files written in the same second look unchanged
+            # to git's index: drop it, so that every file is read again.
+            (work / ".git" / "index").unlink(missing_ok=True)
+            git("add", "--all")
+            git("commit", "--quiet", "--no-gpg-sign", "-m", f"v{version.name}")
+            git("tag", f"v{version.name}")
+        (work / ".stamp").write_text(stamp)
+        if target.exists():
+            shutil.rmtree(target, ignore_errors=True)
+        try:
+            work.rename(target)
+        except OSError:   # another run made it first
+            shutil.rmtree(work, ignore_errors=True)
 
 
 def compiler_cmd(cfg: Config, *args: str) -> list[str]:
@@ -186,7 +243,7 @@ def check_diagnostics(cfg: Config, path: Path, source: str) -> Result:
     if path.name == "main.of" and manifest.exists():
         annotations += parse_annotations(manifest.read_text(), "ofir.json")
     proc = run_process(compiler_cmd(cfg, "build", str(path), "--message-format=short",
-                                    "-o", str(cfg.tmp / path.stem)))
+                                    "-o", str(cfg.tmp / path.stem)), env=test_env(cfg, path))
     reported = parse_diagnostics(proc.stdout + proc.stderr)
     expects_error = any(d.severity == "error" for _, d in annotations)
 
@@ -221,7 +278,7 @@ def test_flags(source: str) -> list[str]:
 def check_run(cfg: Config, path: Path, source: str) -> Result:
     # Programs that run are warning-free: a warning fails the test.
     proc = run_process(compiler_cmd(cfg, "run", str(path), "--deny-warnings",
-                                    *test_flags(source)))
+                                    *test_flags(source)), env=test_env(cfg, path))
     if proc.returncode != 0:
         return Result(path, "fail", describe(proc))
     return compare_output(cfg, path, proc.stdout, ".out")
@@ -420,6 +477,10 @@ def main(argv: list[str]) -> int:
     if not Path(cfg.compiler).exists():
         print(f"error: compiler not found: {cfg.compiler}", file=sys.stderr)
         return 2
+
+    fixtures = root / "build" / "git-fixtures"
+    fixtures.mkdir(parents=True, exist_ok=True)
+    make_git_fixtures(cfg.tests_dir / "git", fixtures)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(lambda t: run_test(cfg, *t), tests))
