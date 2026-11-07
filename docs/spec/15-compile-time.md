@@ -40,7 +40,7 @@ The module `std.meta` exposes compile-time descriptions of types:
 | `meta.fieldsOf<T>()` | the fields of struct `T`: `name`, `type`, `index`, attributes |
 | `meta.variantsOf<T>()` | the variants of enum `T` and their fields |
 | `meta.nameOf<T>()` | the type's name, as a constant `str` |
-| `meta.isStruct<T>()`, `isEnum`, `isInteger`, ... | type classification |
+| `meta.isStruct<T>()`, `isEnum`, `isInteger`, `isSigned`, `isFloat`, ... | type classification |
 | `meta.implements<T, I>()` | whether `T` satisfies interface `I` |
 
 These values exist only at compile time. `meta.fieldsOf<T>()` needs `T` to
@@ -66,12 +66,49 @@ branch the predicates **narrow** the type parameters they name:
 | Predicate | Adds to `T` |
 |-----------|-------------|
 | `meta.implements<T, I>()` | the bound `I` |
-| `meta.isInteger<T>()` | `Copy`, `Eq`, `Ord`, `Hash`, `Clone`, `Debug`, `Display` |
-| `meta.isFloat<T>()` | `Copy`, `Clone`, `Debug`, `Display` |
+| `meta.isInteger<T>()` | `Copy`, `Eq`, `Ord`, `Hash`, `Clone`, `Debug`, `Display` and the integer operations |
+| `meta.isSigned<T>()` | with `isInteger`, unary `-` |
+| `meta.isFloat<T>()` | `Copy`, `Clone`, `Debug`, `Display` and the float operations |
 | `meta.isStruct<T>()`, `meta.isEnum<T>()` | the use of `fieldsOf`, `variantsOf` |
 
 Narrowing passes through `&&`; under `A || B` a parameter gets only what
 both `A` and `B` give it, and `!` gives nothing.
+
+**Numeric narrowing.** A parameter narrowed by `isInteger` or `isFloat`
+takes the operators of the primitive types (chapter 4), with the semantics
+of each instance's concrete type; no function call is hidden (9.9):
+
+- integers: `+`, `-`, `*`, `/`, `%`, the bitwise operators and shifts,
+  the comparisons, and the compound assignments; unary `-` also needs
+  `meta.isSigned<T>()`, since `T` may be unsigned;
+- floats: `+`, `-`, unary `-`, `*`, `/`, the comparisons and the compound
+  assignments;
+- under `isInteger<T>() || isFloat<T>()`: what both give, that is `+`,
+  `-`, `*`, `/` and the comparisons;
+- conversions: `x as T` from a number, and `value as U` to a numeric type
+  `U`, with the range checks of `as` for each instance (2.1);
+- literals: an integer literal is a `T` when it fits every integer type,
+  `0` to `127`; a float literal is a `T` under `isFloat`. Other values are
+  written `n as T`.
+
+```ofir
+import std.meta
+
+fn sum<T>(items: &[T]) T {
+    comptime if meta.isInteger<T>() || meta.isFloat<T>() {
+        let total: T = 0 as T
+        for x in items {
+            total += *x
+        }
+        return total
+    } else {
+        comptime panic("sum: {meta.nameOf<T>()} is not a number")
+    }
+}
+```
+
+Overflow, division by zero and NaN behave as in the concrete type: `sum`
+of a `List<u8>` panics on overflow like any `u8` addition.
 
 ```ofir
 import std.meta
