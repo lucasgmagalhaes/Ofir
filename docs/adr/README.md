@@ -37,6 +37,7 @@ changed by writing a new record that supersedes the old one.
 | [0029](0029-interface-parameters.md) | An interface as a parameter type is an anonymous type parameter | Accepted |
 | [0030](0030-send-sync.md) | `Send` and `Sync` are derived, closures carry `+ Send` | Accepted |
 | [0031](0031-let-const.md) | `let` is mutable, `const` is immutable; `var` is removed | Accepted |
+| [0032](0032-packages.md) | Packages: dependencies in `ofir.json`, `ofir.lock`, one version each | Accepted |
 
 ## Template
 
