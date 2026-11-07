@@ -1,0 +1,10 @@
+// Registry dependencies (ADR 0032): `json` is required as `^1.0` here and
+// as `~1.2` by `pp`; 1.3.0 is yanked, so 1.2.0 is chosen.
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "json": "^1.0",
+    "pp": {"version": "0.1"},
+  },
+}

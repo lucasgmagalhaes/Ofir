@@ -1,0 +1,6 @@
+// requires: stage1
+import json
+
+fn main() {
+    println(json.version())
+}

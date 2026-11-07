@@ -1,0 +1,8 @@
+// requires: stage1
+import json
+import pp
+
+fn main() {
+    println(json.version())
+    println(pp.jsonVersion())
+}
