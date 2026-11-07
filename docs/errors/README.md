@@ -135,6 +135,8 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0360 | the closure captures a value that is not `Send` (a `move` closure) or not `Sync` (a borrowing one), so it cannot be a `+ Send` function (spec 14.3) | stage 1 |
 | E0361 | the type of a const parameter is not `int` (spec 8.7) | stage 1 |
 | E0362 | a type where a constant is expected, or a constant where a type is expected (spec 8.7) | stage 1 |
+| E0363 | a `comptime if` condition must be known at compile time (spec 15.3) | planned |
+| E0364 | `meta.fieldsOf<T>()` needs a struct and `meta.variantsOf<T>()` an enum: narrow `T` with `comptime if` (spec 15.2) | planned |
 | E0500 | non-exhaustive `match`: missing patterns | stage 0 |
 | E0501 | refutable pattern in `const` | stage 0 |
 | E0600 | use of moved value `x` | stage 0 |
@@ -161,6 +163,11 @@ Warnings use the same scheme with a `W` prefix (`W0001`, ...).
 | E0811 | a field of a `@packed` struct must be `bool`, a number or a `@packed` struct | stage 1 |
 | E0812 | cannot borrow a field of a `@packed` struct: its address may not be aligned | stage 1 |
 | E0813 | the C symbol `x` is defined twice | stage 1 |
+| E0814 | `comptime panic`: an instance reached it, with its message (spec 15.3) | planned |
+| E0815 | this function cannot run at compile time: it calls an `extern` function or does I/O (spec 15.5) | planned |
+| E0816 | compile-time evaluation failed: a panic, an arithmetic or bounds error, or the step budget ran out (spec 15.5) | planned |
+| E0817 | a `comptime fn` can only be called from compile-time code (spec 15.1) | planned |
+| E0818 | the value of a `comptime` expression must be a number, `bool`, `str`, array, tuple, struct or enum of those (spec 15.5) | planned |
 | E0900 | cannot read source file | stage 0 |
 | E0901 | X is not supported yet (a feature this compiler version does not implement) | stage 0 |
 | E0902 | the toolchain failed: clang or the runtime library is missing, or clang reported an error | stage 0 |
