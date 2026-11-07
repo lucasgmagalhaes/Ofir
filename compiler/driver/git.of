@@ -1,0 +1,173 @@
+/**
+ * @module
+ * The git cache of the package manager (ADR 0032): a bare clone of each
+ * repository under `$OFIR_HOME/cache/git/<hash of its URL>` and a checkout
+ * of each version used under `$OFIR_HOME/cache/src/<name>-<version>`. It
+ * runs `git`, which must be installed. `$OFIR_HOME` is `~/.ofir` by default.
+ */
+
+import driver.semver.Version
+import driver.semver.parseVersion
+import std.fs
+import std.os
+
+/**
+ * A version of a repository: a tag `vX.Y.Z`.
+ */
+pub struct Tag {
+    pub version: Version
+    /** The commit it names. */
+    pub commit: str
+}
+
+/**
+ * The directory of the package manager's files.
+ *
+ * @returns `$OFIR_HOME`, or `~/.ofir`
+ */
+pub fn ofirHome() str {
+    if const Option.Some(home) = os.env("OFIR_HOME") {
+        return home
+    }
+    const user = os.env("HOME") ?? "."
+    return "{user}/.ofir"
+}
+
+/**
+ * The bare clone of `url` in the cache, made if it is missing, and
+ * fetched again if `refresh`.
+ *
+ * @param url where the repository is: a URL, or a local path
+ * @param refresh whether to fetch its new tags and commits
+ * @returns its directory, or what git reported
+ */
+pub fn repository(url: str, refresh: bool) Result<str, str> {
+    const root = "{ofirHome()}/cache/git"
+    const dir = "{root}/{hashHex(url)}"
+    if fs.exists("{dir}/HEAD") {
+        if refresh {
+            git(["-C", dir.clone(), "fetch", "--quiet", "--tags", "--force", "origin"])?
+        }
+        return Result.Ok(dir)
+    }
+    if fs.createDirAll(root).isErr() {
+        return Result.Err("cannot create `{root}`")
+    }
+    git(["clone", "--quiet", "--bare", url.clone(), dir.clone()])?
+    return Result.Ok(dir)
+}
+
+/**
+ * The tags `vX.Y.Z` of a repository.
+ *
+ * @param dir its bare clone
+ * @returns its versions, with their commits
+ */
+pub fn tags(dir: str) List<Tag> {
+    let out: List<Tag> = []
+    const Result.Ok(listed) = git(["-C", dir.clone(), "tag", "--list", "v*"]) else {
+        return out
+    }
+    for line in listed.lines() {
+        const name = line.trim()
+        const Option.Some(version) = parseVersion(name) else {
+            continue
+        }
+        if const Option.Some(commit) = commitOf(dir, name) {
+            out.push(Tag{version, commit})
+        }
+    }
+    return out
+}
+
+/**
+ * The commit that a revision (a commit, a tag or a branch) names.
+ *
+ * @param dir a bare clone
+ * @param rev the revision
+ * @returns its full hash, or `None` if there is none
+ */
+pub fn commitOf(dir: str, rev: str) Option<str> {
+    const spec = "{rev}^\{commit\}"
+    const Result.Ok(out) = git(["-C", dir.clone(), "rev-parse", "--verify", "--quiet", spec]) else {
+        return Option.None
+    }
+    const hash = out.trim()
+    if hash.len() == 0 {
+        return Option.None
+    }
+    return Option.Some(hash.toOwned())
+}
+
+/**
+ * Whether a bare clone has a commit.
+ *
+ * @param dir the clone
+ * @param commit a full hash
+ * @returns true if it is there
+ */
+pub fn hasCommit(dir: str, commit: str) bool {
+    return commitOf(dir, commit).isSome()
+}
+
+/**
+ * The checkout of a commit in the cache, made if it is missing.
+ *
+ * @param dir the bare clone
+ * @param commit the commit
+ * @param label its name in the cache, as `json-1.2.0`
+ * @returns the checkout's directory, or what git reported
+ */
+pub fn checkout(dir: str, commit: str, label: str) Result<str, str> {
+    const root = "{ofirHome()}/cache/src"
+    const dest = "{root}/{label}"
+    if fs.exists("{dest}/.git") {
+        const Option.Some(head) = commitOf(dest, "HEAD") else {
+            return Result.Err("`{dest}` is not a checkout")
+        }
+        if head == commit {
+            return Result.Ok(dest)
+        }
+        git(["-C", dest.clone(), "fetch", "--quiet", dir.clone(), commit.clone()])?
+        git(["-C", dest.clone(), "checkout", "--quiet", "--detach", commit.clone()])?
+        return Result.Ok(dest)
+    }
+    if fs.createDirAll(root).isErr() {
+        return Result.Err("cannot create `{root}`")
+    }
+    git(["clone", "--quiet", "--no-checkout", dir.clone(), dest.clone()])?
+    git(["-C", dest.clone(), "checkout", "--quiet", "--detach", commit.clone()])?
+    return Result.Ok(dest)
+}
+
+// Runs git; its output, or its error output when it fails.
+fn git(args: [str]) Result<str, str> {
+    const Result.Ok(out) = os.run("git", args) else {
+        return Result.Err("cannot run `git`: is it installed?")
+    }
+    if out.status != 0 {
+        return Result.Err(out.stderr.trim().toOwned())
+    }
+    return Result.Ok(out.stdout)
+}
+
+/**
+ * FNV-1a of `text`.
+ *
+ * @param text the text
+ * @returns the hash, as 16 hex digits
+ */
+pub fn hashHex(text: str) str {
+    let h: u64 = 0xcbf29ce484222325
+    for b in text.bytes() {
+        h = (h ^ (b as u64)).wrappingMul(0x100000001b3)
+    }
+    const digits = "0123456789abcdef"
+    let out = str.new()
+    for i in 0..16 {
+        const shift = ((15 - i) * 4) as u64
+        const nibble = ((h >> shift) & 15).wrappingCast<i64>() as int
+        out.push(digits.slice(nibble, nibble + 1))
+    }
+    return out
+}
