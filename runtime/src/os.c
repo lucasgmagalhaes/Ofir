@@ -1,5 +1,9 @@
 // The process (std.os): arguments, environment, exit and running programs.
 
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE   // _SC_NPROCESSORS_ONLN
+#endif
+
 #include "ofir_rt.h"
 
 #include <errno.h>
@@ -144,6 +148,7 @@ static void quote_arg(char **line, int64_t *len, int64_t *cap, const char *arg) 
 typedef struct {
     HANDLE process;
     HANDLE out, err;
+    bool waited;
 } Child;
 
 // A temporary file the child inherits, deleted when the last handle to it
@@ -233,6 +238,7 @@ int64_t ofir_cpu_count(void) {
 typedef struct {
     pid_t pid;
     int out, err;
+    bool waited;
 } Child;
 
 // A temporary file, already unlinked: it goes away with its last
@@ -328,6 +334,7 @@ int32_t ofir_spawn(const uint8_t *args, int64_t len, int64_t count, void **child
     }
     argv[count] = NULL;
     Child *started = ofir_alloc((int64_t)sizeof(Child));
+    started->waited = false;
     int32_t code = start(argv, started);
     ofir_free(argv);
     ofir_free(copy);
@@ -342,6 +349,18 @@ int32_t ofir_spawn(const uint8_t *args, int64_t len, int64_t count, void **child
 void ofir_wait(void *child, OfirRun *run) {
     *run = (OfirRun){0};
     finish(child, run);
+    ((Child *)child)->waited = true;
+}
+
+// A child dropped without `wait` is waited for here, so that it leaves no
+// zombie and no open files.
+void ofir_child_free(void *child) {
+    if (!((Child *)child)->waited) {
+        OfirRun run = {0};
+        finish(child, &run);
+        ofir_free(run.out.ptr);
+        ofir_free(run.err.ptr);
+    }
     ofir_free(child);
 }
 
@@ -355,6 +374,7 @@ int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run) 
         return code;
     }
     ofir_wait(child, run);
+    ofir_child_free(child);
     return 0;
 }
 
