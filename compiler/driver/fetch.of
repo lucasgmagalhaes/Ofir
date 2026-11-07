@@ -4,7 +4,8 @@
  * dependencies of the project in the current directory, fetch them into
  * the cache and write `ofir.lock`. `fetch` keeps the locked versions that
  * still fit; `update` fetches the repositories again and chooses the
- * highest versions, for every package or only `name`.
+ * highest versions, for every package or only `name`. `--locked` (fetch)
+ * fails instead of changing the lock; `--offline` uses only the cache.
  */
 
 import base.span.SourceMap
@@ -25,19 +26,26 @@ import std.fs
 pub fn fetchCommand(args: List<str>, update: bool) int {
     const command = if update { "update" } else { "fetch" }
     let only = ""
+    let locked = false
+    let offline = false
     for i in 0..args.len() {
-        if !update || only.len() > 0 || args[i].startsWith("-") {
+        if args[i] == "--locked" && !update {
+            locked = true
+        } else if args[i] == "--offline" {
+            offline = true
+        } else if !update || only.len() > 0 || args[i].startsWith("-") {
             eprintln("error: unexpected argument `{args[i]}` for `{command}`")
             return 2
+        } else {
+            only = args[i].clone()
         }
-        only = args[i].clone()
     }
     if !fs.exists("ofir.json") {
         eprintln("error: `{command}` needs an `ofir.json` in the current directory")
         return 2
     }
     const dir = fs.canonicalize(".").ok() ?? "."
-    const mode = Mode{update, only}
+    const mode = Mode{update, only, locked, offline}
     let map = SourceMap.new()
     let diags = Diagnostics.new()
     readPackages(dir, true, &mode, map, diags)
@@ -45,9 +53,9 @@ pub fn fetchCommand(args: List<str>, update: bool) int {
         eprint(diags.render(map, Format.Human))
         return 1
     }
-    const locked = readLock(dir)
-    for i in 0..locked.len() {
-        const p = &locked[i]
+    const lock = readLock(dir)
+    for i in 0..lock.len() {
+        const p = &lock[i]
         const what = if p.version.len() > 0 { p.version.clone() } else { p.rev.clone() }
         println("{p.name} {what} ({p.commit.slice(0, 12)})")
     }

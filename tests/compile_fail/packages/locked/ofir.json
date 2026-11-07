@@ -1,0 +1,8 @@
+// `--locked` fails when there is no `ofir.lock` (ADR 0032).
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {   // error[E0913]: `ofir.lock` is out of date
+    "shade": {"git": "../../../../build/git-fixtures/shade", "version": "^0.1"},
+  },
+}

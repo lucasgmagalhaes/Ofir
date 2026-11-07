@@ -1,0 +1,6 @@
+// requires: stage1
+import shade
+
+fn main() {
+    const _ = shade.version()
+}

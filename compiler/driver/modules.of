@@ -56,6 +56,10 @@ pub struct Front {
     pub diags: Diagnostics
     /** Texts read in place of their files: the unsaved buffers of an editor. */
     pub overlays: Map<str, str>
+    /** `--locked`: the lock must not change. */
+    pub locked: bool
+    /** `--offline`: packages come only from the cache. */
+    pub offline: bool
 
     /**
      * Reads a file into the source map, or its overlay.
@@ -481,7 +485,7 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
         rootDir = dir
     }
     const testing = target.test
-    const mode = Mode{update: false, only: ""}
+    const mode = Mode{update: false, only: "", locked: front.locked, offline: front.offline}
     const packages = readPackages(rootDir, inProject, &mode, front.map, front.diags)
     let ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, docTests, target, packages}
     const name = rootModuleName(ld, input, inProject)

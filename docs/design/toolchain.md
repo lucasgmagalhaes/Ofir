@@ -202,9 +202,12 @@ out into `$OFIR_HOME/cache/src/<name>-<version>-<hash>`, by running `git`.
 `build`, `run` and `test` resolve too: they keep the locked versions that
 still fit, fetch a repository only when it is missing or has no fitting
 version, and write `ofir.lock` when it changed; `ofir update` fetches
-again and chooses the highest versions. The lock has no checksums yet,
-and `--locked` and `--offline` are not read (6.5d); registry
-dependencies are E0901.
+again and chooses the highest versions. Each git package's checksum is
+the SHA-256 of its files, sorted by path, each as its path, a NUL, its
+size, a NUL and its bytes, `.git` left out; a checkout that does not
+match the lock is E0914 (6.5d). With `--offline`, a repository missing
+from the cache is E0911 and nothing is fetched. Registry dependencies
+are E0901.
 The modules of a package are found from the directory of its
 `build.root` (default `src/index.of`), which is the module named like the
 package; a package imports its own modules by their names in it, as a

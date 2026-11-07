@@ -71,6 +71,8 @@ fn printUsage() {
              + "  --release                 optimize the program\n"
              + "  -g                        write debug info (DWARF: functions, lines)\n"
              + "  --deny-warnings           treat warnings as errors\n"
+             + "  --locked                  fail instead of changing ofir.lock (also fetch)\n"
+             + "  --offline                 use only the package cache (also fetch, update)\n"
              + "  --message-format=short    one line per diagnostic\n"
              + "  --message-format=json     one JSON object per diagnostic\n"
              + "  --stop-after=PHASE       run the phases up to lex, parse or check, without "
@@ -96,6 +98,10 @@ struct Options {
     debugInfo: bool
     /** `--deny-warnings`. */
     deny: bool
+    /** `--locked`. */
+    locked: bool
+    /** `--offline`. */
+    offline: bool
     /** `--message-format=human`, `short` or `json`. */
     format: Format
 }
@@ -103,7 +109,7 @@ struct Options {
 fn parseOptions(args: &List<str>) Option<Options> {
     let opts = Options{command: args[1].clone(), input: "", output: Option.None, emit: "",
                        stopAfter: "", release: false, debugInfo: false, deny: false,
-                       format: Format.Human}
+                       locked: false, offline: false, format: Format.Human}
     let hasInput = false
     let i = 2
     for i < args.len() {
@@ -116,6 +122,10 @@ fn parseOptions(args: &List<str>) Option<Options> {
                 opts.emit = arg.sliceFrom(7).toOwned()
             } else if arg == "--deny-warnings" {
                 opts.deny = true
+            } else if arg == "--locked" {
+                opts.locked = true
+            } else if arg == "--offline" {
+                opts.offline = true
             } else if arg == "--release" {
                 opts.release = true
             } else if arg == "-g" {
@@ -261,7 +271,7 @@ fn build(given: move Options) int {
     opts.input = testRoot(&opts)
     let pipeline = Pipeline{opts: opts.clone(), exe: "", tests: []}
     let front = Front{map: SourceMap.new(), names: Interner.new(), diags: Diagnostics.new(),
-                      overlays: Map.new()}
+                      overlays: Map.new(), locked: opts.locked, offline: opts.offline}
     front.diags.denyWarnings = opts.deny
     const Option.Some(file) = front.load(opts.input) else {
         driverError(opts.format, "E0900", "cannot read `{opts.input}`")

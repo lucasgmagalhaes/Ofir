@@ -11,9 +11,11 @@ import driver.git.checkout
 import driver.git.commitOf
 import driver.git.hasCommit
 import driver.git.hashHex
+import driver.git.isCached
 import driver.git.repository
 import driver.git.tags
 import driver.lock.Locked
+import driver.lock.checksum
 import driver.lock.readLock
 import driver.semver.Requirement
 import driver.semver.Version
@@ -32,6 +34,10 @@ pub struct Mode {
     pub update: bool
     /** The only package updated, by name; empty for all of them. */
     pub only: str
+    /** `--locked`: the lock must not change (E0913). */
+    pub locked: bool
+    /** `--offline`: only the cache is used. */
+    pub offline: bool
 }
 
 /**
@@ -48,6 +54,8 @@ pub struct Pin {
     pub rev: str
     /** Its commit. */
     pub commit: str
+    /** The checksum of its checkout. */
+    pub checksum: str
     /** Its checkout. */
     pub dir: str
 }
@@ -57,7 +65,10 @@ pub struct Pin {
  */
 pub struct Failure {
     pub url: str
-    /** E0911 (it cannot be fetched) or E0912 (no version fits). */
+    /**
+     * E0911 (it cannot be fetched), E0912 (no version fits) or E0914 (its
+     * checksum differs from the lock).
+     */
     pub code: str
     pub message: str
     pub notes: List<str>
@@ -152,6 +163,7 @@ pub fn resolve(rootDir: str, mode: &Mode) Resolution {
         const stable = samePins(&r, &next)
         r = next
         if stable {
+            verify(r, &lock)
             return r
         }
         round += 1
@@ -162,8 +174,11 @@ pub fn resolve(rootDir: str, mode: &Mode) Resolution {
 // A bare clone of the cache, and whether it was fetched in this run.
 struct Repo {
     url: str
+    /** Empty when it could not be fetched. */
     dir: str
     fetched: bool
+    /** Why it could not be fetched. */
+    error: str
 }
 
 // A requirement on a repository: `version`, or `rev`, by a project.
@@ -257,11 +272,11 @@ fn choose(url: str, needs: &List<Need>, lock: &List<Locked>, mode: &Mode, repos:
     const first = &needs[mine[0]]
     const name = first.key.clone()
     const updating = mode.update && (mode.only.len() == 0 || mode.only == name)
-    const r = fetched(url, updating, repos)
-    if r < 0 {
+    const r = fetched(url, updating, mode.offline, repos)
+    if repos[r].dir.len() == 0 {
         const message = "cannot fetch the dependency `{name}`"
         out.failures.push(Failure{url: url.toOwned(), code: "E0911", message,
-                                  notes: [repos[repos.len() - 1].dir.clone()]})
+                                  notes: [repos[r].error.clone()]})
         return
     }
     let locked = -1
@@ -314,7 +329,7 @@ fn choose(url: str, needs: &List<Need>, lock: &List<Locked>, mode: &Mode, repos:
         }
     }
     let best = highest(repos[r].dir, &reqs)
-    if best < 0 && !repos[r].fetched {
+    if best < 0 && !repos[r].fetched && !mode.offline {
         if refetch(repos[r]) {
             best = highest(repos[r].dir, &reqs)
         }
@@ -400,7 +415,8 @@ fn pin(url: str, name: str, version: str, rev: str, commit: str, repo: &Repo,
         Result.Ok(dir) => {
             const real = fs.canonicalize(dir.clone()).ok() ?? dir
             out.pins.push(Pin{url: url.toOwned(), name: name.toOwned(), version: version.toOwned(),
-                              rev: rev.toOwned(), commit: commit.toOwned(), dir: real})
+                              rev: rev.toOwned(), commit: commit.toOwned(), checksum: "",
+                              dir: real})
         }
         Result.Err(error) => {
             out.failures.push(Failure{url: url.toOwned(), code: "E0911",
@@ -410,31 +426,56 @@ fn pin(url: str, name: str, version: str, rev: str, commit: str, repo: &Repo,
     }
 }
 
-// The bare clone of `url`, fetched again if `refresh`; its index in
-// `repos`, or -1 with git's error as the last entry's `dir`.
-fn fetched(url: str, refresh: bool, repos: mut List<Repo>) int {
+// Computes the checksum of each pin; a pin whose commit is locked with
+// another checksum becomes a failure (E0914).
+fn verify(r: mut Resolution, lock: &List<Locked>) {
+    let i = 0
+    for i < r.pins.len() {
+        const sum = checksum(r.pins[i].dir)
+        let expected = ""
+        for k in 0..lock.len() {
+            if lock[k].git == r.pins[i].url && lock[k].commit == r.pins[i].commit {
+                expected = lock[k].checksum.clone()
+            }
+        }
+        if expected.len() > 0 && expected != sum {
+            const p = r.pins.remove(i)
+            const notes = ["`ofir.lock` has `{expected}`", "its files at `{p.dir}` have `{sum}`"]
+            r.failures.push(Failure{url: p.url.clone(), code: "E0914",
+                                    message: "the checksum of `{p.name}` differs from `ofir.lock`",
+                                    notes})
+        } else {
+            r.pins[i].checksum = sum
+            i += 1
+        }
+    }
+}
+
+// The bare clone of `url`, fetched again if `refresh` (never `offline`):
+// its index in `repos`, whose `dir` is empty if it cannot be fetched.
+fn fetched(url: str, refresh: bool, offline: bool, repos: mut List<Repo>) int {
     for i in 0..repos.len() {
         if repos[i].url == url {
-            if repos[i].dir.len() == 0 {
-                return -1
-            }
-            if refresh && !repos[i].fetched {
+            if refresh && !offline && !repos[i].fetched && repos[i].dir.len() > 0 {
                 refetch(repos[i])
             }
             return i
         }
     }
-    match repository(url, refresh) {
+    if offline && !isCached(url) {
+        repos.push(Repo{url: url.toOwned(), dir: "", fetched: true,
+                        error: "it is not in the cache, and `--offline` was given"})
+        return repos.len() - 1
+    }
+    match repository(url, refresh && !offline) {
         Result.Ok(dir) => {
-            repos.push(Repo{url: url.toOwned(), dir, fetched: refresh})
-            return repos.len() - 1
+            repos.push(Repo{url: url.toOwned(), dir, fetched: refresh, error: ""})
         }
         Result.Err(error) => {
-            repos.push(Repo{url: url.toOwned(), dir: "", fetched: true})
-            repos.push(Repo{url: "", dir: error, fetched: true})
-            return -1
+            repos.push(Repo{url: url.toOwned(), dir: "", fetched: true, error})
         }
     }
+    return repos.len() - 1
 }
 
 // Fetches a clone again; whether it worked.

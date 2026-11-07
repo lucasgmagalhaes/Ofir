@@ -1,0 +1,7 @@
+// requires: stage1
+// flags: --offline
+import shade
+
+fn main() {
+    const _ = shade.version()
+}
