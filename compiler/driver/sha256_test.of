@@ -1,0 +1,22 @@
+// The tests of `driver.sha256`, against the vectors of FIPS 180-4.
+
+@test
+fn hashesTheStandardVectors() {
+    assert(sha256Hex("") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+    assert(sha256Hex("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    const two = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    assert(sha256Hex(two) == "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
+}
+
+@test
+fn feedsInPieces() {
+    let h = Sha256.new()
+    let a = str.new()
+    for _ in 0..1000 {
+        a.push("a")
+    }
+    for _ in 0..1000 {
+        h.updateText(a)
+    }
+    assert(h.finish() == "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0")
+}
