@@ -70,7 +70,7 @@ fn printUsage() {
              + "  --emit=types              print the types of declarations and locals and stop\n"
              + "  --emit=air                print the intermediate representation and stop\n"
              + "  --emit=llvm               write <output>.ll and stop\n"
-             + "  --release                 optimize the program\n"
+             + "  --release                 optimize the program (as one LLVM module)\n"
              + "  --codegen-units=1         compile the program as one LLVM module\n"
              + "  -j N, --jobs N            run at most N clang processes (default: the cores)\n"
              + "  --no-cache                compile every unit, without the object cache\n"
@@ -383,10 +383,19 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     const exe = outputPath(&opts)
     let files: List<str> = []
     let cached: List<str> = []   // where the object of each unit is cached
-    if opts.emit == "llvm" || opts.oneUnit {
+    // Release builds are one unit: units lose inlining across modules (roadmap 6.6f).
+    if opts.emit == "llvm" || opts.oneUnit || opts.release {
         const ll = "{exe}.ll"
         files.push(ll.clone())
         const text = generate(c, program, &l.out, opts.debugInfo, opts.release)
+        const salt = if opts.noCache || opts.emit == "llvm" {
+            "".toOwned()
+        } else {
+            object_cache.cacheSalt(clangPath(), &clangFlags(&opts))
+        }
+        if salt.len() > 0 {
+            cached.push(object_cache.objectPath(salt, text))
+        }
         if fs.writeString(ll, text).isErr() {
             driverError(opts.format, "E0902", "cannot write `{ll}`")
             return false
@@ -526,7 +535,7 @@ fn link(opts: &Options, files: &List<str>, cached: &List<str>, exe: str,
     const clang = clangPath()
     let objects: List<str> = []
     let hits: List<int> = []   // the units whose objects came from the cache
-    if files.len() > 1 {   // the units are compiled apart, then linked (ADR 0033)
+    if files.len() > 1 || cached.len() > 0 {   // compiled apart, then linked (ADR 0033)
         const tag = object_cache.tempTag(exe)
         if !compileUnits(opts, clang, files, cached, tag, objects, hits) {
             removeObjects(&objects, cached)
@@ -534,7 +543,7 @@ fn link(opts: &Options, files: &List<str>, cached: &List<str>, exe: str,
             return false
         }
     }
-    let inputs = if files.len() > 1 { objects.clone() } else { files.clone() }
+    let inputs = if objects.len() > 0 { objects.clone() } else { files.clone() }
     let ok = linkObjects(opts, clang, &inputs, runtime, &libraries, exe, hits.len() > 0)
     if !ok && hits.len() > 0 {   // a cached object may be bad: compile those units again
         let again: List<str> = []

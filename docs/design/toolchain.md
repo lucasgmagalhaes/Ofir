@@ -393,6 +393,11 @@ is reused from `$OFIR_HOME/cache/objects`:
 | `--codegen-units=1` | one module for the whole program, as `--emit=llvm` writes |
 | `--no-cache` | neither read nor write the object cache |
 
+A `--release` build is always one unit, compiled to one object that the
+cache keeps like any other: with a unit per module, LLVM cannot inline a
+function of one module into another, and the self-hosted compiler built
+that way ran 59% slower (roadmap 6.6f).
+
 The cache holds at most `OFIR_CACHE_LIMIT` bytes (2 GiB by default):
 once a build passes the limit, the objects used least recently are
 deleted until it holds half. A cached object that is not an ELF, Mach-O

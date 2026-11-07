@@ -5,8 +5,8 @@ Builds a program of several modules in a fresh `$OFIR_HOME` and checks
 that: the first build fills the cache; a second build reuses every
 object and the program still runs; a cached object that is not an object
 file is replaced; a cached object that breaks the link is recovered
-from; `--no-cache` leaves the cache alone; and `OFIR_CACHE_LIMIT` bounds
-it.
+from; `--no-cache` leaves the cache alone; `OFIR_CACHE_LIMIT` bounds it;
+and a release build, one unit, is cached as one object.
 
     python3 tools/check_object_cache.py --compiler build/stage1/ofir
 """
@@ -83,6 +83,13 @@ def main() -> None:
         build(compiler, {**env, "OFIR_CACHE_LIMIT": str(size // 4)}, exe, "-g")
         left = sum(len(data) for data in objects(home).values())
         check(left <= size // 8, "OFIR_CACHE_LIMIT deletes objects down to half of it")
+
+        before = set(objects(home))
+        build(compiler, env, exe, "--release")
+        added = set(objects(home)) - before
+        check(len(added) == 1, "a release build is one unit, cached as one object")
+        build(compiler, env, exe, "--release")
+        check(set(objects(home)) - before == added, "a second release build reuses it")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

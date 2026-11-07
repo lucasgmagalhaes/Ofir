@@ -20,6 +20,8 @@ project uses [Semantic Versioning](https://semver.org/).
   and the clang version, and reused by later builds; `OFIR_CACHE_LIMIT`
   bounds it (2 GiB by default) and `--no-cache` turns it off (roadmap
   6.6e, ADR 0033).
+- A `--release` build is one codegen unit, cached as one object: units
+  made the self-hosted compiler 59% slower (roadmap 6.6f).
 - `fs.rename`, `fs.metadata` (size and modification time) and `fs.touch`.
 - `os.spawn` starts a program without waiting for it, `Child.wait` waits
   for it, and `os.cpuCount` counts the processors; `os.run` is `spawn`
