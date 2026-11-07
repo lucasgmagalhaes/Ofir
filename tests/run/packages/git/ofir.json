@@ -1,0 +1,11 @@
+// Git dependencies (ADR 0032): `text` is required as `^1.0` here and as
+// `~1.0` by `mid`, so 1.0.2 is chosen; `shade` follows a revision.
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "text": {"git": "../../../../build/git-fixtures/text", "version": "^1.0"},
+    "mid": {"path": "deps/mid"},
+    "shade": {"git": "../../../../build/git-fixtures/shade", "rev": "v0.1.0"},
+  },
+}

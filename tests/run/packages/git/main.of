@@ -1,0 +1,10 @@
+// requires: stage1
+import mid
+import shade
+import text
+
+fn main() {
+    println(text.version())
+    println(mid.textVersion())
+    println(shade.version())
+}
