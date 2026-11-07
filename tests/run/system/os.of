@@ -29,8 +29,9 @@ fn main() {
     // More than a pipe holds, which a child writing to a pipe would block on.
     const big = os.run("sh", ["-c", "head -c 1000000 /dev/zero"]).expect("sh runs")
     println("big {big.stdout.len()}")
+    // Under valgrind posix_spawnp forks first, and the child exits with 127.
     match os.spawn("ofir-no-such-program", []) {
-        Result.Ok(_) => println("missing spawned")
+        Result.Ok(child) => println("spawn missing {child.wait().expect("ends").status == 127}")
         Result.Err(e) => println("spawn missing {e.kind == io.IoErrorKind.NotFound}")
     }
     println("cpus {os.cpuCount() >= 1}")
