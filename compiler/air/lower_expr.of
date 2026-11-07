@@ -571,6 +571,10 @@ fn constOperand(c: Checker, id: int, ty: int) Operand {
 }
 
 fn name(l: mut Lowerer, c: mut Checker, p: Program, e: &Expr, ty: int) Operand {
+    if const Option.Some(param) = c.constUses.get(c.module() * 4294967296 + e.id.0) {
+        const arg = concreteType(l, c, *param)   // `N` (spec 8.7)
+        return opInt(c.types.get(arg).data.wrappingCast<u64>(), ty)
+    }
     const Res.Def(id) = c.res(e.id.0) else {
         return placeOperand(&lowerPlaceAt(l, c, p, e, 0), OperandKind.Copy, ty)
     }
@@ -1695,7 +1699,7 @@ fn isArray(c: Checker, ty: int) bool {
 // The address of element `index` of the array at `place`, bounds checked.
 fn arrayElement(l: mut Lowerer, c: mut Checker, place: &Place, ty: int, index: move Operand,
                 span: Span) int {
-    const t = c.types.get(ty).clone()
+    const t = c.types.get(concreteType(l, c, ty)).clone()   // `[T; N]` has a length here
     boundsCheck(l, index.clone(), opInt(t.data as u64, I64), span)
     const ptr = c.types.ptr(t.inner, true)
     const base = placeOperand(place, OperandKind.Addr, ptr)
@@ -1725,7 +1729,7 @@ fn arrayLiteral(l: mut Lowerer, c: mut Checker, p: Program, items: &List<Expr>,
 // `[value; N]` as an array: a loop that stores the value N times.
 fn arrayRepeat(l: mut Lowerer, c: mut Checker, p: Program, value: &Expr, ty: int) Operand {
     const array = newTemp(l, ty)
-    const t = c.types.get(ty).clone()
+    const t = c.types.get(concreteType(l, c, ty)).clone()
     const item = opCopy(toLocal(l, lowerExpr(l, c, p, value)), t.inner)
     const counter = emitTemp(l, I64, rvUse(opInt(0, I64)))
     const header = l.body.newBlock()
@@ -1772,7 +1776,7 @@ fn lowerForList(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &
     const exit = l.body.newBlock()
     emitGoto(l, header)
     switchTo(l, header)
-    const len = if array { opInt(c.types.get(ty).data as u64, I64) } else {
+    const len = if array { opInt(c.types.get(concreteType(l, c, ty)).data as u64, I64) } else {
         placeOperand(&fieldOfPlace(&list, LIST_LEN), OperandKind.Copy, I64)
     }
     const go = compare(l, Op.Lt, opCopy(counter, I64), len)
