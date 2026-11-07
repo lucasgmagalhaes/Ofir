@@ -150,8 +150,10 @@ const first: Option<&int> = xs.first()   // borrows xs (chapter 5.6)
 their keys were first inserted (removing a key forgets its position). The
 default hasher is deterministic: it uses no random seed, so a program's
 output never depends on hash values and repeated runs behave identically.
-A seeded, DoS-resistant hasher for maps filled from untrusted input is
-**[planned]** (`Map.withHasher(...)`).
+Strings hash with SipHash-1-3 under a fixed key. For maps filled from
+untrusted input, `Map.seeded()` keys the hash with a random seed, so the
+slots of the keys cannot be predicted (ADR 0034); `Map.withSeed(seed)`
+takes a given seed. A seeded map still iterates in insertion order.
 
 ## 2.7 Fixed-size arrays
 
