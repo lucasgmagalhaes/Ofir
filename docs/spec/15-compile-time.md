@@ -2,8 +2,10 @@
 
 Ofir has **no macros**. Code that must adapt to the shape of a type
 (serialization, debug printing, comparisons, builders) is written as
-ordinary generic code that inspects types **at compile time**. The design is
-fixed now; the implementation is planned for stage 1 (roadmap Phase 5).
+ordinary generic code that inspects types **at compile time**. Like other
+generic code, it is type-checked once, at its definition, and expanded for
+each instance (ADR 0035). The implementation is planned for stage 1
+(roadmap 6.7a).
 
 Goals:
 
@@ -41,14 +43,35 @@ The module `std.meta` exposes compile-time descriptions of types:
 | `meta.isStruct<T>()`, `isEnum`, `isInteger`, ... | type classification |
 | `meta.implements<T, I>()` | whether `T` satisfies interface `I` |
 
-These values exist only at compile time.
+These values exist only at compile time. `meta.fieldsOf<T>()` needs `T` to
+be a struct, or narrowed to one by `comptime if meta.isStruct<T>()` (15.3);
+`meta.variantsOf<T>()` likewise needs an enum (E0364).
 
 ## 15.3 `comptime for` and `comptime if`
 
-`comptime for` is unrolled by the compiler: its body is type-checked once per
-element, with that element's concrete types. `comptime if` keeps only the
-branch whose condition is true, so the other branch may contain code that
-would not type-check for this instantiation.
+`comptime for` is unrolled by the compiler. It iterates over `keyof T`
+(16.6), `meta.fieldsOf<T>()` or `meta.variantsOf<T>()`. Its body is
+type-checked once, with the loop variable standing for an implicit key
+parameter `K: keyof T` (16.2), and expanded once per field of each instance,
+in declaration order, with `K` bound to that field. `break` and `continue`
+are not allowed in it.
+
+`comptime if` keeps only the branch whose condition is true for the
+instance. The condition is built from `true`, `false`, constants, the
+`meta` predicates and `field.index`, with `!`, `&&` and `||` (E0363
+otherwise). When it does not depend on a type parameter, only the taken
+branch is type-checked. Otherwise both branches are, and in the `then`
+branch the predicates **narrow** the type parameters they name:
+
+| Predicate | Adds to `T` |
+|-----------|-------------|
+| `meta.implements<T, I>()` | the bound `I` |
+| `meta.isInteger<T>()` | `Copy`, `Eq`, `Ord`, `Hash`, `Clone`, `Debug`, `Display` |
+| `meta.isFloat<T>()` | `Copy`, `Clone`, `Debug`, `Display` |
+| `meta.isStruct<T>()`, `meta.isEnum<T>()` | the use of `fieldsOf`, `variantsOf` |
+
+Narrowing passes through `&&`; under `A || B` a parameter gets only what
+both `A` and `B` give it, and `!` gives nothing.
 
 ```ofir
 import std.meta
@@ -78,9 +101,15 @@ struct User {
 }
 ```
 
-- `field.get(value)` reads the field with its concrete type.
-- `comptime panic(...)` produces a compile error at the instantiation that
-  reaches it, with the given message.
+- `field.name` is the field's name (`str`), `field.index` its position
+  (`int`) and `field.attribute(key)` its `@tag` value (`Option<str>`).
+- `field.get(value)` is `value[K]`: its type is `T[K]`, the field's type in
+  each instance. `toJson(field.get(value), out)` calls the instance of
+  `toJson` for that type.
+- `comptime panic(...)` has type `never`. Its message is a string literal
+  whose interpolations are compile-time `str` values. Expanding an instance
+  that keeps it is a compile error at the call that created the instance,
+  with the given message (E0814).
 
 ## 15.4 Attributes as metadata
 
@@ -91,9 +120,14 @@ meanings of chapter 12.1.
 
 ## 15.5 Limits
 
+- The value of a `comptime` expression is a number, `bool`, `str`, array,
+  tuple, struct or enum of those (E0818); what its functions allocate does
+  not escape.
 - Compile-time execution has a step budget (default 10 million operations,
-  configurable with `@comptimeBudget(n)`), so a buggy loop is a compile
-  error instead of a hang.
+  configurable with `@comptimeBudget(n)` on the enclosing declaration), so
+  a buggy loop is a compile error instead of a hang. A panic, an
+  arithmetic or bounds error, or running out of budget is E0816.
 - `comptime` code is deterministic: it cannot read files, the clock, the
-  environment or random numbers. Builds stay reproducible (required for the
-  self-hosting check).
+  environment or random numbers, nor call `extern` functions (E0815).
+  Builds stay reproducible (required for the self-hosting check).
+- A `comptime fn` called from code that runs at run time is E0817.
