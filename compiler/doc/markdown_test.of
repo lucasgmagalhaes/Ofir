@@ -1,0 +1,29 @@
+// The tests of `doc.markdown`.
+
+@test
+fn escapesMarkup() {
+    assert(escape("a < b && \"c\" > d") == "a &lt; b &amp;&amp; &quot;c&quot; &gt; d")
+    assert(escape("Ågé") == "Ågé")
+}
+
+@test
+fn codeSpans() {
+    assert(inline("call `f(x)` now") == "call <code>f(x)</code> now")
+    assert(inline("`` a ` b ``") == "<code>a ` b</code>")
+    assert(inline("a `lone tick") == "a `lone tick")
+}
+
+@test
+fn paragraphsListsAndCode() {
+    const lines = ["One", "line.", "", "- a", "  more", "- b", "```ofir", "x < 1", "```"]
+    const html = blocks(&lines, 0, lines.len())
+    let want = "<p>One line.</p>\n<ul>\n<li>a more</li>\n<li>b</li>\n</ul>\n"
+    want.push("<pre><code class=\"language-ofir\">x &lt; 1\n</code></pre>\n")
+    assert(html == want)
+}
+
+@test
+fn summaryIsTheFirstParagraph() {
+    assert(summary("The `x`\nof it.\n\nMore.") == "The <code>x</code> of it.")
+    assert(summary("@param x y") == "")
+}
