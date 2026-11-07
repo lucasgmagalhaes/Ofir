@@ -5,6 +5,7 @@
  * tuples, and the conversions of `coerce`.
  */
 
+import base.intern.Symbol
 import base.span.Span
 import sema.call_args.arrangeArgs
 import sema.check.Checker
@@ -38,6 +39,7 @@ import sema.check_types.compatible
 import sema.check_types.fnSignature
 import sema.check_types.resolveType
 import sema.check_types.sliceOf
+import sema.check_types.typeParameter
 import sema.check_union.coerceToUnion
 import sema.check_union.unionMembers
 import sema.check_unsafe.checkDeref
@@ -259,13 +261,27 @@ pub fn checkName(c: mut Checker, p: Program, res: Res, span: Span) int {
     return match res {
         Res.Local(id) => c.localTypes[id]
         Res.Def(id) => defValue(c, p, id, span, ERROR)
+        Res.ConstParam(name) => constParamValue(c, name, -1)
         _ => ERROR
     }
+}
+
+// `N`, a const parameter (spec 8.7): an `int`, its argument recorded for
+// the instance unless `node` is -1.
+fn constParamValue(c: mut Checker, name: Symbol, node: int) int {
+    const Option.Some(param) = typeParameter(c, name) else {
+        return ERROR
+    }
+    if node >= 0 {
+        c.constUses.insert(c.module() * 4294967296 + node, param)
+    }
+    return I64
 }
 
 fn nameValue(c: mut Checker, p: Program, e: &Expr, expected: int) int {
     return match nameRes(c, e) {
         Res.Local(id) => c.localTypes[id]
+        Res.ConstParam(name) => constParamValue(c, name, e.id.0)
         Res.Def(id) => {
             if c.def(id).kind == DefKind.Variant {   // `None`
                 return checkPreludeVariant(c, p, e, id, Option.None, expected)

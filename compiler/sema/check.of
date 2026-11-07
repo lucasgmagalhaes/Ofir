@@ -50,6 +50,7 @@ import sema.structs.hasInteriorMutability
 import sema.structs.structFields
 import sema.types.ERROR
 import sema.types.FN_SEND
+import sema.types.I64
 import sema.types.NEVER
 import sema.types.TyKind
 import sema.types.TypeTable
@@ -142,6 +143,8 @@ pub const BOUND_SEND: int = 64
 pub const BOUND_SYNC: int = 128
 /** The number of bits above. */
 pub const BOUND_COUNT: int = 8
+/** `const N: int`: a const parameter, its arguments integers (spec 8.7); not an interface. */
+pub const BOUND_CONST: int = 256
 
 /**
  * The bit of the built-in interface a bound names, or 0.
@@ -260,6 +263,10 @@ fn addBounds(c: mut Checker, p: Program, preds: &List<WherePred>, g: mut Generic
         const index = boundedParam(&preds[i].ty, &g.owner, &g.fnParams)
         if index < 0 {
             continue   // E0334, reported with the declaration
+        }
+        if preds[i].isConst {   // its type, `int`, checked with the declaration
+            g.bounds[index] = g.bounds[index] | BOUND_CONST | BOUND_COPY
+            continue
         }
         for j in 0..preds[i].bounds.len() {
             if isKeyBound(&preds[i].bounds[j]) {
@@ -470,6 +477,9 @@ pub struct Checker {
     pub derefs: List<Map<int, List<int>>>
     /** The type of an expression's value after its implicit dereferences. */
     pub adjusted: List<Map<int, int>>
+    /** The const parameter each use of one stands for, as its `Param` type, by
+     * `module * 2^32 + NodeId` (spec 8.7). */
+    pub constUses: Map<int, int>
     /** By module and `NodeId`: the field of `a.f` and `a.0`, the variant of a variant
      * expression or pattern, the method (`DefId`) of a method call's callee, or -1. */
     pub members: List<List<int>>
@@ -766,7 +776,10 @@ pub struct Checker {
             TyKind.Slice | TyKind.Array => {
                 out.push("[")
                 self.appendType(out, t.inner, qualified)
-                if t.kind == TyKind.Array {
+                if t.kind == TyKind.Array && t.args.len() == 1 {
+                    out.push("; ")
+                    self.appendType(out, t.args[0], qualified)
+                } else if t.kind == TyKind.Array {
                     out.push("; {t.data}")
                 }
                 out.push("]")
@@ -825,6 +838,7 @@ pub struct Checker {
                 self.appendType(out, t.args[0], qualified)
                 out.push("]")
             }
+            TyKind.Value => out.push("{t.data}")
         }
     }
 }
@@ -953,7 +967,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
         }
     }
     return Checker{r, types: TypeTable.new(), info, itemDefs, nodeTypes, localTypesOf, derefs,
-                   adjusted,
+                   adjusted, constUses: Map.new(),
                    members, callTypeArgs, argSlots, defaultsChecked: Map.new(), sliceCoercions,
                    arrayCoercions, dynCoercions, unionCoercions, moveFlags, fnMoves: Map.new(),
                    bodyChecked: Map.new(), movesPending: Map.new(),
@@ -1187,6 +1201,10 @@ pub fn checkDeclBounds(c: mut Checker, p: Program, preds: &List<WherePred>) {
             c.error("E0334", pred.ty.span, "`{typeText(&pred.ty, c.r.names)}` is not a type "
                     + "parameter of this declaration: only type parameters take bounds")
         }
+        if pred.isConst {
+            checkConstParamType(c, p, pred)
+            continue
+        }
         for j in 0..pred.bounds.len() {
             const iface = interfaceOf(c, &pred.bounds[j])
             if boundBit(c, &pred.bounds[j]) == 0 && iface == 0 && !isKeyBound(&pred.bounds[j]) {
@@ -1195,6 +1213,16 @@ pub fn checkDeclBounds(c: mut Checker, p: Program, preds: &List<WherePred>) {
             }
             checkArity(c, p, &pred.bounds[j], iface)
         }
+    }
+}
+
+// E0361 unless the type of a const parameter is `int` (spec 8.7).
+fn checkConstParamType(c: mut Checker, p: Program, pred: &WherePred) {
+    const ty = resolveType(c, p, &pred.bounds[0])
+    if ty != I64 && ty != ERROR {
+        c.error("E0361", pred.bounds[0].span, "the type of the const parameter "
+                + "`{typeText(&pred.ty, c.r.names)}` is `{c.typeName(ty)}`: const parameters "
+                + "are of type `int`")
     }
 }
 
