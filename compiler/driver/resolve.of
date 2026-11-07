@@ -1,10 +1,11 @@
 /**
  * @module
  * The resolution of git and registry dependencies (ADR 0032): one version
- * of each repository, or registry package, for the whole program, the highest that every requirement on
- * it accepts, recomputed until the requirements of the chosen versions
- * agree. There is no backtracking. A locked version is kept while it still
- * fits, unless the package is being updated.
+ * of each repository, or registry package, for the whole program, the
+ * highest that every requirement on it accepts, recomputed until the
+ * requirements of the chosen versions agree. There is no backtracking. A
+ * locked version is kept while it still fits, unless the package is being
+ * updated.
  */
 
 import driver.git.checkout
@@ -458,7 +459,8 @@ fn chooseRelease(url: str, index: str, name: str, needs: &List<Need>, mine: &Lis
             const sum = checksum(real)
             const expected = known[best].checksum.clone()
             if expected != sum {
-                const notes = ["the registry has `{expected}`", "its files at `{real}` have `{sum}`"]
+                const notes = ["the registry has `{expected}`",
+                               "its files at `{real}` have `{sum}`"]
                 const message = "the checksum of `{name}` differs from the registry"
                 out.failures.push(Failure{url: url.toOwned(), code: "E0914", message, notes})
                 return
