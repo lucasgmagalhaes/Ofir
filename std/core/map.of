@@ -18,6 +18,10 @@ extern "intrinsic" {
     fn debugOf<T>(value: T, out: mut str)
 }
 
+extern "C" {
+    fn ofir_random_u64() u64
+}
+
 // A slot of the table: the position of an entry, or one of these.
 const EMPTY: int = -1   // never used: a lookup stops here
 const GONE: int = -2    // its entry was removed: a lookup goes on
@@ -60,6 +64,7 @@ pub struct Map<K: Eq + Hash, V> {
     entries: List<Entry<K, V>>
     slots: List<int>
     gone: int   // GONE slots, which count as used until the table is rebuilt
+    seed: u64   // 0: `hashOf(key)` alone; otherwise mixed in by `hashSeeded`
 
     /**
      * An empty map; nothing is allocated until the first insertion.
@@ -67,7 +72,35 @@ pub struct Map<K: Eq + Hash, V> {
      * @returns a map with no entries
      */
     pub fn new() Map<K, V> {
-        return Map{entries: [], slots: [], gone: 0}
+        return Map{entries: [], slots: [], gone: 0, seed: 0}
+    }
+
+    /**
+     * An empty map whose hash function is keyed by a random seed, for keys
+     * that may come from an attacker (ADR 0034): the slots of the keys
+     * cannot be predicted, so crafted keys cannot make lookups slow. The
+     * iteration order is still the insertion order.
+     *
+     * @returns a map with no entries and a fresh seed
+     * @example
+     * ```ofir
+     * let counts = Map<str, int>.seeded()
+     * counts.insert("ana", 1)
+     * ```
+     */
+    pub fn seeded() Map<K, V> {
+        return Map.withSeed(unsafe { ofir_random_u64() })
+    }
+
+    /**
+     * An empty map whose hash function is keyed by `seed`, like `seeded`
+     * but reproducible; a seed of 0 gives the unseeded hash of `new`.
+     *
+     * @param seed the key of the hash function
+     * @returns a map with no entries
+     */
+    pub fn withSeed(seed: u64) Map<K, V> {
+        return Map{entries: [], slots: [], gone: 0, seed}
     }
 
     /**
@@ -246,7 +279,7 @@ pub struct Map<K: Eq + Hash, V> {
         if self.entries.isEmpty() {
             return -1
         }
-        const hash = hashOf(key)
+        const hash = self.hashKey(key)
         const mask = self.slots.len() - 1
         let slot = (hash & (mask as u64)) as int
         for {
@@ -261,10 +294,19 @@ pub struct Map<K: Eq + Hash, V> {
         }
     }
 
+    // The hash of `key` in this map: keyed by the seed, if there is one.
+    fn hashKey(self, key: K) u64 {
+        const hash = hashOf(key)
+        if self.seed == 0 {
+            return hash
+        }
+        return hashSeeded(hash, self.seed)
+    }
+
     // Appends an entry for a new key and records it in the table.
     fn add(mut self, key: move K, value: move V) {
         self.reserveOne()
-        const hash = hashOf(key)
+        const hash = self.hashKey(key)
         self.entries.push(Entry{key, value, hash})
         self.place(hash, self.entries.len() - 1)
     }
