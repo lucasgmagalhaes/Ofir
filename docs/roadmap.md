@@ -257,7 +257,7 @@ These gaps remain:
 | 6.5b | Path dependencies: a JSONC reader for `ofir.json`, `dependencies` with `path`, imports by package name (E0910, E0911, E0915); **done** (stage 1): `tests/run/packages/app` and `tests/compile_fail/packages` | M |
 | 6.5c | Git dependencies, semver requirements, resolution, `ofir.lock`, `ofir fetch` and `ofir update` (E0912); **done** (stage 1): `tests/run/packages/git` and `tests/compile_fail/packages/git` | M |
 | 6.5d | SHA-256 checksums in `ofir.lock`, `--locked` and `--offline` (E0913, E0914); **done** (stage 1): `tests/compile_fail/packages/{locked,checksum,offline}` | S |
-| 6.5e | Registry client: the git index and version archives | M |
+| 6.5e | Registry client: the git index and version archives; **done** (stage 1): `tests/run/packages/{registry,yanked}` and `tests/compile_fail/packages/{registry,registry_checksum}` | M |
 | 6.6 | Incremental and parallel compilation | L |
 | 6.7 | Seeded `Map` hasher, labeled loops, const generics | M |
 | 6.7a | Compile-time code: `comptime`, `std.meta`, `comptime for`/`if`, `@tag` (spec chapter 15) | L |
