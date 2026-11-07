@@ -1,7 +1,8 @@
 /**
  * @module
- * JSON for the language server (RFC 8259): a parser into a flat tree of
- * nodes, and the lookups the server needs. Values are written with
+ * JSON for the language server (RFC 8259), and JSONC for `ofir.json`
+ * (ADR 0026): a parser into a flat tree of nodes, and the lookups the
+ * server and the package manager need. Values are written with
  * `diag.jsonString` and string interpolation.
  */
 
@@ -39,6 +40,10 @@ pub struct JsonNode {
     pub child: int
     /** The next element or member of its parent, or -1. */
     pub next: int
+    /** The offset of its first byte in the text. */
+    pub start: int
+    /** The offset after its last byte. */
+    pub end: int
 }
 
 /**
@@ -155,13 +160,35 @@ pub struct JsonDoc {
  * @returns its tree, or `None` when it is not valid JSON
  */
 pub fn parseJson(text: str) Option<JsonDoc> {
-    let p = JsonParser{text: text.toOwned(), pos: 0, doc: JsonDoc{nodes: []}, ok: true}
-    p.value("")
-    p.space()
-    if !p.ok || p.pos != p.text.len() {
+    const Result.Ok(doc) = parseWith(text, false) else {
         return Option.None
     }
-    return Option.Some(p.doc)
+    return Option.Some(doc)
+}
+
+/**
+ * Parses a JSONC document: JSON with line and block comments and
+ * trailing commas, the format of `ofir.json` (ADR 0026).
+ *
+ * @param text the document
+ * @returns its tree, or the offset where it stops being valid
+ */
+pub fn parseJsonc(text: str) Result<JsonDoc, int> {
+    return parseWith(text, true)
+}
+
+fn parseWith(text: str, comments: bool) Result<JsonDoc, int> {
+    let p = JsonParser{text: text.toOwned(), pos: 0, doc: JsonDoc{nodes: []}, ok: true, comments,
+                       failed: -1}
+    p.value("")
+    p.space()
+    if p.ok && p.pos != p.text.len() {
+        p.fail()
+    }
+    if !p.ok {
+        return Result.Err(if p.failed >= 0 { p.failed } else { p.pos })
+    }
+    return Result.Ok(p.doc)
 }
 
 struct JsonParser {
@@ -169,15 +196,53 @@ struct JsonParser {
     pos: int
     doc: JsonDoc
     ok: bool
+    // Whether comments and trailing commas are allowed (JSONC).
+    comments: bool
+    // Where the first error is, or -1.
+    failed: int
+
+    fn fail(mut self) {
+        if self.ok {
+            self.failed = if self.pos < self.text.len() { self.pos } else { self.text.len() }
+        }
+        self.ok = false
+    }
 
     fn space(mut self) {
         for self.pos < self.text.len() {
             const b = self.text[self.pos]
+            if self.comments && b == b'/' && self.comment() {
+                continue
+            }
             if b != b' ' && b != b'\t' && b != b'\n' && b != b'\r' {
                 return
             }
             self.pos += 1
         }
+    }
+
+    // Skips the comment at `pos`, if it is one.
+    fn comment(mut self) bool {
+        const rest = self.text.sliceFrom(self.pos)
+        if rest.startsWith("//") {
+            for self.pos < self.text.len() && self.text[self.pos] != b'\n' {
+                self.pos += 1
+            }
+            return true
+        }
+        if !rest.startsWith("/*") {
+            return false
+        }
+        self.pos += 2
+        for self.pos < self.text.len() {
+            if self.text.sliceFrom(self.pos).startsWith("*/") {
+                self.pos += 2
+                return true
+            }
+            self.pos += 1
+        }
+        self.fail()   // not closed
+        return true
     }
 
     fn peek(self) u8 {
@@ -188,13 +253,22 @@ struct JsonParser {
     }
 
     fn add(mut self, kind: JsonKind, text: move str, key: str) int {
-        self.doc.nodes.push(JsonNode{kind, text, key: key.toOwned(), child: -1, next: -1})
+        self.doc.nodes.push(JsonNode{kind, text, key: key.toOwned(), child: -1, next: -1, start: 0,
+                                     end: 0})
         return self.doc.nodes.len() - 1
     }
 
     // Parses a value; returns its node.
     fn value(mut self, key: str) int {
         self.space()
+        const start = self.pos
+        const node = self.valueHere(key)
+        self.doc.nodes[node].start = start
+        self.doc.nodes[node].end = self.pos
+        return node
+    }
+
+    fn valueHere(mut self, key: str) int {
         const b = self.peek()
         if b == b'{' {
             return self.object(key)
@@ -225,7 +299,7 @@ struct JsonParser {
             self.pos += 4
             return self.add(JsonKind.Null, "", key)
         }
-        self.ok = false
+        self.fail()
         self.pos = self.text.len()
         return self.add(JsonKind.Null, "", key)
     }
@@ -263,13 +337,13 @@ struct JsonParser {
         for self.ok {
             self.space()
             if self.peek() != b'"' {
-                self.ok = false
+                self.fail()
                 return node
             }
             const name = self.string()
             self.space()
             if self.peek() != b':' {
-                self.ok = false
+                self.fail()
                 return node
             }
             self.pos += 1
@@ -289,10 +363,17 @@ struct JsonParser {
         const b = self.peek()
         if b == b',' {
             self.pos += 1
+            if self.comments {   // a trailing comma
+                self.space()
+                if self.peek() == end {
+                    self.pos += 1
+                    return false
+                }
+            }
             return true
         }
         if b != end {
-            self.ok = false
+            self.fail()
         }
         self.pos += 1
         return false
@@ -326,14 +407,14 @@ struct JsonParser {
                 self.pos += 1
             }
         }
-        self.ok = false
+        self.fail()
         return out
     }
 
     // The escape at `pos`, a `\`, appended to `out`.
     fn escape(mut self, out: mut str) {
         if self.pos + 1 >= self.text.len() {
-            self.ok = false
+            self.fail()
             self.pos = self.text.len()
             return
         }
@@ -354,7 +435,7 @@ struct JsonParser {
         } else if e == b'"' || e == b'\\' || e == b'/' {
             out.pushChar(e as u32)
         } else {
-            self.ok = false
+            self.fail()
         }
     }
 
@@ -380,7 +461,7 @@ struct JsonParser {
 
     fn hex4(mut self) int {
         if self.pos + 4 > self.text.len() {
-            self.ok = false
+            self.fail()
             self.pos = self.text.len()
             return 0
         }
@@ -388,7 +469,7 @@ struct JsonParser {
         for i in 0..4 {
             const d = hexDigit(self.text[self.pos + i])
             if d < 0 {
-                self.ok = false
+                self.fail()
             }
             v = v * 16 + d
         }
