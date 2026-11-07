@@ -252,7 +252,12 @@ These gaps remain:
 | 6.4 | `ofir doc` and doc tests, in the steps below; **done** | M |
 | 6.4a | Doc tests: the ```` ```ofir ```` blocks of documentation comments run under `ofir test`; **done** (stage 1): `compiler/driver/doctest.of`, `tests/ofir_doctest`, the examples of std and `compiler/` | S |
 | 6.4b | `ofir doc`: HTML documentation from the doc comments; **done** (stage 1): `compiler/doc`, `tests/doc` | M |
-| 6.5 | Package manager: `ofir.json` dependencies, lock file, registry design | L |
+| 6.5 | Package manager (ADR 0032, stage 1), in the steps below | L |
+| 6.5a | Design: ADR 0032, `docs/design/toolchain.md`, codes E0910-E0915; **done** | S |
+| 6.5b | Path dependencies: a JSONC reader for `ofir.json`, `dependencies` with `path`, imports by package name (E0910, E0911, E0915) | M |
+| 6.5c | Git dependencies, semver requirements, resolution, `ofir.lock`, `ofir fetch` and `ofir update` (E0912) | M |
+| 6.5d | SHA-256 checksums in `ofir.lock`, `--locked` and `--offline` (E0913, E0914) | S |
+| 6.5e | Registry client: the git index and version archives | M |
 | 6.6 | Incremental and parallel compilation | L |
 | 6.7 | Seeded `Map` hasher, labeled loops, const generics | M |
 | 6.7a | Compile-time code: `comptime`, `std.meta`, `comptime for`/`if`, `@tag` (spec chapter 15) | L |

@@ -145,7 +145,9 @@ allowed, the format of `tsconfig.json` (ADR 0026). Keys are camelCase.
     "kind": "exe",            // "exe" or "lib"
     "root": "src/main.of",
   },
-  "dependencies": {},         // [planned] package manager
+  "dependencies": {          // [planned] packages (ADR 0032)
+    "util": {"path": "../util"},
+  },
   "fmt": {                    // what `ofir fmt` produces (docs/style-guide.md)
     "inlineBlocks": false,    // a function or statement body never shares a line with its braces
   },
@@ -161,6 +163,35 @@ allowed, the format of `tsconfig.json` (ADR 0026). Keys are camelCase.
 `ofir fmt` (stage 1) does not read the manifest yet: it always applies the
 default. `tools/check_format.py` checks the repository against the same
 rules, and `--fix` applies them.
+
+### Dependencies [planned]
+
+The package manager (ADR 0032, roadmap 6.5, stage 1) reads the
+`dependencies` of `ofir.json`. Each key is a package name, the first
+segment of its imports (`import json.parser`); each value says where it
+comes from:
+
+| Value | Source |
+|-------|--------|
+| `"^1.2"` | the registry (6.5e) |
+| `{"git": URL, "version": "^0.3"}` | a git repository; versions are its tags `vX.Y.Z` |
+| `{"git": URL, "rev": "abc123"}` / `"branch": "dev"` | one commit, or the head of a branch |
+| `{"path": "../util"}` | a directory, relative to `ofir.json` |
+
+A requirement is `^1.2.3` (the default), `~1.2.3`, `=1.2.3`, `>=1.2.3` or
+`*`. A program has one version of each package; when no version fits every
+requirement, resolution fails (E0912).
+
+| Command | Effect |
+|---------|--------|
+| `ofir fetch` | resolves the graph, downloads what is missing, writes `ofir.lock` |
+| `ofir update [name]` | resolves again, all packages or one |
+| `--locked` | `build`, `run`, `test` and `fetch` fail instead of changing `ofir.lock` (E0913) |
+| `--offline` | uses only the cache |
+
+`ofir.lock` sits next to `ofir.json` and is generated: each package's
+version, source and SHA-256 checksum, sorted by name. Commit it for
+programs. Downloads are cached under `$OFIR_HOME` (default `~/.ofir`).
 
 ### `ofir fmt`
 
