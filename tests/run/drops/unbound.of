@@ -1,0 +1,78 @@
+// A value consumed by a pattern drops the parts its bindings do not take
+// (spec 5.2): in each `match` arm, in both branches of `if const`, and
+// after a destructuring `const`.
+
+struct D {
+    n: int
+
+    fn drop(mut self) {
+        println("drop {self.n}")
+    }
+}
+
+struct Pair {
+    a: D
+    b: D
+}
+
+fn make(n: int) Result<D, D> {
+    if n % 2 == 0 {
+        return Result.Err(D{n: n})
+    }
+    return Result.Ok(D{n: n})
+}
+
+fn early(n: int) int {
+    match make(n) {
+        Result.Ok(_) => {
+            return 0
+        }
+        Result.Err(e) => println("err {e.n}"),
+    }
+    return 1
+}
+
+fn firstOr(n: int) int {
+    const Result.Ok(d) = make(n) else {
+        return -1
+    }
+    return d.n
+}
+
+fn main() {
+    match make(1) {
+        Result.Ok(_) => println("ok"),
+        Result.Err(e) => println("err {e.n}"),
+    }
+    const x = make(3)
+    match x {
+        Result.Ok(_) => println("ok place"),
+        Result.Err(e) => println("err {e.n}"),
+    }
+    if const Result.Err(e) = make(5) {
+        println("err {e.n}")
+    } else {
+        println("else")
+    }
+    if const Result.Ok(d) = make(7) {
+        println("then {d.n}")
+    }
+    const (p, _) = (D{n: 8}, D{n: 9})
+    println("tuple {p.n}")
+    match (Pair{a: D{n: 10}, b: D{n: 11}}) {
+        Pair{a, ..} => println("struct {a.n}"),
+    }
+    const e = early(13)
+    println("early {e}")
+    const f = firstOr(14)
+    println("firstOr {f}")
+    for i in 0..2 {
+        match make(15 + i * 2) {
+            Result.Ok(_) => {
+                break
+            }
+            Result.Err(e) => println("err {e.n}"),
+        }
+    }
+    println("end {p.n}")
+}
