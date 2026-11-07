@@ -13,6 +13,7 @@ import sema.def.DefKind
 import sema.def.Local
 import sema.def.Res
 import sema.resolve.Resolver
+import sema.resolve.constParamsOf
 import sema.resolve_attributes.warnDeprecated
 import sema.resolve_import.resolveQualified
 import sema.trace.traceAt
@@ -94,6 +95,11 @@ fn find(r: mut Resolver, name: Symbol, span: Span) Res {
         r.locals[local].used = true
         capture(r, local)
         return Res.Local(local)
+    }
+    for i in 0..r.constParams.len() {
+        if r.constParams[i].0 == name.0 {
+            return Res.ConstParam(name)
+        }
     }
     const def = r.scope.module(name)
     if def != 0 {
@@ -439,6 +445,11 @@ pub fn resolveFn(r: mut Resolver, decl: &FnDecl) {
     }
     r.scope.resetLocals()
     r.locals = []
+    const outerConsts = r.constParams.len()
+    const consts = constParamsOf(&decl.bounds)
+    for i in 0..consts.len() {
+        r.constParams.push(consts[i])
+    }
     r.scope.enter()
     if decl.hasSelf {
         declareLocal(r, r.selfName, decl.span, decl.selfMode == Mode.Mut)
@@ -454,6 +465,7 @@ pub fn resolveFn(r: mut Resolver, decl: &FnDecl) {
         resolveStmts(r, &body.stmts)   // the same scope as the parameters
     }
     r.scope.leave()
+    r.constParams.truncate(outerConsts)
     warnUnusedLocals(r, decl)
     const locals = r.locals
     r.locals = []

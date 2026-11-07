@@ -97,6 +97,8 @@ pub copy enum Res {
     Local(id: int)
     /** A declaration: its `DefId`. */
     Def(id: int)
+    /** A const parameter (spec 8.7): its name. */
+    ConstParam(name: Symbol)
     /** An error was reported. */
     Error
 }
