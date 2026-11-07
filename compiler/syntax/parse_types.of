@@ -62,7 +62,7 @@ pub fn parseTypeArgs(p: mut Parser) List<TypeExpr> {
     let args: List<TypeExpr> = []
     p.skipNewlines()
     for !p.at(TokenKind.Gt) && !p.at(TokenKind.Eof) {
-        args.push(parseType(p))
+        args.push(parseTypeArg(p))
         p.skipNewlines()
         if !p.accept(TokenKind.Comma) {
             break
@@ -71,6 +71,24 @@ pub fn parseTypeArgs(p: mut Parser) List<TypeExpr> {
     }
     p.expect(TokenKind.Gt, "`>` to close the type arguments")
     return args
+}
+
+// A type, or an integer for a const parameter: `4`, `-1` (spec 8.7).
+fn parseTypeArg(p: mut Parser) TypeExpr {
+    const start = p.here()
+    const negative = p.at(TokenKind.Minus) && p.peekAt(1) == TokenKind.Int
+    if !negative && !p.at(TokenKind.Int) {
+        return parseType(p)
+    }
+    if negative {
+        p.advance()
+    }
+    const value = match p.token(0).value {
+        TokenValue.Int(v) => v.wrappingCast<i64>()
+        _ => 0
+    }
+    p.advance()
+    return newType(p, TypeKind.Const(if negative { -value } else { value }), start)
 }
 
 /**
@@ -97,14 +115,18 @@ pub fn parseBounds(p: mut Parser) List<TypeExpr> {
 pub fn parseTypeParams(p: mut Parser, preds: mut List<WherePred>) List<Symbol> {
     let params: List<Symbol> = []
     if p.accept(TokenKind.Lt) {
-        for p.at(TokenKind.Ident) {
+        for p.at(TokenKind.Ident) || p.at(TokenKind.Const) {
             const start = p.here()
+            const isConst = p.accept(TokenKind.Const)
             const name = p.takeName()
             params.push(name)
-            if p.accept(TokenKind.Colon) {
+            if isConst {   // `const N: int` (spec 8.7)
+                p.expect(TokenKind.Colon, "`:` and the type of a const parameter")
+            }
+            if isConst || p.accept(TokenKind.Colon) {
                 const ty = newType(p, TypeKind.Path([name], []), start)
-                const bounds = parseBounds(p)
-                preds.push(WherePred{ty, bounds, span: p.spanSince(start)})
+                const bounds = if isConst { [parseType(p)] } else { parseBounds(p) }
+                preds.push(WherePred{ty, bounds, span: p.spanSince(start), isConst})
             }
             if !p.accept(TokenKind.Comma) {
                 break
