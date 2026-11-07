@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Checks the object cache of stage 1 (roadmap 6.6e, ADR 0033).
+
+Builds a program of several modules in a fresh `$OFIR_HOME` and checks
+that: the first build fills the cache; a second build reuses every
+object and the program still runs; a cached object that is not an object
+file is replaced; a cached object that breaks the link is recovered
+from; `--no-cache` leaves the cache alone; and `OFIR_CACHE_LIMIT` bounds
+it.
+
+    python3 tools/check_object_cache.py --compiler build/stage1/ofir
+"""
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+PROGRAM = ROOT / "tests" / "run" / "modules" / "app" / "main.of"
+EXPECTED = (ROOT / "tests" / "run" / "modules" / "app" / "main.out").read_text()
+
+
+def objects(home: Path) -> dict[Path, bytes]:
+    """The cached objects and their contents."""
+    return {p: p.read_bytes() for p in sorted((home / "cache" / "objects").glob("*/*.o"))}
+
+
+def build(compiler: str, env: dict[str, str], exe: Path, *flags: str) -> None:
+    cmd = [compiler, "build", str(PROGRAM), "-o", str(exe), *flags]
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    if result.returncode != 0:
+        sys.exit(f"error: {' '.join(cmd)} failed:\n{result.stdout}{result.stderr}")
+    output = subprocess.run([str(exe)], capture_output=True, text=True).stdout
+    if output.replace("\r\n", "\n") != EXPECTED:
+        sys.exit(f"error: {exe} printed:\n{output}")
+
+
+def check(ok: bool, what: str) -> None:
+    if not ok:
+        sys.exit(f"error: {what}")
+    print(f"ok: {what}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--compiler", required=True)
+    args = parser.parse_args()
+    compiler = str(Path(args.compiler).resolve())
+    tmp = Path(tempfile.mkdtemp(prefix="ofir-cache-"))
+    try:
+        home = tmp / "home"
+        env = {**os.environ, "OFIR_HOME": str(home)}
+        env.pop("OFIR_CACHE_LIMIT", None)
+        exe = tmp / ("app.exe" if os.name == "nt" else "app")
+
+        build(compiler, env, exe)
+        first = objects(home)
+        check(len(first) > 1, "the first build caches an object per unit")
+        check(not list(home.glob("cache/objects/*/*.tmp")), "no temporary object is left")
+
+        build(compiler, env, exe)
+        check(objects(home) == first, "a second build reuses every object")
+
+        bad = next(iter(first))
+        bad.write_bytes(b"junk")
+        build(compiler, env, exe)
+        check(objects(home)[bad] == first[bad], "an object that is not one is compiled again")
+
+        bad.write_bytes(b"\x7fELF" + b"\0" * 60)
+        build(compiler, env, exe)
+        check(True, "a link that fails with cached objects is retried without them")
+
+        shutil.rmtree(home / "cache" / "objects")
+        build(compiler, env, exe, "--no-cache")
+        check(not objects(home), "--no-cache neither reads nor writes the cache")
+
+        build(compiler, env, exe)
+        size = sum(len(data) for data in objects(home).values())
+        build(compiler, {**env, "OFIR_CACHE_LIMIT": str(size // 4)}, exe, "-g")
+        left = sum(len(data) for data in objects(home).values())
+        check(left <= size // 8, "OFIR_CACHE_LIMIT deletes objects down to half of it")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()
