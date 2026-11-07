@@ -50,6 +50,13 @@ project uses [Semantic Versioning](https://semver.org/).
   functions and at module level; `if let` and `let ... else` are now
   `if const` and `const ... else`. `var` is no longer a keyword (ADR 0031).
 
+### Fixed
+
+- The parts of a consumed value that a pattern does not bind (a `_`, a
+  field left out by `..`, the value matched in the `else` branch of an
+  `if const` or of a `const ... else`) are dropped instead of leaked, also
+  when the arm or branch is left by `return` or `break`.
+
 ## [0.5.0] - 2026-11-06
 
 Milestone M5: every chapter of the specification not marked [planned] is
