@@ -1,0 +1,27 @@
+// requires: stage1
+// Const parameters are of type int and take constants (spec 8.7).
+
+struct Buffer<T, const N: int> {
+    items: [T; N]
+}
+
+struct Flags<const B: bool> {   // error[E0361]: the type of the const parameter `B` is `bool`: const parameters are of type `int`
+    on: int
+}
+
+fn size<T>() int {
+    return 0
+}
+
+const NAME = "x"
+
+fn named(b: Buffer<u8, NAME>) {   // error[E0362]: the constant `NAME` is of type `str`: const arguments are of type `int` (spec 8.7)
+}
+
+fn len<T>(xs: [T; T]) {   // error[E0362]: `T` is a type: an array length is an integer constant or a const parameter (spec 8.7)
+}
+
+fn main() {
+    const _ = Buffer<u8, int>{items: [0; 4]}   // error[E0362]: `int` given for `N`, which takes a constant (spec 8.7)
+    const _ = size<4>()   // error[E0362]: `4` given for `T`, which takes a type (spec 8.7)
+}

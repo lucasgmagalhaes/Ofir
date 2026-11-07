@@ -1,0 +1,33 @@
+// requires: stage1
+// Const parameters: array lengths, values and inference (spec 8.7).
+
+struct Buffer<T, const N: int> {
+    items: [T; N]
+
+    fn capacity(self) int {
+        return N
+    }
+}
+
+fn sum<const N: int>(xs: [int; N]) int {
+    let total = 0
+    for x in xs {
+        total += x
+    }
+    return total
+}
+
+const SIZE = 3
+
+fn first<T: Copy, const N: int>(xs: [T; N]) T {
+    return xs[0]
+}
+
+fn main() {
+    const b = Buffer<u8, 4>{items: [0; 4]}
+    println("{b.capacity()} {sum([1, 2, 3])}")   // 4 6
+    const c = Buffer<int, SIZE>{items: [7; 3]}
+    println("{c.capacity()} {sum<2>([5, 6])} {first([true, false])}")
+    const big = Buffer<u8, 8>{items: [1; 8]}
+    println("{big.capacity()}")
+}
