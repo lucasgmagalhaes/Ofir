@@ -15,7 +15,7 @@ LLVM IR. Its interface is `runtime/include/ofir_rt.h`.
 | Crashes | stack overflow detection (section 3) |
 | Process | `ofir_exit(code)`, `ofir_arg_count()`, `ofir_arg(i, &len)`, `ofir_env` |
 | Files | thin wrappers over `open`, `read`, `write`, `stat`, `mkdir`, `unlink`, `opendir`, `getline` |
-| Processes | `ofir_run`: `posix_spawnp` with both output streams captured (needed for the compiler to invoke clang) |
+| Processes | `ofir_spawn`, `ofir_wait`: `posix_spawnp` (or `CreateProcess`) with both output streams sent to temporary files, so several clang processes can run at once (ADR 0033); `ofir_cpu_count` |
 | Tasks | `ofir_task_spawn`, `ofir_task_join`: one POSIX thread per task (`std.task`, spec 14.2) |
 | Channels | `ofir_channel_new`, `_send`, `_recv`, `_try_recv` and the sender and receiver counts (`std.sync`, spec 14.4) |
 | Locks and atomics | `ofir_atomic_*`, `ofir_mutex_*`, `ofir_rwlock_*`, `ofir_waitgroup_*` (`std.sync`, spec 14.4) |
