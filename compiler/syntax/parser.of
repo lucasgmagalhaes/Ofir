@@ -14,6 +14,7 @@ import syntax.ast.Module
 import syntax.ast.NodeId
 import syntax.ast.TypeExpr
 import syntax.ast.WherePred
+import syntax.parse_items.docTestItems
 import syntax.parse_items.moduleItems
 import syntax.token.Token
 import syntax.token.TokenKind
@@ -388,7 +389,7 @@ fn describe(kind: TokenKind) str {
  */
 pub fn parse(file: FileId, src: str, tokens: move List<Token>, names: move Interner,
              diags: move Diagnostics) ParseResult {
-    return parseFrom(file, src, tokens, names, diags, 0)
+    return parseFrom(file, src, tokens, names, diags, 0, false)
 }
 
 /**
@@ -401,10 +402,11 @@ pub fn parse(file: FileId, src: str, tokens: move List<Token>, names: move Inter
  * @param names the interner
  * @param diags the diagnostics
  * @param firstId the number of the first node
+ * @param docTest whether the file is a doc test (`docTestItems`)
  * @returns the tree, the interner and the diagnostics
  */
 pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move Interner,
-                 diags: move Diagnostics, firstId: int) ParseResult {
+                 diags: move Diagnostics, firstId: int, docTest: bool) ParseResult {
     let docs: List<str> = []
     let kept: List<Token> = []
     for i in 0..tokens.len() {
@@ -422,7 +424,7 @@ pub fn parseFrom(file: FileId, src: str, tokens: move List<Token>, names: move I
     let p = Parser{tokens: kept, pos: 0, src: src.sliceFrom(0), noStructLiteral: false,
                    typeTests: false, recovering: false, names, diags, words, nextId: firstId,
                    typeBounds: [], typeAsserts: []}
-    const items = moduleItems(p)
+    const items = if docTest { docTestItems(p) } else { moduleItems(p) }
     const module = Module{file, nodeCount: p.nextId, docs, items}
     return ParseResult{module, names: p.names, diags: p.diags}
 }

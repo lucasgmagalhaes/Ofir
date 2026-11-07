@@ -86,7 +86,8 @@ pub struct Front {
         }
         const names = mem.replace(self.names, Interner.new())
         const diags = mem.replace(self.diags, Diagnostics.new())
-        const parsed = parseFrom(file, self.map.file(file).text, tokens, names, diags, firstId)
+        const parsed = parseFrom(file, self.map.file(file).text, tokens, names, diags, firstId,
+                                 false)
         self.names = parsed.names
         self.diags = parsed.diags
         return Option.Some(parsed.module)
