@@ -1,0 +1,87 @@
+// requires: stage1
+// A labeled loop: `break name` and `continue name` leave the loop with
+// that label, past the inner loops (spec 4.4).
+
+struct Noisy {
+    name: str
+
+    fn drop(mut self) {
+        println("drop {self.name}")
+    }
+}
+
+fn grid() {
+    outer: for i in 0..4 {
+        for j in 0..4 {
+            if j == 2 {
+                continue outer
+            }
+            if i == 3 {
+                break outer
+            }
+            println("{i} {j}")
+        }
+    }
+}
+
+// An infinite loop broken from an inner loop still finishes.
+fn count() int {
+    let n = 0
+    search: for {
+        for {
+            n += 1
+            if n == 5 {
+                break search
+            }
+        }
+    }
+    return n
+}
+
+fn rows() {
+    const names = ["a", "b", "c"]
+    each: for name in names {
+        let k = 0
+        for k < 3 {
+            k += 1
+            if name == "b" {
+                continue each
+            }
+        }
+        println(name)
+    }
+}
+
+// The values of the inner loops are dropped when a jump leaves them.
+fn drops() {
+    outer: for i in 0..2 {
+        const _a = Noisy{name: "a{i}"}
+        for j in 0..2 {
+            const _b = Noisy{name: "b{i}{j}"}
+            if i == 0 {
+                continue outer
+            }
+            break outer
+        }
+    }
+}
+
+// An unlabeled jump still leaves the innermost loop.
+fn inner() {
+    named: for i in 0..2 {
+        for j in 0..3 {
+            if j == 1 {
+                break
+            }
+            println("inner {i} {j}")
+        }
+    }
+}
+
+fn main() {
+    grid()
+    println("n = {count()}")
+    rows()
+    drops()
+    inner()
+}
