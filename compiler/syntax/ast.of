@@ -100,6 +100,8 @@ pub enum TypeKind {
     Infer(name: Symbol)
     /** `true` or `false`, the value of a condition */
     Bool(value: bool)
+    /** An integer argument of a const parameter: `4`, `-1` (spec 8.7) */
+    Const(value: int)
 }
 
 // ---------------------------------------------------------------------------
@@ -415,6 +417,8 @@ pub struct WherePred {
     pub bounds: List<TypeExpr>
     /** Where it is written. */
     pub span: Span
+    /** `const N: int`: a const parameter, its bound the type (spec 8.7). */
+    pub isConst: bool
 }
 
 /**

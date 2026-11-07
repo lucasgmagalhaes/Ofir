@@ -123,6 +123,7 @@ pub fn typeText(t: &TypeExpr, names: Interner) str {
         }
         TypeKind.Infer(name) => "infer {names.name(name)}"
         TypeKind.Bool(value) => if value { "true".toOwned() } else { "false".toOwned() }
+        TypeKind.Const(value) => "{value}"
     }
 }
 

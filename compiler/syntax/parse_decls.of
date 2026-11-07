@@ -120,7 +120,7 @@ fn whereClause(p: mut Parser, preds: mut List<WherePred>) {
         const ty = parseType(p)
         p.expect(TokenKind.Colon, "`:` and the bounds")
         const bounds = parseBounds(p)
-        preds.push(WherePred{ty, bounds, span: p.spanSince(start)})
+        preds.push(WherePred{ty, bounds, span: p.spanSince(start), isConst: false})
         if !p.accept(TokenKind.Comma) {
             break
         }

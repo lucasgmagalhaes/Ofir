@@ -190,7 +190,8 @@ fn rewrittenType(r: mut Resolver, t: &TypeExpr, owner: &List<Symbol>, named: &Li
         const text = r.names.name(r.defs[iface].name)
         const param = r.names.intern("{text} {decl.typeParams.len() + 1}")
         decl.typeParams.push(param)
-        decl.bounds.push(WherePred{ty: pathTo(param, t), bounds: [t.clone()], span: t.span})
+        decl.bounds.push(WherePred{ty: pathTo(param, t), bounds: [t.clone()], span: t.span,
+                                   isConst: false})
         return pathTo(param, t)
     }
     return match t.kind {
