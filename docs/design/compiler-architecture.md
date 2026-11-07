@@ -427,8 +427,9 @@ clang -O2 out.ll <runtime>/libofir_rt.a -o program      # release
 clang -O0 -g out.ll <runtime>/libofir_rt.a -o program   # debug
 ```
 
-Large programs are split into several `.ll` files (one per group of
-modules) compiled by parallel clang processes **[planned]**.
+Programs are split into codegen units, one per source module, compiled
+by parallel clang processes and cached by the hash of their text
+**[planned]** (ADR 0033, roadmap 6.6).
 
 ## 13. Diagnostics
 
@@ -464,8 +465,8 @@ Measured and enforced as described in [performance.md](performance.md).
 
 ## 15. Planned evolutions
 
-- Incremental compilation: cache typed and lowered modules keyed by content
-  hash.
+- Incremental front end: cache typed and lowered modules keyed by content
+  hash (the back end is cached by ADR 0033).
 - Parallel front end per module.
 - Ofir-level optimizations on AIR before LLVM (inlining of trivial
   functions, removal of redundant checks) to reduce LLVM work.
