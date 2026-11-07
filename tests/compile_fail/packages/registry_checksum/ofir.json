@@ -1,0 +1,8 @@
+// A registry package whose files differ from the checksum in `ofir.lock`.
+{
+  "name": "app",
+  "build": {"kind": "exe", "root": "main.of"},
+  "dependencies": {
+    "json": "~1.2",   // error[E0914]: the checksum of `json` differs from `ofir.lock`
+  },
+}

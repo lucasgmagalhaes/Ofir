@@ -1,0 +1,6 @@
+// requires: stage1
+import json
+
+fn main() {
+    const _ = json.version()
+}

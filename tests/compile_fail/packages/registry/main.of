@@ -1,0 +1,8 @@
+// requires: stage1
+import json
+import nope
+
+fn main() {
+    const _ = json.version()
+    const _ = nope.version()
+}
