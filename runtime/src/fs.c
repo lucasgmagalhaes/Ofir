@@ -13,6 +13,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#ifdef _WIN32
+#include <sys/utime.h>
+#else
+#include <utime.h>
+#endif
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -130,6 +136,54 @@ int32_t ofir_canonicalize(const uint8_t *path, int64_t len, OfirBuf *out) {
 int32_t ofir_remove_file(const uint8_t *path, int64_t len) {
     char *name = ofir_c_string(path, len);
     int32_t code = !name ? EINVAL : unlink(name) == 0 ? 0 : errno;
+    ofir_free(name);
+    return code;
+}
+
+// Replaces `to` if it exists, on Windows too.
+int32_t ofir_rename(const uint8_t *from, int64_t from_len, const uint8_t *to, int64_t to_len) {
+    char *old_name = ofir_c_string(from, from_len);
+    char *new_name = ofir_c_string(to, to_len);
+    int32_t code = 0;
+    if (!old_name || !new_name) {
+        code = EINVAL;
+    } else {
+#ifdef _WIN32
+        code = MoveFileExA(old_name, new_name, MOVEFILE_REPLACE_EXISTING) ? 0 : EACCES;
+        code = code && GetLastError() == ERROR_FILE_NOT_FOUND ? ENOENT : code;
+#else
+        code = rename(old_name, new_name) == 0 ? 0 : errno;
+#endif
+    }
+    ofir_free(old_name);
+    ofir_free(new_name);
+    return code;
+}
+
+// The size in bytes and the modification time in nanoseconds since 1970.
+int32_t ofir_file_info(const uint8_t *path, int64_t len, int64_t *size, int64_t *modified) {
+    char *name = ofir_c_string(path, len);
+    struct stat info;
+    int32_t code = !name ? EINVAL : stat(name, &info) == 0 ? 0 : errno;
+    ofir_free(name);
+    *size = code == 0 ? (int64_t)info.st_size : 0;
+    *modified = code == 0 ? (int64_t)info.st_mtime * 1000000000 : 0;
+#if defined(__APPLE__)
+    *modified += code == 0 ? (int64_t)info.st_mtimespec.tv_nsec : 0;
+#elif !defined(_WIN32)
+    *modified += code == 0 ? (int64_t)info.st_mtim.tv_nsec : 0;
+#endif
+    return code;
+}
+
+// Sets the access and modification times to now.
+int32_t ofir_touch(const uint8_t *path, int64_t len) {
+    char *name = ofir_c_string(path, len);
+#ifdef _WIN32
+    int32_t code = !name ? EINVAL : _utime(name, NULL) == 0 ? 0 : errno;
+#else
+    int32_t code = !name ? EINVAL : utime(name, NULL) == 0 ? 0 : errno;
+#endif
     ofir_free(name);
     return code;
 }
