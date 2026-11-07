@@ -19,6 +19,7 @@ Standard library only; Python 3.9 or newer.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import concurrent.futures
 import os
 import json
@@ -26,6 +27,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -96,7 +98,8 @@ def test_env(cfg: Config, path: Path) -> dict[str, str]:
     """The environment of a compiler run: each test has its own package
     cache (`$OFIR_HOME`), so that tests running at once do not share one."""
     rel = path.relative_to(cfg.tests_dir).as_posix().replace("/", "_")
-    return {**os.environ, "OFIR_HOME": str(cfg.tmp / "home" / rel)}
+    index = Path(__file__).resolve().parents[2] / "build" / "registry-fixtures" / "index"
+    return {**os.environ, "OFIR_HOME": str(cfg.tmp / "home" / rel), "OFIR_REGISTRY": str(index)}
 
 
 def git_version_key(name: str) -> tuple[int, ...]:
@@ -146,6 +149,80 @@ def make_git_fixtures(sources: Path, dest: Path) -> None:
             work.rename(target)
         except OSError:   # another run made it first
             shutil.rmtree(work, ignore_errors=True)
+
+
+def package_checksum(top: Path) -> str:
+    """The checksum of a package's files, as `driver.lock.checksum` computes
+    it: each file, in name order directory by directory, as its path, a NUL,
+    its size, a NUL and its bytes."""
+    h = hashlib.sha256()
+
+    def add(rel: str) -> None:
+        for name in sorted(os.listdir(top / rel if rel else top)):
+            if not rel and name == ".git":
+                continue
+            sub = f"{rel}/{name}" if rel else name
+            if (top / sub).is_dir():
+                add(sub)
+            else:
+                data = (top / sub).read_bytes()
+                h.update(f"{sub}\0{len(data)}\0".encode())
+                h.update(data)
+    add("")
+    return h.hexdigest()
+
+
+def make_registry_fixtures(sources: Path, dest: Path) -> None:
+    """Builds the registry that registry dependency tests use: each
+    directory `tests/registry/<name>/<X.Y.Z>/` is an archive
+    `build/registry-fixtures/archives/<name>-<X.Y.Z>.tar.gz` and a line of
+    the file of `<name>` in the index, `build/registry-fixtures/index`. The
+    versions listed in `tests/registry/yanked` (`name X.Y.Z`) are yanked."""
+    if not sources.is_dir():
+        return
+    files = sorted(f for f in sources.rglob("*") if f.is_file())
+    stamp = json.dumps([[f.relative_to(sources).as_posix(), f.read_text()] for f in files])
+    if (dest / ".stamp").exists() and (dest / ".stamp").read_text() == stamp:
+        return
+    work = Path(tempfile.mkdtemp(prefix="registry-", dir=dest.parent))
+    yanked_file = sources / "yanked"
+    yanked = set(yanked_file.read_text().split("\n")) if yanked_file.exists() else set()
+    (work / "archives").mkdir()
+    index = work / "index"
+    index.mkdir()
+    download = (dest / "archives").as_posix() + "/{name}-{version}.tar.gz"
+    (index / "config.json").write_text(json.dumps({"download": "file://" + download}) + "\n")
+    for package in sorted(p for p in sources.iterdir() if p.is_dir()):
+        name = package.name
+        lines = []
+        for version in sorted((v for v in package.iterdir() if v.is_dir()),
+                              key=lambda v: git_version_key(v.name)):
+            archive = work / "archives" / f"{name}-{version.name}.tar.gz"
+            with tarfile.open(archive, "w:gz") as tar:
+                for f in sorted(f for f in version.rglob("*") if f.is_file()):
+                    tar.add(f, arcname=f.relative_to(version).as_posix())
+            lines.append(json.dumps({"version": version.name, "dependencies": {},
+                                     "checksum": package_checksum(version),
+                                     "yanked": f"{name} {version.name}" in yanked}))
+        n = len(name)
+        rel = (f"{n}/{name}" if n <= 2 else f"3/{name[0]}/{name}" if n == 3
+               else f"{name[0:2]}/{name[2:4]}/{name}")
+        (index / rel).parent.mkdir(parents=True, exist_ok=True)
+        (index / rel).write_text("\n".join(lines) + "\n")
+    env = {**os.environ, "GIT_AUTHOR_NAME": "ofir", "GIT_AUTHOR_EMAIL": "ofir@example.com",
+           "GIT_COMMITTER_NAME": "ofir", "GIT_COMMITTER_EMAIL": "ofir@example.com",
+           "GIT_CONFIG_GLOBAL": os.devnull}
+    for args in (["init", "--quiet", "--initial-branch=main"], ["add", "--all"],
+                 ["commit", "--quiet", "--no-gpg-sign", "-m", "index"]):
+        subprocess.run(["git", "-C", str(index), *args], env=env, check=True,
+                       capture_output=True)
+    (work / ".stamp").write_text(stamp)
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+    try:
+        work.rename(dest)
+    except OSError:   # another run made it first
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def compiler_cmd(cfg: Config, *args: str) -> list[str]:
@@ -239,9 +316,11 @@ def missing_stage1(reported, annotations) -> list[str]:
 
 def write_lock(cfg: Config, template: Path) -> None:
     """Writes the `ofir.lock` of a test from its `ofir.lock.in`, where
-    `{fixtures}` stands for the absolute path of the git fixtures."""
-    fixtures = Path(__file__).resolve().parents[2] / "build" / "git-fixtures"
-    text = template.read_text().replace("{fixtures}", fixtures.as_posix())
+    `{fixtures}` stands for the absolute path of the git fixtures and
+    `{registry}` for that of the registry's index."""
+    build = Path(__file__).resolve().parents[2] / "build"
+    text = template.read_text().replace("{fixtures}", (build / "git-fixtures").as_posix())
+    text = text.replace("{registry}", (build / "registry-fixtures" / "index").as_posix())
     (template.parent / "ofir.lock").write_text(text)
 
 
@@ -288,6 +367,9 @@ def test_flags(source: str) -> list[str]:
 
 
 def check_run(cfg: Config, path: Path, source: str) -> Result:
+    template = path.parent / "ofir.lock.in"
+    if path.name == "main.of" and template.exists():
+        write_lock(cfg, template)
     # Programs that run are warning-free: a warning fails the test.
     proc = run_process(compiler_cmd(cfg, "run", str(path), "--deny-warnings",
                                     *test_flags(source)), env=test_env(cfg, path))
@@ -493,6 +575,7 @@ def main(argv: list[str]) -> int:
     fixtures = root / "build" / "git-fixtures"
     fixtures.mkdir(parents=True, exist_ok=True)
     make_git_fixtures(cfg.tests_dir / "git", fixtures)
+    make_registry_fixtures(cfg.tests_dir / "registry", root / "build" / "registry-fixtures")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(lambda t: run_test(cfg, *t), tests))
