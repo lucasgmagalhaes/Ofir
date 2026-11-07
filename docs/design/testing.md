@@ -16,6 +16,7 @@ compiler must pass the same suites.
 | Borrow | `tests/borrow/` | accepted and rejected ownership programs |
 | Codegen | `tests/codegen/` | patterns in the generated LLVM IR |
 | Format | `tests/fmt/` | `ofir fmt` output (`*.fmt`), which formats to itself (stage 1) |
+| Documentation | `tests/doc/` | `ofir doc --stdout` pages (`*.html`) (stage 1) |
 | Language server | `tests/lsp/` | `ofir lsp` messages (`*.out`) for the client's (`*.lsp`) (stage 1) |
 | Unit (Ofir) | `@test` functions in `compiler/` and `std/` | internal functions |
 | Self-host | `tests/selfhost/` | stage 2 output == stage 3 output |
@@ -99,6 +100,7 @@ fn add(a: int, b: int) int {
 | `ofir build FILE --message-format=short -o OUT` | `compile_fail`, `borrow` |
 | `ofir build FILE --emit=llvm -o OUT` (writes `OUT.ll`) | `codegen` |
 | `ofir fmt --stdout FILE` | `fmt` |
+| `ofir doc --stdout FILE` | `doc` |
 
 With `--message-format=short`, each diagnostic is one line:
 `file:line:col: error[E0300]: message` (or `warning[W0001]`).
