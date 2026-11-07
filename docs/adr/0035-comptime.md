@@ -41,7 +41,10 @@ not at the instantiations.
   `meta.implements<T, I>()` adds the bound `I` to `T`;
   `meta.isInteger<T>()` adds `Copy`, `Eq`, `Ord`, `Hash`, `Clone`, `Debug`
   and `Display`, `meta.isFloat<T>()` the same without `Eq`, `Ord` and
-  `Hash`; `meta.isStruct<T>()` and `meta.isEnum<T>()` allow
+  `Hash`, and both add the **operators of their primitive types**
+  (arithmetic, comparisons, bitwise for integers, unary `-` for integers
+  only with `meta.isSigned<T>()`), `as` conversions to and from numbers,
+  and the literals that fit every such type; `meta.isStruct<T>()` and `meta.isEnum<T>()` allow
   `meta.fieldsOf<T>()` and `meta.variantsOf<T>()`. Narrowing goes through
   `&&` and not through `||` or `!`: under `A || B` a parameter is narrowed
   only by what both `A` and `B` give it.
@@ -84,6 +87,11 @@ not at the instantiations.
   written with `meta.isInteger<T>()` narrowing `T` to `Display`, and its
   recursive call `toJson(field.get(value), out)` instantiates `toJson` for
   `T[K]`, one instance per field type.
+- Numeric narrowing is what makes the model usable for numeric code:
+  `sum<T>` and `toJson` can use `+`, `<` and literals on `T` without a
+  numeric interface. The operators keep chapter 9.9's rule that no
+  operator hides a function call: each instance lowers them to the
+  primitive operation of its concrete type, as if `T` had been written.
 - Errors in compile-time code are reported once, at the definition, and do
   not depend on which instances a program uses. Code that type-checks only
   for some instances needs a narrowing predicate or `comptime panic`.
