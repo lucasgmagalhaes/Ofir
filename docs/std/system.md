@@ -56,8 +56,10 @@ pub copy enum IoErrorKind {
 | `fn args() List<str>` | `args()[0]` is the program path | ✓ |
 | `fn env(name: str) Option<str>` | | ✓ |
 | `fn exit(code: int) !` | flushes standard output, runs no destructors | ✓ |
-| `fn run(program: str, args: [str]) Result<Output, IoError>` | runs a process and waits | ✓ |
-| `fn spawn(program: str, args: [str]) Result<Child, IoError>` | | |
+| `fn run(program: str, args: [str]) Result<Output, IoError>` | runs a process and waits: `spawn`, then `wait` | ✓ |
+| `fn spawn(program: str, args: [str]) Result<Child, IoError>` | starts a process without waiting; its output goes to temporary files | ✓ |
+| `fn wait(move self) Result<Output, IoError>` (on `Child`) | waits for the process and returns what `run` returns | ✓ |
+| `fn cpuCount() int` | the processors online, at least 1 | ✓ |
 | `fn currentDir() Result<str, IoError>` | | ✓ |
 | `fn executablePath() Result<str, IoError>` | locates `OFIR_HOME` | ✓ |
 | `fn name() str` | the target operating system: `"linux"`, `"macos"` or `"windows"` | ✓ |

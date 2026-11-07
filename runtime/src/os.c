@@ -1,5 +1,9 @@
 // The process (std.os): arguments, environment, exit and running programs.
 
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE   // _SC_NPROCESSORS_ONLN
+#endif
+
 #include "ofir_rt.h"
 
 #include <errno.h>
@@ -9,7 +13,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
-#include <poll.h>
+#include <fcntl.h>
 #include <spawn.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -95,6 +99,9 @@ static void buf_push(OfirBuf *buf, int64_t *cap, const uint8_t *data, int64_t n)
     buf->len += n;
 }
 
+// A started program (std.os `Child`). Its standard output and error go to
+// temporary files, not pipes, so that a child that writes a lot never
+// waits for its parent to read (ADR 0033).
 #ifdef _WIN32
 
 // Appends `arg` to `line` (of capacity `*cap`), quoted as the C runtime of
@@ -139,149 +146,183 @@ static void quote_arg(char **line, int64_t *len, int64_t *cap, const char *arg) 
 }
 
 typedef struct {
-    HANDLE pipe;
-    OfirBuf *buf;
-} Reader;
+    HANDLE process;
+    HANDLE out, err;
+    bool waited;
+} Child;
 
-// Reads a pipe until it closes (one thread per pipe, so that the child
-// never waits for the other one to be drained).
-static DWORD WINAPI read_pipe(void *arg) {
-    Reader *reader = arg;
+// A temporary file the child inherits, deleted when the last handle to it
+// is closed.
+static HANDLE temp_file(void) {
+    char dir[MAX_PATH + 1], path[MAX_PATH + 1];
+    if (!GetTempPathA(sizeof dir, dir) || !GetTempFileNameA(dir, "ofr", 0, path)) {
+        return INVALID_HANDLE_VALUE;
+    }
+    SECURITY_ATTRIBUTES inherit = {.nLength = sizeof inherit, .bInheritHandle = TRUE};
+    return CreateFileA(path, GENERIC_READ | GENERIC_WRITE,
+                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, &inherit,
+                       CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+}
+
+// Reads the whole file from its start into `buf`, then closes it.
+static void read_back(HANDLE file, OfirBuf *buf) {
     int64_t cap = 0;
     uint8_t chunk[4096];
     DWORD n;
-    while (ReadFile(reader->pipe, chunk, sizeof chunk, &n, NULL) && n > 0) {
-        buf_push(reader->buf, &cap, chunk, n);
+    SetFilePointer(file, 0, NULL, FILE_BEGIN);
+    while (ReadFile(file, chunk, sizeof chunk, &n, NULL) && n > 0) {
+        buf_push(buf, &cap, chunk, n);
     }
-    return 0;
+    CloseHandle(file);
 }
 
-static int32_t spawn(char **argv, OfirRun *run) {
+static int32_t start(char **argv, Child *child) {
     int64_t len = 0, cap = 256;
     char *line = ofir_alloc(cap);
     line[0] = '\0';
     for (char **arg = argv; *arg; arg++) {
         quote_arg(&line, &len, &cap, *arg);
     }
-    SECURITY_ATTRIBUTES inherit = {.nLength = sizeof inherit, .bInheritHandle = TRUE};
-    HANDLE out_read, out_write, err_read, err_write;
-    if (!CreatePipe(&out_read, &out_write, &inherit, 0)) {
+    child->out = temp_file();
+    child->err = temp_file();
+    if (child->out == INVALID_HANDLE_VALUE || child->err == INVALID_HANDLE_VALUE) {
+        if (child->out != INVALID_HANDLE_VALUE) {
+            CloseHandle(child->out);
+        }
+        if (child->err != INVALID_HANDLE_VALUE) {
+            CloseHandle(child->err);
+        }
         ofir_free(line);
         return EIO;
     }
-    if (!CreatePipe(&err_read, &err_write, &inherit, 0)) {
-        CloseHandle(out_read);
-        CloseHandle(out_write);
-        ofir_free(line);
-        return EIO;
-    }
-    SetHandleInformation(out_read, HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(err_read, HANDLE_FLAG_INHERIT, 0);
     STARTUPINFOA startup = {.cb = sizeof startup, .dwFlags = STARTF_USESTDHANDLES};
     startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-    startup.hStdOutput = out_write;
-    startup.hStdError = err_write;
+    startup.hStdOutput = child->out;
+    startup.hStdError = child->err;
     PROCESS_INFORMATION process;
     ofir_stdout_flush();
     BOOL started = CreateProcessA(NULL, line, NULL, NULL, TRUE, 0, NULL, NULL, &startup,
                                   &process);
     DWORD error = GetLastError();
     ofir_free(line);
-    CloseHandle(out_write);
-    CloseHandle(err_write);
     if (!started) {
-        CloseHandle(out_read);
-        CloseHandle(err_read);
+        CloseHandle(child->out);
+        CloseHandle(child->err);
         return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND ? ENOENT
                : error == ERROR_ACCESS_DENIED                                ? EACCES
                                                                              : EIO;
     }
-    Reader err_reader = {err_read, &run->err};
-    HANDLE thread = CreateThread(NULL, 0, read_pipe, &err_reader, 0, NULL);
-    Reader out_reader = {out_read, &run->out};
-    read_pipe(&out_reader);
-    if (thread) {
-        WaitForSingleObject(thread, INFINITE);
-        CloseHandle(thread);
-    } else {
-        read_pipe(&err_reader);
-    }
-    CloseHandle(out_read);
-    CloseHandle(err_read);
-    WaitForSingleObject(process.hProcess, INFINITE);
-    DWORD status = 0;
-    GetExitCodeProcess(process.hProcess, &status);
-    CloseHandle(process.hProcess);
     CloseHandle(process.hThread);
-    run->status = (int64_t)status;
+    child->process = process.hProcess;
     return 0;
+}
+
+static void finish(Child *child, OfirRun *run) {
+    WaitForSingleObject(child->process, INFINITE);
+    DWORD status = 0;
+    GetExitCodeProcess(child->process, &status);
+    CloseHandle(child->process);
+    run->status = (int64_t)status;
+    read_back(child->out, &run->out);
+    read_back(child->err, &run->err);
+}
+
+int64_t ofir_cpu_count(void) {
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+    return info.dwNumberOfProcessors > 0 ? (int64_t)info.dwNumberOfProcessors : 1;
 }
 
 #else
 
-// Reads both pipes until they close, without blocking on one while the
-// child waits for the other to be drained.
-static void drain(int out_fd, int err_fd, OfirRun *run) {
-    struct pollfd fds[2] = {{.fd = out_fd, .events = POLLIN}, {.fd = err_fd, .events = POLLIN}};
-    OfirBuf *bufs[2] = {&run->out, &run->err};
-    int64_t caps[2] = {0, 0};
-    int open = 2;
-    uint8_t chunk[4096];
-    while (open > 0) {
-        if (poll(fds, 2, -1) < 0 && errno != EINTR) {
-            return;
-        }
-        for (int i = 0; i < 2; i++) {
-            if (fds[i].fd < 0 || !(fds[i].revents & (POLLIN | POLLHUP | POLLERR))) {
-                continue;
-            }
-            ssize_t n = read(fds[i].fd, chunk, sizeof chunk);
-            if (n > 0) {
-                buf_push(bufs[i], &caps[i], chunk, n);
-            } else if (n == 0 || errno != EINTR) {
-                close(fds[i].fd);
-                fds[i].fd = -1;
-                open--;
-            }
-        }
+typedef struct {
+    pid_t pid;
+    int out, err;
+    bool waited;
+} Child;
+
+// A temporary file, already unlinked: it goes away with its last
+// descriptor. Other children do not inherit it.
+static int temp_file(void) {
+    const char *dir = getenv("TMPDIR");
+    if (!dir || !*dir) {
+        dir = "/tmp";
     }
+    static const char name[] = "/ofir-XXXXXX";
+    size_t n = strlen(dir);
+    char *path = ofir_alloc((int64_t)(n + sizeof name));
+    memcpy(path, dir, n);
+    memcpy(path + n, name, sizeof name);
+    int fd = mkstemp(path);
+    if (fd >= 0) {
+        unlink(path);
+        fcntl(fd, F_SETFD, FD_CLOEXEC);
+    }
+    ofir_free(path);
+    return fd;
 }
 
-static int32_t spawn(char **argv, OfirRun *run) {
-    int out[2], err[2];
-    if (pipe(out) != 0 || pipe(err) != 0) {
-        return errno;
+// Reads the whole file from its start into `buf`, then closes it.
+static void read_back(int fd, OfirBuf *buf) {
+    int64_t cap = 0;
+    uint8_t chunk[4096];
+    lseek(fd, 0, SEEK_SET);
+    for (;;) {
+        ssize_t n = read(fd, chunk, sizeof chunk);
+        if (n > 0) {
+            buf_push(buf, &cap, chunk, n);
+        } else if (n == 0 || errno != EINTR) {
+            break;
+        }
+    }
+    close(fd);
+}
+
+static int32_t start(char **argv, Child *child) {
+    child->out = temp_file();
+    child->err = temp_file();
+    if (child->out < 0 || child->err < 0) {
+        int32_t code = errno;
+        if (child->out >= 0) {
+            close(child->out);
+        }
+        if (child->err >= 0) {
+            close(child->err);
+        }
+        return code;
     }
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
-    posix_spawn_file_actions_adddup2(&actions, out[1], 1);
-    posix_spawn_file_actions_adddup2(&actions, err[1], 2);
-    posix_spawn_file_actions_addclose(&actions, out[0]);
-    posix_spawn_file_actions_addclose(&actions, err[0]);
-    pid_t pid;
+    posix_spawn_file_actions_adddup2(&actions, child->out, 1);
+    posix_spawn_file_actions_adddup2(&actions, child->err, 2);
     ofir_stdout_flush();
-    int code = posix_spawnp(&pid, argv[0], &actions, NULL, argv, environ);
+    int code = posix_spawnp(&child->pid, argv[0], &actions, NULL, argv, environ);
     posix_spawn_file_actions_destroy(&actions);
-    close(out[1]);
-    close(err[1]);
     if (code != 0) {
-        close(out[0]);
-        close(err[0]);
-        return code;
+        close(child->out);
+        close(child->err);
     }
-    drain(out[0], err[0], run);
+    return code;
+}
+
+static void finish(Child *child, OfirRun *run) {
     int status;
-    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
+    while (waitpid(child->pid, &status, 0) < 0 && errno == EINTR) {
     }
     run->status = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-    return 0;
+    read_back(child->out, &run->out);
+    read_back(child->err, &run->err);
+}
+
+int64_t ofir_cpu_count(void) {
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    return n > 0 ? (int64_t)n : 1;
 }
 
 #endif
 
 // `args` holds `count` strings, each followed by a NUL: the program first.
-int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run) {
-    *run = (OfirRun){0};
+int32_t ofir_spawn(const uint8_t *args, int64_t len, int64_t count, void **child) {
     char *copy = ofir_alloc(len + 1);
     memcpy(copy, args, (size_t)len);
     copy[len] = 0;
@@ -292,10 +333,49 @@ int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run) 
         at += strlen(at) + 1;
     }
     argv[count] = NULL;
-    int32_t code = spawn(argv, run);
+    Child *started = ofir_alloc((int64_t)sizeof(Child));
+    started->waited = false;
+    int32_t code = start(argv, started);
     ofir_free(argv);
     ofir_free(copy);
+    if (code != 0) {
+        ofir_free(started);
+        started = NULL;
+    }
+    *child = started;
     return code;
+}
+
+void ofir_wait(void *child, OfirRun *run) {
+    *run = (OfirRun){0};
+    finish(child, run);
+    ((Child *)child)->waited = true;
+}
+
+// A child dropped without `wait` is waited for here, so that it leaves no
+// zombie and no open files.
+void ofir_child_free(void *child) {
+    if (!((Child *)child)->waited) {
+        OfirRun run = {0};
+        finish(child, &run);
+        ofir_free(run.out.ptr);
+        ofir_free(run.err.ptr);
+    }
+    ofir_free(child);
+}
+
+// Runs a program to its end: what std.os `run` called before `spawn`, kept
+// for compilers built from an older seed.
+int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run) {
+    void *child;
+    int32_t code = ofir_spawn(args, len, count, &child);
+    if (code != 0) {
+        *run = (OfirRun){0};
+        return code;
+    }
+    ofir_wait(child, run);
+    ofir_child_free(child);
+    return 0;
 }
 
 // `ofir test` passes the index of the test to run as the only argument.

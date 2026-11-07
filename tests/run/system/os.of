@@ -1,5 +1,5 @@
-// std.os (roadmap 3.9): arguments, environment and running a program,
-// here the C compiler the toolchain uses.
+// std.os (roadmap 3.9, 6.6b): arguments, environment and running programs,
+// here the C compiler the toolchain uses, and two at once.
 
 import std.io
 import std.os
@@ -20,6 +20,21 @@ fn main() {
         Result.Ok(out) => println("missing ran {out.status}")
         Result.Err(e) => println("missing {e.kind == io.IoErrorKind.NotFound}")
     }
+    // The first one is still running when the second ends.
+    const slow = os.spawn("sh", ["-c", "sleep 0.2; printf slow"]).expect("sh starts")
+    const fast = os.spawn("sh", ["-c", "printf fast >&2; exit 4"]).expect("sh starts")
+    const f = fast.wait().expect("sh ends")
+    const s = slow.wait().expect("sh ends")
+    println("spawn {f.status} [{f.stderr}] {s.status} [{s.stdout}]")
+    // More than a pipe holds, which a child writing to a pipe would block on.
+    const big = os.run("sh", ["-c", "head -c 1000000 /dev/zero"]).expect("sh runs")
+    println("big {big.stdout.len()}")
+    // Under valgrind posix_spawnp forks first, and the child exits with 127.
+    match os.spawn("ofir-no-such-program", []) {
+        Result.Ok(child) => println("spawn missing {child.wait().expect("ends").status == 127}")
+        Result.Err(e) => println("spawn missing {e.kind == io.IoErrorKind.NotFound}")
+    }
+    println("cpus {os.cpuCount() >= 1}")
     match os.currentDir() {
         Result.Ok(dir) => println("cwd absolute {dir.startsWith("/") || dir.slice(1, 3) == ":/"}")
         Result.Err(e) => println("cwd: {e.message}")

@@ -154,7 +154,13 @@ bool ofir_waitgroup_add(void *wg, int64_t delta);   // false if the count would 
 void ofir_waitgroup_wait(void *wg);                 // until the count is 0
 void ofir_waitgroup_free(void *wg);
 void ofir_stdout_publish(void);     // this thread's pending line to the buffer
-int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run);
+// Processes (os.c, ADR 0033): `args` holds `count` NUL-terminated strings,
+// the program first. ofir_child_free waits for a child not waited for yet.
+int32_t ofir_spawn(const uint8_t *args, int64_t len, int64_t count, void **child);
+void ofir_wait(void *child, OfirRun *run);
+void ofir_child_free(void *child);
+int64_t ofir_cpu_count(void);
+int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run);   // spawn, wait
 char *ofir_c_string(const uint8_t *ptr, int64_t len);   // NULL if it holds a NUL
 
 int32_t ofir_read_file(const uint8_t *path, int64_t len, OfirBuf *out);
