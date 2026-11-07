@@ -43,7 +43,7 @@ pub fn ofirHome() str {
  */
 pub fn repository(url: str, refresh: bool) Result<str, str> {
     const root = "{ofirHome()}/cache/git"
-    const dir = "{root}/{hashHex(url)}"
+    const dir = clonePath(url)
     if fs.exists("{dir}/HEAD") {
         if refresh {
             git(["-C", dir.clone(), "fetch", "--quiet", "--tags", "--force", "origin"])?
@@ -55,6 +55,21 @@ pub fn repository(url: str, refresh: bool) Result<str, str> {
     }
     git(["clone", "--quiet", "--bare", url.clone(), dir.clone()])?
     return Result.Ok(dir)
+}
+
+/**
+ * Whether the cache has a bare clone of `url`.
+ *
+ * @param url where the repository is
+ * @returns true if it is there
+ */
+pub fn isCached(url: str) bool {
+    return fs.exists("{clonePath(url)}/HEAD")
+}
+
+// Where the bare clone of `url` goes.
+fn clonePath(url: str) str {
+    return "{ofirHome()}/cache/git/{hashHex(url)}"
 }
 
 /**
