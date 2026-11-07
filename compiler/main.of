@@ -270,7 +270,9 @@ fn build(given: move Options) int {
     const benching = opts.command == "bench"
     const target = CfgTarget{os: os.name(), arch: os.arch(), debug: !opts.release, test: testing,
                              bench: benching}
-    let program = loadProgram(opts.input, parsed.module, front, target)
+    // Doc tests change the program: not under `--emit`, so that it is stage 0's.
+    const docTests = testing && opts.emit == ""
+    let program = loadProgram(opts.input, parsed.module, front, target, docTests)
     if front.diags.hasErrors() {
         return finish(front.diags, front.map, &pipeline)
     }
@@ -314,7 +316,7 @@ fn backend(c: mut Checker, program: Program, pipeline: mut Pipeline) bool {
     }
     for i in 0..l.tests.len() {
         const def = c.def(l.tests[i])
-        pipeline.tests.push("{c.r.moduleNames[def.module]}.{c.text(def.name)}")
+        pipeline.tests.push(testName(c.r.moduleNames[def.module], c.text(def.name)))
     }
     if opts.emit == "air" {
         let printer = AirPrinter{out: ""}
@@ -489,12 +491,29 @@ fn runProgram(exe: str, args: [str]) int {
     }
 }
 
+// What `ofir test` calls a test: `module.name`, or for a doc test
+// (`driver.modules.addDocTests`) the module and the line of the block.
+fn testName(module: str, name: str) str {
+    if !module.startsWith("doc:") {
+        return "{module}.{name}"
+    }
+    const block = module.sliceFrom(4)
+    if name == "compiled" {
+        return "{block} (doc test, not run)"
+    }
+    return "{block} (doc test)"
+}
+
 // Each test runs in its own process: the program runs the test whose
-// index it is given.
+// index it is given. A doc test marked `no_run` was only compiled.
 fn runTests(exe: str, tests: &List<str>) int {
     let failed = 0
     for i in 0..tests.len() {
         print("test {tests[i]} ... ")
+        if tests[i].endsWith("(doc test, not run)") {
+            println("ok")
+            continue
+        }
         const status = runProgram(exe, ["{i}"])
         if status == 0 {
             println("ok")

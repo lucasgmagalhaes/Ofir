@@ -20,6 +20,7 @@ import base.span.SourceMap
 import diag.Diagnostics
 import driver.cfg.CfgTarget
 import driver.cfg.stripCfg
+import driver.doctest.docTests
 import sema.program.Program
 import sema.program.ProgramModule
 import sema.program.newProgram
@@ -80,6 +81,20 @@ pub struct Front {
      * @returns its tree
      */
     pub fn parseFileFrom(mut self, file: FileId, firstId: int) Option<Module> {
+        return self.parseAs(file, firstId, false)
+    }
+
+    /**
+     * Parses a file as a doc test (`syntax.parse_items.docTestItems`).
+     *
+     * @param file a file of the source map, made by `driver.doctest.docTests`
+     * @returns its tree
+     */
+    pub fn parseDocTest(mut self, file: FileId) Option<Module> {
+        return self.parseAs(file, 0, true)
+    }
+
+    fn parseAs(mut self, file: FileId, firstId: int, docTest: bool) Option<Module> {
         const tokens = tokenize(self.map.file(file).text, file, self.names, self.diags)
         if self.diags.hasErrors() {
             return Option.None
@@ -87,7 +102,7 @@ pub struct Front {
         const names = mem.replace(self.names, Interner.new())
         const diags = mem.replace(self.diags, Diagnostics.new())
         const parsed = parseFrom(file, self.map.file(file).text, tokens, names, diags, firstId,
-                                 false)
+                                 docTest)
         self.names = parsed.names
         self.diags = parsed.diags
         return Option.Some(parsed.module)
@@ -99,6 +114,8 @@ struct Loader {
     rootDir: str
     stdDir: Option<str>
     testing: bool
+    // Whether the doc tests of the tested modules are added (spec 12.5).
+    docTests: bool
     target: CfgTarget
 }
 
@@ -179,9 +196,33 @@ fn loadModule(ld: mut Loader, front: mut Front, name: str, path: str) {
     }
     if const Option.Some(parsed) = front.parseFile(file) {
         let module = parsed
+        const tested = ld.docTests && !name.startsWith("std")   // std only as the root
         addTestFile(ld, front, module, name, path)
         stripCfg(module, &ld.target, front.names, front.diags)
         ld.modules.push(ProgramModule{name: name.toOwned(), module})
+        if tested {
+            addDocTests(ld, front, name, file)
+        }
+    }
+}
+
+// `ofir test` (spec 12.5): the doc tests of the modules whose tests run,
+// each a module of its own, `doc:<module>:<line>`, as a program that uses
+// the documented one would write it.
+fn addDocTests(ld: mut Loader, front: mut Front, name: str, file: FileId) {
+    const path = front.map.file(file).path.clone()
+    const text = front.map.file(file).text.clone()
+    const tokens = tokenize(text, file, front.names, front.diags)
+    const tests = docTests(text, &tokens)
+    for i in 0..tests.len() {
+        const runner = if tests[i].run { "doctest" } else { "compiled" }
+        const source = tests[i].text.replace("fn doctest()", "fn {runner}()")
+        const id = front.map.add(path.clone(), source)
+        if const Option.Some(parsed) = front.parseDocTest(id) {
+            let module = parsed
+            stripCfg(module, &ld.target, front.names, front.diags)
+            ld.modules.push(ProgramModule{name: "doc:{name}:{tests[i].line}", module})
+        }
     }
 }
 
@@ -313,10 +354,11 @@ fn rootModuleName(ld: Loader, input: str, inProject: bool) str {
  * @param front the tables, where the other files go
  * @param target what `@cfg` conditions are evaluated against; under `ofir test`, the
  *   test files of the modules are loaded
+ * @param docTests whether the doc tests of the tested modules are added
  * @returns the program, the root first
  */
 pub fn loadProgram(input: str, root: move Module, front: mut Front,
-                   target: move CfgTarget) Program {
+                   target: move CfgTarget, docTests: bool) Program {
     const slash = lastSlash(input)
     let rootDir = if slash >= 0 { input.slice(0, slash).toOwned() } else { "." }
     const project = projectDir(input)
@@ -325,12 +367,16 @@ pub fn loadProgram(input: str, root: move Module, front: mut Front,
         rootDir = dir
     }
     const testing = target.test
-    let ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, target}
+    let ld = Loader{modules: [], rootDir, stdDir: findStd(), testing, docTests, target}
     const name = rootModuleName(ld, input, inProject)
     let module = root
+    const rootFile = module.file
     addTestFile(ld, front, module, name, input)
     stripCfg(module, &ld.target, front.names, front.diags)
-    ld.modules.push(ProgramModule{name, module})
+    ld.modules.push(ProgramModule{name: name.clone(), module})
+    if docTests {
+        addDocTests(ld, front, name, rootFile)
+    }
     if !isLoaded(ld, "std.core") {   // the prelude, in every program
         if const Option.Some(core) = moduleFile(ld, "std.core") {
             loadModule(ld, front, "std.core", core)
