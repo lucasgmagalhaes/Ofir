@@ -22,7 +22,18 @@ import syntax.parser.Parser
 import syntax.token.TokenKind
 
 fn newStmt(p: mut Parser, kind: move StmtKind, start: Span) Stmt {
-    return Stmt{id: p.newId(), kind, span: p.spanSince(start)}
+    return Stmt{id: p.newId(), kind, span: p.spanSince(start), label: Option.None}
+}
+
+// `break` and `continue`, with the label after them on the same line.
+fn jumpStmt(p: mut Parser, kind: move StmtKind, start: Span) Stmt {
+    let label: Option<Symbol> = Option.None
+    if p.at(TokenKind.Ident) {
+        label = Option.Some(p.takeName())
+    }
+    let s = newStmt(p, kind, start)
+    s.label = label
+    return s
 }
 
 fn optionalType(p: mut Parser) Option<TypeExpr> {
@@ -167,11 +178,23 @@ pub fn parseStmt(p: mut Parser) Stmt {
         }
         TokenKind.Break => {
             p.advance()
-            newStmt(p, StmtKind.Break, start)
+            jumpStmt(p, StmtKind.Break, start)
         }
         TokenKind.Continue => {
             p.advance()
-            newStmt(p, StmtKind.Continue, start)
+            jumpStmt(p, StmtKind.Continue, start)
+        }
+        TokenKind.Ident => {
+            if p.peekAt(1) == TokenKind.Colon && p.peekAt(2) == TokenKind.For {
+                const label = p.takeName()
+                p.advance()   // :
+                p.advance()   // for
+                let s = forStmt(p, start)
+                s.label = Option.Some(label)
+                s
+            } else {
+                exprStmt(p, start)
+            }
         }
         TokenKind.Return => {
             p.advance()
