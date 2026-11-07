@@ -1,0 +1,244 @@
+/**
+ * @module
+ * The text of a documentation comment as HTML, for `ofir doc`
+ * (docs/design/toolchain.md): paragraphs, `-` lists, fenced code blocks and
+ * code spans of Markdown, and the tags of ADR 0020 as sections.
+ */
+
+/**
+ * Text with the characters HTML gives a meaning written as references.
+ *
+ * @param text the text
+ * @returns it, safe inside an element or an attribute in `"`
+ */
+pub fn escape(text: str) str {
+    let out = ""
+    let plain = 0   // the start of the text not copied yet
+    for i in 0..text.len() {
+        const b = text[i]
+        const entity = if b == b'&' {
+            "&amp;"
+        } else if b == b'<' {
+            "&lt;"
+        } else if b == b'>' {
+            "&gt;"
+        } else if b == b'"' {
+            "&quot;"
+        } else {
+            ""
+        }
+        if entity.len() > 0 {
+            out.push(text.slice(plain, i))
+            out.push(entity)
+            plain = i + 1
+        }
+    }
+    out.push(text.sliceFrom(plain))
+    return out
+}
+
+// The number of backticks at `text[i]`.
+fn ticks(text: str, i: int) int {
+    let n = 0
+    for i + n < text.len() && text[i + n] == b'`' {
+        n += 1
+    }
+    return n
+}
+
+// Where a run of exactly `n` backticks starts in `text` from `from`, or -1.
+fn closingTicks(text: str, from: int, n: int) int {
+    let i = from
+    for i < text.len() {
+        const run = ticks(text, i)
+        if run == n {
+            return i
+        }
+        i += if run > 0 { run } else { 1 }
+    }
+    return -1
+}
+
+/**
+ * A line of Markdown text as HTML: its code spans become `<code>`.
+ *
+ * @param text the text
+ * @returns its HTML
+ */
+pub fn inline(text: str) str {
+    let out = ""
+    let i = 0
+    let plain = 0
+    for i < text.len() {
+        const n = ticks(text, i)
+        if n == 0 {
+            i += 1
+            continue
+        }
+        const close = closingTicks(text, i + n, n)
+        if close < 0 {
+            i += n
+            continue
+        }
+        out.push(escape(text.slice(plain, i)))
+        out.push("<code>")
+        out.push(escape(text.slice(i + n, close).trim()))
+        out.push("</code>")
+        i = close + n
+        plain = i
+    }
+    out.push(escape(text.sliceFrom(plain)))
+    return out
+}
+
+// Whether `line` is a fence: three backticks after its indentation.
+fn isFence(line: str) bool {
+    return line.trim().startsWith("```")
+}
+
+// The text of a `-` list item, or `None` if `line` does not start one.
+fn listItem(line: str) Option<str> {
+    const trimmed = line.trim()
+    if trimmed == "-" {
+        return Option.Some("".toOwned())
+    }
+    if !trimmed.startsWith("- ") {
+        return Option.None
+    }
+    return Option.Some(trimmed.sliceFrom(2).trim().toOwned())
+}
+
+// The words after the ``` of a fence, as a class for its code.
+fn fenceClass(line: str) str {
+    const info = line.trim().sliceFrom(3).trim()
+    let word = ""
+    for part in info.replace(",", " ").splitWhitespace() {
+        word = part.toOwned()
+        break
+    }
+    if word == "" {
+        return "".toOwned()
+    }
+    return " class=\"language-{escape(word)}\""
+}
+
+// The text of a fenced block from its lines, without the indentation of
+// its fence.
+fn codeLines(lines: &List<str>, from: int, to: int, indent: int) str {
+    let out = ""
+    for k in from..to {
+        let start = 0
+        for start < indent && start < lines[k].len() && lines[k][start] == b' ' {
+            start += 1
+        }
+        out.push(escape(lines[k].sliceFrom(start)))
+        out.push("\n")
+    }
+    return out
+}
+
+// The number of spaces at the start of `line`.
+fn indentOf(line: str) int {
+    let n = 0
+    for n < line.len() && line[n] == b' ' {
+        n += 1
+    }
+    return n
+}
+
+// Ends the open paragraph or list of `out`.
+fn flush(out: mut str, para: mut str, items: mut List<str>) {
+    if para.len() > 0 {
+        out.push("<p>{inline(para)}</p>\n")
+        para.clear()
+    }
+    if items.len() > 0 {
+        out.push("<ul>\n")
+        for i in 0..items.len() {
+            out.push("<li>{inline(items[i])}</li>\n")
+        }
+        out.push("</ul>\n")
+        items.clear()
+    }
+}
+
+// `text` and `more` with a space between them, if both have words.
+fn joined(text: str, more: str) str {
+    let out = text.toOwned()
+    if out.len() > 0 && more.len() > 0 {
+        out.push(" ")
+    }
+    out.push(more)
+    return out
+}
+
+/**
+ * Lines of Markdown as HTML blocks.
+ *
+ * @param lines the lines
+ * @param from the first one
+ * @param to the one after the last
+ * @returns the paragraphs, lists and code blocks
+ */
+pub fn blocks(lines: &List<str>, from: int, to: int) str {
+    let out = ""
+    let para = ""
+    let items: List<str> = []
+    let i = from
+    for i < to {
+        const line = lines[i].clone()
+        if isFence(line) {
+            flush(out, para, items)
+            let end = i + 1
+            for end < to && !isFence(lines[end]) {
+                end += 1
+            }
+            const code = codeLines(lines, i + 1, end, indentOf(line))
+            out.push("<pre><code{fenceClass(line)}>{code}</code></pre>\n")
+            i = end + 1
+            continue
+        }
+        i += 1
+        if line.trim() == "" {
+            flush(out, para, items)
+            continue
+        }
+        if const Option.Some(item) = listItem(line) {
+            if para.len() > 0 {
+                flush(out, para, items)
+            }
+            items.push(item)
+        } else if items.len() > 0 && indentOf(line) > 0 {
+            const last = items.len() - 1
+            const more = joined(items[last], line.trim())
+            items[last] = more
+        } else {
+            if items.len() > 0 {
+                flush(out, para, items)
+            }
+            para = joined(para, line.trim())
+        }
+    }
+    flush(out, para, items)
+    return out
+}
+
+/**
+ * The first paragraph of a comment's text, for a summary.
+ *
+ * @param text the text
+ * @returns its first paragraph as HTML, without the `<p>`; `""` if the
+ *          text does not start with one
+ */
+pub fn summary(text: str) str {
+    let para = ""
+    for line in text.split("\n") {
+        const trimmed = line.trim()
+        const blank = trimmed == ""
+        if blank || trimmed.startsWith("@") || isFence(trimmed) || listItem(trimmed).isSome() {
+            break
+        }
+        para = joined(para, trimmed)
+    }
+    return inline(para)
+}

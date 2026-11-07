@@ -1,0 +1,95 @@
+/**
+ * @module
+ * A module to document: shapes and `Ågé` (non-ASCII text).
+ *
+ * A second paragraph, with ``a `tick` inside`` and <markup> to escape.
+ */
+
+/**
+ * A point on the plane.
+ *
+ * - `x` grows to the right,
+ *   and `y` upward;
+ * - both are integers.
+ */
+pub struct Point {
+    /** Its abscissa. */
+    pub x: int
+    /** Its ordinate. */
+    pub y: int
+    hidden: int
+
+    /**
+     * The point moved by an offset.
+     *
+     * @param dx the horizontal offset
+     * @param dy the vertical offset
+     * @returns the new point
+     */
+    pub fn moved(self, dx: int, dy: int) Point {
+        return Point{x: self.x + dx, y: self.y + dy, hidden: self.hidden}
+    }
+
+    fn secret(self) int {
+        return self.hidden
+    }
+}
+
+/**
+ * A shape.
+ */
+pub enum Shape {
+    /** A circle and its radius. */
+    Circle(radius: int)
+    Square(side: int)
+}
+
+/**
+ * Something with an area.
+ */
+pub interface HasArea {
+    /** The area. */
+    fn area(self) int
+}
+
+/** The origin's coordinates. */
+pub const ORIGIN: int = 0
+
+/** A list of points. */
+pub type Points = List<Point>
+
+/**
+ * The sum of many numbers, a signature on more than one line.
+ *
+ * @typeParam T unused here
+ * @param first the first number
+ * @param second the second one, described
+ *               on two lines
+ * @returns their sum
+ * @panics never
+ * @example
+ * ```ofir
+ * const n = sample.add(1, 2)
+ *
+ * println("{n}")
+ * ```
+ * @see `Point.moved`
+ */
+@inline
+pub fn add(first: int,
+           second: int) int {
+    return first + second
+}
+
+/**
+ * @deprecated use `add`
+ */
+pub fn plus(a: int, b: int) int {
+    return a + b
+}
+
+pub fn undocumented() {
+}
+
+fn private() {
+}

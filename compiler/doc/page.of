@@ -1,0 +1,322 @@
+/**
+ * @module
+ * The HTML page of a module, for `ofir doc` (docs/design/toolchain.md): its
+ * comment, then its public declarations with their signatures and comments.
+ *
+ * The syntax tree has no comments: a comment is found by the position of
+ * the token after it, which is where the declaration it documents starts.
+ */
+
+import base.intern.Interner
+import doc.markdown.escape
+import doc.markdown.summary
+import doc.tags.renderDoc
+import syntax.ast.Attribute
+import syntax.ast.FieldDecl
+import syntax.ast.FnDecl
+import syntax.ast.Item
+import syntax.ast.ItemKind
+import syntax.ast.Module
+import syntax.ast.Variant
+import syntax.token.Token
+import syntax.token.TokenKind
+
+/**
+ * The comments of a file.
+ */
+pub struct Comments {
+    /** The text of each documentation comment, by where the token after it starts. */
+    pub before: Map<int, str>
+    /** The text of the module comment; `""` if there is none. */
+    pub module: str
+}
+
+// Whether `b` is a space or a tab.
+fn isBlank(b: u8) bool {
+    return b == b' ' || b == b'\t'
+}
+
+// A line of a comment without its indentation, the `*` that starts it and
+// the space after that.
+fn commentLine(line: str) str {
+    let i = 0
+    for i < line.len() && isBlank(line[i]) {
+        i += 1
+    }
+    if i < line.len() && line[i] == b'*' {
+        i += 1
+        if i < line.len() && line[i] == b' ' {
+            i += 1
+        }
+    }
+    return line.sliceFrom(i).trimEnd().toOwned()
+}
+
+// The text of the comment `src[start..end]`: its lines without `/**`, `*/`
+// and the `*` at their start, with no blank lines first or last.
+fn commentText(src: str, start: int, end: int, module: bool) str {
+    let lines: List<str> = []
+    for part in src.slice(start + 3, end - 2).split("\n") {
+        lines.push(commentLine(part))
+    }
+    let lo = 0
+    for lo < lines.len() && lines[lo] == "" {
+        lo += 1
+    }
+    if module && lo < lines.len() && lines[lo].startsWith("@module") {
+        const rest = lines[lo].sliceFrom(7).trim().toOwned()
+        lines[lo] = rest
+        if lines[lo] == "" {
+            lo += 1
+        }
+    }
+    let hi = lines.len()
+    for hi > lo && lines[hi - 1] == "" {
+        hi -= 1
+    }
+    let out = ""
+    for i in lo..hi {
+        if i > lo {
+            out.push("\n")
+        }
+        out.push(lines[i])
+    }
+    return out
+}
+
+/**
+ * The documentation comments of a file.
+ *
+ * @param src the file's text
+ * @param tokens its tokens, with the comments
+ * @returns them
+ */
+pub fn comments(src: str, tokens: &List<Token>) Comments {
+    let out = Comments{before: Map.new(), module: ""}
+    for t in 0..tokens.len() {
+        const kind = tokens[t].kind
+        const span = tokens[t].span
+        if kind == TokenKind.ModuleDoc {
+            out.module = commentText(src, span.start, span.end, true)
+            continue
+        }
+        if kind != TokenKind.DocComment {
+            continue
+        }
+        let next = t + 1
+        for next < tokens.len() && tokens[next].kind == TokenKind.Newline {
+            next += 1
+        }
+        if next < tokens.len() {
+            out.before.insert(tokens[next].span.start, commentText(src, span.start, span.end,
+                                                                   false))
+        }
+    }
+    return out
+}
+
+
+// Source text on one line: each line break and the indentation after it
+// become one space, none after an opening bracket or before a closing one.
+fn oneLine(text: str) str {
+    let out = ""
+    for part in text.split("\n") {
+        const line = part.trim()
+        if line == "" {
+            continue
+        }
+        const last = if out.len() > 0 { out[out.len() - 1] } else { b'(' }
+        const first = line[0]
+        if last != b'(' && last != b'[' && first != b')' && first != b']' {
+            out.push(" ")
+        } else if last == b',' {
+            out.push(" ")
+        }
+        out.push(line)
+    }
+    return out.replace(",)", ")").replace(",]", "]")
+}
+
+// Where a declaration's text starts after its attributes.
+fn afterAttributes(src: str, start: int, attributes: &List<Attribute>) int {
+    if attributes.len() == 0 {
+        return start
+    }
+    let pos = attributes[attributes.len() - 1].span.end
+    for pos < src.len() && (src[pos] == b' ' || src[pos] == b'\t' || src[pos] == b'\n') {
+        pos += 1
+    }
+    return pos
+}
+
+// The text from `start` up to the first `{` before `end`, or to `end`.
+fn header(src: str, start: int, end: int) str {
+    let pos = start
+    for pos < end && src[pos] != b'{' {
+        pos += 1
+    }
+    return oneLine(src.slice(start, pos))
+}
+
+// A page being written: the text of its module, its comments and its HTML.
+struct Page {
+    src: str
+    docs: Comments
+    out: str
+
+    // The comment of the declaration that starts at `start`, as HTML.
+    fn doc(self, start: int) str {
+        if const Option.Some(text) = self.docs.before.get(start) {
+            return renderDoc(text)
+        }
+        return "".toOwned()
+    }
+
+    // A declaration: its anchor, signature and comment.
+    fn entry(mut self, anchor: str, signature: str, start: int) {
+        const doc = self.doc(start)
+        self.out.push("<section class=\"decl\" id=\"{escape(anchor)}\">\n")
+        self.out.push("<pre class=\"signature\"><code>{escape(signature)}</code></pre>\n")
+        if doc.len() > 0 {
+            self.out.push("<div class=\"doc\">\n{doc}</div>\n")
+        }
+    }
+
+    fn function(mut self, names: &Interner, decl: &FnDecl, owner: str) {
+        const start = afterAttributes(self.src, decl.span.start, &decl.attributes)
+        const end = match decl.body {
+            Option.Some(body) => body.span.start
+            Option.None => decl.span.end
+        }
+        let anchor = owner.toOwned()
+        anchor.push(names.name(decl.name))
+        self.entry(anchor, oneLine(self.src.slice(start, end)), decl.span.start)
+        self.out.push("</section>\n")
+    }
+
+    fn methods(mut self, names: &Interner, methods: &List<FnDecl>, owner: str, all: bool) {
+        for i in 0..methods.len() {
+            if all || methods[i].isPub {
+                self.function(names, &methods[i], owner)
+            }
+        }
+    }
+
+    fn field(mut self, names: &Interner, field: &FieldDecl, owner: str) {
+        const Option.Some(name) = field.name else {
+            return
+        }
+        const start = afterAttributes(self.src, field.span.start, &field.attributes)
+        let anchor = owner.toOwned()
+        anchor.push(names.name(name))
+        self.entry(anchor, oneLine(self.src.slice(start, field.span.end)), field.span.start)
+        self.out.push("</section>\n")
+    }
+
+    fn variant(mut self, names: &Interner, variant: &Variant, owner: str) {
+        let anchor = owner.toOwned()
+        anchor.push(names.name(variant.name))
+        const text = oneLine(self.src.slice(variant.span.start, variant.span.end))
+        self.entry(anchor, text, variant.span.start)
+        self.out.push("</section>\n")
+    }
+
+    fn item(mut self, names: &Interner, item: &Item) {
+        const name = names.name(item.name).toOwned()
+        const start = afterAttributes(self.src, item.span.start, &item.attributes)
+        const owner = "{name}."
+        match item.kind {
+            ItemKind.Fn(decl) => self.function(names, &*decl, "")
+            ItemKind.Struct(_, _, _, _, fields, methods) => {
+                self.entry(name, header(self.src, start, item.span.end), item.span.start)
+                for i in 0..fields.len() {
+                    if fields[i].isPub {
+                        self.field(names, &fields[i], owner)
+                    }
+                }
+                self.methods(names, &methods, owner, false)
+                self.out.push("</section>\n")
+            }
+            ItemKind.Enum(_, _, variants, methods) => {
+                self.entry(name, header(self.src, start, item.span.end), item.span.start)
+                for i in 0..variants.len() {
+                    self.variant(names, &variants[i], owner)
+                }
+                self.methods(names, &methods, owner, false)
+                self.out.push("</section>\n")
+            }
+            ItemKind.Interface(_, _, methods) => {
+                self.entry(name, header(self.src, start, item.span.end), item.span.start)
+                self.methods(names, &methods, owner, true)
+                self.out.push("</section>\n")
+            }
+            ItemKind.Const(_, _) | ItemKind.Global(_, _) | ItemKind.TypeAlias(_, _) => {
+                self.entry(name, oneLine(self.src.slice(start, item.span.end)), item.span.start)
+                self.out.push("</section>\n")
+            }
+            _ => {}
+        }
+    }
+}
+
+// The start of a page, up to its `<body>`.
+fn head(title: str) str {
+    let out = "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
+    out.push("<title>{escape(title)}</title>\n<style>\n")
+    out.push("body \{ font-family: sans-serif; max-width: 50em; margin: 2em auto; ")
+    out.push("padding: 0 1em; line-height: 1.5; \}\n")
+    out.push("pre \{ background: #f4f4f4; padding: 0.5em; overflow-x: auto; \}\n")
+    out.push(".decl \{ border-top: 1px solid #ddd; margin-top: 1em; \}\n")
+    out.push(".decl .decl \{ margin-left: 2em; \}\n")
+    out.push(".deprecated \{ background: #fff3cd; padding: 0.5em; \}\n")
+    out.push("</style>\n</head>\n<body>\n")
+    return out
+}
+
+/**
+ * The page of a module.
+ *
+ * @param name the module's name
+ * @param src its text
+ * @param module its syntax tree
+ * @param names the interner of the tree's names
+ * @param docs its comments (`comments`)
+ * @returns the HTML page
+ */
+pub fn modulePage(name: str, src: str, module: &Module, names: &Interner,
+                  docs: move Comments) str {
+    let page = Page{src: src.toOwned(), docs, out: head(name)}
+    page.out.push("<nav><a href=\"index.html\">Index</a></nav>\n")
+    page.out.push("<h1>Module <code>{escape(name)}</code></h1>\n")
+    if page.docs.module.len() > 0 {
+        const text = renderDoc(page.docs.module)
+        page.out.push(text)
+    }
+    for i in 0..module.items.len() {
+        if module.items[i].isPub {
+            page.item(names, &module.items[i])
+        }
+    }
+    page.out.push("</body>\n</html>\n")
+    return page.out
+}
+
+/**
+ * The index page.
+ *
+ * @param modules the name of each module, in order
+ * @param docs the text of each one's module comment
+ * @returns the HTML page that links to each module's page, with the first
+ *          paragraph of its comment
+ */
+pub fn indexPage(modules: &List<str>, docs: &List<str>) str {
+    let out = head("Modules")
+    out.push("<h1>Modules</h1>\n<dl>\n")
+    for i in 0..modules.len() {
+        const name = escape(modules[i])
+        out.push("<dt><a href=\"{name}.html\"><code>{name}</code></a></dt>\n")
+        out.push("<dd>{summary(docs[i])}</dd>\n")
+    }
+    out.push("</dl>\n</body>\n</html>\n")
+    return out
+}

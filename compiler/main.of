@@ -6,6 +6,7 @@
  *     ofir build <file.of>   compile a program
  *     ofir run <file.of>     compile and run a program
  *     ofir test <file.of>    compile and run the `@test` functions
+ *     ofir doc [paths]       write HTML documentation (compiler/doc)
  *     ofir lsp               run the language server (compiler/lsp)
  *     ofir version           print the compiler version
  */
@@ -20,6 +21,7 @@ import diag.Diagnostics
 import diag.Format
 import diag.Severity
 import diag.jsonNoSource
+import doc.docCommand
 import driver.cfg.CfgTarget
 import driver.explain.explain
 import fmt.fmtCommand
@@ -52,6 +54,8 @@ fn printUsage() {
              + "  explain <code>    explain an error or warning code, as E0600\n"
              + "  fmt [paths]       format the source files (--check: list those that would "
              + "change; --stdout: print them)\n"
+             + "  doc [paths]       write HTML documentation to build/doc (-o: another "
+             + "directory; --stdout: print it)\n"
              + "  lsp               run the language server on standard input and output\n"
              + "  version           print the compiler version\n\noptions:\n"
              + "  -o <path>                 output path\n"
@@ -178,6 +182,13 @@ fn main() {
             rest.push(args[i].clone())
         }
         os.exit(fmtCommand(rest))
+    }
+    if command == "doc" {
+        let rest: List<str> = []
+        for i in 2..args.len() {
+            rest.push(args[i].clone())
+        }
+        os.exit(docCommand(rest))
     }
     if command == "lsp" {
         os.exit(lspCommand())

@@ -10,6 +10,7 @@
 | `borrow/` | ownership and borrow checker cases |
 | `codegen/` | `*.of` with `// CHECK:` lines matched against the LLVM IR |
 | `fmt/` | `*.of` + `*.fmt`: `ofir fmt --stdout` output, which must format to itself (stage 1) |
+| `doc/` | `*.of` + `*.html`: `ofir doc --stdout` output (stage 1) |
 | `lsp/` | `*.of` + optional `*.lsp` (client messages) + `*.out`: `ofir lsp` messages (stage 1) |
 | `selfhost/` | stage 2 == stage 3 verification |
 

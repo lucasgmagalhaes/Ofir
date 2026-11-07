@@ -249,9 +249,9 @@ These gaps remain:
 | 6.3a | `ofir lsp`: JSON-RPC on stdio, documents synchronized whole, diagnostics published; **done** (stage 1): `compiler/lsp`, `tests/lsp` | M |
 | 6.3b | Go to definition; **done** (stage 1): links recorded by the resolver and the type checker, `tests/lsp/definition` | M |
 | 6.3c | Completion; **done** (stage 1): a probe the resolver and the type checker report with the names visible there, `tests/lsp/completion` | M |
-| 6.4 | `ofir doc` and doc tests, in the steps below | M |
+| 6.4 | `ofir doc` and doc tests, in the steps below; **done** | M |
 | 6.4a | Doc tests: the ```` ```ofir ```` blocks of documentation comments run under `ofir test`; **done** (stage 1): `compiler/driver/doctest.of`, `tests/ofir_doctest`, the examples of std and `compiler/` | S |
-| 6.4b | `ofir doc`: HTML documentation from the doc comments | M |
+| 6.4b | `ofir doc`: HTML documentation from the doc comments; **done** (stage 1): `compiler/doc`, `tests/doc` | M |
 | 6.5 | Package manager: `ofir.json` dependencies, lock file, registry design | L |
 | 6.6 | Incremental and parallel compilation | L |
 | 6.7 | Seeded `Map` hasher, labeled loops, const generics | M |

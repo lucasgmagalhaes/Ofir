@@ -18,6 +18,9 @@ project uses [Semantic Versioning](https://semver.org/).
   documentation comments are compiled and run as tests, `no_run` blocks
   only compiled and `ignore` blocks skipped (spec 12.5, roadmap 6.4a).
   The examples of std and `compiler/` now compile and pass.
+- `ofir doc`: an HTML page for each module, with its public declarations,
+  their signatures and the Markdown and tags of their documentation
+  comments, and an index (roadmap 6.4b).
 
 ### Changed
 

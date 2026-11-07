@@ -1,0 +1,148 @@
+/**
+ * @module
+ * A documentation comment as HTML, for `ofir doc`: its text, then a section
+ * for each of its tags (ADR 0020). A tag's section runs up to the next line
+ * that starts with a tag.
+ */
+
+import doc.markdown.blocks
+import doc.markdown.escape
+
+// Whether `line` starts with a tag: `@` and a letter.
+fn isTag(line: str) bool {
+    return line.len() > 1 && line[0] == b'@' && line[1] >= b'a' && line[1] <= b'z'
+}
+
+// The name of the tag `line` starts with, without its `@`.
+fn tagName(line: str) str {
+    let end = 1
+    for end < line.len() && line[end] != b' ' && line[end] != b'\t' {
+        end += 1
+    }
+    return line.slice(1, end).toOwned()
+}
+
+// The title of a tag's section.
+fn title(tag: str) str {
+    if tag == "returns" {
+        return "Returns".toOwned()
+    } else if tag == "panics" {
+        return "Panics".toOwned()
+    } else if tag == "safety" {
+        return "Safety".toOwned()
+    } else if tag == "example" {
+        return "Example".toOwned()
+    } else if tag == "see" {
+        return "See also".toOwned()
+    }
+    return "@{tag}"
+}
+
+// The first word of `text`, and the rest after the spaces that follow it.
+fn firstWord(text: str) (str, str) {
+    let end = 0
+    for end < text.len() && text[end] != b' ' {
+        end += 1
+    }
+    return (text.slice(0, end).toOwned(), text.sliceFrom(end).trim().toOwned())
+}
+
+// One tag of a comment: its name and its lines, the first without the tag.
+struct Section {
+    tag: str
+    lines: List<str>
+}
+
+// The sections of the tags of `lines` from `from`.
+fn sections(lines: &List<str>, from: int) List<Section> {
+    let out: List<Section> = []
+    let fenced = false
+    for i in from..lines.len() {
+        const line = lines[i].clone()
+        if !fenced && isTag(line) {
+            const tag = tagName(line)
+            const rest = line.sliceFrom(tag.len() + 1).trim().toOwned()
+            out.push(Section{tag, lines: [rest]})
+        } else if out.len() > 0 {
+            out[out.len() - 1].lines.push(line.clone())
+        }
+        if line.trim().startsWith("```") {
+            fenced = !fenced
+        }
+    }
+    return out
+}
+
+// The index of the first line that starts with a tag, outside the fenced
+// blocks, or the number of lines.
+fn firstTag(lines: &List<str>) int {
+    let fenced = false
+    for i in 0..lines.len() {
+        if !fenced && isTag(lines[i]) {
+            return i
+        }
+        if lines[i].trim().startsWith("```") {
+            fenced = !fenced
+        }
+    }
+    return lines.len()
+}
+
+// The `<dl>` of the `@param` or `@typeParam` sections, under `heading`.
+fn named(all: &List<Section>, tag: str, heading: str) str {
+    let out = ""
+    for i in 0..all.len() {
+        if all[i].tag != tag {
+            continue
+        }
+        const parts = firstWord(all[i].lines[0])
+        let lines = all[i].lines.clone()
+        lines[0] = parts.1.clone()
+        if out.len() == 0 {
+            out.push("<h4>{heading}</h4>\n<dl>\n")
+        }
+        out.push("<dt><code>{escape(parts.0)}</code></dt>\n")
+        out.push("<dd>{blocks(&lines, 0, lines.len())}</dd>\n")
+    }
+    if out.len() > 0 {
+        out.push("</dl>\n")
+    }
+    return out
+}
+
+/**
+ * The HTML of a documentation comment.
+ *
+ * @param text its text, a line for each line of the comment without the
+ *             `*` that starts it
+ * @returns its text and the sections of its tags: `@deprecated` before
+ *          the text, `@typeParam` and `@param` as lists, the others in
+ *          their order
+ */
+pub fn renderDoc(text: str) str {
+    let lines: List<str> = []
+    for part in text.split("\n") {
+        lines.push(part.toOwned())
+    }
+    const first = firstTag(&lines)
+    const all = sections(&lines, first)
+    let out = ""
+    for i in 0..all.len() {
+        if all[i].tag == "deprecated" {
+            const body = blocks(&all[i].lines, 0, all[i].lines.len())
+            out.push("<div class=\"deprecated\"><strong>Deprecated.</strong>\n{body}</div>\n")
+        }
+    }
+    out.push(blocks(&lines, 0, first))
+    out.push(named(&all, "typeParam", "Type parameters"))
+    out.push(named(&all, "param", "Parameters"))
+    for i in 0..all.len() {
+        const tag = all[i].tag.clone()
+        if tag == "deprecated" || tag == "param" || tag == "typeParam" || tag == "module" {
+            continue
+        }
+        out.push("<h4>{escape(title(tag))}</h4>\n")
+        out.push(blocks(&all[i].lines, 0, all[i].lines.len()))
+    }
+    return out
+}
