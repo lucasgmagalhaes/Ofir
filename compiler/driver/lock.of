@@ -3,7 +3,9 @@
  * `ofir.lock` (ADR 0032): the git packages a program was resolved to,
  * next to its `ofir.json`. It is generated JSON, sorted by name: each
  * package's repository, its version (or the `rev` or `branch` it follows),
- * its commit and the checksum of its files. Path dependencies are not in it.
+ * its commit and the checksum of its files. A registry package has its
+ * index and version instead of a repository and a commit. Path dependencies
+ * are not in it.
  */
 
 import diag.jsonString
@@ -18,13 +20,15 @@ import std.fs
 pub struct Locked {
     /** The key it is reached by first. */
     pub name: str
-    /** Its repository: a URL, or a canonical local path. */
+    /** Its repository: a URL, or a canonical local path; empty for the registry. */
     pub git: str
+    /** The index of the registry it comes from; empty for a git package. */
+    pub registry: str
     /** Its version, without `v`; empty when it follows `rev`. */
     pub version: str
     /** The `rev` or `branch` it follows; empty when it has a version. */
     pub rev: str
-    /** The commit it is at. */
+    /** The commit it is at; empty for a registry package. */
     pub commit: str
     /** The SHA-256 of its files (`checksum`); empty in a lock that has none. */
     pub checksum: str
@@ -51,15 +55,32 @@ pub fn readLock(dir: str) List<Locked> {
     for node in doc.elements(list) {
         const entry = Locked{name: doc.text(doc.field(node, "name")),
                              git: doc.text(doc.field(node, "git")),
+                             registry: doc.text(doc.field(node, "registry")),
                              version: doc.text(doc.field(node, "version")),
                              rev: doc.text(doc.field(node, "rev")),
                              commit: doc.text(doc.field(node, "commit")),
                              checksum: doc.text(doc.field(node, "checksum"))}
-        if entry.git.len() > 0 && entry.commit.len() > 0 {
+        const fromGit = entry.git.len() > 0 && entry.commit.len() > 0
+        const fromRegistry = entry.registry.len() > 0 && entry.version.len() > 0
+        if fromGit || fromRegistry {
             out.push(entry)
         }
     }
     return out
+}
+
+/**
+ * Where a locked package comes from, as `driver.resolve` names it: its
+ * repository, or `<index>#<name>` for the registry.
+ *
+ * @param p the package
+ * @returns its source
+ */
+pub fn sourceOf(p: &Locked) str {
+    if p.registry.len() > 0 {
+        return "{p.registry}#{p.name}"
+    }
+    return p.git.clone()
 }
 
 /**
@@ -81,13 +102,19 @@ pub fn lockText(packages: &List<Locked>) str {
     for k in 0..order.len() {
         const p = &packages[order[k]]
         out.push(if k > 0 { ",\n" } else { "\n" })
-        out.push("    \{\"name\": {jsonString(p.name)}, \"git\": {jsonString(p.git)}, ")
-        if p.version.len() > 0 {
-            out.push("\"version\": {jsonString(p.version)}, ")
+        out.push("    \{\"name\": {jsonString(p.name)}, ")
+        if p.registry.len() > 0 {
+            out.push("\"registry\": {jsonString(p.registry)}, ")
+            out.push("\"version\": {jsonString(p.version)}")
         } else {
-            out.push("\"rev\": {jsonString(p.rev)}, ")
+            out.push("\"git\": {jsonString(p.git)}, ")
+            if p.version.len() > 0 {
+                out.push("\"version\": {jsonString(p.version)}, ")
+            } else {
+                out.push("\"rev\": {jsonString(p.rev)}, ")
+            }
+            out.push("\"commit\": {jsonString(p.commit)}")
         }
-        out.push("\"commit\": {jsonString(p.commit)}")
         if p.checksum.len() > 0 {
             out.push(", \"checksum\": {jsonString(p.checksum)}")
         }
@@ -167,5 +194,5 @@ fn before(a: &Locked, b: &Locked) bool {
     if a.name != b.name {
         return a.name < b.name
     }
-    return a.git < b.git
+    return sourceOf(a) < sourceOf(b)
 }
