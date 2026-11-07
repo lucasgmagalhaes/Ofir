@@ -12,6 +12,9 @@ project uses [Semantic Versioning](https://semver.org/).
   Ofir module, with `hidden` and `linkonce_odr` linkage between them;
   `--codegen-units=1` keeps one module, and `--emit=llvm` is unchanged
   (roadmap 6.6c, ADR 0033).
+- `-j N` (`--jobs N`): the codegen units are compiled by at most `N`
+  clang processes at a time, by default one per core, then linked in one
+  more clang call (roadmap 6.6d).
 - `os.spawn` starts a program without waiting for it, `Child.wait` waits
   for it, and `os.cpuCount` counts the processors; `os.run` is `spawn`
   followed by `wait`, and the output of a program goes to temporary files
@@ -50,6 +53,9 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Stage 1 computes the layout of each struct and enum once per module it
+  generates; the layout of nested enums took exponential time, and a
+  self-compile spent most of its code generation there.
 - `let` declares a mutable binding and `const` an immutable one, in
   functions and at module level; `if let` and `let ... else` are now
   `if const` and `const ... else`. `var` is no longer a keyword (ADR 0031).
