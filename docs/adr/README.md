@@ -40,6 +40,7 @@ changed by writing a new record that supersedes the old one.
 | [0032](0032-packages.md) | Packages: dependencies in `ofir.json`, `ofir.lock`, one version each | Accepted |
 | [0033](0033-codegen-units.md) | Incremental and parallel builds: codegen units and an object cache | Accepted |
 | [0034](0034-seeded-map-hasher.md) | Seeded `Map` hashing: SipHash keys and a per-map seed | Accepted |
+| [0035](0035-comptime.md) | Compile-time code checked once and expanded per instance | Accepted |
 
 ## Template
 
