@@ -20,6 +20,7 @@
  * loans that may be alive and the conflicting accesses to them.
  */
 
+import base.intern.Symbol
 import base.span.Span
 import sema.borrows.Access
 import sema.borrows.Loan
@@ -285,6 +286,8 @@ pub struct LoopFrame {
     pub continues: State
     /** `Moves.scope.len()` before the loop's variables. */
     pub scope: int
+    /** The label of `name: for`. */
+    pub label: Option<Symbol>
 }
 
 /**
@@ -546,15 +549,15 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
             s.dead = true
         }
         StmtKind.Break => {
-            const last = m.loops.len() - 1
-            if last >= 0 {   // else E0309 was reported
+            const last = jumpTarget(m, stmt)
+            if last >= 0 {   // else E0309 or E0323 was reported
                 endScope(m, c, s, m.loops[last].scope, stmt.span)
                 m.loops[last].breaks.join(&s)
             }
             s.dead = true
         }
         StmtKind.Continue => {
-            const last = m.loops.len() - 1
+            const last = jumpTarget(m, stmt)
             if last >= 0 {
                 endScope(m, c, s, m.loops[last].scope, stmt.span)
                 useHolder(m, c, s, m.holderBase + last)   // the next iteration
@@ -570,6 +573,27 @@ fn movesStmt(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, s: mut State
 
 // ---------------------------------------------------------------------------
 // Loops
+
+// The loop a `break` or `continue` leaves: the innermost, or the one with
+// its label; -1 if there is none.
+fn jumpTarget(m: Moves, stmt: &Stmt) int {
+    let i = m.loops.len()
+    const label = match stmt.label {
+        Option.Some(l) => l
+        Option.None => {
+            return i - 1
+        }
+    }
+    for i > 0 {
+        i -= 1
+        if const Option.Some(name) = m.loops[i].label {
+            if name.0 == label.0 {
+                return i
+            }
+        }
+    }
+    return -1
+}
 
 fn isRange(stmt: &Stmt) bool {
     return match stmt.kind {
@@ -685,7 +709,8 @@ fn loopLoans(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut Stat
 // once more to report. Errors reported twice are rendered once.
 fn loopBody(m: mut Moves, c: mut Checker, p: Program, stmt: &Stmt, st: mut State) {
     loopLoans(m, c, p, stmt, st)
-    m.loops.push(LoopFrame{breaks: deadState(), continues: deadState(), scope: m.scope.len()})
+    m.loops.push(LoopFrame{breaks: deadState(), continues: deadState(), scope: m.scope.len(),
+                             label: stmt.label})
     const last = m.loops.len() - 1
     let entry = st.dup()
     let exit = iteration(m, c, p, stmt, &entry)
