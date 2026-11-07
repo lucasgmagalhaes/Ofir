@@ -301,6 +301,8 @@ pub struct Stmt {
     pub kind: StmtKind
     /** Where it is written. */
     pub span: Span
+    /** The label of `name: for`, `break name` or `continue name`. */
+    pub label: Option<Symbol>
 }
 
 /**

@@ -106,6 +106,8 @@ pub copy struct LoopTarget {
     pub scopes: int
     /** The temporary scopes open outside the loop. */
     pub tempScopes: int
+    /** The label of `name: for`. */
+    pub label: Option<Symbol>
 }
 
 /** The drop flag of a part of a local that is moved out somewhere. */

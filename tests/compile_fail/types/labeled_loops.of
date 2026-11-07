@@ -1,0 +1,63 @@
+// requires: stage1
+// A label names an enclosing loop, once (spec 4.4); a jump to it moves
+// like any other `break` or `continue` (spec 5.1).
+
+fn take(s: move str) {}
+
+fn unknown() {
+    outer: for {
+        for {
+            break inner   // error[E0323]: no enclosing loop is labeled `inner`
+        }
+        continue other   // error[E0323]: no enclosing loop is labeled `other`
+    }
+}
+
+fn reused() {
+    rows: for i in 0..2 {
+        rows: for j in 0..2 {   // error[E0324]: the label `rows` is already used by an enclosing loop
+            break rows
+        }
+    }
+}
+
+fn outside() {
+    again: for i in 0..2 {}
+    break again   // error[E0309]: `break` outside of a loop
+}
+
+fn movedThenUsed() {
+    const s = "x".clone()
+    outer: for {
+        for {
+            take(s)
+            break outer
+        }
+    }
+    println(s)   // error[E0600]: use of moved value `s`
+}
+
+fn movedInAnEarlierIteration(flag: bool) {
+    const s = "x".clone()
+    outer: for i in 0..3 {
+        for {
+            if flag {
+                take(s)   // error[E0600]: use of moved value `s`
+                continue outer
+            }
+            break
+        }
+    }
+}
+
+fn movedThenLeft() {
+    const s = "x".clone()
+    outer: for {
+        for {
+            take(s)
+            break outer
+        }
+    }
+}
+
+fn main() {}

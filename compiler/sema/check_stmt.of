@@ -4,6 +4,7 @@
  * stage 0: bootstrap/src/sema/check_stmt.c and check_match.c).
  */
 
+import base.intern.Symbol
 import base.span.Span
 import sema.check.Checker
 import sema.check_closure.noteWrite
@@ -148,9 +149,17 @@ fn assignStmt(c: mut Checker, p: Program, s: &Stmt, op: Op, target: &Expr, value
     return UNIT
 }
 
-fn loopBody(c: mut Checker, p: Program, body: &Block, infinite: bool) int {
+fn loopBody(c: mut Checker, p: Program, s: &Stmt, body: &Block, infinite: bool) int {
+    if const Option.Some(label) = s.label {
+        if loopLabeled(c, label) >= 0 {
+            c.error("E0324", s.span, "the label `{c.r.names.name(label)}` is already used by an "
+                    + "enclosing loop")
+        }
+    }
     c.loops.push(false)
+    c.loopLabels.push(s.label)
     checkBlock(c, p, body, ERROR, false)
+    const _ = c.loopLabels.pop()
     const broken = c.loops.pop() ?? false
     // An infinite loop without `break` never finishes.
     return if infinite && !broken { NEVER } else { UNIT }
@@ -199,11 +208,11 @@ fn forIn(c: mut Checker, p: Program, s: &Stmt, iterable: &Expr, two: bool, body:
             if local >= 0 {
                 c.localTypes[local] = ty
             }
-            return loopBody(c, p, body, false)
+            return loopBody(c, p, s, body, false)
         }
         _ => {
             checkForCollection(c, p, s, iterable, two)
-            return loopBody(c, p, body, false)
+            return loopBody(c, p, s, body, false)
         }
     }
 }
@@ -212,12 +221,12 @@ fn forStmt(c: mut Checker, p: Program, s: &Stmt) int {
     match s.kind {
         StmtKind.For(kind, _, _, second, expr, body) => {
             return match kind {
-                ForKind.Infinite => loopBody(c, p, &body, true)
+                ForKind.Infinite => loopBody(c, p, s, &body, true)
                 ForKind.Cond => {
                     if const Option.Some(cond) = expr {
                         coerce(c, p, &cond, BOOL)
                     }
-                    loopBody(c, p, &body, false)
+                    loopBody(c, p, s, &body, false)
                 }
                 ForKind.In => match expr {
                     Option.Some(iterable) => forIn(c, p, s, &iterable, second.isSome(), &body)
@@ -245,11 +254,32 @@ fn jumpStmt(c: mut Checker, s: &Stmt, isBreak: bool) int {
     if c.loops.len() == 0 {
         c.error("E0309", s.span, "`{if isBreak { "break" } else { "continue" }}` outside of a "
                 + "loop")
+    } else if const Option.Some(label) = s.label {
+        const i = loopLabeled(c, label)
+        if i < 0 {
+            c.error("E0323", s.span, "no enclosing loop is labeled `{c.r.names.name(label)}`")
+        } else if isBreak {
+            c.loops[i] = true
+        }
     } else if isBreak {
         const last = c.loops.len() - 1
         c.loops[last] = true
     }
     return NEVER
+}
+
+// The open loop with this label, innermost first, or -1.
+fn loopLabeled(c: Checker, label: Symbol) int {
+    let i = c.loopLabels.len()
+    for i > 0 {
+        i -= 1
+        if const Option.Some(name) = c.loopLabels[i] {
+            if name.0 == label.0 {
+                return i
+            }
+        }
+    }
+    return -1
 }
 
 // An `if`, `match` or block used as a statement: its branches are not values.

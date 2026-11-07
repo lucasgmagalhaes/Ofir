@@ -1,0 +1,15 @@
+0 0
+0 1
+1 0
+1 1
+2 0
+2 1
+n = 5
+a
+c
+drop b00
+drop a0
+drop b10
+drop a1
+inner 0 0
+inner 1 0

@@ -307,8 +307,12 @@ struct Printer {
                 const text = if op == Op.Assign { "" } else { opText(op) }
                 self.withChildren("assign {text}=", &target, Option.Some(&value), names)
             }
-            StmtKind.For(kind, mutable, first, second, expr, body) =>
+            StmtKind.For(kind, mutable, first, second, expr, body) => {
+                if const Option.Some(label) = s.label {
+                    self.line("label {names.name(label)}")
+                }
                 self.forStmt(kind, mutable, first, second, &expr, &body, names)
+            }
             StmtKind.Return(value) => {
                 self.line("return")
                 if const Option.Some(e) = value {
@@ -317,8 +321,8 @@ struct Printer {
                     self.depth -= 1
                 }
             }
-            StmtKind.Break => self.line("break")
-            StmtKind.Continue => self.line("continue")
+            StmtKind.Break => self.line("break{labelText(s.label, names)}")
+            StmtKind.Continue => self.line("continue{labelText(s.label, names)}")
             StmtKind.ExprStmt(e) => self.expr(&e, names)
         }
     }
@@ -573,6 +577,14 @@ fn typesText(types: List<TypeExpr>, names: Interner) str {
 fn nameOf(symbol: Option<Symbol>, names: Interner) str {
     return match symbol {
         Option.Some(s) => names.name(s)
+        Option.None => ""
+    }
+}
+
+// ` name` for a labeled `break` or `continue`, else "".
+fn labelText(label: Option<Symbol>, names: Interner) str {
+    return match label {
+        Option.Some(s) => " {names.name(s)}"
         Option.None => ""
     }
 }

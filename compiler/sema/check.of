@@ -512,6 +512,8 @@ pub struct Checker {
     pub selfType: int
     /** Per open loop: whether a `break` leaves it. */
     pub loops: List<bool>
+    /** Per open loop: its label, if it has one. */
+    pub loopLabels: List<Option<Symbol>>
     /** Above 0 inside an `unsafe` block or function. */
     pub unsafeDepth: int
     /** The `NodeId` of the function being checked, or -1. */
@@ -956,7 +958,7 @@ pub fn newChecker(p: Program, r: move Resolver) Checker {
                    arrayCoercions, dynCoercions, unionCoercions, moveFlags, fnMoves: Map.new(),
                    bodyChecked: Map.new(), movesPending: Map.new(),
                    generics: noGenerics(), locals: [], localTypes: [], ret: UNIT,
-                   selfType: ERROR, loops: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
+                   selfType: ERROR, loops: [], loopLabels: [], unsafeDepth: 0, fnNode: -1, fnDef: 0,
                    shorthandSpan: noSpan(), closures: [], closureMoves: [], capturesMut,
                    boundArgs: Map.new(), typeVars: [], typeVarTypes: [], aliasDef: 0,
                    mapped: Map.new(), inferNames: [], inferring: false, unions: Map.new(),

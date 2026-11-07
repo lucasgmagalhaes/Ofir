@@ -78,7 +78,9 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
     }
     const savedRet = c.ret
     const savedLoops = c.loops.clone()
+    const savedLabels = c.loopLabels.clone()
     c.loops = []
+    c.loopLabels = []
     c.closures.push(e.id.0)
     c.closureMoves.push(isMove)
     if result != ERROR {
@@ -101,6 +103,7 @@ pub fn checkClosure(c: mut Checker, p: Program, e: &Expr, params: &List<Param>,
     c.closures.pop()
     c.closureMoves.pop()
     c.loops = savedLoops
+    c.loopLabels = savedLabels
     c.ret = savedRet
     const fnExpected = c.types.kind(expected) == TyKind.Fn
     const owned = isMove || (captureCount(c, e.id.0) == 0 && fnExpected &&

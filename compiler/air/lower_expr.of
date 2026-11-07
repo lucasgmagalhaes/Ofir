@@ -908,7 +908,7 @@ fn lowerForIter(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &
     dropScopeEnter(l)   // the item, dropped at the end of each iteration
     ownLocal(l, c, p, item, true)
     l.loops.push(LoopTarget{breakTo: exit, continueTo: latch, scopes: l.scopes.len() - 1,
-                            tempScopes: l.tempScopes.len()})
+                            tempScopes: l.tempScopes.len(), label: stmt.label})
     const _ = lowerBlock(l, c, p, body, false)
     const _ = l.loops.pop()
     dropScopeLeave(l, c, p)
@@ -1809,7 +1809,7 @@ fn lowerForList(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, expr: &
             emitAssign(l, first, rvUse(opCopy(counter, I64)))
         }
     }
-    lowerLoopBody(l, c, p, body, latch, exit)
+    lowerLoopBody(l, c, p, body, latch, exit, stmt.label)
     switchTo(l, latch)   // counter < len: the increment cannot overflow
     emitAssign(l, counter, rvalue(RvalueKind.Binary, Op.Add, opCopy(counter, I64), opInt(1, I64)))
     emitGoto(l, header)
@@ -2652,18 +2652,20 @@ fn lowerAssign(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, op: Op, 
  * @param body the body
  * @param latch where `continue` goes
  * @param exit where `break` goes
+ * @param label the loop's label
  */
 pub fn lowerLoopBody(l: mut Lowerer, c: mut Checker, p: Program, body: &Block, latch: int,
-                     exit: int) {
+                     exit: int, label: Option<Symbol>) {
     l.loops.push(LoopTarget{breakTo: exit, continueTo: latch, scopes: l.scopes.len(),
-                            tempScopes: l.tempScopes.len()})
+                            tempScopes: l.tempScopes.len(), label: label})
     const _ = lowerBlock(l, c, p, body, false)
     const _ = l.loops.pop()
     emitGoto(l, latch)
 }
 
 // `for { }` and `for cond { }`.
-fn lowerWhile(l: mut Lowerer, c: mut Checker, p: Program, cond: Option<&Expr>, body: &Block) {
+fn lowerWhile(l: mut Lowerer, c: mut Checker, p: Program, cond: Option<&Expr>, body: &Block,
+              label: Option<Symbol>) {
     const header = l.body.newBlock()
     const bodyBlock = l.body.newBlock()
     const exit = l.body.newBlock()
@@ -2681,7 +2683,7 @@ fn lowerWhile(l: mut Lowerer, c: mut Checker, p: Program, cond: Option<&Expr>, b
         Option.None => emitGoto(l, bodyBlock)
     }
     switchTo(l, bodyBlock)
-    lowerLoopBody(l, c, p, body, header, exit)
+    lowerLoopBody(l, c, p, body, header, exit, label)
     switchTo(l, exit)
 }
 
@@ -2716,7 +2718,7 @@ fn lowerForRange(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, range:
             terminate(l, branch(go, bodyBlock, exit))
             switchTo(l, bodyBlock)
             emitAssign(l, c.localAt(stmt.id.0) + 1, rvUse(opCopy(counter, ty)))
-            lowerLoopBody(l, c, p, body, latch, exit)
+            lowerLoopBody(l, c, p, body, latch, exit, stmt.label)
             switchTo(l, latch)
             const step = l.body.newBlock()
             if inclusive {   // stop at hi itself, before an increment that could overflow
@@ -2735,11 +2737,32 @@ fn lowerForRange(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, range:
     }
 }
 
-fn lowerJump(l: mut Lowerer, c: mut Checker, p: Program, isBreak: bool) {
-    const loop = l.loops[l.loops.len() - 1]
+fn lowerJump(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt, isBreak: bool) {
+    const loop = l.loops[jumpTarget(l, stmt)]
     dropTemps(l, c, p, loop.tempScopes)
     dropScopes(l, c, p, loop.scopes)
     emitGoto(l, if isBreak { loop.breakTo } else { loop.continueTo })
+}
+
+// The loop a `break` or `continue` leaves: the innermost, or the one with
+// its label (the checker made sure there is one).
+fn jumpTarget(l: Lowerer, stmt: &Stmt) int {
+    let i = l.loops.len()
+    const label = match stmt.label {
+        Option.Some(name) => name
+        Option.None => {
+            return i - 1
+        }
+    }
+    for i > 0 {
+        i -= 1
+        if const Option.Some(name) = l.loops[i].label {
+            if name.0 == label.0 {
+                return i
+            }
+        }
+    }
+    return l.loops.len() - 1
 }
 
 fn lowerStmt(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt) {
@@ -2778,11 +2801,11 @@ fn lowerStmt(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt) {
                 }
             } else if kind == ForKind.Cond {
                 match expr {
-                    Option.Some(e) => lowerWhile(l, c, p, Option.Some(&e), &body)
+                    Option.Some(e) => lowerWhile(l, c, p, Option.Some(&e), &body, stmt.label)
                     Option.None => {}
                 }
             } else {
-                lowerWhile(l, c, p, Option.None, &body)
+                lowerWhile(l, c, p, Option.None, &body, stmt.label)
             }
         }
         StmtKind.Return(value) => {
@@ -2793,8 +2816,8 @@ fn lowerStmt(l: mut Lowerer, c: mut Checker, p: Program, stmt: &Stmt) {
             dropScopes(l, c, p, 0)
             terminate(l, terminator(TermKind.Return))
         }
-        StmtKind.Break => lowerJump(l, c, p, true)
-        StmtKind.Continue => lowerJump(l, c, p, false)
+        StmtKind.Break => lowerJump(l, c, p, stmt, true)
+        StmtKind.Continue => lowerJump(l, c, p, stmt, false)
         StmtKind.ExprStmt(e) => {
             const _ = lowerExpr(l, c, p, &e)
         }
