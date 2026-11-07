@@ -59,6 +59,14 @@ In a project test, errors in its `ofir.json` (a dependency that cannot
 be found, say) are annotated there, as JSONC comments on their line;
 the runner matches them by file, line and code.
 
+Git dependencies name repositories the runner builds before the tests:
+each directory `tests/git/<repo>/<X.Y.Z>/` is a commit tagged `vX.Y.Z` of
+`build/git-fixtures/<repo>`, made in version order with fixed authors and
+dates, so its hashes are the same on every machine. A project reaches
+one by a relative `git` path. Each test runs with its own `$OFIR_HOME`, a
+temporary directory, so tests running at once do not share a cache; the
+`ofir.lock` files they write hold absolute paths and are not committed.
+
 Stage 0 reports only the first error per function and has terser messages.
 When testing stage 0, the runner therefore checks only that the **first**
 annotated error of each function is reported with the right code and line,
