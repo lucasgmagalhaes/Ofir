@@ -192,7 +192,7 @@ pub struct List<T> {
      * @example
      * ```ofir
      * const xs = [10, 20]
-     * if const Some(x) = xs.get(1) {
+     * if const Option.Some(x) = xs.get(1) {
      *     println("{x}")   // 20
      * }
      * ```
@@ -213,7 +213,7 @@ pub struct List<T> {
      * @example
      * ```ofir
      * let xs = [1, 2]
-     * if const Some(x) = xs.getMut(0) {
+     * if const Option.Some(x) = xs.getMut(0) {
      *     *x = 10   // xs is [10, 2]
      * }
      * ```
@@ -272,7 +272,7 @@ pub struct List<T> {
      * ```ofir
      * const names = ["ana", "bia"]
      * for name in names.iter() {
-     *     println(*name)
+     *     println(name)
      * }
      * ```
      */
@@ -316,7 +316,7 @@ pub struct List<T> {
      * @example
      * ```ofir
      * let stack = [1, 2]
-     * assert(stack.pop() ?? 0 == 2)
+     * assert((stack.pop() ?? 0) == 2)
      * ```
      */
     pub fn pop(mut self) Option<T> {
@@ -401,8 +401,9 @@ pub struct List<T> {
      * @example
      * ```ofir
      * const names = ["ada".toOwned(), "alan".toOwned()]
-     * let copy = names.clone()
-     * copy.push("grace".toOwned())   // names keeps 2 elements
+     * let more = names.clone()
+     * more.push("grace".toOwned())
+     * assert(names.len() == 2 && more.len() == 3)
      * ```
      */
     pub fn clone(self) List<T> {

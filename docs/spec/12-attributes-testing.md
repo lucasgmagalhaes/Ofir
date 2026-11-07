@@ -111,7 +111,7 @@ every module of the program except the std modules, plus those of the root
 file, which may be a std module (`ofir test std/core/split.of` runs
 `std/core/split_test.of`); `make test-std` runs the
 tests of std. A test returns `()`; `Result` tests and `assertEq` await
-interfaces (roadmap 5.1). Doc tests are planned.
+interfaces (roadmap 5.1). Doc tests (12.5) run under stage 1 only.
 - `assertEq(a, b)` prints both values (using `Debug`) when they differ.
 
 ## 12.3 Benchmarks
@@ -205,6 +205,31 @@ pub fn max<T: Ord>(a: move T, b: move T) T { ... }
 
 Every public declaration of `std` is documented, and its tags match its
 signature (`tools/check_docs.py`).
+
+### Doc tests
+
+Under `ofir test`, each block fenced with ```` ```ofir ```` in a
+documentation comment of a tested module (the modules whose `@test`
+functions run, 12.2) is a doc test:
+
+- The block is a file of its own: its statements are the body of a test
+  function, and the functions, types and imports among them are its
+  top-level declarations. It sees only what it imports, as an example in a
+  user's program would: `import calc.add` to call `add` of `calc.of`.
+- Its code keeps the lines and columns it has in the comment, without the
+  leading `*`, so diagnostics and panics point into the comment.
+- It runs as a test (12.2) named after the module and the line of the
+  opening fence: `test calc:12 (doc test) ... ok`. It passes when it
+  returns, and fails on a panic or a compile error.
+- ```` ```ofir no_run ```` is compiled but not run (`(doc test, not run)`):
+  for examples that read standard input, write files or never end.
+- ```` ```ofir ignore ```` is neither compiled nor run, and neither is a
+  block in another language or with no language.
+- Unused variables and functions in a block are not reported (as under
+  `@allow(unused)`); the other warnings are.
+
+`ofir test --emit=...` prints the program without its doc tests. Stage 1
+implements doc tests; stage 0 ignores the blocks.
 
 ## 12.6 Warnings
 

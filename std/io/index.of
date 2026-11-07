@@ -41,8 +41,8 @@ pub copy enum IoErrorKind {
  * import std.fs
  *
  * match fs.readToString("missing.txt") {
- *     .Ok(text) => println(text)
- *     .Err(e) => eprintln("cannot read: {e.message}")
+ *     Result.Ok(text) => println(text)
+ *     Result.Err(e) => eprintln("cannot read: {e.message}")
  * }
  * ```
  */
@@ -146,15 +146,20 @@ pub struct Stdin {
      * @param buf where the line goes
      * @returns the number of bytes read: 0 at the end of the input
      * @example
-     * ```ofir
+     * ```ofir no_run
      * import std.io
      *
-     * let line = ""
-     * let input = io.stdin()
-     * for input.readLine(line)? > 0 {
-     *     print(line)
-     *     line.clear()
+     * fn echo() Result<(), io.IoError> {
+     *     let line = ""
+     *     let input = io.stdin()
+     *     for input.readLine(line)? > 0 {
+     *         print(line)
+     *         line.clear()
+     *     }
+     *     return Result.Ok(())
      * }
+     *
+     * echo().expect("stdin is readable")
      * ```
      */
     pub fn readLine(mut self, buf: mut str) Result<int, IoError> {
@@ -171,11 +176,12 @@ pub struct Stdin {
      * @param n how many bytes to read
      * @returns the bytes, as text: empty at the end of the input
      * @example
-     * ```ofir
+     * ```ofir no_run
      * import std.io
      *
      * let input = io.stdin()
-     * const head = input.read(4)?
+     * const head = input.read(4).expect("stdin is readable")
+     * println(head)
      * ```
      */
     pub fn read(mut self, n: int) Result<str, IoError> {

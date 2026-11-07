@@ -7,11 +7,13 @@
 import base.intern.Symbol
 import base.span.Span
 import syntax.ast.Attribute
+import syntax.ast.Block
 import syntax.ast.Expr
 import syntax.ast.ExprKind
 import syntax.ast.FnDecl
 import syntax.ast.Item
 import syntax.ast.ItemKind
+import syntax.ast.Stmt
 import syntax.ast.TypeExpr
 import syntax.ast.TypeKind
 import syntax.ast.WherePred
@@ -20,6 +22,7 @@ import syntax.parse_decls.parseFn
 import syntax.parse_decls.parseInterface
 import syntax.parse_decls.parseStruct
 import syntax.parse_exprs.parseExpr
+import syntax.parse_stmts.parseStmt
 import syntax.parse_types.parseType
 import syntax.parse_types.parseTypeParams
 import syntax.parser.Parser
@@ -253,4 +256,67 @@ pub fn moduleItems(p: mut Parser) List<Item> {
         }
     }
     return items
+}
+
+// Whether the next tokens start a declaration rather than a statement:
+// `const` and `let` start statements in a doc test.
+fn atItem(p: Parser) bool {
+    const kind = p.peek()
+    if kind == TokenKind.At || kind == TokenKind.Pub || kind == TokenKind.Fn ||
+        kind == TokenKind.Struct || kind == TokenKind.Enum || kind == TokenKind.Import ||
+        kind == TokenKind.Extern || kind == TokenKind.Interface || kind == TokenKind.Copy {
+        return true
+    }
+    if kind == TokenKind.Unsafe {
+        return p.peekAt(1) == TokenKind.Fn
+    }
+    if p.atWord(p.words.ref) {
+        return p.peekAt(1) == TokenKind.Struct
+    }
+    return p.atWord(p.words.type) && p.peekAt(1) == TokenKind.Ident
+}
+
+/**
+ * The declarations of a doc test (spec 12.5): first the function that
+ * runs it, `@test fn name() {}`, then the example, whose declarations stay
+ * at the top level and whose statements become that function's body.
+ *
+ * @param p the parser
+ * @returns the declarations, the function first
+ */
+pub fn docTestItems(p: mut Parser) List<Item> {
+    p.skipNewlines()
+    const header = parseItemHeader(p)
+    const start = header.span
+    const attributes = header.attributes.clone()
+    p.expect(TokenKind.Fn, "`fn`")
+    let decl = parseFn(p, header, true)
+    p.expectTerminator()
+    let items: List<Item> = []
+    let stmts: List<Stmt> = []
+    const body = p.here()
+    for !p.at(TokenKind.Eof) {
+        if atItem(p) {
+            if const Option.Some(it) = item(p) {
+                items.push(it)
+                p.expectTerminator()
+            }
+        } else {
+            stmts.push(parseStmt(p))
+            if !p.recovering {
+                p.expectTerminator()
+            }
+        }
+        if p.recovering {
+            p.synchronize()
+            p.accept(TokenKind.RBrace)
+            p.skipNewlines()
+        }
+    }
+    decl.body = Option.Some(Block{span: p.spanSince(body), stmts})
+    const name = decl.name
+    let all = [Item{kind: ItemKind.Fn(Box.new(decl)), span: p.spanSince(start), name, attributes,
+                    isPub: false, bounds: [], asserts: []}]
+    all.extend(items)
+    return all
 }

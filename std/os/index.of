@@ -110,7 +110,7 @@ struct Captured {
  * ```ofir
  * import std.os
  *
- * const out = os.run("clang", ["--version"])?
+ * const out = os.run("clang", ["--version"]).expect("clang is installed")
  * println(out.stdout)
  * ```
  */

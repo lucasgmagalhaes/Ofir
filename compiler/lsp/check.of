@@ -64,7 +64,7 @@ pub fn checkFile(path: str, overlays: &Map<str, str>, probe: str) Checked {
     }
     const target = CfgTarget{os: os.name(), arch: os.arch(), debug: true, test: false,
                              bench: false}
-    let program = loadProgram(path, parsed.module, front, target)
+    let program = loadProgram(path, parsed.module, front, target, false)
     if front.diags.hasErrors() {
         return Checked{map: front.map, diags: front.diags.reported(), links: [], completions: []}
     }

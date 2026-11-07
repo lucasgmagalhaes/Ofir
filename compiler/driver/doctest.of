@@ -1,0 +1,141 @@
+/**
+ * @module
+ * Doc tests (spec 12.5): each ```` ```ofir ```` block of a documentation
+ * comment is compiled and run by `ofir test`. The block becomes a file of
+ * its own, its code at the lines and columns it has in the comment, so
+ * that diagnostics point into the comment; the line of the opening fence
+ * holds the function that runs it (`syntax.parse_items.docTestItems`).
+ */
+
+import syntax.token.Token
+import syntax.token.TokenKind
+
+/**
+ * One block of a documentation comment.
+ */
+pub struct DocTest {
+    /** The line of its opening fence, from 1. */
+    pub line: int
+    /** The text it is compiled from: its code where it is in the file, blank lines before. */
+    pub text: str
+    /** False for ```` ```ofir no_run ````: compiled, not run. */
+    pub run: bool
+}
+
+// Whether `b` is a space or a tab.
+fn isBlank(b: u8) bool {
+    return b == b' ' || b == b'\t'
+}
+
+// A line of a documentation comment without its leading `*` and the space
+// after it, which become spaces: the columns stay those of the file.
+fn commentLine(line: str) str {
+    let i = 0
+    for i < line.len() && isBlank(line[i]) {
+        i += 1
+    }
+    if i < line.len() && line[i] == b'*' && !(i + 1 < line.len() && line[i + 1] == b'/') {
+        i += 1
+        if i < line.len() && line[i] == b' ' {
+            i += 1
+        }
+    }
+    let out = " ".repeat(i)
+    out.push(line.sliceFrom(i))
+    return out
+}
+
+// The words after the ``` of a fence, or `None` if `line` is not one.
+fn fenceInfo(line: str) Option<str> {
+    const trimmed = line.trim()
+    if !trimmed.startsWith("```") {
+        return Option.None
+    }
+    return Option.Some(trimmed.sliceFrom(3).trim().toOwned())
+}
+
+// The words of a fence's info string.
+fn infoWords(info: str) List<str> {
+    let words: List<str> = []
+    for part in info.replace(",", " ").splitWhitespace() {
+        words.push(part.toOwned())
+    }
+    return words
+}
+
+// Whether `words` contains `word`.
+fn hasWord(words: &List<str>, word: str) bool {
+    for i in 0..words.len() {
+        if words[i] == word {
+            return true
+        }
+    }
+    return false
+}
+
+// The blocks of the comment that starts at line `first` (`lines` are its
+// lines), added to `out`.
+fn commentTests(lines: &List<str>, first: int, out: mut List<DocTest>) {
+    let open = -1    // the index of the opening fence, -1 outside a block
+    let run = true
+    let ignored = false
+    for i in 0..lines.len() {
+        const line = commentLine(lines[i])
+        const Option.Some(info) = fenceInfo(line) else {
+            continue
+        }
+        if open >= 0 {
+            if !ignored {
+                let text = "\n".repeat(first + open - 1)
+                text.push("@test @allow(unused) fn doctest() \{\}\n")
+                for k in open + 1..i {
+                    text.push(commentLine(lines[k]))
+                    text.push("\n")
+                }
+                out.push(DocTest{line: first + open, text, run})
+            }
+            open = -1
+            continue
+        }
+        const words = infoWords(info)
+        open = i
+        if words.len() > 0 && words[0] == "ofir" {
+            run = !hasWord(&words, "no_run")
+            ignored = hasWord(&words, "ignore")
+        } else {
+            ignored = true   // a block in another language, or none: not a test
+        }
+    }
+}
+
+/**
+ * The doc tests of a file.
+ *
+ * @param text the file's text
+ * @param tokens its tokens
+ * @returns its ```` ```ofir ```` blocks, except those marked `ignore`
+ */
+pub fn docTests(text: str, tokens: &List<Token>) List<DocTest> {
+    let out: List<DocTest> = []
+    let line = 1
+    let pos = 0
+    for t in 0..tokens.len() {
+        const kind = tokens[t].kind
+        if kind != TokenKind.DocComment && kind != TokenKind.ModuleDoc {
+            continue
+        }
+        const start = tokens[t].span.start
+        for pos < start {
+            if text[pos] == b'\n' {
+                line += 1
+            }
+            pos += 1
+        }
+        let owned: List<str> = []
+        for part in text.slice(start, tokens[t].span.end).split("\n") {
+            owned.push(part.toOwned())
+        }
+        commentTests(&owned, line, out)
+    }
+    return out
+}

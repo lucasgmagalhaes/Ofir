@@ -118,8 +118,12 @@ pub struct str {
      * the end of the string
      * @example
      * ```ofir
+     * extern "C" {
+     *     fn strlen(s: *u8) int
+     * }
+     *
      * const c = "hello".toCString()
-     * const n = unsafe { strlen(c.ptr()) }   // 5
+     * assert(unsafe { strlen(c.ptr()) } == 5)
      * ```
      */
     pub fn toCString(self) CString {

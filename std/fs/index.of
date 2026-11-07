@@ -27,8 +27,14 @@ extern "C" {
  * @example
  * ```ofir
  * import std.fs
+ * import std.io
  *
- * const bytes = fs.read("data.bin")?
+ * fn size() Result<int, io.IoError> {
+ *     const bytes = fs.read("data.bin")?
+ *     return Result.Ok(bytes.len())
+ * }
+ *
+ * const _ = size()
  * ```
  */
 pub fn read(path: str) Result<List<u8>, IoError> {
@@ -45,8 +51,14 @@ pub fn read(path: str) Result<List<u8>, IoError> {
  * @example
  * ```ofir
  * import std.fs
+ * import std.io
  *
- * const text = fs.readToString("notes.txt")?
+ * fn length() Result<int, io.IoError> {
+ *     const text = fs.readToString("notes.txt")?
+ *     return Result.Ok(text.len())
+ * }
+ *
+ * const _ = length()
  * ```
  */
 pub fn readToString(path: str) Result<str, IoError> {
@@ -75,10 +87,10 @@ pub fn write(path: str, data: [u8]) Result<(), IoError> {
  * @param text its new contents
  * @returns `Ok(())` once everything is written
  * @example
- * ```ofir
+ * ```ofir no_run
  * import std.fs
  *
- * fs.writeString("out.txt", "hello\n")?
+ * fs.writeString("out.txt", "hello\n").expect("out.txt is writable")
  * ```
  */
 pub fn writeString(path: str, text: str) Result<(), IoError> {
@@ -107,7 +119,8 @@ pub fn exists(path: str) bool {
  * ```ofir
  * import std.fs
  *
- * const here = fs.canonicalize(".")?
+ * const here = fs.canonicalize(".").expect("the current directory exists")
+ * assert(here.startsWith("/"))
  * ```
  */
 pub fn canonicalize(path: str) Result<str, IoError> {
@@ -156,7 +169,7 @@ pub struct DirEntry {
  * ```ofir
  * import std.fs
  *
- * for entry in fs.readDir(".")? {   // stage 0: iterate with an index
+ * for entry in fs.readDir(".").expect("the current directory exists") {
  *     println(entry.name)
  * }
  * ```

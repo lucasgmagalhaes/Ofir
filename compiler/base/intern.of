@@ -15,6 +15,8 @@ pub copy struct Symbol(int)
  *
  * @example
  * ```ofir
+ * import base.intern.Interner
+ *
  * let names = Interner.new()
  * const a = names.intern("main")
  * assert(names.intern("main").0 == a.0 && names.name(a) == "main")
