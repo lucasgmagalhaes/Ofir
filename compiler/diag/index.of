@@ -72,6 +72,11 @@ pub struct Diagnostic {
  *
  * @example
  * ```ofir
+ * import base.span.FileId
+ * import base.span.Span
+ * import diag.Diagnostics
+ *
+ * const span = Span{file: FileId(0), start: 0, end: 1}
  * let diags = Diagnostics.new()
  * diags.error("E0001", span, "unexpected character")
  * assert(diags.hasErrors())
