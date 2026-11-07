@@ -380,18 +380,18 @@ it on.
 5. clang <flags> <name>.ll libofir_rt.a -o build/<profile>/<name>
 ```
 
-**[planned]** (ADR 0033, roadmap 6.6): step 4 writes one unit per source
-module, and step 5 becomes two steps. First, at most `-j N` clang
+(ADR 0033, roadmap 6.6): step 4 writes one unit per source module, and
+step 5 becomes two steps. First, at most `-j N` clang
 processes (`--jobs`, by default the number of cores) compile the units
 to objects. Then one more clang call links the objects with the runtime.
-An object whose unit's text, clang flags and clang version are unchanged
-is reused from `$OFIR_HOME/cache/objects`:
+**[planned]** (roadmap 6.6e): an object whose unit's text, clang flags
+and clang version are unchanged is reused from `$OFIR_HOME/cache/objects`:
 
 | Flag | Effect |
 |------|--------|
 | `-j N`, `--jobs N` | at most `N` clang processes at a time |
 | `--codegen-units=1` | one module for the whole program, as `--emit=llvm` writes |
-| `--no-cache` | neither read nor write the object cache |
+| `--no-cache` **[planned]** | neither read nor write the object cache |
 
 The cache holds at most `OFIR_CACHE_LIMIT` bytes (2 GiB by default). The
 objects used least recently are deleted first.
