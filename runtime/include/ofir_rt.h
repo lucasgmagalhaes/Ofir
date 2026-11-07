@@ -160,6 +160,7 @@ int32_t ofir_spawn(const uint8_t *args, int64_t len, int64_t count, void **child
 void ofir_wait(void *child, OfirRun *run);
 void ofir_child_free(void *child);
 int64_t ofir_cpu_count(void);
+uint64_t ofir_random_u64(void);
 int32_t ofir_run(const uint8_t *args, int64_t len, int64_t count, OfirRun *run);   // spawn, wait
 char *ofir_c_string(const uint8_t *ptr, int64_t len);   // NULL if it holds a NUL
 

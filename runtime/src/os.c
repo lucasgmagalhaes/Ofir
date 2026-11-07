@@ -3,6 +3,9 @@
 #if defined(__APPLE__)
 #define _DARWIN_C_SOURCE   // _SC_NPROCESSORS_ONLN
 #endif
+#ifdef _WIN32
+#define _CRT_RAND_S        // rand_s
+#endif
 
 #include "ofir_rt.h"
 
@@ -18,6 +21,10 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#if defined(__APPLE__) || defined(__linux__)
+#include <sys/types.h>
+#include <sys/random.h>    // getentropy
+#endif
 
 extern char **environ;
 #endif
@@ -395,4 +402,23 @@ int64_t ofir_now_ns(void) {
     clock_gettime(CLOCK_MONOTONIC, &t);
     return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec;
 #endif
+}
+
+// A random nonzero word from the operating system, for `Map.seeded()` (spec 2.6).
+uint64_t ofir_random_u64(void) {
+    uint64_t r = 0;
+#ifdef _WIN32
+    unsigned int lo = 0, hi = 0;
+    if (rand_s(&lo) == 0 && rand_s(&hi) == 0) {
+        r = (uint64_t)hi << 32 | lo;
+    }
+#else
+    if (getentropy(&r, sizeof r) != 0) {
+        r = 0;
+    }
+#endif
+    if (r == 0) {   // no entropy: fall back to the clock and an address
+        r = (uint64_t)ofir_now_ns() ^ (uint64_t)(uintptr_t)&r;
+    }
+    return r != 0 ? r : 1;
 }
