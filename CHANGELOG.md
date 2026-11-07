@@ -58,6 +58,9 @@ project uses [Semantic Versioning](https://semver.org/).
   line of JSON per published version; yanked versions are used only when
   locked, and archives are downloaded into `$OFIR_HOME/cache` and checked
   against the index's checksum (ADR 0032, roadmap 6.5e, stage 1).
+- Labeled loops: `name: for ...`, left from an inner loop with
+  `break name` or `continue name`; E0323 and E0324 report a label that no
+  enclosing loop has or that one already uses (roadmap 6.7, stage 1).
 
 ### Changed
 
