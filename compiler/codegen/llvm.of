@@ -169,6 +169,8 @@ pub struct Gen {
     pub vtDone: int
     /** Whether a vtable needs `@ofir.dyn.nodrop`. */
     pub noDrop: bool
+    /** By type: the layouts of the ADTs computed so far. */
+    pub layouts: Map<int, Layout>
 }
 
 fn hexDigit(n: u64) str {
@@ -236,7 +238,8 @@ pub fn newGen() Gen {
                fnValues: [], vtTypes: [], vtIfaces: [], vtDrops: [], vtIds: Map.new(),
                debug: false, di: DebugInfo.new(), scope: 0, dir: "", optimize: false,
                units: false, linkonce: false, linkAt: -1, declare: "", parts: [], links: [],
-               body: 0, fileNums: Map.new(), thunked: [], vtDone: 0, noDrop: false}
+               body: 0, fileNums: Map.new(), thunked: [], vtDone: 0, noDrop: false,
+               layouts: Map.new()}
 }
 
 fn nextTemp(g: mut Gen) str {
@@ -488,21 +491,31 @@ fn layout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
             const args = c.types.get(ty).args.clone()
             fieldsLayout(g, c, p, &args)
         }
-        TyKind.Adt => {
-            if c.def(data).kind == DefKind.Struct {
-                structLayout(g, c, p, ty)
-            } else if nicheVariant(g, c, p, ty) >= 0 {   // the pointer alone
-                layout(g, c, p, variantFieldType(c, p, ty, nicheVariant(g, c, p, ty), 0))
-            } else {
-                const words = payloadWords(g, c, p, ty)
-                const unit = payloadUnit(g, c, p, ty)
-                const size = if words > 0 { unit + unit * words } else { 4 }
-                const align = if words > 0 { unit } else { 4 }
-                Layout{size: size, align: align}
-            }
-        }
+        TyKind.Adt => adtLayout(g, c, p, ty)
         _ => Layout{size: 0, align: 1}
     }
+}
+
+// The layout of a struct or enum, computed once: an enum's layout reads
+// its variants' layouts more than once.
+fn adtLayout(g: mut Gen, c: mut Checker, p: Program, ty: int) Layout {
+    if const Option.Some(known) = g.layouts.get(ty) {
+        return *known
+    }
+    const data = c.types.get(ty).data
+    const l = if c.def(data).kind == DefKind.Struct {
+        structLayout(g, c, p, ty)
+    } else if nicheVariant(g, c, p, ty) >= 0 {   // the pointer alone
+        layout(g, c, p, variantFieldType(c, p, ty, nicheVariant(g, c, p, ty), 0))
+    } else {
+        const words = payloadWords(g, c, p, ty)
+        const unit = payloadUnit(g, c, p, ty)
+        const size = if words > 0 { unit + unit * words } else { 4 }
+        const align = if words > 0 { unit } else { 4 }
+        Layout{size: size, align: align}
+    }
+    g.layouts.insert(ty, l)
+    return l
 }
 
 // `<int, geo.Point>`: the type arguments of an instance, for its name.
